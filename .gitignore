@@ -1,0 +1,33 @@
+# Product docs kept local
+prd.md
+
+# Dependencies & build
+node_modules/
+dist/
+build/
+coverage/
+.nyc_output/
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+
+# Logs & OS
+logs/
+*.log
+.DS_Store
+Thumbs.db
+
+# Editors
+.idea/
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+# Solana / Anchor
+.anchor/
+target/
+test-ledger/
