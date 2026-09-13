@@ -1,7 +1,11 @@
 import type { ActivityFeed } from './activity';
 import type { StockAnalysis, StockOpportunity } from './analysis';
 import type { Equity, EquitySummary } from './equity';
-import type { Basket, PreparedTransaction } from './execution';
+import type {
+  Basket,
+  PreparedBasketPurchase,
+  PreparedTransaction,
+} from './execution';
 import type { ChartSeries } from './market';
 import type { MarketNewsItem } from './news';
 import type { Portfolio } from './portfolio';
@@ -38,6 +42,7 @@ export interface AgentChatResponse {
   threadId: string;
   message: AgentMessage;
   artifacts?: AgentArtifact[];
+  events?: AgentEvent[];
 }
 
 export type AgentArtifact =
@@ -45,9 +50,25 @@ export type AgentArtifact =
   | { type: 'quote'; data: Quote }
   | { type: 'analysis'; data: StockAnalysis }
   | { type: 'prepared_swap'; data: PreparedTransaction }
+  | { type: 'prepared_basket'; data: PreparedBasketPurchase }
   | { type: 'prepared_lock'; data: PreparedVaultTransaction }
   | { type: 'prepared_unlock'; data: PreparedVaultTransaction }
   | { type: 'opportunities'; data: StockOpportunity[] };
+
+export type AgentEventType =
+  | 'message_received'
+  | 'tool_started'
+  | 'tool_completed'
+  | 'tool_failed'
+  | 'assistant_completed';
+
+export interface AgentEvent {
+  type: AgentEventType;
+  timestamp: Date;
+  toolName?: string;
+  messageId?: string;
+  error?: string;
+}
 
 /**
  * Agent tool contracts — results must be grounded in Oren services.
@@ -59,10 +80,7 @@ export interface AgentTools {
 
   getStock(assetIdOrTicker: string): Promise<Equity>;
 
-  getStockChart(
-    assetIdOrTicker: string,
-    range?: string,
-  ): Promise<ChartSeries>;
+  getStockChart(assetIdOrTicker: string, range?: string): Promise<ChartSeries>;
 
   getStockNews(assetIdOrTicker: string): Promise<MarketNewsItem[]>;
 
@@ -95,7 +113,7 @@ export interface AgentTools {
   prepareBasketPurchase(
     basketId: string,
     wallet: string,
-  ): Promise<PreparedTransaction[]>;
+  ): Promise<PreparedBasketPurchase>;
 
   getVaults(wallet: string): Promise<VaultSummary>;
 

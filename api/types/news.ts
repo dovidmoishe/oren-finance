@@ -27,3 +27,9 @@ export interface NewsFeed {
   assetId?: string;
   items: MarketNewsItem[];
 }
+
+export interface NewsContext {
+  assetIds: string[];
+  items: MarketNewsItem[];
+  generatedAt: Date;
+}
