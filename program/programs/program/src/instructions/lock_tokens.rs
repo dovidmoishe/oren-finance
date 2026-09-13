@@ -14,7 +14,7 @@ pub struct LockTokens<'info> {
         token::mint = token_mint,
         token::authority = user,
     )]
-    pub user_token_account: InterfaceAccount<'info, TokenAccount>;
+    pub user_token_account: InterfaceAccount<'info, TokenAccount>,
 
     #[account(
         init,
@@ -30,6 +30,8 @@ pub struct LockTokens<'info> {
         payer = user,
         token::mint = token_mint,
         token::authority = lockbox, 
+        seeds = [b"token_vault", lockbox.key().as_ref()],
+        bump
     )]
     pub token_vault: InterfaceAccount<'info, TokenAccount>,
 
@@ -43,8 +45,9 @@ pub fn handler(ctx: Context<LockTokens>, amount: u64, unlock_time: i64) -> Resul
     lockbox.token_mint = ctx.accounts.token_mint.key();
     lockbox.unlock_time = unlock_time;
     lockbox.bump = ctx.bumps.lockbox;
+    lockbox.total_deposited = amount;
 
-    let cpi_program = ctx.accounts.token_program.to_account_info();
+    let cpi_program = ctx.accounts.token_program.key();
     let cpi_accounts = TransferChecked {
         from: ctx.accounts.user_token_account.to_account_info(),
         mint: ctx.accounts.token_mint.to_account_info(),
@@ -52,7 +55,7 @@ pub fn handler(ctx: Context<LockTokens>, amount: u64, unlock_time: i64) -> Resul
         authority: ctx.accounts.user.to_account_info(),
     };
     
-    let cpi_ctx = Context::new(cpi_program, cpi_accounts);
+    let cpi_ctx = CpiContext::new(cpi_program, cpi_accounts);
     transfer_checked(cpi_ctx, amount, ctx.accounts.token_mint.decimals)?;
 
     msg!("Successfully locked {} tokens until timestamp {}", amount, unlock_time);

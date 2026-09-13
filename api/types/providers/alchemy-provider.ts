@@ -24,6 +24,7 @@ export interface TokenBalance {
   amount: number;
   decimals: number;
   uiAmount: number;
+  programId?: string;
 }
 
 export interface TokenAccount {
@@ -33,6 +34,7 @@ export interface TokenAccount {
   amount: number;
   decimals: number;
   uiAmount: number;
+  programId?: string;
 }
 
 export type TransactionStatus =

@@ -45,9 +45,35 @@ export interface PreparedVaultTransaction {
   wallet: string;
   transaction: string;
   lockAddress?: string;
+  tokenVaultAddress?: string;
   unlockAt?: Date;
   amount?: number;
   mint?: string;
   assetId?: string;
   ticker?: string;
+}
+
+export interface ConfirmLockRequest {
+  wallet: string;
+  signature: string;
+  lockAddress: string;
+  mint: string;
+  assetId?: string;
+  ticker?: string;
+  amount: number;
+  unlockAt: Date;
+}
+
+export interface ConfirmUnlockRequest {
+  wallet: string;
+  signature: string;
+  lockAddress: string;
+}
+
+export interface ConfirmVaultResponse {
+  wallet: string;
+  lockAddress: string;
+  signature: string;
+  status: 'confirmed';
+  portfolioRefreshed: boolean;
 }

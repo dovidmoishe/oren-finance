@@ -11,6 +11,7 @@ import { MarketModule } from './market/market.module';
 import { NewsModule } from './news/news.module';
 import { PortfolioModule } from './portfolio/portfolio.module';
 import { TokensModule } from './tokens/tokens.module';
+import { VaultModule } from './vault/vault.module';
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { TokensModule } from './tokens/tokens.module';
     NewsModule,
     ExecutionModule,
     AgentModule,
+    VaultModule,
   ],
 })
 export class AppModule {}

@@ -23,7 +23,7 @@ pub struct WithdrawTokens<'info> {
         mut,
         seeds = [b"lockbox", user.key().as_ref(), token_mint.key().as_ref()],
         bump = lockbox.bump,
-        has_one = owner, 
+        constraint = lockbox.owner == user.key(),
         has_one = token_mint,
     )]
     pub lockbox: Account<'info, LockBoxState>,
@@ -32,6 +32,8 @@ pub struct WithdrawTokens<'info> {
         mut,
         token::mint = token_mint,
         token::authority = lockbox,
+        seeds = [b"token_vault", lockbox.key().as_ref()],
+        bump,
     )]
     pub token_vault: InterfaceAccount<'info, TokenAccount>,
 
@@ -54,7 +56,7 @@ pub fn handler(ctx: Context<WithdrawTokens>) -> Result<()> {
     ];
     let signer_wrapper = &[signer_seeds];
 
-    let cpi_program = ctx.accounts.token_program.to_account_info();
+    let cpi_program = ctx.accounts.token_program.key();
     let cpi_accounts = TransferChecked {
         from: ctx.accounts.token_vault.to_account_info(),
         mint: ctx.accounts.token_mint.to_account_info(),
@@ -62,7 +64,7 @@ pub fn handler(ctx: Context<WithdrawTokens>) -> Result<()> {
         authority: ctx.accounts.lockbox.to_account_info(),
     };
 
-    let cpi_ctx = Context::new_with_signer(cpi_program, cpi_accounts, signer_wrapper);
+    let cpi_ctx = CpiContext::new_with_signer(cpi_program, cpi_accounts, signer_wrapper);
   
     let amount_to_withdraw = ctx.accounts.token_vault.amount;
     transfer_checked(cpi_ctx, amount_to_withdraw, ctx.accounts.token_mint.decimals)?;

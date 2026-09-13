@@ -1,9 +1,8 @@
 use anchor_lang::prelude::*;
-
-pub mod instructions;
 pub mod state;
-
-use instructions::{lock_tokens::*, withdraw_tokens::*};
+pub mod instructions;
+pub use instructions::*;
+pub mod error;
 
 declare_id!("4yBSLwXvYQhHExDuvuuEsaHfUC392SdRSiM8r6m832Mj");
 

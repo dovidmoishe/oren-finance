@@ -23,6 +23,7 @@ export class AlchemyService implements AlchemyProvider {
       amount: a.amount,
       decimals: a.decimals,
       uiAmount: a.uiAmount,
+      programId: a.programId,
     }));
   }
 
@@ -55,6 +56,7 @@ export class AlchemyService implements AlchemyProvider {
         amount,
         decimals,
         uiAmount,
+        programId: 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA',
       });
     }
 
@@ -84,6 +86,7 @@ export class AlchemyService implements AlchemyProvider {
           amount,
           decimals,
           uiAmount,
+          programId: 'TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb',
         });
       }
     } catch {
