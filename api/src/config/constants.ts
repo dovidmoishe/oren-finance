@@ -2,12 +2,53 @@ export const DRIZZLE = Symbol('DRIZZLE');
 
 export const APP_ENV = Symbol('APP_ENV');
 
+export const DEFAULT_VAULT_PROGRAM_ID =
+  '4yBSLwXvYQhHExDuvuuEsaHfUC392SdRSiM8r6m832Mj';
+
 /** Known pubkey used only for Alchemy health probes (System Program). */
-export const ALCHEMY_HEALTH_PUBKEY =
-  '11111111111111111111111111111111';
+export const ALCHEMY_HEALTH_PUBKEY = '11111111111111111111111111111111';
 
 /** Mainnet USDC mint — counted as cash, not an equity position. */
 export const USDC_MINT = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
 
 /** Tokens.xyz canonical asset id for USD stables. */
 export const USD_ASSET_ID = 'usd';
+
+/** Default USDC decimals on Solana mainnet. */
+export const USDC_DECIMALS = 6;
+
+/** Default swap slippage (0.5%). */
+export const DEFAULT_SLIPPAGE_BPS = 50;
+
+/** In-memory executable quote lifetime. */
+export const QUOTE_TTL_MS = 30_000;
+
+/** Max tokenized variants to Jupiter-quote per TradeIntent. */
+export const MAX_VARIANT_QUOTES = 5;
+
+/** Concurrency when quoting multiple variants. */
+export const VARIANT_QUOTE_CONCURRENCY = 3;
+
+/** How long quoteId → executionId mappings live after prepare. */
+export const PENDING_EXECUTION_TTL_MS = 60 * 60 * 1000;
+
+/** How long generated basket proposals stay prepare-able. */
+export const BASKET_TTL_MS = 10 * 60 * 1000;
+
+/** Smallest practical MVP basket leg notional. */
+export const MIN_BASKET_LEG_USD = 1;
+
+/** Reuse persisted stock_signals within this window. */
+export const SIGNAL_TTL_MS = 15 * 60 * 1000;
+
+/** Reuse cached market news within this window. */
+export const NEWS_TTL_MS = 10 * 60 * 1000;
+
+/** Default opportunities ranking floor. */
+export const DEFAULT_MIN_OPPORTUNITY_SCORE = 40;
+
+/** Default opportunities page size. */
+export const DEFAULT_OPPORTUNITIES_LIMIT = 20;
+
+/** Concurrency when refreshing signals for opportunities. */
+export const OPPORTUNITY_REFRESH_CONCURRENCY = 4;

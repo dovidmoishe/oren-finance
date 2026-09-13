@@ -1,12 +1,9 @@
 import type { TokenizedEquity } from './equity';
 import type { Quote, TradeSide } from './quote';
+import type { StockOpportunity } from './analysis';
 
 export type ExecutionType =
-  | 'stock_purchase'
-  | 'stock_sale'
-  | 'basket_purchase'
-  | 'lock'
-  | 'unlock';
+  'stock_purchase' | 'stock_sale' | 'basket_purchase' | 'lock' | 'unlock';
 
 export type ExecutionStatus =
   | 'preparing'
@@ -67,6 +64,15 @@ export interface Basket {
   createdAt: Date;
 }
 
+export interface BasketCandidate {
+  assetId: string;
+  ticker: string;
+  name?: string;
+  opportunityScore: number;
+  logo?: string;
+  signals?: StockOpportunity['signals'];
+}
+
 export type BasketLegStatus =
   | 'waiting'
   | 'quoting'
@@ -82,10 +88,19 @@ export interface BasketLegProgress {
   status: BasketLegStatus;
   quote?: Quote;
   variant?: TokenizedEquity;
+  preparedTransaction?: PreparedTransaction;
   error?: string;
 }
 
 export interface BasketExecutionProgress {
   basketId: string;
+  wallet?: string;
   legs: BasketLegProgress[];
+}
+
+export interface PreparedBasketPurchase {
+  basketId: string;
+  wallet: string;
+  transactions: PreparedTransaction[];
+  progress: BasketExecutionProgress;
 }

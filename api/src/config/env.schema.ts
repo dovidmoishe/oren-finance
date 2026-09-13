@@ -1,3 +1,5 @@
+import { DEFAULT_VAULT_PROGRAM_ID } from './constants';
+
 export type SolanaNetwork = 'mainnet' | 'devnet';
 
 export interface AppEnv {
@@ -10,7 +12,9 @@ export interface AppEnv {
   SOLANA_NETWORK: SolanaNetwork;
   JUPITER_API_URL?: string;
   OPENAI_API_KEY?: string;
+  OPENAI_MODEL: string;
   ANTHROPIC_API_KEY?: string;
+  VAULT_PROGRAM_ID: string;
 }
 
 const REQUIRED = [
@@ -57,8 +61,13 @@ export function validateEnv(): AppEnv {
     TOKENS_API_KEY: requireEnv('TOKENS_API_KEY'),
     ALCHEMY_API_KEY: requireEnv('ALCHEMY_API_KEY'),
     SOLANA_NETWORK: network,
-    JUPITER_API_URL: process.env.JUPITER_API_URL,
+    JUPITER_API_URL:
+      process.env.JUPITER_API_URL?.replace(/\/$/, '') ??
+      'https://lite-api.jup.ag/swap/v1',
     OPENAI_API_KEY: process.env.OPENAI_API_KEY,
+    OPENAI_MODEL: process.env.OPENAI_MODEL?.trim() || 'gpt-5-mini',
     ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
+    VAULT_PROGRAM_ID:
+      process.env.VAULT_PROGRAM_ID?.trim() || DEFAULT_VAULT_PROGRAM_ID,
   };
 }

@@ -44,3 +44,49 @@ export class InvalidWalletAddressError extends ProviderError {
     this.name = 'InvalidWalletAddressError';
   }
 }
+
+export class JupiterUnavailableError extends ProviderError {
+  constructor(message = 'Jupiter unavailable', cause?: unknown) {
+    super(message, 'JUPITER_UNAVAILABLE', 502, cause);
+    this.name = 'JupiterUnavailableError';
+  }
+}
+
+export class JupiterBadRequestError extends ProviderError {
+  constructor(message = 'Invalid Jupiter request', cause?: unknown) {
+    super(message, 'JUPITER_BAD_REQUEST', 400, cause);
+    this.name = 'JupiterBadRequestError';
+  }
+}
+
+export class QuoteExpiredError extends ProviderError {
+  constructor(
+    message = 'Quote expired or not found. Refresh the quote or basket and try again.',
+  ) {
+    super(message, 'QUOTE_EXPIRED', 400);
+    this.name = 'QuoteExpiredError';
+  }
+}
+
+export class BasketExpiredError extends ProviderError {
+  constructor(
+    message = 'Basket expired or not found. Create a fresh basket and try again.',
+  ) {
+    super(message, 'BASKET_EXPIRED', 400);
+    this.name = 'BasketExpiredError';
+  }
+}
+
+export class ExecutionNotFoundError extends ProviderError {
+  constructor(message = 'Execution not found') {
+    super(message, 'EXECUTION_NOT_FOUND', 404);
+    this.name = 'ExecutionNotFoundError';
+  }
+}
+
+export class AgentUnavailableError extends ProviderError {
+  constructor(message = 'Agent unavailable', cause?: unknown) {
+    super(message, 'AGENT_UNAVAILABLE', 503, cause);
+    this.name = 'AgentUnavailableError';
+  }
+}

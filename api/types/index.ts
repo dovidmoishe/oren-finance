@@ -29,16 +29,18 @@ export type {
   OhlcvBar,
 } from './market';
 
-export type { EquityRisk, MarketNewsItem, NewsFeed } from './news';
+export type { EquityRisk, MarketNewsItem, NewsContext, NewsFeed } from './news';
 
 export type {
   Basket,
   BasketAllocation,
+  BasketCandidate,
   BasketExecutionProgress,
   BasketLegProgress,
   BasketLegStatus,
   ExecutionStatus,
   ExecutionType,
+  PreparedBasketPurchase,
   PreparedTransaction,
   QuoteRequest,
   TradeIntent,
@@ -47,6 +49,9 @@ export type {
 export type { ActivityFeed, ActivityItem, ExecutionRecord } from './activity';
 
 export type {
+  ConfirmLockRequest,
+  ConfirmUnlockRequest,
+  ConfirmVaultResponse,
   LockIntent,
   PreparedVaultTransaction,
   UnlockIntent,
@@ -58,6 +63,8 @@ export type {
   AgentArtifact,
   AgentChatRequest,
   AgentChatResponse,
+  AgentEvent,
+  AgentEventType,
   AgentMessage,
   AgentMessageRole,
   AgentThread,
@@ -94,10 +101,18 @@ export type {
   GetVaultsResponse,
   PostAgentMessageRequest,
   PostAgentMessageResponse,
+  PostBasketPrepareRequest,
+  PostBasketPrepareResponse,
   PostBasketRequest,
   PostBasketResponse,
+  PostConfirmLockRequest,
+  PostConfirmLockResponse,
+  PostConfirmUnlockRequest,
+  PostConfirmUnlockResponse,
   PostExecutionPrepareRequest,
   PostExecutionPrepareResponse,
+  PostExecutionConfirmRequest,
+  PostExecutionConfirmResponse,
   PostExecutionQuoteRequest,
   PostExecutionQuoteResponse,
   PostPrepareLockRequest,

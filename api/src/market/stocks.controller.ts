@@ -7,12 +7,14 @@ import {
 } from '@nestjs/common';
 import { IsIn, IsOptional, IsString, MinLength } from 'class-validator';
 import type {
+  GetStockAnalysisResponse,
   GetStockChartResponse,
   GetStockResponse,
   GetStocksResponse,
   SearchStocksResponse,
 } from '../../types/api';
 import type { ChartRange } from '../../types/market';
+import { IntelligenceService } from '../intelligence/intelligence.service';
 import { MarketService } from './market.service';
 
 class SearchStocksDto {
@@ -29,7 +31,10 @@ class ChartQueryDto {
 
 @Controller('stocks')
 export class StocksController {
-  constructor(private readonly market: MarketService) {}
+  constructor(
+    private readonly market: MarketService,
+    private readonly intelligence: IntelligenceService,
+  ) {}
 
   @Get()
   list(): Promise<GetStocksResponse> {
@@ -52,6 +57,13 @@ export class StocksController {
   ): Promise<GetStockChartResponse> {
     const range: ChartRange = query.range ?? '1M';
     return this.market.getChart(assetId, range);
+  }
+
+  @Get(':assetId/analysis')
+  analysis(
+    @Param('assetId') assetId: string,
+  ): Promise<GetStockAnalysisResponse> {
+    return this.intelligence.getAnalysis(assetId);
   }
 
   @Get(':assetId')

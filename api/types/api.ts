@@ -4,17 +4,27 @@ import type { StockAnalysis, StockOpportunity } from './analysis';
 import type { Equity, EquitySummary } from './equity';
 import type {
   Basket,
+  BasketCandidate,
+  PreparedBasketPurchase,
   PreparedTransaction,
   QuoteRequest,
   TradeIntent,
 } from './execution';
-import type { ChartRange, ChartSeries, MarketMover, MarketsOverview } from './market';
-import type { MarketNewsItem, NewsFeed } from './news';
+import type {
+  ChartRange,
+  ChartSeries,
+  MarketMover,
+  MarketsOverview,
+} from './market';
+import type { NewsFeed } from './news';
 import type { Portfolio, PortfolioHistory } from './portfolio';
 import type { Quote } from './quote';
 import type { StockSignals } from './signals';
 import type {
   LockIntent,
+  ConfirmLockRequest,
+  ConfirmUnlockRequest,
+  ConfirmVaultResponse,
   PreparedVaultTransaction,
   UnlockIntent,
   VaultSummary,
@@ -50,7 +60,7 @@ export interface GetStockChartQuery {
 export type GetStockChartResponse = ChartSeries;
 
 /** GET /stocks/:assetId/news */
-export type GetStockNewsResponse = NewsFeed | MarketNewsItem[];
+export type GetStockNewsResponse = NewsFeed;
 
 /** GET /stocks/:assetId/analysis */
 export type GetStockAnalysisResponse = StockAnalysis;
@@ -80,14 +90,38 @@ export interface PostExecutionPrepareRequest {
 
 export type PostExecutionPrepareResponse = PreparedTransaction;
 
+/** POST /execution/confirm */
+export interface PostExecutionConfirmRequest {
+  quoteId: string;
+  wallet: string;
+  signature: string;
+}
+
+export interface PostExecutionConfirmResponse {
+  quoteId: string;
+  wallet: string;
+  signature: string;
+  status: 'confirmed';
+  portfolioRefreshed: boolean;
+}
+
 /** POST /execution/basket (P1) */
 export interface PostBasketRequest {
   amountUsd: number;
   prompt: string;
   wallet?: string;
+  candidates?: BasketCandidate[];
 }
 
 export type PostBasketResponse = Basket;
+
+/** POST /execution/basket/prepare */
+export interface PostBasketPrepareRequest {
+  basketId: string;
+  wallet: string;
+}
+
+export type PostBasketPrepareResponse = PreparedBasketPurchase;
 
 /** GET /vaults/:wallet */
 export type GetVaultsResponse = VaultSummary;
@@ -101,6 +135,16 @@ export type PostPrepareLockResponse = PreparedVaultTransaction;
 export type PostPrepareUnlockRequest = UnlockIntent;
 
 export type PostPrepareUnlockResponse = PreparedVaultTransaction;
+
+/** POST /vaults/confirm-lock */
+export type PostConfirmLockRequest = ConfirmLockRequest;
+
+export type PostConfirmLockResponse = ConfirmVaultResponse;
+
+/** POST /vaults/confirm-unlock */
+export type PostConfirmUnlockRequest = ConfirmUnlockRequest;
+
+export type PostConfirmUnlockResponse = ConfirmVaultResponse;
 
 /** POST /agent/message */
 export type PostAgentMessageRequest = AgentChatRequest;

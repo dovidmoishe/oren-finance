@@ -27,12 +27,15 @@
     "@nestjs/config": "^12.0.0",
     "@nestjs/core": "^11.0.1",
     "@nestjs/platform-express": "^11.0.1",
+    "@solana/spl-token": "^0.4.15",
+    "@solana/web3.js": "^1.95.8",
     "bs58": "^6.0.0",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.15.1",
     "dotenv": "^17.4.2",
     "drizzle-kit": "^0.31.10",
     "drizzle-orm": "^0.45.2",
+    "openai": "^7.15.0",
     "postgres": "^3.4.9",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1"
@@ -73,6 +76,10 @@
     "testRegex": ".*\\.spec\\.ts$",
     "transform": {
       "^.+\\.(t|j)s$": "ts-jest"
+    },
+    "moduleNameMapper": {
+      "^@solana/web3\\.js$": "<rootDir>/test/solana-web3.mock.ts",
+      "^@solana/spl-token$": "<rootDir>/test/solana-spl-token.mock.ts"
     },
     "collectCoverageFrom": [
       "**/*.(t|j)s"
