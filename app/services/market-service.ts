@@ -62,11 +62,7 @@ export function searchStocks(query: string) {
 }
 
 export function getStock(assetId: string) {
-  return apiRequest<ApiStockDetail>(`/stocks/${assetId}`).then((stock): StockDetail => ({
-    ...mapStockSummary(stock),
-    sector: stock.sector,
-    variants: stock.variants ?? [],
-  }));
+  return apiRequest<ApiStockDetail>(`/stocks/${assetId}`).then(mapStockDetail);
 }
 
 export function getStockChart(assetId: string, range: ChartRange) {
@@ -98,7 +94,7 @@ export function getMarketOpportunities() {
   return apiRequest<ApiStockSummary[]>("/markets/opportunities").then((stocks) => stocks.map(mapStockSummary));
 }
 
-function mapStockSummary(stock: ApiStockSummary): StockSummary {
+export function mapStockSummary(stock: ApiStockSummary): StockSummary {
   return {
     assetId: stock.assetId ?? stock.id ?? stock.ticker,
     ticker: stock.ticker,
@@ -110,5 +106,13 @@ function mapStockSummary(stock: ApiStockSummary): StockSummary {
     volume24hUsd: stock.volume24hUsd ?? stock.volume24h,
     liquidityUsd: stock.liquidityUsd ?? stock.liquidity,
     opportunityScore: stock.opportunityScore,
+  };
+}
+
+export function mapStockDetail(stock: ApiStockDetail): StockDetail {
+  return {
+    ...mapStockSummary(stock),
+    sector: stock.sector,
+    variants: stock.variants ?? [],
   };
 }

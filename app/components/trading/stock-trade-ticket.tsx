@@ -8,17 +8,14 @@ import {
   Wallet02Icon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { useConnection, useWallet } from "@solana/wallet-adapter-react";
+import { useWallet } from "@solana/wallet-adapter-react";
 import { useWalletModal } from "@solana/wallet-adapter-react-ui";
-import { VersionedTransaction } from "@solana/web3.js";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { usePortfolioRefresh } from "@/hooks/use-portfolio-refresh";
+import { useQuoteExecution } from "@/hooks/use-quote-execution";
 import { Button, Card, cn, formatCurrency, formatNumber } from "@/components/ui";
 import { useExecutionStore, usePortfolioStore } from "@/store";
 import type { StockDetail, TradeSide } from "@/types";
 import { QuoteReviewModal } from "./quote-review-modal";
-
-type TradeFlowStatus = "idle" | "quoted" | "preparing" | "signing" | "confirming" | "confirmed" | "failed";
 
 interface StockTradeTicketProps {
   stock: StockDetail;
@@ -30,17 +27,6 @@ function normalizeLogoUrl(url?: string) {
   if (url.startsWith("ipfs://")) return `https://ipfs.io/ipfs/${url.slice(7)}`;
   if (url.startsWith("//")) return `https:${url}`;
   return url;
-}
-
-function decodeBase64Transaction(transaction: string) {
-  const binary = atob(transaction);
-  const bytes = new Uint8Array(binary.length);
-
-  for (let i = 0; i < binary.length; i += 1) {
-    bytes[i] = binary.charCodeAt(i);
-  }
-
-  return VersionedTransaction.deserialize(bytes);
 }
 
 function TokenBadge({
@@ -95,27 +81,28 @@ function isNoRouteError(message?: string) {
 }
 
 export function StockTradeTicket({ stock, onConfirmed }: StockTradeTicketProps) {
-  const { connection } = useConnection();
-  const { publicKey, connected, sendTransaction } = useWallet();
+  const { publicKey, connected } = useWallet();
   const { setVisible } = useWalletModal();
   const wallet = publicKey?.toBase58();
-  const refreshPortfolio = usePortfolioRefresh();
   const portfolio = usePortfolioStore((state) => state.portfolio);
   const loadPortfolio = usePortfolioStore((state) => state.loadPortfolio);
   const quote = useExecutionStore((state) => state.quote);
   const prepared = useExecutionStore((state) => state.prepared);
-  const confirmation = useExecutionStore((state) => state.status);
-  const storeError = useExecutionStore((state) => state.error);
   const isLoading = useExecutionStore((state) => state.isLoading);
   const quoteTrade = useExecutionStore((state) => state.quoteTrade);
-  const prepareTrade = useExecutionStore((state) => state.prepareTrade);
-  const confirmTrade = useExecutionStore((state) => state.confirmTrade);
   const resetTrade = useExecutionStore((state) => state.resetTrade);
+  const {
+    confirmation,
+    error: executionError,
+    executeQuote,
+    flowStatus,
+    resetFeedback,
+    setError: setLocalError,
+    setFlowStatus,
+  } = useQuoteExecution(onConfirmed);
   const [side, setSide] = useState<TradeSide>("buy");
   const [amount, setAmount] = useState("100");
   const [reviewOpen, setReviewOpen] = useState(false);
-  const [flowStatus, setFlowStatus] = useState<TradeFlowStatus>("idle");
-  const [localError, setLocalError] = useState<string>();
   const autoQuoteKeyRef = useRef<string | undefined>(undefined);
   const tradableRoutes = stock.variants.filter((variant) => variant.tradable).length;
   const position = useMemo(
@@ -158,7 +145,7 @@ export function StockTradeTicket({ stock, onConfirmed }: StockTradeTicketProps) 
             ? "Insufficient stock balance."
             : undefined;
   const logoUrl = normalizeLogoUrl(stock.logoUrl);
-  const displayedError = localError ?? storeError;
+  const displayedError = executionError;
   const liveRouteUnavailable = isNoRouteError(displayedError);
   const routeValue = activeQuote
     ? `${activeQuote.provider} · ${activeQuote.variant.symbol}`
@@ -185,8 +172,9 @@ export function StockTradeTicket({ stock, onConfirmed }: StockTradeTicketProps) 
 
   useEffect(() => {
     resetTrade();
+    resetFeedback();
     return resetTrade;
-  }, [resetTrade]);
+  }, [resetFeedback, resetTrade]);
 
   const requestQuote = useCallback(
     async ({ openReview }: { openReview: boolean }) => {
@@ -223,7 +211,19 @@ export function StockTradeTicket({ stock, onConfirmed }: StockTradeTicketProps) 
         setLocalError(nextError);
       }
     },
-    [blockingError, connected, parsedAmount, quoteTrade, setVisible, side, stock.assetId, stock.ticker, wallet],
+    [
+      blockingError,
+      connected,
+      parsedAmount,
+      quoteTrade,
+      setFlowStatus,
+      setLocalError,
+      setVisible,
+      side,
+      stock.assetId,
+      stock.ticker,
+      wallet,
+    ],
   );
 
   useEffect(() => {
@@ -269,51 +269,12 @@ export function StockTradeTicket({ stock, onConfirmed }: StockTradeTicketProps) 
 
   const handlePrepareSignConfirm = async () => {
     const activeQuote = useExecutionStore.getState().quote;
-    setLocalError(undefined);
-
-    if (!wallet || !connected) {
-      setVisible(true);
-      return;
-    }
-
     if (!activeQuote) {
       setLocalError("Request a fresh quote before signing.");
       setFlowStatus("failed");
       return;
     }
-
-    if (new Date(activeQuote.expiresAt).getTime() <= Date.now()) {
-      setLocalError("This quote expired. Request a fresh quote before signing.");
-      setFlowStatus("failed");
-      return;
-    }
-
-    try {
-      setFlowStatus("preparing");
-      await prepareTrade({ quoteId: activeQuote.id, wallet });
-      const nextPrepared = useExecutionStore.getState().prepared;
-      if (!nextPrepared) {
-        throw new Error(useExecutionStore.getState().error ?? "Unable to prepare transaction");
-      }
-
-      setFlowStatus("signing");
-      const transaction = decodeBase64Transaction(nextPrepared.transaction);
-      const signature = await sendTransaction(transaction, connection);
-
-      setFlowStatus("confirming");
-      await confirmTrade(wallet, nextPrepared.quoteId, signature);
-      const nextStatus = useExecutionStore.getState().status;
-      if (!nextStatus) {
-        throw new Error(useExecutionStore.getState().error ?? "Unable to confirm transaction");
-      }
-
-      setFlowStatus("confirmed");
-      await Promise.all([refreshPortfolio(), onConfirmed?.()]);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Transaction failed";
-      setFlowStatus("failed");
-      setLocalError(message);
-    }
+    await executeQuote(activeQuote);
   };
 
   const ctaLabel = !connected ? "Connect wallet" : activeQuote ? "Review quote" : "Get quote";
@@ -413,7 +374,7 @@ export function StockTradeTicket({ stock, onConfirmed }: StockTradeTicketProps) 
             <span>
               {liveRouteUnavailable
                 ? `No live Jupiter route is available for ${stock.ticker} at this amount. Try a smaller amount or another stock with deeper liquidity.`
-                : (localError ?? blockingError ?? storeError)}
+                : (executionError ?? blockingError)}
             </span>
           </div>
         ) : null}
@@ -447,7 +408,7 @@ export function StockTradeTicket({ stock, onConfirmed }: StockTradeTicketProps) 
 
       <QuoteReviewModal
         confirmation={confirmation}
-        error={localError ?? storeError}
+        error={executionError}
         onClose={() => setReviewOpen(false)}
         onSign={handlePrepareSignConfirm}
         open={reviewOpen}

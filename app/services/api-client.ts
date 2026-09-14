@@ -17,15 +17,7 @@ type RequestOptions = Omit<RequestInit, "body"> & {
 };
 
 export async function apiRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
-  const baseUrl = API_BASE_URL.endsWith("/") ? API_BASE_URL : `${API_BASE_URL}/`;
-  const requestPath = path.replace(/^\/+/, "");
-  const url = new URL(requestPath, baseUrl);
-
-  for (const [key, value] of Object.entries(options.query ?? {})) {
-    if (value !== undefined) {
-      url.searchParams.set(key, String(value));
-    }
-  }
+  const url = buildApiUrl(path, options.query);
 
   const response = await fetch(url, {
     ...options,
@@ -47,4 +39,18 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
   }
 
   return payload as T;
+}
+
+export function buildApiUrl(
+  path: string,
+  query?: Record<string, string | number | boolean | undefined>,
+) {
+  const baseUrl = API_BASE_URL.endsWith("/") ? API_BASE_URL : `${API_BASE_URL}/`;
+  const requestPath = path.replace(/^\/+/, "");
+  const url = new URL(requestPath, baseUrl);
+
+  for (const [key, value] of Object.entries(query ?? {})) {
+    if (value !== undefined) url.searchParams.set(key, String(value));
+  }
+  return url;
 }

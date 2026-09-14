@@ -77,7 +77,7 @@ export function getPortfolioActivity(wallet: string) {
   );
 }
 
-function mapPortfolio(portfolio: ApiPortfolioSummary): PortfolioSummary {
+export function mapPortfolio(portfolio: ApiPortfolioSummary): PortfolioSummary {
   return {
     wallet: portfolio.walletAddress,
     totalValueUsd: portfolio.totalValueUsd,
@@ -105,7 +105,7 @@ function mapPortfolio(portfolio: ApiPortfolioSummary): PortfolioSummary {
   };
 }
 
-function mapActivityItem(item: ApiActivityItem): PortfolioActivityItem {
+export function mapActivityItem(item: ApiActivityItem): PortfolioActivityItem {
   if (item.source === "oren") {
     return {
       id: item.id,

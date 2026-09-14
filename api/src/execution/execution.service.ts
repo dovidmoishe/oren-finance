@@ -145,6 +145,33 @@ export class ExecutionService {
     return basket;
   }
 
+  createBasketFromAllocations(input: {
+    totalAmountUsd: number;
+    allocations: Basket['allocations'];
+    thesis: string;
+    riskLabel?: Basket['riskLabel'];
+  }): Basket {
+    const totalAmountUsd = Number(input.totalAmountUsd);
+    if (!Number.isFinite(totalAmountUsd) || totalAmountUsd <= 0) {
+      throw new BadRequestException('totalAmountUsd must be > 0');
+    }
+    if (!input.allocations.length) {
+      throw new BadRequestException('allocations are required');
+    }
+
+    const basket: Basket = {
+      id: randomUUID(),
+      totalAmountUsd: roundMoney(totalAmountUsd),
+      allocations: input.allocations,
+      thesis: input.thesis,
+      riskLabel: input.riskLabel,
+      createdAt: new Date(),
+    };
+
+    this.baskets.set(basket);
+    return basket;
+  }
+
   async prepareBasketPurchase(input: {
     basketId: string;
     wallet: string;
