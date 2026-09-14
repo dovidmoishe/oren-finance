@@ -1,11 +1,10 @@
-import { PagePlaceholder } from "@/components/shell";
+import { Leaderboard } from "@/components/social";
+import { AppShell } from "@/components/shell";
 
 export default function LeaderboardPage() {
   return (
-    <PagePlaceholder
-      description="Ranked market opportunities and signal leaders will live here."
-      eyebrow="Leaderboard"
-      title="Leaderboard"
-    />
+    <AppShell>
+      <Leaderboard />
+    </AppShell>
   );
 }

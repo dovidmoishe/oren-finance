@@ -3,6 +3,7 @@ import {
   index,
   integer,
   jsonb,
+  boolean,
   numeric,
   pgEnum,
   pgTable,
@@ -137,6 +138,32 @@ export const cachedStocks = pgTable(
     index('cached_stocks_sort_rank_idx').on(table.sortRank),
     index('cached_stocks_ticker_idx').on(table.ticker),
     index('cached_stocks_expires_at_idx').on(table.expiresAt),
+  ],
+);
+
+export const traderProfiles = pgTable(
+  'trader_profiles',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    walletAddress: text('wallet_address').notNull(),
+    slug: text('slug').notNull(),
+    displayName: text('display_name').notNull(),
+    avatarUrl: text('avatar_url'),
+    bio: text('bio'),
+    isPublic: boolean('is_public').notNull().default(false),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    uniqueIndex('trader_profiles_wallet_address_idx').on(
+      table.walletAddress,
+    ),
+    uniqueIndex('trader_profiles_slug_idx').on(table.slug),
+    index('trader_profiles_is_public_idx').on(table.isPublic),
   ],
 );
 
