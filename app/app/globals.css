@@ -3,24 +3,91 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+  --panel: #ffffff;
+  --panel-subtle: #f7f7f5;
+  --muted: #62625d;
+  --muted-2: #a9adaf;
+  --border: #e7e7e2;
+  --border-strong: #d1d1ca;
+  --accent: #111111;
+  --accent-pink: #f6c2f1;
+  --accent-pink-soft: #fff1fc;
+  --accent-yellow: #ffe500;
+  --accent-lavender: #e0d7fb;
+  --positive: #1f9d5a;
+  --negative: #ef4444;
+  --warning: #a16207;
+  --focus: #86b7ff;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-panel: var(--panel);
+  --color-panel-subtle: var(--panel-subtle);
+  --color-muted: var(--muted);
+  --color-border: var(--border);
+  --color-positive: var(--positive);
+  --color-negative: var(--negative);
+  --color-accent-pink: var(--accent-pink);
+  --color-accent-pink-soft: var(--accent-pink-soft);
+  --color-accent-yellow: var(--accent-yellow);
+  --color-accent-lavender: var(--accent-lavender);
+  --font-sans: var(--font-neue-freigeist);
+  --font-display: var(--font-neue-freigeist);
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+* {
+  box-sizing: border-box;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-neue-freigeist), system-ui, sans-serif;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+::selection {
+  background: #111111;
+  color: #ffffff;
+}
+
+.wallet-adapter-modal-wrapper {
+  border-radius: 14px;
+  font-family: var(--font-neue-freigeist), system-ui, sans-serif;
+}
+
+.wallet-adapter-modal-button-close {
+  border-radius: 999px;
+}
+
+.wallet-adapter-button {
+  font-family: var(--font-neue-freigeist), system-ui, sans-serif;
+}
+
+.wallet-adapter-dropdown {
+  display: inline-flex;
+}
+
+.wallet-adapter-modal {
+  background: rgba(255, 255, 255, 0.64);
+  backdrop-filter: blur(18px);
+}
+
+.wallet-adapter-modal-container {
+  border-radius: 26px;
+}
+
+.wallet-adapter-modal-wrapper {
+  background: #ffffff;
+  border: 1px solid var(--border);
+  box-shadow: 0 28px 80px rgba(23, 23, 23, 0.16);
 }
