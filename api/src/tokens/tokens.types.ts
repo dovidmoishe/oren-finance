@@ -25,7 +25,9 @@ export interface TokensVariantRaw {
     price?: number;
     priceChange24hPercent?: number;
     volume24hUSD?: number;
+    liquidity?: number;
     liquidityUSD?: number;
+    logoURI?: string | null;
   };
 }
 
@@ -36,8 +38,9 @@ export interface TokensAssetRaw {
   symbol?: string;
   name?: string;
   category?: string;
-  logo?: string;
-  logoUrl?: string;
+  logo?: string | null;
+  logoUrl?: string | null;
+  imageUrl?: string | null;
   sector?: string;
   price?: number;
   priceChange24h?: number;
@@ -46,8 +49,11 @@ export interface TokensAssetRaw {
   volume24hUSD?: number;
   liquidity?: number;
   stats?: {
+    price?: number | null;
+    liquidity?: number | null;
     volume24hUSD?: number;
     volume30dUSD?: number | null;
+    priceChange24hPercent?: number | null;
   };
   variants?: TokensVariantRaw[];
   primaryVariant?: TokensVariantRaw;
@@ -69,9 +75,17 @@ export interface TokensSearchRaw {
 }
 
 export interface TokensCuratedRaw {
+  listId?: string;
   results?: TokensAssetRaw[];
   assets?: TokensAssetRaw[];
   items?: TokensAssetRaw[];
+  pagination?: {
+    offset?: number;
+    limit?: number;
+    total?: number;
+    hasMore?: boolean;
+    nextOffset?: number | null;
+  };
 }
 
 export interface TokensVariantsRaw {

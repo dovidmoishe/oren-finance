@@ -20,6 +20,7 @@ import {
 } from './tokens.mapper';
 import type {
   TokensAssetRaw,
+  TokensCuratedRaw,
   TokensResolveRaw,
   TokensRiskRaw,
   TokensVariantsRaw,
@@ -36,6 +37,27 @@ export class TokensService implements TokensServiceContract {
       groupBy: 'asset',
     });
     return mapEquityList(extractAssetList(raw));
+  }
+
+  async getStocksPage(
+    offset: number,
+    limit: number,
+  ): Promise<{
+    stocks: Equity[];
+    total: number;
+    hasMore: boolean;
+  }> {
+    const raw = await this.client.get<TokensCuratedRaw>('/assets/curated', {
+      list: 'stocks',
+      groupBy: 'asset',
+      offset,
+      limit,
+    });
+    const stocks = mapEquityList(extractAssetList(raw));
+    const total = raw.pagination?.total ?? offset + stocks.length;
+    const hasMore = raw.pagination?.hasMore ?? offset + stocks.length < total;
+
+    return { stocks, total, hasMore };
   }
 
   async searchStocks(query: string): Promise<Equity[]> {
@@ -108,8 +130,9 @@ export class TokensService implements TokensServiceContract {
   ): Promise<OhlcvBar[]> {
     const to = Math.floor((params?.end ?? new Date()).getTime() / 1000);
     const from = Math.floor(
-      (params?.start ?? new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)).getTime() /
-        1000,
+      (
+        params?.start ?? new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+      ).getTime() / 1000,
     );
     const raw = await this.client.get<unknown>(
       `/assets/${encodeURIComponent(assetId)}/ohlcv`,

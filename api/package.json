@@ -20,6 +20,7 @@
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx lib/db/migrate.ts",
+    "db:sync-stocks": "node lib/db/sync-stocks.mjs",
     "db:studio": "drizzle-kit studio"
   },
   "dependencies": {

@@ -37,22 +37,14 @@ export class SignalsRepository {
       calculatedAt: signals.calculatedAt,
     };
 
-    const existing = await this.db
-      .select({ id: stockSignals.id })
-      .from(stockSignals)
-      .where(eq(stockSignals.assetId, signals.assetId))
-      .limit(1);
-
-    if (existing[0]) {
-      const [row] = await this.db
-        .update(stockSignals)
-        .set(values)
-        .where(eq(stockSignals.assetId, signals.assetId))
-        .returning();
-      return rowToSignals(row);
-    }
-
-    const [row] = await this.db.insert(stockSignals).values(values).returning();
+    const [row] = await this.db
+      .insert(stockSignals)
+      .values(values)
+      .onConflictDoUpdate({
+        target: stockSignals.assetId,
+        set: values,
+      })
+      .returning();
     return rowToSignals(row);
   }
 

@@ -1,6 +1,7 @@
 import { relations } from 'drizzle-orm';
 import {
   index,
+  integer,
   jsonb,
   numeric,
   pgEnum,
@@ -16,7 +17,8 @@ import {
  * Required: portfolio_snapshots, stock_signals, executions, vault_positions
  * Optional: agent_threads, agent_messages, cached_news
  *
- * Equity registry / market data lives in Tokens API — do not mirror it here.
+ * Equity registry / market data remains authoritative in Tokens API. Postgres
+ * may keep short-lived read-through caches for responsive application reads.
  */
 
 export const executionTypeEnum = pgEnum('execution_type', [
@@ -51,8 +53,10 @@ export const portfolioSnapshots = pgTable(
     timestamp: timestamp('timestamp', { withTimezone: true })
       .defaultNow()
       .notNull(),
-    totalValueUsd: numeric('total_value_usd', { precision: 20, scale: 8 })
-      .notNull(),
+    totalValueUsd: numeric('total_value_usd', {
+      precision: 20,
+      scale: 8,
+    }).notNull(),
     availableValueUsd: numeric('available_value_usd', {
       precision: 20,
       scale: 8,
@@ -107,6 +111,32 @@ export const stockSignals = pgTable(
     uniqueIndex('stock_signals_asset_id_idx').on(table.assetId),
     index('stock_signals_ticker_idx').on(table.ticker),
     index('stock_signals_opportunity_score_idx').on(table.opportunityScore),
+  ],
+);
+
+/** Cached stock discovery data. Tokens remains the upstream source of truth. */
+export const cachedStocks = pgTable(
+  'cached_stocks',
+  {
+    assetId: text('asset_id').primaryKey(),
+    ticker: text('ticker').notNull(),
+    name: text('name').notNull(),
+    category: text('category').notNull(),
+    logo: text('logo'),
+    price: numeric('price', { precision: 24, scale: 8 }),
+    priceChange24h: numeric('price_change_24h', { precision: 20, scale: 8 }),
+    volume24h: numeric('volume_24h', { precision: 28, scale: 8 }),
+    liquidity: numeric('liquidity', { precision: 28, scale: 8 }),
+    sortRank: integer('sort_rank').notNull(),
+    cachedAt: timestamp('cached_at', { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    index('cached_stocks_sort_rank_idx').on(table.sortRank),
+    index('cached_stocks_ticker_idx').on(table.ticker),
+    index('cached_stocks_expires_at_idx').on(table.expiresAt),
   ],
 );
 

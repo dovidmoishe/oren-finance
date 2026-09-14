@@ -5,9 +5,9 @@ import type { ScoreDimensions, StockSignals } from '../../types/signals';
 import {
   DEFAULT_MIN_OPPORTUNITY_SCORE,
   DEFAULT_OPPORTUNITIES_LIMIT,
-  OPPORTUNITY_REFRESH_CONCURRENCY,
   SIGNAL_TTL_MS,
 } from '../config/constants';
+import { StockCatalogRepository } from '../tokens/stock-catalog.repository';
 import { TokensService } from '../tokens/tokens.service';
 import { buildHighlights, riskLabelFromVolatility } from './highlights';
 import { momentum } from './indicators/momentum';
@@ -25,6 +25,7 @@ export class IntelligenceService {
   constructor(
     private readonly tokens: TokensService,
     private readonly repository: SignalsRepository,
+    private readonly catalog: StockCatalogRepository,
   ) {}
 
   async getSignals(
@@ -33,7 +34,10 @@ export class IntelligenceService {
   ): Promise<StockSignals> {
     if (!options?.force) {
       const cached = await this.repository.getByAssetId(assetId);
-      if (cached && Date.now() - cached.calculatedAt.getTime() < SIGNAL_TTL_MS) {
+      if (
+        cached &&
+        Date.now() - cached.calculatedAt.getTime() < SIGNAL_TTL_MS
+      ) {
         return cached;
       }
     }
@@ -82,27 +86,12 @@ export class IntelligenceService {
       1,
       50,
     );
-    const minScore =
-      options?.minScore ?? DEFAULT_MIN_OPPORTUNITY_SCORE;
-
-    const stocks = await this.tokens.getStocks();
-    await mapPool(
-      stocks,
-      OPPORTUNITY_REFRESH_CONCURRENCY,
-      async (equity) => {
-        try {
-          await this.getSignals(equity.id);
-        } catch (err) {
-          this.logger.warn(
-            `signals refresh failed for ${equity.id}: ${
-              err instanceof Error ? err.message : String(err)
-            }`,
-          );
-        }
-      },
-    );
+    const minScore = options?.minScore ?? DEFAULT_MIN_OPPORTUNITY_SCORE;
 
     const ranked = await this.repository.listByMinScore(minScore, limit);
+    const stocks = await this.catalog.findByAssetIds(
+      ranked.map((signals) => signals.assetId),
+    );
     const byId = new Map(stocks.map((s) => [s.id, s]));
 
     return ranked.map((signals) => {
@@ -264,21 +253,4 @@ function clamp(n: number, min: number, max: number): number {
 function clampInt(n: number, min: number, max: number): number {
   if (!Number.isFinite(n)) return min;
   return Math.min(max, Math.max(min, Math.round(n)));
-}
-
-async function mapPool<T>(
-  items: T[],
-  concurrency: number,
-  fn: (item: T) => Promise<void>,
-): Promise<void> {
-  let index = 0;
-  async function worker() {
-    while (index < items.length) {
-      const current = index++;
-      await fn(items[current]);
-    }
-  }
-  const n = Math.min(concurrency, items.length);
-  if (n === 0) return;
-  await Promise.all(Array.from({ length: n }, () => worker()));
 }

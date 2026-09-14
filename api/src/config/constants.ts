@@ -41,6 +41,9 @@ export const MIN_BASKET_LEG_USD = 1;
 /** Reuse persisted stock_signals within this window. */
 export const SIGNAL_TTL_MS = 15 * 60 * 1000;
 
+/** Refresh the persisted stock discovery catalog in the background. */
+export const STOCK_CATALOG_TTL_MS = 60 * 1000;
+
 /** Reuse cached market news within this window. */
 export const NEWS_TTL_MS = 10 * 60 * 1000;
 

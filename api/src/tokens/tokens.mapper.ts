@@ -1,4 +1,8 @@
-import type { Equity, EquityCategory, TokenizedEquity } from '../../types/equity';
+import type {
+  Equity,
+  EquityCategory,
+  TokenizedEquity,
+} from '../../types/equity';
 import type { MarketCandle, OhlcvBar } from '../../types/market';
 import type { EquityRisk, MarketNewsItem } from '../../types/news';
 import type {
@@ -38,9 +42,7 @@ export function mapVariant(raw: TokensVariantRaw): TokenizedEquity | null {
 
 export function mapVariants(raws?: TokensVariantRaw[]): TokenizedEquity[] {
   if (!raws?.length) return [];
-  return raws
-    .map(mapVariant)
-    .filter((v): v is TokenizedEquity => v !== null);
+  return raws.map(mapVariant).filter((v): v is TokenizedEquity => v !== null);
 }
 
 export function mapEquity(rawInput: TokensAssetRaw): Equity {
@@ -55,23 +57,24 @@ export function mapEquity(rawInput: TokensAssetRaw): Equity {
   }
 
   const price =
-    raw.price ??
-    raw.primaryVariant?.market?.price ??
-    variants[0]?.liquidity;
+    raw.price ?? raw.stats?.price ?? raw.primaryVariant?.market?.price;
 
   return {
     id,
     ticker: (raw.ticker ?? raw.symbol ?? id).toUpperCase(),
     name: raw.name ?? raw.ticker ?? id,
     category: asCategory(raw.category),
-    logo: raw.logo ?? raw.logoUrl,
-    price:
-      typeof price === 'number'
-        ? price
-        : raw.primaryVariant?.market?.price,
+    logo:
+      raw.imageUrl ??
+      raw.logo ??
+      raw.logoUrl ??
+      raw.primaryVariant?.market?.logoURI ??
+      undefined,
+    price: typeof price === 'number' ? price : undefined,
     priceChange24h:
       raw.priceChange24hPercent ??
       raw.priceChange24h ??
+      raw.stats?.priceChange24hPercent ??
       raw.primaryVariant?.market?.priceChange24hPercent,
     volume24h:
       raw.volume24hUSD ??
@@ -79,15 +82,16 @@ export function mapEquity(rawInput: TokensAssetRaw): Equity {
       raw.stats?.volume24hUSD ??
       raw.primaryVariant?.market?.volume24hUSD,
     liquidity:
-      raw.liquidity ?? raw.primaryVariant?.market?.liquidityUSD,
+      raw.liquidity ??
+      raw.stats?.liquidity ??
+      raw.primaryVariant?.market?.liquidity ??
+      raw.primaryVariant?.market?.liquidityUSD,
     sector: raw.sector,
     variants,
   };
 }
 
-export function mapEquityList(
-  items?: TokensAssetRaw[] | null,
-): Equity[] {
+export function mapEquityList(items?: TokensAssetRaw[] | null): Equity[] {
   if (!items?.length) return [];
   return items
     .map((item) => {
@@ -128,9 +132,7 @@ export function mapCandle(raw: TokensCandleRaw): MarketCandle | null {
 
 export function mapCandles(raws?: TokensCandleRaw[]): MarketCandle[] {
   if (!raws?.length) return [];
-  return raws
-    .map(mapCandle)
-    .filter((c): c is MarketCandle => c !== null);
+  return raws.map(mapCandle).filter((c): c is MarketCandle => c !== null);
 }
 
 export function mapOhlcv(
@@ -184,39 +186,48 @@ export function mapNewsFeed(
   items?: TokensNewsItemRaw[] | null,
 ): MarketNewsItem[] {
   if (!items?.length) return [];
-  return items
-    .map(mapNewsItem)
-    .filter((n): n is MarketNewsItem => n !== null);
+  return items.map(mapNewsItem).filter((n): n is MarketNewsItem => n !== null);
 }
 
 export function extractAssetList(payload: unknown): TokensAssetRaw[] {
+  if (Array.isArray(payload)) return toObjectArray<TokensAssetRaw>(payload);
   if (!payload || typeof payload !== 'object') return [];
   const p = payload as Record<string, unknown>;
-  if (Array.isArray(p)) return p as TokensAssetRaw[];
-  if (Array.isArray(p.results)) return p.results as TokensAssetRaw[];
-  if (Array.isArray(p.assets)) return p.assets as TokensAssetRaw[];
-  if (Array.isArray(p.items)) return p.items as TokensAssetRaw[];
-  if (p.asset && typeof p.asset === 'object') return [p.asset as TokensAssetRaw];
-  if (p.assetId || p.id) return [p as TokensAssetRaw];
+  if (Array.isArray(p.results)) return toObjectArray<TokensAssetRaw>(p.results);
+  if (Array.isArray(p.assets)) return toObjectArray<TokensAssetRaw>(p.assets);
+  if (Array.isArray(p.items)) return toObjectArray<TokensAssetRaw>(p.items);
+  if (p.asset && typeof p.asset === 'object')
+    return toObjectArray<TokensAssetRaw>([p.asset]);
+  if (p.assetId || p.id) return toObjectArray<TokensAssetRaw>([p]);
   return [];
 }
 
 export function extractCandles(payload: unknown): TokensCandleRaw[] {
+  if (Array.isArray(payload)) return toObjectArray<TokensCandleRaw>(payload);
   if (!payload || typeof payload !== 'object') return [];
   const p = payload as Record<string, unknown>;
-  if (Array.isArray(p)) return p as TokensCandleRaw[];
-  if (Array.isArray(p.candles)) return p.candles as TokensCandleRaw[];
-  if (Array.isArray(p.data)) return p.data as TokensCandleRaw[];
-  if (Array.isArray(p.bars)) return p.bars as TokensCandleRaw[];
+  if (Array.isArray(p.candles))
+    return toObjectArray<TokensCandleRaw>(p.candles);
+  if (Array.isArray(p.data)) return toObjectArray<TokensCandleRaw>(p.data);
+  if (Array.isArray(p.bars)) return toObjectArray<TokensCandleRaw>(p.bars);
   return [];
 }
 
 export function extractNews(payload: unknown): TokensNewsItemRaw[] {
+  if (Array.isArray(payload)) return toObjectArray<TokensNewsItemRaw>(payload);
   if (!payload || typeof payload !== 'object') return [];
   const p = payload as Record<string, unknown>;
-  if (Array.isArray(p)) return p as TokensNewsItemRaw[];
-  if (Array.isArray(p.items)) return p.items as TokensNewsItemRaw[];
-  if (Array.isArray(p.results)) return p.results as TokensNewsItemRaw[];
-  if (Array.isArray(p.feed)) return p.feed as TokensNewsItemRaw[];
+  if (Array.isArray(p.items)) return toObjectArray<TokensNewsItemRaw>(p.items);
+  if (Array.isArray(p.results))
+    return toObjectArray<TokensNewsItemRaw>(p.results);
+  if (Array.isArray(p.feed)) return toObjectArray<TokensNewsItemRaw>(p.feed);
   return [];
+}
+
+function toObjectArray<T extends object>(value: unknown): T[] {
+  if (!Array.isArray(value)) return [];
+  const items: unknown[] = value;
+  return items.filter(
+    (item): item is T => item !== null && typeof item === 'object',
+  );
 }

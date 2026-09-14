@@ -39,8 +39,22 @@ export type GetPortfolioHistoryResponse = PortfolioHistory;
 /** GET /portfolio/:wallet/activity */
 export type GetPortfolioActivityResponse = ActivityFeed;
 
-/** GET /stocks */
-export type GetStocksResponse = EquitySummary[];
+/** GET /stocks?page=&limit= */
+export interface GetStocksQuery {
+  page?: number;
+  limit?: number;
+}
+
+export interface GetStocksResponse {
+  items: EquitySummary[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+    hasMore: boolean;
+  };
+}
 
 /** GET /stocks/search?q= */
 export interface SearchStocksQuery {

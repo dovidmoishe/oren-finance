@@ -98,6 +98,7 @@ export type {
   GetStockNewsResponse,
   GetStockResponse,
   GetStocksResponse,
+  GetStocksQuery,
   GetVaultsResponse,
   PostAgentMessageRequest,
   PostAgentMessageResponse,

@@ -5,7 +5,16 @@ import {
   Query,
   BadRequestException,
 } from '@nestjs/common';
-import { IsIn, IsOptional, IsString, MinLength } from 'class-validator';
+import { Type } from 'class-transformer';
+import {
+  IsIn,
+  IsInt,
+  IsOptional,
+  IsString,
+  Max,
+  Min,
+  MinLength,
+} from 'class-validator';
 import type {
   GetStockAnalysisResponse,
   GetStockChartResponse,
@@ -23,6 +32,21 @@ class SearchStocksDto {
   q!: string;
 }
 
+class ListStocksDto {
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  page?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(50)
+  limit?: number;
+}
+
 class ChartQueryDto {
   @IsOptional()
   @IsIn(['1D', '1W', '1M', '3M', '1Y', 'ALL'])
@@ -37,8 +61,8 @@ export class StocksController {
   ) {}
 
   @Get()
-  list(): Promise<GetStocksResponse> {
-    return this.market.listStocks();
+  list(@Query() query: ListStocksDto): Promise<GetStocksResponse> {
+    return this.market.listStocks(query.page ?? 1, query.limit ?? 20);
   }
 
   @Get('search')

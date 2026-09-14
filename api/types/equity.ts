@@ -46,5 +46,7 @@ export interface EquitySummary {
   logo?: string;
   price?: number;
   priceChange24h?: number;
+  volume24h?: number;
+  liquidity?: number;
   opportunityScore?: number;
 }

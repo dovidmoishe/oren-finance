@@ -1,3 +1,4 @@
+import { join } from 'node:path';
 import { Global, Module } from '@nestjs/common';
 import { ConfigModule as NestConfigModule } from '@nestjs/config';
 import { APP_ENV } from './constants';
@@ -8,8 +9,12 @@ import { validateEnv, type AppEnv } from './env.schema';
   imports: [
     NestConfigModule.forRoot({
       isGlobal: true,
-      envFilePath: ['.env'],
-      validate: () => validateEnv(),
+      // Resolve from cwd and from api/ so start works from repo root or api/
+      envFilePath: [
+        join(process.cwd(), '.env'),
+        join(process.cwd(), 'api', '.env'),
+      ],
+      validate: (config) => validateEnv(config),
     }),
   ],
   providers: [
