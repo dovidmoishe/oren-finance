@@ -28,7 +28,7 @@ import {
 } from "@/components/ui";
 import { usePortfolioRefresh } from "@/hooks/use-portfolio-refresh";
 import { usePortfolioStore, useWalletStore } from "@/store";
-import type { PortfolioActivityItem, PortfolioRange } from "@/types";
+import type { PortfolioActivityItem, PortfolioPosition, PortfolioRange } from "@/types";
 
 const chartRangeToPortfolioRange: Record<MarketChartRange, PortfolioRange> = {
   "24H": "1D",
@@ -50,6 +50,36 @@ function ChangePill({ value }: { value?: number }) {
     >
       {positive ? "▲" : "▼"} {formatPercent(Math.abs(value ?? 0), false)}
     </span>
+  );
+}
+
+function normalizeLogoUrl(url?: string) {
+  if (!url) return undefined;
+  if (url.startsWith("ipfs://")) return `https://ipfs.io/ipfs/${url.slice(7)}`;
+  if (url.startsWith("//")) return `https:${url}`;
+  return url;
+}
+
+function PositionLogo({ position }: { position: PortfolioPosition }) {
+  const [failed, setFailed] = useState(false);
+  const logoUrl = normalizeLogoUrl(position.logoUrl);
+
+  if (logoUrl && !failed) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        alt={`${position.name} logo`}
+        className="h-10 w-10 rounded-full border border-border bg-panel object-contain p-1"
+        onError={() => setFailed(true)}
+        src={logoUrl}
+      />
+    );
+  }
+
+  return (
+    <div className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-panel-subtle font-mono text-xs font-semibold text-foreground">
+      {position.ticker.slice(0, 2)}
+    </div>
   );
 }
 
@@ -331,7 +361,7 @@ export function PortfolioDashboard() {
         </div>
       </div>
 
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
+      <div className="grid gap-5 ">
         <Card className="overflow-hidden">
           <CardHeader>
             <h2 className="font-display text-lg font-semibold">Positions</h2>
@@ -354,9 +384,12 @@ export function PortfolioDashboard() {
                   {portfolio.positions.map((position) => (
                     <TableRow className="transition-colors hover:bg-panel-subtle/70" key={position.assetId}>
                       <TableCell>
-                        <Link className="block" href={`/stocks/${position.assetId}`}>
-                          <div className="font-semibold">{position.name}</div>
-                          <div className="font-mono text-xs text-muted">{position.ticker}</div>
+                        <Link className="flex min-w-[220px] items-center gap-3" href={`/stocks/${position.assetId}`}>
+                          <PositionLogo position={position} />
+                          <div className="min-w-0">
+                            <div className="truncate font-semibold">{position.name}</div>
+                            <div className="font-mono text-xs text-muted">{position.ticker}</div>
+                          </div>
                         </Link>
                       </TableCell>
                       <TableCell>
@@ -381,23 +414,6 @@ export function PortfolioDashboard() {
               </div>
             )}
           </div>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <h2 className="font-display text-lg font-semibold">Assets Overview</h2>
-            <p className="text-sm text-muted">Recent Oren and wallet activity.</p>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {activity.length ? (
-              activity.slice(0, 8).map((item) => <ActivityLabel item={item} key={item.id} />)
-            ) : (
-              <EmptyState
-                description="Trades, transfers, lock, and unlock actions will show up after the API sees them."
-                title="No recent activity"
-              />
-            )}
-          </CardContent>
         </Card>
       </div>
     </div>

@@ -22,6 +22,19 @@ interface MarketState {
 
 const STOCKS_PAGE_SIZE = 20;
 
+function mergeStocks(existing: StockSummary[], incoming: StockSummary[]) {
+  if (!existing.length) {
+    return incoming;
+  }
+
+  const byId = new Map(existing.map((stock) => [stock.assetId, stock]));
+  for (const stock of incoming) {
+    byId.set(stock.assetId, { ...byId.get(stock.assetId), ...stock });
+  }
+
+  return [...byId.values()];
+}
+
 export const useMarketStore = create<MarketState>((set, get) => ({
   stocks: [],
   trending: [],
@@ -35,6 +48,7 @@ export const useMarketStore = create<MarketState>((set, get) => ({
   async loadMarkets() {
     if (get().isLoading) return;
 
+    const { hasMore: previousHasMore, nextPage, stocks } = get();
     set({ isLoading: true, error: undefined });
     try {
       const [stockPage, trendingResult, opportunitiesResult] = await Promise.all([
@@ -44,10 +58,10 @@ export const useMarketStore = create<MarketState>((set, get) => ({
       ]);
       set({
         opportunities: opportunitiesResult,
-        stocks: stockPage.items,
+        stocks: mergeStocks(stocks, stockPage.items),
         trending: trendingResult,
-        hasMore: stockPage.pagination.hasMore,
-        nextPage: 2,
+        hasMore: stocks.length > stockPage.items.length ? previousHasMore : stockPage.pagination.hasMore,
+        nextPage: Math.max(nextPage, 2),
         isLoading: false,
       });
     } catch (error) {
@@ -61,12 +75,8 @@ export const useMarketStore = create<MarketState>((set, get) => ({
     set({ isLoadingMore: true, error: undefined });
     try {
       const stockPage = await getStocks(nextPage, STOCKS_PAGE_SIZE);
-      const byId = new Map(stocks.map((stock) => [stock.assetId, stock]));
-      for (const stock of stockPage.items) {
-        byId.set(stock.assetId, stock);
-      }
       set({
-        stocks: [...byId.values()],
+        stocks: mergeStocks(stocks, stockPage.items),
         hasMore: stockPage.pagination.hasMore,
         nextPage: nextPage + 1,
         isLoadingMore: false,

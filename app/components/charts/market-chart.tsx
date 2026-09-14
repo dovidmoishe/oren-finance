@@ -10,6 +10,7 @@ import {
   CandlestickSeries,
   ColorType,
   CrosshairMode,
+  LineStyle,
   LineSeries,
   createChart,
   type CandlestickData,
@@ -138,26 +139,29 @@ export function MarketChart({
       autoSize: true,
       layout: {
         background: { color: "transparent", type: ColorType.Solid },
-        textColor: "#a9adaf",
+        textColor: "#b7b7b0",
         fontFamily: "var(--font-neue-freigeist)",
       },
       grid: {
-        horzLines: { color: "#f0f0ec", style: 0 },
-        vertLines: { color: "#fafafa", style: 0 },
+        horzLines: { color: "#eeeeea", style: LineStyle.Dotted },
+        vertLines: { color: "#f5f5f2", style: LineStyle.Dotted },
       },
       rightPriceScale: {
         borderVisible: false,
         entireTextOnly: true,
+        scaleMargins: { top: 0.08, bottom: 0.08 },
       },
       timeScale: {
-        borderColor: "#e7e7e2",
+        borderVisible: false,
         timeVisible: true,
         secondsVisible: false,
+        rightOffset: 4,
+        barSpacing: 8,
       },
       crosshair: {
         mode: CrosshairMode.Magnet,
-        vertLine: { color: "#b7b7af", labelVisible: false, style: 2 },
-        horzLine: { color: "#b7b7af", labelVisible: false },
+        vertLine: { color: "#d6d6d0", labelVisible: false, style: LineStyle.Solid },
+        horzLine: { color: "#c9c9c2", labelVisible: false, style: LineStyle.Dashed },
       },
       handleScale: true,
       handleScroll: true,
@@ -167,23 +171,23 @@ export function MarketChart({
 
     if (effectiveMode === "candles") {
       const series = chart.addSeries(CandlestickSeries, {
-        upColor: "#20bf6b",
-        downColor: "#ff3b3b",
-        borderUpColor: "#20bf6b",
-        borderDownColor: "#ff3b3b",
-        wickUpColor: "#20bf6b",
-        wickDownColor: "#ff3b3b",
+        upColor: "#21c978",
+        downColor: "#ff4d4d",
+        borderUpColor: "#21c978",
+        borderDownColor: "#ff4d4d",
+        wickUpColor: "#21c978",
+        wickDownColor: "#ff4d4d",
       });
       series.setData(candleSeriesData);
       seriesRef.current = series;
     } else {
       const series = chart.addSeries(LineSeries, {
-        color: "#f6a6ef",
+        color: "#65625d",
         lineWidth: 2,
         lastValueVisible: false,
         priceLineVisible: true,
-        priceLineColor: "#d9d9d2",
-        priceLineStyle: 2,
+        priceLineColor: "#c9c9c2",
+        priceLineStyle: LineStyle.Dashed,
       });
       series.setData(lineSeriesData);
       seriesRef.current = series;
@@ -235,10 +239,10 @@ export function MarketChart({
   }, [candleSeriesData, effectiveMode, error, hasData, lineSeriesData, loading]);
 
   return (
-    <section className={cn("rounded-[24px] border border-border bg-panel p-6 shadow-[0_18px_60px_rgba(23,23,23,0.04)]", className)}>
+    <section className={cn("rounded-[24px] border border-border bg-panel p-6 shadow-[0_18px_60px_rgba(23,23,23,0.025)]", className)}>
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <p className="font-display text-5xl font-semibold tracking-normal">{formatCurrency(value)}</p>
+          <p className="font-display text-6xl font-semibold tracking-normal">{formatCurrency(value)}</p>
           <div className="mt-1 flex items-center gap-3 text-sm">
             <span className={cn((changePct ?? 0) < 0 ? "text-negative" : "text-positive")}>
               {(changePct ?? 0) < 0 ? "▼" : "▲"} {formatPercent(changePct)}
@@ -248,7 +252,7 @@ export function MarketChart({
         </div>
       </div>
 
-      <div className="relative mt-7 h-[320px] min-h-[280px]">
+      <div className="relative mt-8 h-[430px] min-h-[340px]">
         {loading ? (
           <div className="flex h-full items-center justify-center">
             <LoadingState label="Loading chart" />
@@ -265,20 +269,20 @@ export function MarketChart({
             <div className="h-full w-full" ref={containerRef} />
             {tooltip ? (
               <div
-                className="pointer-events-none absolute rounded-[10px] border border-border bg-foreground px-2 py-1 text-xs text-white shadow-sm"
-                style={{ left: Math.min(tooltip.x + 12, 260), top: Math.max(tooltip.y - 34, 0) }}
+                className="pointer-events-none absolute rounded-[10px] border border-border bg-panel px-2.5 py-1.5 text-xs text-foreground shadow-sm"
+                style={{ left: Math.min(tooltip.x + 14, 340), top: Math.max(tooltip.y - 36, 0) }}
               >
                 <span className="font-medium">{tooltip.value}</span>
-                <span className="ml-2 text-white/60">{tooltip.date}</span>
+                <span className="ml-2 text-muted">{tooltip.date}</span>
               </div>
             ) : null}
           </>
         )}
       </div>
 
-      <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
+      <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
         <Tabs ariaLabel="Chart range" items={ranges} onValueChange={onRangeChange} value={activeRange} />
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 rounded-full bg-panel-subtle p-1">
           <Button
             aria-label="Line chart mode"
             onClick={() => onModeChange("line")}

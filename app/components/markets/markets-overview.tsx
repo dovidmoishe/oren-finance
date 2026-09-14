@@ -5,8 +5,11 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Skeleton, cn, formatCurrency, formatPercent } from "@/components/ui";
+import { getStockChart } from "@/services";
 import { useMarketStore } from "@/store";
-import type { StockSummary } from "@/types";
+import type { MarketCandle, StockSummary } from "@/types";
+
+const sparklineCache = new Map<string, MarketCandle[]>();
 
 function SortIcon() {
   return (
@@ -40,14 +43,73 @@ function StockLogo({ stock }: { stock: StockSummary }) {
   );
 }
 
-function Sparkline({ positive }: { positive: boolean }) {
-  const points = positive
-    ? "2,25 11,23 20,24 29,18 38,20 47,14 56,16 65,12 74,15 83,9 92,11 101,7 110,9 126,4"
-    : "2,7 11,9 20,8 29,14 38,12 47,18 56,16 65,20 74,17 83,23 92,21 101,26 110,23 126,28";
+function buildSparklinePoints(candles: MarketCandle[]) {
+  const closes = candles
+    .map((candle) => candle.close)
+    .filter((value) => Number.isFinite(value));
+
+  if (closes.length < 2) return undefined;
+
+  const min = Math.min(...closes);
+  const max = Math.max(...closes);
+  const spread = Math.max(max - min, 0.000001);
+
+  return closes
+    .map((value, index) => {
+      const x = 2 + (index / (closes.length - 1)) * 124;
+      const y = 4 + ((max - value) / spread) * 24;
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    })
+    .join(" ");
+}
+
+function Sparkline({ stock }: { stock: StockSummary }) {
+  const cacheKey = `${stock.assetId}:1D`;
+  const [candles, setCandles] = useState<MarketCandle[] | undefined>(() => sparklineCache.get(cacheKey));
+
+  useEffect(() => {
+    let cancelled = false;
+    const cached = sparklineCache.get(cacheKey);
+
+    if (cached) {
+      return;
+    }
+
+    void getStockChart(stock.assetId, "1D")
+      .then((chart) => {
+        if (cancelled) return;
+        sparklineCache.set(cacheKey, chart);
+        setCandles(chart);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        sparklineCache.set(cacheKey, []);
+        setCandles([]);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [cacheKey, stock.assetId]);
+
+  if (!candles) {
+    return <Skeleton className="h-8 w-32 rounded-full" />;
+  }
+
+  const points = buildSparklinePoints(candles);
+  if (!points) {
+    return <span className="text-xs text-muted">No 24h data</span>;
+  }
+
+  const first = candles.find((candle) => Number.isFinite(candle.close))?.close ?? 0;
+  const last = [...candles].reverse().find((candle) => Number.isFinite(candle.close))?.close ?? first;
+  const positive = last >= first;
+  const lastPoint = points.split(" ").at(-1);
+  const [lastX = "126", lastY = "16"] = lastPoint?.split(",") ?? [];
 
   return (
     <svg
-      aria-hidden="true"
+      aria-label={`${stock.ticker} last 24 hours`}
       className={cn("h-8 w-32", positive ? "text-positive" : "text-negative")}
       preserveAspectRatio="none"
       viewBox="0 0 128 32"
@@ -61,7 +123,7 @@ function Sparkline({ positive }: { positive: boolean }) {
         strokeWidth="2"
         vectorEffect="non-scaling-stroke"
       />
-      <circle cx="126" cy={positive ? "4" : "28"} fill="currentColor" r="3" />
+      <circle cx={lastX} cy={lastY} fill="currentColor" r="3" />
     </svg>
   );
 }
@@ -109,7 +171,7 @@ function StockRow({ stock }: { stock: StockSummary }) {
       <div className={cn("font-mono", positive ? "text-positive" : "text-negative")}>
         {positive ? "▲" : "▼"} {formatPercent(Math.abs(stock.change24hPct ?? 0), false)}
       </div>
-      <Sparkline positive={positive} />
+      <Sparkline stock={stock} />
       <div className="font-mono">{formatCompactCurrency(stock.volume24hUsd)}</div>
       <div className="font-mono">{formatCompactCurrency(stock.liquidityUsd)}</div>
     </Link>
@@ -145,7 +207,6 @@ export function MarketsOverview() {
   const opportunities = useMarketStore((state) => state.opportunities);
   const searchResults = useMarketStore((state) => state.searchResults);
   const isLoading = useMarketStore((state) => state.isLoading);
-  const isLoadingMore = useMarketStore((state) => state.isLoadingMore);
   const isSearching = useMarketStore((state) => state.isSearching);
   const hasMore = useMarketStore((state) => state.hasMore);
   const error = useMarketStore((state) => state.error);
@@ -267,16 +328,16 @@ export function MarketsOverview() {
           <div className="flex items-center gap-1">Liquidity <SortIcon /></div>
         </div>
         {(isLoading || isSearching) && rows.length === 0 ? <TableSkeleton /> : null}
-        {!isLoading && !isSearching && rows.length
+        {rows.length && !(isSearching && searchResults.length === 0)
           ? rows.map((stock) => <StockRow key={stock.assetId} stock={stock} />)
           : null}
         {rows.length && !searching ? (
           <div aria-live="polite" ref={loadMoreRef}>
-            {isLoadingMore ? (
+            {hasMore ? (
               <TableSkeleton count={10} />
             ) : (
               <div className="border-t border-border px-4 py-4 text-center text-xs text-muted">
-                {hasMore ? "Scroll for more stocks" : `All ${rows.length} stocks loaded`}
+                All {rows.length} stocks loaded
               </div>
             )}
           </div>
