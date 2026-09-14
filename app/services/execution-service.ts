@@ -3,8 +3,10 @@ import type {
   BasketIntent,
   BasketResponse,
   ConfirmExecutionRequest,
+  PrepareExecutionRequest,
   ExecutionStatus,
-  PreparedTransaction,
+  ExecutionPreparedTransaction,
+  PreparedBasketPurchase,
   QuoteResponse,
   TradeIntent,
 } from "@/types";
@@ -16,10 +18,10 @@ export function getExecutionQuote(intent: TradeIntent) {
   });
 }
 
-export function prepareExecution(intent: TradeIntent & { quoteId?: string }) {
-  return apiRequest<PreparedTransaction>("/execution/prepare", {
+export function prepareExecution(request: PrepareExecutionRequest) {
+  return apiRequest<ExecutionPreparedTransaction>("/execution/prepare", {
     method: "POST",
-    body: intent,
+    body: request,
   });
 }
 
@@ -37,8 +39,8 @@ export function createBasket(intent: BasketIntent) {
   });
 }
 
-export function prepareBasket(intent: BasketIntent & { basketId?: string }) {
-  return apiRequest<PreparedTransaction[]>("/execution/basket/prepare", {
+export function prepareBasket(intent: { basketId: string; wallet: string }) {
+  return apiRequest<PreparedBasketPurchase>("/execution/basket/prepare", {
     method: "POST",
     body: intent,
   });

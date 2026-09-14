@@ -12,6 +12,7 @@ interface StockState {
   isLoading: boolean;
   isChartLoading: boolean;
   error?: string;
+  chartError?: string;
   loadStock: (assetId: string, range?: ChartRange) => Promise<void>;
   loadChart: (assetId: string, range: ChartRange) => Promise<void>;
   reset: () => void;
@@ -34,6 +35,7 @@ export const useStockStore = create<StockState>((set) => ({
       news: [],
       isLoading: true,
       error: undefined,
+      chartError: undefined,
     });
     const [selectedResult, chartResult, analysisResult, newsResult] = await Promise.allSettled([
         getStock(assetId),
@@ -57,6 +59,12 @@ export const useStockStore = create<StockState>((set) => ({
     set({
       selected: selectedResult.value,
       chart: chartResult.status === "fulfilled" ? chartResult.value : [],
+      chartError:
+        chartResult.status === "rejected"
+          ? chartResult.reason instanceof Error
+            ? chartResult.reason.message
+            : "Unable to load chart"
+          : undefined,
       analysis: analysisResult.status === "fulfilled" ? analysisResult.value : undefined,
       news: newsResult.status === "fulfilled" ? newsResult.value : [],
       isLoading: false,
@@ -64,14 +72,18 @@ export const useStockStore = create<StockState>((set) => ({
   },
   async loadChart(assetId, range) {
     const requestId = ++chartRequestId;
-    set({ isChartLoading: true });
+    set({ isChartLoading: true, chartError: undefined });
     try {
       const chart = await getStockChart(assetId, range);
       if (requestId !== chartRequestId) return;
-      set({ chart, isChartLoading: false });
-    } catch {
+      set({ chart, isChartLoading: false, chartError: undefined });
+    } catch (error) {
       if (requestId !== chartRequestId) return;
-      set({ chart: [], isChartLoading: false });
+      set({
+        chart: [],
+        isChartLoading: false,
+        chartError: error instanceof Error ? error.message : "Unable to load chart",
+      });
     }
   },
   reset() {
@@ -85,6 +97,7 @@ export const useStockStore = create<StockState>((set) => ({
       isLoading: false,
       isChartLoading: false,
       error: undefined,
+      chartError: undefined,
     });
   },
 }));

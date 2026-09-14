@@ -5,6 +5,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { MarketChart, type MarketChartMode, type MarketChartRange } from "@/components/charts";
+import { StockTradeTicket } from "@/components/trading";
 import {
   Button,
   Card,
@@ -133,6 +134,21 @@ function ScorePanel({ score, riskLabel }: { score: number; riskLabel?: string })
   );
 }
 
+function MarketSnapshot({ stock }: { stock: StockDetailType }) {
+  return (
+    <Card>
+      <CardHeader>
+        <h2 className="font-display text-lg font-semibold">Market snapshot</h2>
+      </CardHeader>
+      <CardContent className="space-y-3 text-sm">
+        <div className="flex justify-between gap-4"><span className="text-muted">24h volume</span><span className="font-mono">{formatCurrency(stock.volume24hUsd, 0)}</span></div>
+        <div className="flex justify-between gap-4"><span className="text-muted">Liquidity</span><span className="font-mono">{formatCurrency(stock.liquidityUsd, 0)}</span></div>
+        <div className="flex justify-between gap-4"><span className="text-muted">Tradable routes</span><span className="font-mono">{stock.variants.filter((variant) => variant.tradable).length}</span></div>
+      </CardContent>
+    </Card>
+  );
+}
+
 export function StockDetail({ assetId }: { assetId: string }) {
   const stock = useStockStore((state) => state.selected);
   const chart = useStockStore((state) => state.chart);
@@ -141,6 +157,7 @@ export function StockDetail({ assetId }: { assetId: string }) {
   const isLoading = useStockStore((state) => state.isLoading);
   const isChartLoading = useStockStore((state) => state.isChartLoading);
   const error = useStockStore((state) => state.error);
+  const chartError = useStockStore((state) => state.chartError);
   const loadStock = useStockStore((state) => state.loadStock);
   const loadChart = useStockStore((state) => state.loadChart);
   const reset = useStockStore((state) => state.reset);
@@ -178,6 +195,8 @@ export function StockDetail({ assetId }: { assetId: string }) {
     setRange(nextRange);
     void loadChart(assetId, rangeMap[nextRange]);
   };
+
+  const handleTradeConfirmed = () => loadStock(assetId, rangeMap[range]);
 
   return (
     <div className="mx-auto max-w-[1540px] space-y-5 pb-20">
@@ -233,6 +252,7 @@ export function StockDetail({ assetId }: { assetId: string }) {
           changePct={stock.change24hPct}
           className="min-w-0 rounded-[24px]"
           emptyDescription="No historical market candles were returned for this stock and range."
+          error={chartError}
           lineData={lineData}
           loading={isChartLoading}
           mode={mode}
@@ -240,19 +260,12 @@ export function StockDetail({ assetId }: { assetId: string }) {
           onRangeChange={handleRangeChange}
           value={chart.at(-1)?.close ?? stock.priceUsd}
         />
-        <div className="space-y-5">
-          <ScorePanel riskLabel={analysis?.riskLabel} score={score} />
-          <Card>
-            <CardHeader>
-              <h2 className="font-display text-lg font-semibold">Market snapshot</h2>
-            </CardHeader>
-            <CardContent className="space-y-3 text-sm">
-              <div className="flex justify-between gap-4"><span className="text-muted">24h volume</span><span className="font-mono">{formatCurrency(stock.volume24hUsd, 0)}</span></div>
-              <div className="flex justify-between gap-4"><span className="text-muted">Liquidity</span><span className="font-mono">{formatCurrency(stock.liquidityUsd, 0)}</span></div>
-              <div className="flex justify-between gap-4"><span className="text-muted">Tradable routes</span><span className="font-mono">{stock.variants.filter((variant) => variant.tradable).length}</span></div>
-            </CardContent>
-          </Card>
-        </div>
+        <StockTradeTicket key={stock.assetId} onConfirmed={handleTradeConfirmed} stock={stock} />
+      </div>
+
+      <div className="grid gap-5 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+        <ScorePanel riskLabel={analysis?.riskLabel} score={score} />
+        <MarketSnapshot stock={stock} />
       </div>
 
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1.15fr)_minmax(340px,0.85fr)]">
@@ -335,8 +348,8 @@ export function StockDetail({ assetId }: { assetId: string }) {
             ) : (
               <div className="p-5">
                 <EmptyState
-                  description="No relevant stories are cached for this stock right now."
-                  title="No recent news"
+                  description="No asset-specific stories are cached for this stock right now."
+                  title="No asset-specific news"
                 />
               </div>
             )}

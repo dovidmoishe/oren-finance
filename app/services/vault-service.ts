@@ -1,19 +1,19 @@
 import { apiRequest } from "./api-client";
-import type { PreparedTransaction, VaultIntent, VaultPosition, VaultUnlockIntent } from "@/types";
+import type { PreparedVaultTransaction, VaultIntent, VaultPosition, VaultUnlockIntent } from "@/types";
 
 export function getVaults(wallet: string) {
   return apiRequest<VaultPosition[]>(`/vaults/${wallet}`);
 }
 
 export function prepareVaultLock(intent: VaultIntent) {
-  return apiRequest<PreparedTransaction>("/vaults/prepare-lock", {
+  return apiRequest<PreparedVaultTransaction>("/vaults/prepare-lock", {
     method: "POST",
     body: intent,
   });
 }
 
 export function prepareVaultUnlock(intent: VaultUnlockIntent) {
-  return apiRequest<PreparedTransaction>("/vaults/prepare-unlock", {
+  return apiRequest<PreparedVaultTransaction>("/vaults/prepare-unlock", {
     method: "POST",
     body: intent,
   });

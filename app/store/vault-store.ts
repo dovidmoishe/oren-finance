@@ -2,11 +2,11 @@
 
 import { create } from "zustand";
 import { getVaults, prepareVaultLock, prepareVaultUnlock } from "@/services";
-import type { PreparedTransaction, VaultIntent, VaultPosition, VaultUnlockIntent } from "@/types";
+import type { PreparedVaultTransaction, VaultIntent, VaultPosition, VaultUnlockIntent } from "@/types";
 
 interface VaultState {
   positions: VaultPosition[];
-  prepared?: PreparedTransaction;
+  prepared?: PreparedVaultTransaction;
   isLoading: boolean;
   error?: string;
   loadVaults: (wallet: string) => Promise<void>;

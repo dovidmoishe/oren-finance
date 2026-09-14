@@ -23,3 +23,15 @@ export interface VaultUnlockIntent {
   wallet: string;
   lockAddress: string;
 }
+
+export interface PreparedVaultTransaction {
+  wallet: string;
+  transaction: string;
+  lockAddress?: string;
+  tokenVaultAddress?: string;
+  unlockAt?: string;
+  amount?: number;
+  mint?: string;
+  assetId?: string;
+  ticker?: string;
+}
