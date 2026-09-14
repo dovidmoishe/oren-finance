@@ -7,6 +7,7 @@ import { IntelligenceService } from '../../intelligence/intelligence.service';
 import { MarketService } from '../../market/market.service';
 import { NewsService } from '../../news/news.service';
 import { PortfolioService } from '../../portfolio/portfolio.service';
+import { SocialService } from '../../social/social.service';
 import { VaultService } from '../../vault/vault.service';
 
 export interface AgentToolResult {
@@ -31,6 +32,7 @@ export class AgentToolRegistry {
     private readonly intelligence: IntelligenceService,
     private readonly execution: ExecutionService,
     private readonly vault: VaultService,
+    private readonly social: SocialService,
   ) {}
 
   getSchemas(): ToolDefinition[] {
@@ -42,9 +44,15 @@ export class AgentToolRegistry {
 
     switch (name) {
       case 'getPortfolio':
-        return {
-          output: await this.portfolio.getPortfolio(required(input, 'wallet')),
-        };
+        {
+          const portfolio = await this.portfolio.getPortfolio(
+            required(input, 'wallet'),
+          );
+          return {
+            output: portfolio,
+            artifact: { type: 'portfolio', data: portfolio },
+          };
+        }
 
       case 'getPortfolioActivity':
         return {
@@ -55,7 +63,7 @@ export class AgentToolRegistry {
         const stock = await this.getStockByInput(
           required(input, 'assetIdOrTicker'),
         );
-        return { output: stock };
+        return { output: stock, artifact: { type: 'stock', data: stock } };
       }
 
       case 'getStockChart': {
@@ -134,9 +142,15 @@ export class AgentToolRegistry {
       }
 
       case 'getVaults':
-        return {
-          output: await this.vault.listVaults(required(input, 'wallet')),
-        };
+        {
+          const vaults = await this.vault.listVaults(
+            required(input, 'wallet'),
+          );
+          return {
+            output: vaults,
+            artifact: { type: 'vaults', data: vaults },
+          };
+        }
 
       case 'prepareLock': {
         const prepared = await this.vault.prepareLock({
@@ -176,6 +190,34 @@ export class AgentToolRegistry {
         return { output: basket, artifact: { type: 'basket', data: basket } };
       }
 
+      case 'getLeaderboard': {
+        const leaderboard = await this.social.getLeaderboard({
+          timeframe: optionalString(input, 'timeframe') as never,
+          limit: optionalNumber(input, 'limit'),
+        });
+        return { output: leaderboard };
+      }
+
+      case 'getTraderProfile': {
+        const trader = await this.social.getTraderDetail(
+          required(input, 'slug'),
+          optionalString(input, 'timeframe') as never,
+        );
+        return { output: trader };
+      }
+
+      case 'prepareCopyPortfolio': {
+        const proposal = await this.social.prepareCopyPortfolio({
+          sourceSlug: required(input, 'sourceSlug'),
+          wallet: required(input, 'wallet'),
+          amountUsd: requiredNumber(input, 'amountUsd'),
+        });
+        return {
+          output: proposal,
+          artifact: { type: 'copy_portfolio_proposal', data: proposal },
+        };
+      }
+
       case 'prepareBasketPurchase': {
         const prepared = await this.execution.prepareBasketPurchase({
           basketId: required(input, 'basketId'),
@@ -212,6 +254,8 @@ export class AgentToolRegistry {
 
 const stringSchema = { type: 'string' };
 const numberSchema = { type: 'number' };
+const nullableStringSchema = { type: ['string', 'null'] };
+const nullableNumberSchema = { type: ['number', 'null'] };
 
 const TOOL_SCHEMAS: ToolDefinition[] = [
   tool('getPortfolio', 'Get the user portfolio for a Solana wallet.', {
@@ -228,9 +272,11 @@ const TOOL_SCHEMAS: ToolDefinition[] = [
     'Get normalized stock chart candles.',
     {
       assetIdOrTicker: stringSchema,
-      range: { type: 'string', enum: ['1D', '1W', '1M', '3M', '1Y', 'ALL'] },
+      range: {
+        type: ['string', 'null'],
+        enum: ['1D', '1W', '1M', '3M', '1Y', 'ALL', null],
+      },
     },
-    ['assetIdOrTicker'],
   ),
   tool('getStockNews', 'Get recent news for a canonical stock.', {
     assetIdOrTicker: stringSchema,
@@ -249,10 +295,9 @@ const TOOL_SCHEMAS: ToolDefinition[] = [
     'findOpportunities',
     'Find ranked Oren opportunities.',
     {
-      minScore: numberSchema,
-      limit: numberSchema,
+      minScore: nullableNumberSchema,
+      limit: nullableNumberSchema,
     },
-    [],
   ),
   tool('getSignals', 'Get deterministic quantitative signals for a stock.', {
     assetIdOrTicker: stringSchema,
@@ -262,21 +307,12 @@ const TOOL_SCHEMAS: ToolDefinition[] = [
     'Get a Jupiter quote for buying or selling a stock.',
     {
       side: { type: 'string', enum: ['buy', 'sell'] },
-      ticker: stringSchema,
-      assetId: stringSchema,
-      amountUsd: numberSchema,
-      amount: numberSchema,
-      preferredMint: stringSchema,
-      slippageBps: numberSchema,
-    },
-    ['side'],
-  ),
-  tool(
-    'prepareSwap',
-    'Prepare an unsigned swap transaction for wallet review.',
-    {
-      quoteId: stringSchema,
-      wallet: stringSchema,
+      ticker: nullableStringSchema,
+      assetId: nullableStringSchema,
+      amountUsd: nullableNumberSchema,
+      amount: nullableNumberSchema,
+      preferredMint: nullableStringSchema,
+      slippageBps: nullableNumberSchema,
     },
   ),
   tool(
@@ -285,53 +321,63 @@ const TOOL_SCHEMAS: ToolDefinition[] = [
     {
       amountUsd: numberSchema,
       prompt: stringSchema,
-      wallet: stringSchema,
+      wallet: nullableStringSchema,
       candidates: {
-        type: 'array',
+        type: ['array', 'null'],
         items: {
           type: 'object',
           properties: {
             assetId: stringSchema,
             ticker: stringSchema,
-            name: stringSchema,
+            name: nullableStringSchema,
             opportunityScore: numberSchema,
-            signals: { type: 'object', additionalProperties: true },
           },
-          required: ['assetId', 'ticker', 'opportunityScore'],
-          additionalProperties: true,
+          required: ['assetId', 'ticker', 'name', 'opportunityScore'],
+          additionalProperties: false,
         },
       },
-    },
-    ['amountUsd', 'prompt'],
-  ),
-  tool(
-    'prepareBasketPurchase',
-    'Prepare unsigned swap transactions for a basket purchase.',
-    {
-      basketId: stringSchema,
-      wallet: stringSchema,
     },
   ),
   tool('getVaults', 'List indexed Oren timelock vault positions.', {
     wallet: stringSchema,
   }),
-  tool('prepareLock', 'Prepare an unsigned vault lock transaction.', {
-    wallet: stringSchema,
-    asset: stringSchema,
-    amount: numberSchema,
-    unlockAt: stringSchema,
-  }),
-  tool('prepareUnlock', 'Prepare an unsigned vault unlock transaction.', {
-    wallet: stringSchema,
-    lockAddress: stringSchema,
-  }),
+  tool(
+    'getLeaderboard',
+    'Get the opt-in public social trading leaderboard ranked by observed portfolio P&L.',
+    {
+      timeframe: {
+        type: ['string', 'null'],
+        enum: ['7D', '30D', '90D', 'ALL', null],
+      },
+      limit: nullableNumberSchema,
+    },
+  ),
+  tool(
+    'getTraderProfile',
+    'Get a public trader profile, observed portfolio, chart history, and activity.',
+    {
+      slug: stringSchema,
+      timeframe: {
+        type: ['string', 'null'],
+        enum: ['7D', '30D', '90D', 'ALL', null],
+      },
+    },
+  ),
+  tool(
+    'prepareCopyPortfolio',
+    'Create a proposal-only basket that copies a public trader portfolio using a chosen USDC amount.',
+    {
+      sourceSlug: stringSchema,
+      wallet: stringSchema,
+      amountUsd: numberSchema,
+    },
+  ),
 ];
 
 function tool(
   name: string,
   description: string,
   properties: Record<string, unknown>,
-  requiredFields = Object.keys(properties),
 ): ToolDefinition {
   return {
     type: 'function',
@@ -341,7 +387,7 @@ function tool(
     parameters: {
       type: 'object',
       properties,
-      required: requiredFields,
+      required: Object.keys(properties),
       additionalProperties: false,
     },
   };

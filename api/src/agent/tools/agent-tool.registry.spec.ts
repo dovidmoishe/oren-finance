@@ -30,6 +30,11 @@ describe('AgentToolRegistry', () => {
     prepareLock: jest.fn(),
     prepareUnlock: jest.fn(),
   };
+  const social = {
+    getLeaderboard: jest.fn(),
+    getTraderDetail: jest.fn(),
+    prepareCopyPortfolio: jest.fn(),
+  };
 
   let registry: AgentToolRegistry;
 
@@ -42,6 +47,65 @@ describe('AgentToolRegistry', () => {
       intelligence as never,
       execution as never,
       vault as never,
+      social as never,
+    );
+  });
+
+  it('publishes OpenAI-compatible strict function schemas', () => {
+    for (const schema of registry.getSchemas()) {
+      const parameters = schema.parameters as {
+        properties: Record<string, unknown>;
+        required: string[];
+        additionalProperties: boolean;
+      };
+
+      expect(parameters.additionalProperties).toBe(false);
+      expect(parameters.required).toEqual(Object.keys(parameters.properties));
+    }
+
+    const chart = registry
+      .getSchemas()
+      .find((schema) => schema.name === 'getStockChart');
+    const chartProperties = chart?.parameters.properties as Record<
+      string,
+      { type: string[] }
+    >;
+    expect(chartProperties.range.type).toContain('null');
+
+    const basket = registry
+      .getSchemas()
+      .find((schema) => schema.name === 'createBasket');
+    const basketProperties = basket?.parameters.properties as Record<
+      string,
+      Record<string, unknown>
+    >;
+    const candidates = basketProperties.candidates as {
+      items: {
+        properties: Record<string, unknown>;
+        required: string[];
+        additionalProperties: boolean;
+      };
+    };
+    expect(candidates.items.additionalProperties).toBe(false);
+    expect(candidates.items.required).toEqual(
+      Object.keys(candidates.items.properties),
+    );
+
+    expect(registry.getSchemas().map((schema) => schema.name)).not.toEqual(
+      expect.arrayContaining([
+        'prepareSwap',
+        'prepareBasketPurchase',
+        'prepareLock',
+        'prepareUnlock',
+      ]),
+    );
+
+    expect(registry.getSchemas().map((schema) => schema.name)).toEqual(
+      expect.arrayContaining([
+        'getLeaderboard',
+        'getTraderProfile',
+        'prepareCopyPortfolio',
+      ]),
     );
   });
 
@@ -52,6 +116,10 @@ describe('AgentToolRegistry', () => {
       registry.dispatch('getPortfolio', { wallet: 'wallet-1' }),
     ).resolves.toEqual({
       output: { walletAddress: 'wallet-1' },
+      artifact: {
+        type: 'portfolio',
+        data: { walletAddress: 'wallet-1' },
+      },
     });
 
     expect(portfolio.getPortfolio).toHaveBeenCalledWith('wallet-1');
@@ -162,6 +230,46 @@ describe('AgentToolRegistry', () => {
           basketId: 'basket-1',
           wallet: 'wallet-1',
           transactions: [],
+        },
+      },
+    });
+  });
+
+  it('dispatches social tools and returns copy proposals only', async () => {
+    social.getLeaderboard.mockResolvedValue({ rows: [] });
+    social.getTraderDetail.mockResolvedValue({ profile: { slug: 'alpha' } });
+    social.prepareCopyPortfolio.mockResolvedValue({
+      source: { slug: 'alpha', displayName: 'Alpha' },
+      basket: { id: 'basket-1', totalAmountUsd: 100 },
+    });
+
+    await expect(
+      registry.dispatch('getLeaderboard', {
+        timeframe: '30D',
+        limit: 10,
+      }),
+    ).resolves.toEqual({ output: { rows: [] } });
+
+    await expect(
+      registry.dispatch('getTraderProfile', { slug: 'alpha' }),
+    ).resolves.toEqual({ output: { profile: { slug: 'alpha' } } });
+
+    await expect(
+      registry.dispatch('prepareCopyPortfolio', {
+        sourceSlug: 'alpha',
+        wallet: 'wallet-1',
+        amountUsd: 100,
+      }),
+    ).resolves.toEqual({
+      output: {
+        source: { slug: 'alpha', displayName: 'Alpha' },
+        basket: { id: 'basket-1', totalAmountUsd: 100 },
+      },
+      artifact: {
+        type: 'copy_portfolio_proposal',
+        data: {
+          source: { slug: 'alpha', displayName: 'Alpha' },
+          basket: { id: 'basket-1', totalAmountUsd: 100 },
         },
       },
     });

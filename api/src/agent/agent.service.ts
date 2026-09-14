@@ -1,27 +1,30 @@
 import { BadRequestException, Inject, Injectable } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
 import type {
   AgentArtifact,
   AgentChatRequest,
   AgentChatResponse,
-  AgentEvent,
+  AgentDisplayMessage,
   AgentMessage,
+  AgentPageContext,
+  AgentStreamEvent,
+  AgentThreadMessagesResponse,
+  AgentToolActivity,
 } from '../../types/agent';
 import { AgentUnavailableError } from '../common/errors/provider.errors';
 import { APP_ENV } from '../config/constants';
 import type { AppEnv } from '../config/env.schema';
 import { OREN_AGENT_PROMPT } from './agent.prompt';
 import { AgentRepository } from './agent.repository';
-import {
-  OPENAI_CLIENT,
-  type OpenAIClient,
-} from './openai.provider';
+import { OPENAI_CLIENT, type OpenAIClient } from './openai.provider';
 import { AgentToolRegistry } from './tools/agent-tool.registry';
 
 const MAX_TOOL_ROUNDS = 5;
-const HISTORY_LIMIT = 20;
+const HISTORY_LIMIT = 100;
 
 type ResponseInput = unknown[];
 type ResponseOutputItem = Record<string, unknown>;
+type ResponseStreamEvent = Record<string, unknown> & { type: string };
 
 @Injectable()
 export class AgentService {
@@ -33,119 +36,287 @@ export class AgentService {
   ) {}
 
   async message(body: AgentChatRequest): Promise<AgentChatResponse> {
-    const walletAddress = assertNonEmpty(body.walletAddress, 'walletAddress');
-    const content = assertNonEmpty(body.message, 'message');
-    const thread = body.threadId
-      ? await this.loadThread(body.threadId, walletAddress)
-      : await this.repository.createThread(walletAddress);
+    const events: AgentStreamEvent[] = [];
+    let completed: Extract<AgentStreamEvent, { type: 'turn_completed' }> | null = null;
+    let failed: Extract<AgentStreamEvent, { type: 'turn_failed' }> | null = null;
 
-    const userMessage = await this.repository.insertMessage({
-      threadId: thread.id,
-      role: 'user',
-      content,
-    });
-
-    const events: AgentEvent[] = [
-      {
-        type: 'message_received',
-        timestamp: new Date(),
-        messageId: userMessage.id,
-      },
-    ];
-
-    if (!this.openai) {
-      throw new AgentUnavailableError('OPENAI_API_KEY is required for Agent');
+    for await (const event of this.streamMessage(body)) {
+      if (event.type !== 'assistant_delta') events.push(event);
+      if (event.type === 'turn_completed') completed = event;
+      if (event.type === 'turn_failed') failed = event;
     }
 
-    const history = await this.repository.listMessages(thread.id, HISTORY_LIMIT);
-    let input: ResponseInput = messagesToInput(history);
-    const artifacts: AgentArtifact[] = [];
+    if (!completed) {
+      throw new AgentUnavailableError(
+        failed?.error.message ?? 'Oren could not complete the response',
+      );
+    }
 
-    for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
-      const response = await this.openai.responses.create({
-        model: this.env.OPENAI_MODEL,
-        instructions: OREN_AGENT_PROMPT,
-        input,
-        tools: this.tools.getSchemas() as never,
-        tool_choice: 'auto',
-      } as never) as unknown as {
-        output?: ResponseOutputItem[];
-        output_text?: string;
+    return {
+      threadId: completed.threadId,
+      message: completed.message,
+      artifacts: completed.artifacts,
+      events,
+    };
+  }
+
+  async *streamMessage(
+    body: AgentChatRequest,
+    signal?: AbortSignal,
+  ): AsyncGenerator<AgentStreamEvent> {
+    const turnId = randomUUID();
+    let sequence = 0;
+    const timestamp = () => new Date();
+
+    try {
+      const walletAddress = assertNonEmpty(body.walletAddress, 'walletAddress');
+      const content = assertNonEmpty(body.message, 'message');
+      const thread = body.threadId
+        ? await this.loadThread(body.threadId, walletAddress)
+        : await this.repository.createThread(walletAddress);
+      const existingHistory = body.threadId
+        ? await this.repository.listMessages(thread.id, HISTORY_LIMIT)
+        : [];
+      const unansweredUser = findUnansweredUser(existingHistory, content);
+      const userMessage =
+        unansweredUser ??
+        (await this.repository.insertMessage({
+          threadId: thread.id,
+          role: 'user',
+          content,
+        }));
+
+      yield {
+        type: 'turn_started',
+        turnId,
+        sequence: sequence++,
+        timestamp: timestamp(),
+        threadId: thread.id,
+        message: toDisplayMessage(userMessage),
       };
 
-      const output = response.output ?? [];
-      const functionCalls = output.filter(isFunctionCall);
-
-      if (functionCalls.length === 0) {
-        const assistant = await this.saveAssistantMessage(
-          thread.id,
-          extractAssistantText(response.output_text, output),
-        );
-        events.push({
-          type: 'assistant_completed',
-          timestamp: new Date(),
-          messageId: assistant.id,
-        });
-        return compactResponse(thread.id, assistant, artifacts, events);
+      if (!this.openai) {
+        throw new AgentUnavailableError('OPENAI_API_KEY is required for Agent');
       }
 
-      input = [...input, ...output];
+      const history = unansweredUser
+        ? existingHistory
+        : await this.repository.listMessages(thread.id, HISTORY_LIMIT);
+      let input: ResponseInput = messagesToInput(history);
+      const artifacts: AgentArtifact[] = [];
+      const activities: AgentToolActivity[] = [];
+      let assistantContent = '';
 
-      for (const call of functionCalls) {
-        const toolName = String(call.name);
-        events.push({
-          type: 'tool_started',
-          timestamp: new Date(),
-          toolName,
-        });
+      for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
+        throwIfAborted(signal);
+        const stream = (await this.openai.responses.create(
+          {
+            model: this.env.OPENAI_MODEL,
+            instructions: buildInstructions(body.context),
+            input,
+            tools: this.tools.getSchemas() as never,
+            tool_choice: 'auto',
+            stream: true,
+          } as never,
+          { signal },
+        )) as unknown as AsyncIterable<ResponseStreamEvent>;
 
-        try {
-          const args = parseArguments(call.arguments);
-          const result = await this.tools.dispatch(toolName, args);
-          await this.repository.insertMessage({
+        let completedResponse: Record<string, unknown> | undefined;
+        let roundStreamedText = '';
+
+        for await (const event of stream) {
+          throwIfAborted(signal);
+          if (
+            event.type === 'response.output_text.delta' &&
+            typeof event.delta === 'string'
+          ) {
+            roundStreamedText += event.delta;
+            assistantContent += event.delta;
+            yield {
+              type: 'assistant_delta',
+              turnId,
+              sequence: sequence++,
+              timestamp: timestamp(),
+              delta: event.delta,
+            };
+          } else if (
+            event.type === 'response.completed' &&
+            isRecord(event.response)
+          ) {
+            completedResponse = event.response;
+          } else if (event.type === 'response.failed' || event.type === 'error') {
+            throw new AgentUnavailableError(extractStreamError(event));
+          }
+        }
+
+        if (!completedResponse) {
+          throw new AgentUnavailableError('The model stream ended unexpectedly');
+        }
+
+        const output = Array.isArray(completedResponse.output)
+          ? (completedResponse.output as ResponseOutputItem[])
+          : [];
+        const roundText = extractAssistantText(
+          typeof completedResponse.output_text === 'string'
+            ? completedResponse.output_text
+            : undefined,
+          output,
+        );
+        const missingText = missingStreamedSuffix(roundText, roundStreamedText);
+        if (missingText) {
+          assistantContent += missingText;
+          yield {
+            type: 'assistant_delta',
+            turnId,
+            sequence: sequence++,
+            timestamp: timestamp(),
+            delta: missingText,
+          };
+        }
+
+        const functionCalls = output.filter(isFunctionCall);
+        if (functionCalls.length === 0) {
+          if (!assistantContent.trim()) {
+            assistantContent = 'I could not produce a response.';
+            yield {
+              type: 'assistant_delta',
+              turnId,
+              sequence: sequence++,
+              timestamp: timestamp(),
+              delta: assistantContent,
+            };
+          }
+          const assistant = await this.saveAssistantMessage(
+            thread.id,
+            assistantContent.trim(),
+          );
+          yield {
+            type: 'turn_completed',
+            turnId,
+            sequence: sequence++,
+            timestamp: timestamp(),
             threadId: thread.id,
-            role: 'tool',
-            content: JSON.stringify(result.output),
+            message: toDisplayMessage(assistant, activities, artifacts),
+            artifacts: artifacts.length > 0 ? artifacts : undefined,
+          };
+          return;
+        }
+
+        input = [...input, ...output];
+        for (const call of functionCalls) {
+          throwIfAborted(signal);
+          const toolName = String(call.name);
+          const callId = String(call.call_id);
+          activities.push({ callId, toolName, status: 'running' });
+          yield {
+            type: 'tool_started',
+            turnId,
+            sequence: sequence++,
+            timestamp: timestamp(),
+            callId,
             toolName,
-            toolPayload: args,
-          });
-          if (result.artifact) artifacts.push(result.artifact);
-          events.push({
-            type: 'tool_completed',
-            timestamp: new Date(),
-            toolName,
-          });
-          input.push(functionOutput(call, result.output));
-        } catch (err) {
-          const message = err instanceof Error ? err.message : String(err);
-          await this.repository.insertMessage({
-            threadId: thread.id,
-            role: 'tool',
-            content: JSON.stringify({ error: message }),
-            toolName,
-            toolPayload: { failed: true },
-          });
-          events.push({
-            type: 'tool_failed',
-            timestamp: new Date(),
-            toolName,
-            error: message,
-          });
-          input.push(functionOutput(call, { error: message }));
+          };
+
+          try {
+            const args = parseArguments(call.arguments);
+            const result = await this.tools.dispatch(toolName, args);
+            await this.repository.insertMessage({
+              threadId: thread.id,
+              role: 'tool',
+              content: JSON.stringify(result.output),
+              toolName,
+              toolPayload: args,
+            });
+            if (result.artifact) artifacts.push(result.artifact);
+            const activity = activities.find((item) => item.callId === callId);
+            if (activity) activity.status = 'completed';
+            yield {
+              type: 'tool_completed',
+              turnId,
+              sequence: sequence++,
+              timestamp: timestamp(),
+              callId,
+              toolName,
+              artifact: result.artifact,
+            };
+            input.push(functionOutput(call, result.output));
+          } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            await this.repository.insertMessage({
+              threadId: thread.id,
+              role: 'tool',
+              content: JSON.stringify({ error: message }),
+              toolName,
+              toolPayload: { failed: true },
+            });
+            const activity = activities.find((item) => item.callId === callId);
+            if (activity) {
+              activity.status = 'failed';
+              activity.error = message;
+            }
+            yield {
+              type: 'tool_failed',
+              turnId,
+              sequence: sequence++,
+              timestamp: timestamp(),
+              callId,
+              toolName,
+              error: message,
+            };
+            input.push(functionOutput(call, { error: message }));
+          }
         }
       }
-    }
 
-    const assistant = await this.saveAssistantMessage(
-      thread.id,
-      'I hit my tool limit before I could complete that. Try narrowing the request.',
-    );
-    events.push({
-      type: 'assistant_completed',
-      timestamp: new Date(),
-      messageId: assistant.id,
-    });
-    return compactResponse(thread.id, assistant, artifacts, events);
+      const limitMessage =
+        'I hit my tool limit before I could complete that. Try narrowing the request.';
+      const separator = assistantContent.trim() ? '\n\n' : '';
+      assistantContent += `${separator}${limitMessage}`;
+      yield {
+        type: 'assistant_delta',
+        turnId,
+        sequence: sequence++,
+        timestamp: timestamp(),
+        delta: `${separator}${limitMessage}`,
+      };
+      const assistant = await this.saveAssistantMessage(
+        thread.id,
+        assistantContent.trim(),
+      );
+      yield {
+        type: 'turn_completed',
+        turnId,
+        sequence: sequence++,
+        timestamp: timestamp(),
+        threadId: thread.id,
+        message: toDisplayMessage(assistant, activities, artifacts),
+        artifacts: artifacts.length > 0 ? artifacts : undefined,
+      };
+    } catch (error) {
+      if (isAbortError(error) || signal?.aborted) return;
+      const message = error instanceof Error ? error.message : String(error);
+      yield {
+        type: 'turn_failed',
+        turnId,
+        sequence: sequence++,
+        timestamp: timestamp(),
+        error: {
+          code: error instanceof BadRequestException ? 'bad_request' : 'agent_error',
+          message,
+          retryable: !(error instanceof BadRequestException),
+        },
+      };
+    }
+  }
+
+  async getThreadMessages(
+    threadId: string,
+    walletAddress: string,
+  ): Promise<AgentThreadMessagesResponse> {
+    const wallet = assertNonEmpty(walletAddress, 'walletAddress');
+    const thread = await this.loadThread(threadId, wallet);
+    const messages = await this.repository.listMessages(thread.id, HISTORY_LIMIT);
+    return { thread, messages: toDisplayHistory(messages) };
   }
 
   private async loadThread(id: string, walletAddress: string) {
@@ -157,10 +328,7 @@ export class AgentService {
     return thread;
   }
 
-  private saveAssistantMessage(
-    threadId: string,
-    content: string,
-  ): Promise<AgentMessage> {
+  private saveAssistantMessage(threadId: string, content: string): Promise<AgentMessage> {
     return this.repository.insertMessage({
       threadId,
       role: 'assistant',
@@ -169,13 +337,33 @@ export class AgentService {
   }
 }
 
+function findUnansweredUser(
+  messages: AgentMessage[],
+  content: string,
+): AgentMessage | undefined {
+  const lastAssistantIndex = messages.findLastIndex(
+    (message) => message.role === 'assistant',
+  );
+  return messages
+    .slice(lastAssistantIndex + 1)
+    .findLast(
+      (message) => message.role === 'user' && message.content === content,
+    );
+}
+
 function messagesToInput(messages: AgentMessage[]): ResponseInput {
   return messages
     .filter((message) => message.role === 'user' || message.role === 'assistant')
-    .map((message) => ({
-      role: message.role,
-      content: message.content,
-    }));
+    .map((message) => ({ role: message.role, content: message.content }));
+}
+
+function buildInstructions(context?: AgentPageContext): string {
+  if (!context) return OREN_AGENT_PROMPT;
+  const asset =
+    context.page === 'stock' && context.assetId
+      ? ` The user is viewing stock asset ${context.assetId}.`
+      : '';
+  return `${OREN_AGENT_PROMPT}\n\nInterface context: the user is currently on the ${context.page} page.${asset} Use this only to make the response more relevant; do not claim you inspected page data without a tool call.`;
 }
 
 function isFunctionCall(item: ResponseOutputItem): item is ResponseOutputItem & {
@@ -183,7 +371,11 @@ function isFunctionCall(item: ResponseOutputItem): item is ResponseOutputItem & 
   call_id: string;
   arguments?: string;
 } {
-  return item.type === 'function_call' && typeof item.name === 'string';
+  return (
+    item.type === 'function_call' &&
+    typeof item.name === 'string' &&
+    typeof item.call_id === 'string'
+  );
 }
 
 function parseArguments(args: unknown): unknown {
@@ -206,8 +398,7 @@ function extractAssistantText(
   outputText: string | undefined,
   output: ResponseOutputItem[],
 ): string {
-  if (outputText?.trim()) return outputText.trim();
-
+  if (outputText?.trim()) return outputText;
   const chunks: string[] = [];
   for (const item of output) {
     if (item.type !== 'message' || !Array.isArray(item.content)) continue;
@@ -215,21 +406,121 @@ function extractAssistantText(
       if (typeof part.text === 'string') chunks.push(part.text);
     }
   }
-  return chunks.join('\n').trim() || 'I could not produce a response.';
+  return chunks.join('\n');
 }
 
-function compactResponse(
-  threadId: string,
+function missingStreamedSuffix(fullText: string, streamedText: string): string {
+  if (!fullText || fullText === streamedText) return '';
+  if (fullText.startsWith(streamedText)) return fullText.slice(streamedText.length);
+  return streamedText ? '' : fullText;
+}
+
+function toDisplayMessage(
   message: AgentMessage,
-  artifacts: AgentArtifact[],
-  events: AgentEvent[],
-): AgentChatResponse {
+  activities?: AgentToolActivity[],
+  artifacts?: AgentArtifact[],
+): AgentDisplayMessage {
   return {
-    threadId,
-    message,
-    artifacts: artifacts.length > 0 ? artifacts : undefined,
-    events,
+    id: message.id,
+    role: message.role === 'assistant' ? 'assistant' : 'user',
+    content: message.content,
+    createdAt: message.createdAt,
+    activities: activities?.length ? activities.map((item) => ({ ...item })) : undefined,
+    artifacts: artifacts?.length ? artifacts : undefined,
   };
+}
+
+function toDisplayHistory(messages: AgentMessage[]): AgentDisplayMessage[] {
+  const display: AgentDisplayMessage[] = [];
+  let activities: AgentToolActivity[] = [];
+  let artifacts: AgentArtifact[] = [];
+
+  for (const message of messages) {
+    if (message.role === 'tool' && message.toolName) {
+      const output = parseToolOutput(message.content);
+      const error =
+        isRecord(output) && typeof output.error === 'string'
+          ? output.error
+          : undefined;
+      activities.push({
+        callId: message.id,
+        toolName: message.toolName,
+        status: error ? 'failed' : 'completed',
+        error,
+      });
+      const artifact = error
+        ? undefined
+        : artifactFromToolOutput(message.toolName, output);
+      if (artifact) artifacts.push(artifact);
+      continue;
+    }
+
+    if (message.role === 'assistant') {
+      display.push(toDisplayMessage(message, activities, artifacts));
+      activities = [];
+      artifacts = [];
+    } else if (message.role === 'user') {
+      display.push(toDisplayMessage(message));
+    }
+  }
+
+  const last = display.at(-1);
+  if (last?.role === 'user') last.interrupted = true;
+  return display;
+}
+
+function artifactFromToolOutput(
+  toolName: string,
+  data: unknown,
+): AgentArtifact | undefined {
+  switch (toolName) {
+    case 'getPortfolio': return { type: 'portfolio', data: data as never };
+    case 'getStock': return { type: 'stock', data: data as never };
+    case 'analyzeStock': return { type: 'analysis', data: data as never };
+    case 'findOpportunities': return { type: 'opportunities', data: data as never };
+    case 'getSwapQuote': return { type: 'quote', data: data as never };
+    case 'createBasket': return { type: 'basket', data: data as never };
+    case 'prepareSwap': return { type: 'prepared_swap', data: data as never };
+    case 'prepareBasketPurchase': return { type: 'prepared_basket', data: data as never };
+    case 'prepareLock': return { type: 'prepared_lock', data: data as never };
+    case 'prepareUnlock': return { type: 'prepared_unlock', data: data as never };
+    case 'getVaults': return { type: 'vaults', data: data as never };
+    default: return undefined;
+  }
+}
+
+function parseToolOutput(content: string): unknown {
+  try {
+    return JSON.parse(content);
+  } catch {
+    return content;
+  }
+}
+
+function extractStreamError(event: ResponseStreamEvent): string {
+  if (isRecord(event.error) && typeof event.error.message === 'string') {
+    return event.error.message;
+  }
+  if (
+    isRecord(event.response) &&
+    isRecord(event.response.error) &&
+    typeof event.response.error.message === 'string'
+  ) {
+    return event.response.error.message;
+  }
+  return 'The model could not complete the response';
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object';
+}
+
+function throwIfAborted(signal?: AbortSignal): void {
+  if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+}
+
+function isAbortError(error: unknown): boolean {
+  return error instanceof Error && error.name === 'AbortError';
 }
 
 function assertNonEmpty(value: unknown, field: string): string {

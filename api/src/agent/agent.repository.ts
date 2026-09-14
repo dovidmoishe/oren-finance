@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { asc, eq } from 'drizzle-orm';
+import { desc, eq } from 'drizzle-orm';
 import type {
   AgentMessage,
   AgentMessageRole,
@@ -66,9 +66,9 @@ export class AgentRepository {
       .select()
       .from(agentMessages)
       .where(eq(agentMessages.threadId, threadId))
-      .orderBy(asc(agentMessages.createdAt))
+      .orderBy(desc(agentMessages.createdAt), desc(agentMessages.id))
       .limit(limit);
-    return rows.map(rowToMessage);
+    return rows.reverse().map(rowToMessage);
   }
 }
 
