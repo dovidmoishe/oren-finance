@@ -1,9 +1,6 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
-import type {
-  MarketNewsItem,
-  NewsContext,
-  NewsFeed,
-} from '../../types/news';
+import type { Equity } from '../../types/equity';
+import type { MarketNewsItem, NewsContext, NewsFeed } from '../../types/news';
 import { NEWS_TTL_MS } from '../config/constants';
 import { PortfolioService } from '../portfolio/portfolio.service';
 import { TokensService } from '../tokens/tokens.service';
@@ -30,9 +27,11 @@ export class NewsService {
       throw new BadRequestException('assetId is required');
     }
 
+    const equity = await this.tokens.getStock(normalizedAssetId);
     const items = await this.getCachedOrFetch(
       normalizedAssetId,
       clampLimit(options?.limit),
+      equity,
     );
 
     return { assetId: normalizedAssetId, items };
@@ -70,14 +69,14 @@ export class NewsService {
     maxItems?: number;
   }): Promise<NewsContext> {
     let assetIds = unique(
-      (input.assetIds ?? [])
-        .map((assetId) => assetId.trim())
-        .filter(Boolean),
+      (input.assetIds ?? []).map((assetId) => assetId.trim()).filter(Boolean),
     );
 
     if (assetIds.length === 0 && input.walletAddress) {
       const portfolio = await this.portfolio.getPortfolio(input.walletAddress);
-      assetIds = unique(portfolio.positions.map((position) => position.assetId));
+      assetIds = unique(
+        portfolio.positions.map((position) => position.assetId),
+      );
     }
 
     const items = await this.getRecentNews(assetIds, {
@@ -95,12 +94,17 @@ export class NewsService {
   private async getCachedOrFetch(
     assetId: string | undefined,
     limit: number,
+    equity?: Equity,
   ): Promise<MarketNewsItem[]> {
     const now = new Date();
     const cached = await this.repository.listFresh(assetId, now, limit);
-    if (cached.length > 0) return cached;
+    const cachedItems = filterNewsForEquity(cached, equity);
+    if (cachedItems.length > 0) return cachedItems;
 
-    const fetched = sortNewestFirst(await this.tokens.getNews(assetId));
+    const fetched = filterNewsForEquity(
+      sortNewestFirst(await this.tokens.getNews(assetId)),
+      equity,
+    );
     await this.repository.replaceScope(
       assetId,
       fetched,
@@ -130,4 +134,37 @@ export function sortNewestFirst(items: MarketNewsItem[]): MarketNewsItem[] {
 
 function unique(values: string[]): string[] {
   return [...new Set(values.filter(Boolean))];
+}
+
+function filterNewsForEquity(
+  items: MarketNewsItem[],
+  equity?: Equity,
+): MarketNewsItem[] {
+  if (!equity) return items;
+
+  const assetId = equity.id.toLowerCase();
+  const ticker = equity.ticker.toLowerCase();
+  const nameParts = equity.name
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter((part) => part.length >= 3);
+
+  return items.filter((item) => {
+    const tickerMatches =
+      item.ticker?.toLowerCase() === ticker ||
+      containsToken(item.headline, ticker) ||
+      containsToken(item.summary, ticker);
+    if (tickerMatches) return true;
+
+    const text = `${item.headline} ${item.summary ?? ''}`.toLowerCase();
+    if (containsToken(text, assetId)) return true;
+
+    return nameParts.some((part) => containsToken(text, part));
+  });
+}
+
+function containsToken(value: string | undefined, token: string): boolean {
+  if (!value || !token) return false;
+  const escaped = token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp(`(^|[^a-z0-9])${escaped}([^a-z0-9]|$)`, 'i').test(value);
 }

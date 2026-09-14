@@ -38,6 +38,7 @@ export class JupiterClient {
     userPublicKey: string;
     wrapAndUnwrapSol?: boolean;
     dynamicComputeUnitLimit?: boolean;
+    useSharedAccounts?: boolean;
   }): Promise<JupiterSwapRaw> {
     return this.request<JupiterSwapRaw>(`${this.baseUrl}/swap`, {
       method: 'POST',
@@ -47,6 +48,7 @@ export class JupiterClient {
         userPublicKey: body.userPublicKey,
         wrapAndUnwrapSol: body.wrapAndUnwrapSol ?? true,
         dynamicComputeUnitLimit: body.dynamicComputeUnitLimit ?? true,
+        useSharedAccounts: body.useSharedAccounts,
       }),
     });
   }

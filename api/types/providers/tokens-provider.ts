@@ -23,7 +23,7 @@ export interface TokensService {
 
   getOHLCV(
     assetId: string,
-    params?: { start?: Date; end?: Date; timeframe?: string },
+    params?: { start?: Date; end?: Date; timeframe?: string; mint?: string },
   ): Promise<OhlcvBar[]>;
 
   getTrendingStocks(): Promise<Equity[]>;

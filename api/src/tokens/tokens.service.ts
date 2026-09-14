@@ -121,12 +121,33 @@ export class TokensService implements TokensServiceContract {
         to: window.to,
       },
     );
-    return mapCandles(extractCandles(raw));
+    const candles = mapCandles(extractCandles(raw));
+    if (candles.length > 0) return candles;
+
+    const equity = await this.getStock(assetId).catch(() => null);
+    const variant = equity?.variants
+      .filter((item) => item.tradable && item.mint)
+      .sort((a, b) => (b.liquidity ?? 0) - (a.liquidity ?? 0))[0];
+
+    const ohlcv = await this.getOHLCV(assetId, {
+      start: new Date(window.from * 1000),
+      end: new Date(window.to * 1000),
+      timeframe: window.interval,
+      mint: variant?.mint,
+    });
+    return ohlcv.map(({ timestamp, open, high, low, close, volume }) => ({
+      timestamp,
+      open,
+      high,
+      low,
+      close,
+      volume,
+    }));
   }
 
   async getOHLCV(
     assetId: string,
-    params?: { start?: Date; end?: Date; timeframe?: string },
+    params?: { start?: Date; end?: Date; timeframe?: string; mint?: string },
   ): Promise<OhlcvBar[]> {
     const to = Math.floor((params?.end ?? new Date()).getTime() / 1000);
     const from = Math.floor(
@@ -140,6 +161,7 @@ export class TokensService implements TokensServiceContract {
         interval: params?.timeframe ?? '1H',
         from,
         to,
+        mint: params?.mint,
       },
     );
     return mapOhlcv(assetId, extractCandles(raw));

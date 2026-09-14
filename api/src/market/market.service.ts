@@ -5,7 +5,11 @@ import {
 } from '@nestjs/common';
 import type { GetStocksResponse } from '../../types/api';
 import type { Equity, EquitySummary } from '../../types/equity';
-import type { ChartRange, ChartSeries, MarketMover } from '../../types/market';
+import type {
+  ChartRange,
+  ChartSeries,
+  MarketMover,
+} from '../../types/market';
 import { STOCK_CATALOG_TTL_MS } from '../config/constants';
 import { StockCatalogRepository } from '../tokens/stock-catalog.repository';
 import { TokensService } from '../tokens/tokens.service';

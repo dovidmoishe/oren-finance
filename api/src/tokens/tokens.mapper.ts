@@ -104,13 +104,20 @@ export function mapEquityList(items?: TokensAssetRaw[] | null): Equity[] {
     .filter((e): e is Equity => e !== null && Boolean(e.id));
 }
 
-export function mapCandle(raw: TokensCandleRaw): MarketCandle | null {
-  const ts = raw.timestamp ?? raw.t;
+export function mapCandle(rawInput: unknown): MarketCandle | null {
+  const raw = Array.isArray(rawInput)
+    ? tupleToCandle(rawInput)
+    : rawInput && typeof rawInput === 'object'
+      ? (rawInput as TokensCandleRaw)
+      : null;
+  if (!raw) return null;
+
+  const ts = raw.timestamp ?? raw.t ?? raw.time ?? raw.date;
   if (ts === undefined) return null;
-  const open = raw.open ?? raw.o;
-  const high = raw.high ?? raw.h;
-  const low = raw.low ?? raw.l;
-  const close = raw.close ?? raw.c;
+  const open = toFiniteNumber(raw.open ?? raw.o);
+  const high = toFiniteNumber(raw.high ?? raw.h);
+  const low = toFiniteNumber(raw.low ?? raw.l);
+  const close = toFiniteNumber(raw.close ?? raw.c);
   if (
     open === undefined ||
     high === undefined ||
@@ -119,18 +126,21 @@ export function mapCandle(raw: TokensCandleRaw): MarketCandle | null {
   ) {
     return null;
   }
-  const ms = ts > 1_000_000_000_000 ? ts : ts * 1000;
+  const ms = timestampToMs(ts);
+  if (ms === undefined) return null;
   return {
     timestamp: new Date(ms),
     open,
     high,
     low,
     close,
-    volume: raw.volume ?? raw.v,
+    volume: toFiniteNumber(
+      raw.volume ?? raw.v ?? raw.volume_base ?? raw.volume_quote_usd,
+    ),
   };
 }
 
-export function mapCandles(raws?: TokensCandleRaw[]): MarketCandle[] {
+export function mapCandles(raws?: unknown[]): MarketCandle[] {
   if (!raws?.length) return [];
   return raws.map(mapCandle).filter((c): c is MarketCandle => c !== null);
 }
@@ -203,14 +213,82 @@ export function extractAssetList(payload: unknown): TokensAssetRaw[] {
 }
 
 export function extractCandles(payload: unknown): TokensCandleRaw[] {
-  if (Array.isArray(payload)) return toObjectArray<TokensCandleRaw>(payload);
+  if (Array.isArray(payload)) return payload as TokensCandleRaw[];
   if (!payload || typeof payload !== 'object') return [];
   const p = payload as Record<string, unknown>;
-  if (Array.isArray(p.candles))
-    return toObjectArray<TokensCandleRaw>(p.candles);
-  if (Array.isArray(p.data)) return toObjectArray<TokensCandleRaw>(p.data);
-  if (Array.isArray(p.bars)) return toObjectArray<TokensCandleRaw>(p.bars);
+  if (Array.isArray(p.candles)) return p.candles as TokensCandleRaw[];
+  if (Array.isArray(p.data)) return p.data as TokensCandleRaw[];
+  if (Array.isArray(p.bars)) return p.bars as TokensCandleRaw[];
+  if (Array.isArray(p.ohlcv)) return p.ohlcv as TokensCandleRaw[];
+  if (Array.isArray(p.values)) return p.values as TokensCandleRaw[];
+  if (Array.isArray(p.series)) return p.series as TokensCandleRaw[];
+  if (Array.isArray(p.prices)) return pricePairsToCandles(p.prices);
+  if (p.chart && typeof p.chart === 'object') return extractCandles(p.chart);
   return [];
+}
+
+function tupleToCandle(tuple: unknown[]): TokensCandleRaw | null {
+  if (tuple.length < 5) return null;
+  const numeric = tuple.map((value) =>
+    typeof value === 'number' ? value : Number(value),
+  );
+  if (numeric.some((value) => !Number.isFinite(value))) return null;
+
+  const [first, second, third, fourth, fifth, sixth] = numeric;
+  const firstLooksLikeTimestamp = first > 1_000_000_000;
+
+  return firstLooksLikeTimestamp
+    ? {
+        timestamp: first,
+        open: second,
+        high: third,
+        low: fourth,
+        close: fifth,
+        volume: sixth,
+      }
+    : {
+        open: first,
+        high: second,
+        low: third,
+        close: fourth,
+        volume: fifth,
+        timestamp: sixth,
+      };
+}
+
+function pricePairsToCandles(values: unknown[]): TokensCandleRaw[] {
+  const candles: Array<TokensCandleRaw | null> = values.map((value) => {
+    if (!Array.isArray(value) || value.length < 2) return null;
+    const timestamp = Number(value[0]);
+    const price = Number(value[1]);
+    if (!Number.isFinite(timestamp) || !Number.isFinite(price)) return null;
+    return {
+      timestamp,
+      open: price,
+      high: price,
+      low: price,
+      close: price,
+    } satisfies TokensCandleRaw;
+  });
+
+  return candles.filter((candle): candle is TokensCandleRaw => candle !== null);
+}
+
+function toFiniteNumber(value: unknown): number | undefined {
+  if (value === undefined || value === null || value === '') return undefined;
+  const number = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(number) ? number : undefined;
+}
+
+function timestampToMs(value: unknown): number | undefined {
+  if (typeof value === 'string' && Number.isNaN(Number(value))) {
+    const ms = new Date(value).getTime();
+    return Number.isNaN(ms) ? undefined : ms;
+  }
+
+  const timestamp = toFiniteNumber(value);
+  if (timestamp === undefined) return undefined;
+  return timestamp > 1_000_000_000_000 ? timestamp : timestamp * 1000;
 }
 
 export function extractNews(payload: unknown): TokensNewsItemRaw[] {

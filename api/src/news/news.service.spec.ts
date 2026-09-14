@@ -2,17 +2,17 @@ import type { MarketNewsItem } from '../../types/news';
 import { NewsService, clampLimit, sortNewestFirst } from './news.service';
 
 const oldItem: MarketNewsItem = {
-  headline: 'Old story',
+  headline: 'Old NVDA story',
   publishedAt: new Date('2026-09-13T09:00:00Z'),
 };
 
 const newItem: MarketNewsItem = {
-  headline: 'New story',
+  headline: 'New NVIDIA story',
   publishedAt: new Date('2026-09-13T11:00:00Z'),
 };
 
 describe('NewsService', () => {
-  const tokens = { getNews: jest.fn() };
+  const tokens = { getNews: jest.fn(), getStock: jest.fn() };
   const portfolio = { getPortfolio: jest.fn() };
   const repository = {
     listFresh: jest.fn(),
@@ -23,6 +23,11 @@ describe('NewsService', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    tokens.getStock.mockResolvedValue({
+      id: 'nvda',
+      ticker: 'NVDA',
+      name: 'NVIDIA',
+    });
     service = new NewsService(
       tokens as never,
       portfolio as never,
@@ -33,12 +38,12 @@ describe('NewsService', () => {
   it('returns fresh cached equity news without calling Tokens', async () => {
     repository.listFresh.mockResolvedValue([newItem]);
 
-    await expect(
-      service.getEquityNews('nvda', { limit: 10 }),
-    ).resolves.toEqual({
-      assetId: 'nvda',
-      items: [newItem],
-    });
+    await expect(service.getEquityNews('nvda', { limit: 10 })).resolves.toEqual(
+      {
+        assetId: 'nvda',
+        items: [newItem],
+      },
+    );
 
     expect(repository.listFresh).toHaveBeenCalledWith(
       'nvda',
@@ -53,9 +58,7 @@ describe('NewsService', () => {
     repository.listFresh.mockResolvedValue([]);
     tokens.getNews.mockResolvedValue([oldItem, newItem]);
 
-    await expect(
-      service.getEquityNews('nvda', { limit: 1 }),
-    ).resolves.toEqual({
+    await expect(service.getEquityNews('nvda', { limit: 1 })).resolves.toEqual({
       assetId: 'nvda',
       items: [newItem],
     });
@@ -68,9 +71,35 @@ describe('NewsService', () => {
     );
   });
 
+  it('filters unrelated broad market news for an equity feed', async () => {
+    const unrelated: MarketNewsItem = {
+      headline: 'Bitcoin and Ether perps expand to more venues',
+      publishedAt: new Date('2026-09-13T12:00:00Z'),
+    };
+    repository.listFresh.mockResolvedValue([]);
+    tokens.getNews.mockResolvedValue([unrelated, newItem]);
+
+    await expect(service.getEquityNews('nvda', { limit: 10 })).resolves.toEqual(
+      {
+        assetId: 'nvda',
+        items: [newItem],
+      },
+    );
+
+    expect(repository.replaceScope).toHaveBeenCalledWith(
+      'nvda',
+      [newItem],
+      expect.any(Date),
+    );
+  });
+
   it('builds portfolio-aware news context for the agent', async () => {
     portfolio.getPortfolio.mockResolvedValue({
-      positions: [{ assetId: 'nvda' }, { assetId: 'aapl' }, { assetId: 'nvda' }],
+      positions: [
+        { assetId: 'nvda' },
+        { assetId: 'aapl' },
+        { assetId: 'nvda' },
+      ],
     });
     repository.listFresh.mockResolvedValue([]);
     tokens.getNews

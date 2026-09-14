@@ -119,10 +119,18 @@ export class JupiterService implements ExecutionProvider {
       throw new QuoteExpiredError('Quote missing Jupiter route payload');
     }
 
-    const swap = await this.client.postSwap({
-      quoteResponse,
-      userPublicKey: wallet,
-    });
+    const swap = await this.client
+      .postSwap({
+        quoteResponse,
+        userPublicKey: wallet,
+        useSharedAccounts: false,
+      })
+      .catch(() =>
+        this.client.postSwap({
+          quoteResponse,
+          userPublicKey: wallet,
+        }),
+      );
 
     if (!swap.swapTransaction) {
       throw new QuoteExpiredError('Jupiter did not return a swap transaction');

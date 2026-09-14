@@ -94,18 +94,22 @@ export interface TokensVariantsRaw {
 }
 
 export interface TokensCandleRaw {
-  timestamp?: number;
-  t?: number;
-  open?: number;
-  o?: number;
-  high?: number;
-  h?: number;
-  low?: number;
-  l?: number;
-  close?: number;
-  c?: number;
-  volume?: number;
-  v?: number;
+  timestamp?: string | number;
+  t?: string | number;
+  time?: string | number;
+  date?: string | number;
+  open?: string | number;
+  o?: string | number;
+  high?: string | number;
+  h?: string | number;
+  low?: string | number;
+  l?: string | number;
+  close?: string | number;
+  c?: string | number;
+  volume?: string | number;
+  v?: string | number;
+  volume_base?: string | number;
+  volume_quote_usd?: string | number;
 }
 
 export interface TokensChartRaw {
