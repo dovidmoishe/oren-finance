@@ -15,30 +15,82 @@ import type {
 
 interface ExecutionState {
   quote?: QuoteResponse;
+  /** Intent used to produce the current quote — enables silent refresh on expiry. */
+  lastQuoteIntent?: TradeIntent;
   prepared?: ExecutionPreparedTransaction;
   preparedBasket?: PreparedBasketPurchase;
   basket?: BasketResponse;
   status?: ExecutionStatus;
   isLoading: boolean;
+  isRefreshingQuote: boolean;
   error?: string;
-  quoteTrade: (intent: TradeIntent) => Promise<void>;
+  quoteTrade: (intent: TradeIntent) => Promise<QuoteResponse | undefined>;
+  refreshQuote: () => Promise<QuoteResponse | undefined>;
   prepareTrade: (request: PrepareExecutionRequest) => Promise<void>;
   confirmTrade: (wallet: string, quoteId: string, signature: string) => Promise<void>;
   buildBasket: (intent: BasketIntent) => Promise<void>;
   prepareBasketTrades: (request: { basketId: string; wallet: string }) => Promise<void>;
+  seedQuote: (quote: QuoteResponse, intent?: TradeIntent) => void;
   resetTrade: () => void;
   resetAll: () => void;
 }
 
-export const useExecutionStore = create<ExecutionState>((set) => ({
+function intentFromQuote(quote: QuoteResponse): TradeIntent {
+  return {
+    assetId: quote.assetId,
+    ticker: quote.ticker,
+    side: quote.side,
+    amountUsd: quote.side === "buy" ? quote.amountUsd : undefined,
+    amount: quote.side === "sell" ? quote.inputAmount : undefined,
+    preferredMint: quote.variant.mint,
+    slippageBps: quote.slippageBps,
+  };
+}
+
+export const useExecutionStore = create<ExecutionState>((set, get) => ({
   isLoading: false,
+  isRefreshingQuote: false,
   async quoteTrade(intent) {
     set({ isLoading: true, error: undefined, prepared: undefined, status: undefined });
     try {
       const quote = await getExecutionQuote(intent);
-      set({ quote, isLoading: false });
+      set({
+        quote,
+        lastQuoteIntent: intent,
+        isLoading: false,
+        isRefreshingQuote: false,
+      });
+      return quote;
     } catch (error) {
-      set({ error: error instanceof Error ? error.message : "Unable to get quote", isLoading: false });
+      set({
+        error: error instanceof Error ? error.message : "Unable to get quote",
+        isLoading: false,
+        isRefreshingQuote: false,
+      });
+      return undefined;
+    }
+  },
+  async refreshQuote() {
+    const intent = get().lastQuoteIntent;
+    if (!intent) return undefined;
+    set({ isRefreshingQuote: true, error: undefined });
+    try {
+      const quote = await getExecutionQuote(intent);
+      set({
+        quote,
+        lastQuoteIntent: intent,
+        prepared: undefined,
+        status: undefined,
+        isRefreshingQuote: false,
+        isLoading: false,
+      });
+      return quote;
+    } catch (error) {
+      set({
+        error: error instanceof Error ? error.message : "Unable to refresh quote",
+        isRefreshingQuote: false,
+      });
+      return undefined;
     }
   },
   async prepareTrade(request) {
@@ -77,18 +129,39 @@ export const useExecutionStore = create<ExecutionState>((set) => ({
       set({ error: error instanceof Error ? error.message : "Unable to prepare basket", isLoading: false });
     }
   },
+  seedQuote(quote, intent) {
+    set({
+      quote,
+      lastQuoteIntent: intent ?? intentFromQuote(quote),
+      prepared: undefined,
+      status: undefined,
+      error: undefined,
+      isLoading: false,
+      isRefreshingQuote: false,
+    });
+  },
   resetTrade() {
-    set({ quote: undefined, prepared: undefined, status: undefined, error: undefined, isLoading: false });
+    set({
+      quote: undefined,
+      lastQuoteIntent: undefined,
+      prepared: undefined,
+      status: undefined,
+      error: undefined,
+      isLoading: false,
+      isRefreshingQuote: false,
+    });
   },
   resetAll() {
     set({
       quote: undefined,
+      lastQuoteIntent: undefined,
       prepared: undefined,
       preparedBasket: undefined,
       basket: undefined,
       status: undefined,
       error: undefined,
       isLoading: false,
+      isRefreshingQuote: false,
     });
   },
 }));

@@ -62,6 +62,27 @@ describe('ExecutionService basket support', () => {
   const intelligence = {
     getOpportunities: jest.fn(),
   };
+  const trigger = {
+    createOrder: jest.fn(),
+    cancelOrder: jest.fn(),
+    getTriggerOrders: jest.fn(),
+  };
+  const limitOrderCache = {
+    setProposal: jest.fn(),
+    getProposal: jest.fn(),
+    attachPrepared: jest.fn(),
+    getPrepared: jest.fn(),
+    deleteProposal: jest.fn(),
+    setCancel: jest.fn(),
+    getCancel: jest.fn(),
+    deleteCancel: jest.fn(),
+  };
+  const limitOrderRepository = {
+    upsert: jest.fn(),
+    updateStatus: jest.fn(),
+    listByWallet: jest.fn(),
+    toRecord: jest.fn(),
+  };
 
   let baskets: BasketCache;
   let service: ExecutionService;
@@ -71,9 +92,12 @@ describe('ExecutionService basket support', () => {
     baskets = new BasketCache();
     service = new ExecutionService(
       jupiter as never,
+      trigger as never,
       selector as never,
       quoteCache as never,
       baskets,
+      limitOrderCache as never,
+      limitOrderRepository as never,
       repository as never,
       portfolio as never,
       tokens as never,

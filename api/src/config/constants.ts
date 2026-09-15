@@ -35,11 +35,26 @@ export const PENDING_EXECUTION_TTL_MS = 60 * 60 * 1000;
 /** How long generated basket proposals stay prepare-able. */
 export const BASKET_TTL_MS = 10 * 60 * 1000;
 
+/** How long limit-order proposals stay prepare-able (same window as baskets). */
+export const LIMIT_ORDER_PROPOSAL_TTL_MS = 10 * 60 * 1000;
+
 /** Smallest practical MVP basket leg notional. */
 export const MIN_BASKET_LEG_USD = 1;
 
 /** Reuse persisted stock_signals within this window. */
 export const SIGNAL_TTL_MS = 15 * 60 * 1000;
+
+/** Daily OHLCV lookback for technical-analysis briefs. */
+export const TA_DAILY_LOOKBACK_DAYS = 365;
+
+/** Hourly OHLCV lookback for short-term TA context. */
+export const TA_HOURLY_LOOKBACK_DAYS = 5;
+
+/** Minimum daily bars before TA is treated as fully reliable. */
+export const TA_MIN_DAILY_BARS = 30;
+
+/** Daily lookback for Oren Score signal computation. */
+export const SIGNAL_DAILY_LOOKBACK_DAYS = 90;
 
 /** Refresh the persisted stock discovery catalog in the background. */
 export const STOCK_CATALOG_TTL_MS = 60 * 1000;

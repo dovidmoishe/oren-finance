@@ -3,7 +3,14 @@ import type { Quote, TradeSide } from './quote';
 import type { StockOpportunity } from './analysis';
 
 export type ExecutionType =
-  'stock_purchase' | 'stock_sale' | 'basket_purchase' | 'lock' | 'unlock';
+  | 'stock_purchase'
+  | 'stock_sale'
+  | 'basket_purchase'
+  | 'lock'
+  | 'unlock'
+  | 'limit_buy'
+  | 'limit_sell'
+  | 'limit_cancel';
 
 export type ExecutionStatus =
   | 'preparing'

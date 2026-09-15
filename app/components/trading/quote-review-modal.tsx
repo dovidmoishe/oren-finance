@@ -4,6 +4,7 @@ import {
   AlertCircleIcon,
   CheckmarkCircle01Icon,
   Clock01Icon,
+  Loading03Icon,
   Route01Icon,
   Wallet02Icon,
 } from "@hugeicons/core-free-icons";
@@ -19,20 +20,19 @@ interface QuoteReviewModalProps {
   status: TradeFlowStatus;
   confirmation?: ExecutionStatus;
   error?: string;
+  secondsLeft?: number;
+  isRefreshingQuote?: boolean;
+  refreshFailed?: boolean;
+  onRefreshQuote?: () => void;
   onClose: () => void;
   onSign: () => Promise<void>;
 }
 
-function isExpired(quote?: QuoteResponse) {
-  return quote ? new Date(quote.expiresAt).getTime() <= Date.now() : false;
-}
-
-function formatExpiry(quote?: QuoteResponse) {
-  if (!quote) return "Refresh required";
-  const diffSeconds = Math.max(0, Math.round((new Date(quote.expiresAt).getTime() - Date.now()) / 1000));
-  if (diffSeconds <= 0) return "Expired";
-  if (diffSeconds < 60) return `${diffSeconds}s left`;
-  return `${Math.floor(diffSeconds / 60)}m ${diffSeconds % 60}s left`;
+function formatExpiryLabel(secondsLeft: number, refreshing: boolean) {
+  if (refreshing) return "Updating quote…";
+  if (secondsLeft <= 0) return "Refreshing…";
+  if (secondsLeft < 60) return `${secondsLeft}s left`;
+  return `${Math.floor(secondsLeft / 60)}m ${secondsLeft % 60}s left`;
 }
 
 function Row({ label, value }: { label: string; value: string }) {
@@ -40,31 +40,6 @@ function Row({ label, value }: { label: string; value: string }) {
     <div className="flex items-center justify-between gap-4 text-sm">
       <span className="text-muted">{label}</span>
       <span className="text-right font-mono font-medium">{value}</span>
-    </div>
-  );
-}
-
-function BalanceChange({
-  label,
-  value,
-  tone,
-}: {
-  label: string;
-  value: string;
-  tone: "debit" | "credit" | "neutral";
-}) {
-  return (
-    <div className="rounded-[18px] border border-border bg-panel p-4">
-      <p className="text-xs uppercase tracking-[0.12em] text-muted">{label}</p>
-      <p
-        className={cn(
-          "mt-2 break-words font-display text-2xl font-semibold",
-          tone === "debit" && "text-negative",
-          tone === "credit" && "text-positive",
-        )}
-      >
-        {value}
-      </p>
     </div>
   );
 }
@@ -84,20 +59,25 @@ export function QuoteReviewModal({
   status,
   confirmation,
   error,
+  secondsLeft = 0,
+  isRefreshingQuote = false,
+  refreshFailed = false,
+  onRefreshQuote,
   onClose,
   onSign,
 }: QuoteReviewModalProps) {
-  const expired = isExpired(quote);
+  const expired = quote ? new Date(quote.expiresAt).getTime() <= Date.now() : false;
   const isBusy = status === "preparing" || status === "signing" || status === "confirming";
   const signed = status === "confirming" || status === "confirmed";
   const confirmed = status === "confirmed";
-  const signDisabled = !quote || expired || isBusy || confirmed;
+  const waitingOnRefresh = expired || isRefreshingQuote;
+  const signDisabled = !quote || waitingOnRefresh || isBusy || confirmed || refreshFailed;
   const minimumReceived = quote
     ? quote.outputAmount * (1 - quote.slippageBps / 10_000)
     : 0;
   const warnings = [
     quote && quote.priceImpactPercent >= 1 ? `Price impact is ${formatNumber(quote.priceImpactPercent, 2)}%. Review before signing.` : null,
-    expired ? "This quote expired. Close this review and request a fresh quote." : null,
+    refreshFailed ? "Could not refresh this quote. Retry to keep signing." : null,
   ].filter((warning): warning is string => Boolean(warning));
 
   return (
@@ -133,25 +113,7 @@ export function QuoteReviewModal({
             <Row label="Price impact" value={`${formatNumber(quote.priceImpactPercent, 2)}%`} />
             <Row label="Slippage" value={`${formatNumber(quote.slippageBps / 100, 2)}%`} />
             <Row label="Network fee" value={quote.networkFeeUsd ? formatCurrency(quote.networkFeeUsd, 4) : "Estimated by wallet"} />
-            <Row label="Quote expiry" value={formatExpiry(quote)} />
-          </div>
-
-          <div className="rounded-[24px] border border-foreground bg-foreground p-4 text-white">
-            <div className="flex items-center justify-between gap-4">
-              <div>
-                <p className="text-xs uppercase tracking-[0.12em] text-white/55">Decoded balance changes</p>
-                <h3 className="mt-1 font-display text-lg font-semibold">Before wallet approval</h3>
-              </div>
-              <span className="rounded-full bg-white/10 px-3 py-1 text-xs font-semibold text-white/80">Oren decode</span>
-            </div>
-            <div className="mt-4 grid gap-3">
-              <BalanceChange label="Wallet sends" tone="debit" value={`-${formatNumber(quote.inputAmount, 6)} ${quote.inputSymbol}`} />
-              <BalanceChange label="Wallet receives" tone="credit" value={`+${formatNumber(quote.outputAmount, 6)} ${quote.outputSymbol}`} />
-              <BalanceChange label="Guaranteed minimum" tone="neutral" value={`${formatNumber(minimumReceived, 6)} ${quote.outputSymbol}`} />
-            </div>
-            <p className="mt-3 text-xs leading-5 text-white/60">
-              The wallet popup may still label aggregator balance changes as unknown, but this decode comes from the Jupiter quote Oren is preparing.
-            </p>
+            <Row label="Quote expiry" value={formatExpiryLabel(secondsLeft, isRefreshingQuote)} />
           </div>
 
           {warnings.length ? (
@@ -176,29 +138,36 @@ export function QuoteReviewModal({
             </div>
           ) : null}
 
-          <Button className="h-12 w-full rounded-[16px]" disabled={signDisabled} onClick={() => void onSign()} variant="primary">
-            {isBusy ? (
-              <>
-                <HugeiconsIcon className="animate-spin" color="currentColor" icon={Clock01Icon} size={16} strokeWidth={1.8} />
-                {status === "preparing" ? "Preparing" : status === "signing" ? "Awaiting wallet" : "Confirming"}
-              </>
-            ) : confirmed ? (
-              <>
-                <HugeiconsIcon color="currentColor" icon={CheckmarkCircle01Icon} size={16} strokeWidth={1.8} />
-                Confirmed
-              </>
-            ) : expired ? (
-              <>
-                <HugeiconsIcon color="currentColor" icon={AlertCircleIcon} size={16} strokeWidth={1.8} />
-                Quote expired
-              </>
-            ) : (
-              <>
-                <HugeiconsIcon color="currentColor" icon={Wallet02Icon} size={16} strokeWidth={1.8} />
-                Prepare and sign
-              </>
-            )}
-          </Button>
+          {refreshFailed && onRefreshQuote ? (
+            <Button className="h-12 w-full rounded-[16px]" onClick={onRefreshQuote} variant="secondary">
+              <HugeiconsIcon color="currentColor" icon={AlertCircleIcon} size={16} strokeWidth={1.8} />
+              Retry quote refresh
+            </Button>
+          ) : (
+            <Button className="h-12 w-full rounded-[16px]" disabled={signDisabled} onClick={() => void onSign()} variant="primary">
+              {isBusy ? (
+                <>
+                  <HugeiconsIcon className="animate-spin" color="currentColor" icon={Clock01Icon} size={16} strokeWidth={1.8} />
+                  {status === "preparing" ? "Preparing" : status === "signing" ? "Awaiting wallet" : "Confirming"}
+                </>
+              ) : confirmed ? (
+                <>
+                  <HugeiconsIcon color="currentColor" icon={CheckmarkCircle01Icon} size={16} strokeWidth={1.8} />
+                  Confirmed
+                </>
+              ) : waitingOnRefresh ? (
+                <>
+                  <HugeiconsIcon className="animate-spin" color="currentColor" icon={Loading03Icon} size={16} strokeWidth={1.8} />
+                  Updating quote…
+                </>
+              ) : (
+                <>
+                  <HugeiconsIcon color="currentColor" icon={Wallet02Icon} size={16} strokeWidth={1.8} />
+                  Prepare and sign
+                </>
+              )}
+            </Button>
+          )}
         </div>
       )}
     </Modal>

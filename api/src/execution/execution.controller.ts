@@ -1,4 +1,4 @@
-import { Body, Controller, Post } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
 import {
   IsIn,
   IsNumber,
@@ -22,7 +22,15 @@ import type {
   QuoteRequest,
   TradeIntent,
 } from '../../types/execution';
+import type {
+  LimitOrderIntent,
+  LimitOrderProposal,
+  LimitOrderRecord,
+  PreparedLimitCancel,
+  PreparedLimitOrder,
+} from '../../types/limit-order';
 import type { TradeSide } from '../../types/quote';
+import type { LimitZoneBasis } from '../../types/analysis';
 import { ExecutionService } from './execution.service';
 
 /** Accepts either TradeIntent or mint-level QuoteRequest fields. */
@@ -139,6 +147,106 @@ class BasketPrepareDto {
   wallet!: string;
 }
 
+class LimitOrderProposeDto implements LimitOrderIntent {
+  @IsIn(['buy', 'sell'])
+  side!: TradeSide;
+
+  @IsOptional()
+  @IsString()
+  assetId?: string;
+
+  @IsString()
+  @MinLength(1)
+  ticker!: string;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0.000001)
+  amountUsd?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0.000001)
+  amount?: number;
+
+  @IsNumber()
+  @Min(0.000001)
+  limitPriceUsd!: number;
+
+  @IsOptional()
+  @IsString()
+  preferredMint?: string;
+
+  @IsOptional()
+  @IsNumber()
+  expiredAt?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  slippageBps?: number;
+
+  @IsOptional()
+  @IsString()
+  wallet?: string;
+
+  @IsOptional()
+  @IsString()
+  basis?: LimitZoneBasis;
+}
+
+class LimitOrderPrepareDto {
+  @IsString()
+  @MinLength(1)
+  proposalId!: string;
+
+  @IsString()
+  @MinLength(32)
+  wallet!: string;
+}
+
+class LimitOrderConfirmDto {
+  @IsString()
+  @MinLength(1)
+  proposalId!: string;
+
+  @IsString()
+  @MinLength(32)
+  wallet!: string;
+
+  @IsString()
+  @MinLength(1)
+  signature!: string;
+
+  @IsOptional()
+  @IsString()
+  orderKey?: string;
+}
+
+class LimitOrderCancelPrepareDto {
+  @IsString()
+  @MinLength(1)
+  orderKey!: string;
+
+  @IsString()
+  @MinLength(32)
+  wallet!: string;
+}
+
+class LimitOrderCancelConfirmDto {
+  @IsString()
+  @MinLength(1)
+  orderKey!: string;
+
+  @IsString()
+  @MinLength(32)
+  wallet!: string;
+
+  @IsString()
+  @MinLength(1)
+  signature!: string;
+}
+
 @Controller('execution')
 export class ExecutionController {
   constructor(private readonly execution: ExecutionService) {}
@@ -175,5 +283,46 @@ export class ExecutionController {
     @Body() body: BasketPrepareDto,
   ): Promise<PreparedBasketPurchase> {
     return this.execution.prepareBasketPurchase(body);
+  }
+
+  @Post('limit-order')
+  proposeLimitOrder(
+    @Body() body: LimitOrderProposeDto,
+  ): Promise<LimitOrderProposal> {
+    return this.execution.proposeLimitOrder(body);
+  }
+
+  @Post('limit-order/prepare')
+  prepareLimitOrder(
+    @Body() body: LimitOrderPrepareDto,
+  ): Promise<PreparedLimitOrder> {
+    return this.execution.prepareLimitOrder(body);
+  }
+
+  @Post('limit-order/confirm')
+  confirmLimitOrder(@Body() body: LimitOrderConfirmDto) {
+    return this.execution.confirmLimitOrder(body);
+  }
+
+  @Get('limit-orders/:wallet')
+  listLimitOrders(
+    @Param('wallet') wallet: string,
+    @Query('includeHistory') includeHistory?: string,
+  ): Promise<LimitOrderRecord[]> {
+    return this.execution.listLimitOrders(wallet, {
+      includeHistory: includeHistory === 'true' || includeHistory === '1',
+    });
+  }
+
+  @Post('limit-order/prepare-cancel')
+  prepareCancelLimitOrder(
+    @Body() body: LimitOrderCancelPrepareDto,
+  ): Promise<PreparedLimitCancel> {
+    return this.execution.prepareCancelLimitOrder(body);
+  }
+
+  @Post('limit-order/confirm-cancel')
+  confirmCancelLimitOrder(@Body() body: LimitOrderCancelConfirmDto) {
+    return this.execution.confirmCancelLimitOrder(body);
   }
 }

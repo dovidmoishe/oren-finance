@@ -8,6 +8,9 @@ import { ExecutionRepository } from './execution.repository';
 import { ExecutionService } from './execution.service';
 import { JupiterClient } from './jupiter/jupiter.client';
 import { JupiterService } from './jupiter/jupiter.service';
+import { JupiterTriggerClient } from './jupiter/jupiter-trigger.client';
+import { LimitOrderCache } from './limit-order-cache';
+import { LimitOrderRepository } from './limit-order.repository';
 import { QuoteCache } from './quote-cache';
 import { VariantSelector } from './variant-selector';
 
@@ -16,11 +19,14 @@ import { VariantSelector } from './variant-selector';
   controllers: [ExecutionController],
   providers: [
     BasketCache,
+    LimitOrderCache,
     JupiterClient,
+    JupiterTriggerClient,
     JupiterService,
     QuoteCache,
     VariantSelector,
     ExecutionRepository,
+    LimitOrderRepository,
     ExecutionService,
   ],
   exports: [ExecutionService, JupiterService],

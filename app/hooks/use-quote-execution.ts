@@ -39,22 +39,30 @@ export function useQuoteExecution(onConfirmed?: () => Promise<void> | void) {
   const [localError, setLocalError] = useState<string>();
 
   const executeQuote = useCallback(
-    async (quote: QuoteResponse) => {
+    async (quote?: QuoteResponse) => {
       const wallet = publicKey?.toBase58();
       setLocalError(undefined);
       if (!connected || !wallet) {
         setVisible(true);
         return;
       }
-      if (new Date(quote.expiresAt).getTime() <= Date.now()) {
-        setLocalError('This quote expired. Request a fresh quote before signing.');
+
+      // Always prefer the freshest store quote (auto-refresh may have replaced it).
+      const liveQuote = useExecutionStore.getState().quote ?? quote;
+      if (!liveQuote) {
+        setLocalError('Request a fresh quote before signing.');
+        setFlowStatus('failed');
+        return;
+      }
+      if (new Date(liveQuote.expiresAt).getTime() <= Date.now()) {
+        setLocalError('This quote expired. Waiting for a fresh quote before signing.');
         setFlowStatus('failed');
         return;
       }
 
       try {
         setFlowStatus('preparing');
-        await prepareTrade({ quoteId: quote.id, wallet });
+        await prepareTrade({ quoteId: liveQuote.id, wallet });
         const prepared = useExecutionStore.getState().prepared;
         if (!prepared) {
           throw new Error(useExecutionStore.getState().error ?? 'Unable to prepare transaction');

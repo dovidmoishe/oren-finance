@@ -12,13 +12,20 @@ import { useWallet } from "@solana/wallet-adapter-react";
 import { useWalletModal } from "@solana/wallet-adapter-react-ui";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuoteExecution } from "@/hooks/use-quote-execution";
+import { useQuoteRefresh } from "@/hooks/use-quote-refresh";
+import { useLimitOrderExecution } from "@/hooks/use-limit-order-execution";
+import { listLimitOrders, proposeLimitOrder } from "@/services";
 import { Button, Card, cn, formatCurrency, formatNumber } from "@/components/ui";
 import { useExecutionStore, usePortfolioStore } from "@/store";
-import type { StockDetail, TradeSide } from "@/types";
+import type { LimitOrderProposal, LimitOrderRecord, LimitZone, StockDetail, TradeSide } from "@/types";
 import { QuoteReviewModal } from "./quote-review-modal";
+import { LimitOrderReviewModal } from "./limit-order-review-modal";
+
+type OrderMode = "market" | "limit";
 
 interface StockTradeTicketProps {
   stock: StockDetail;
+  limitZones?: LimitZone[];
   onConfirmed?: () => Promise<void> | void;
 }
 
@@ -80,7 +87,7 @@ function isNoRouteError(message?: string) {
   return Boolean(message?.toLowerCase().includes("no jupiter routes"));
 }
 
-export function StockTradeTicket({ stock, onConfirmed }: StockTradeTicketProps) {
+export function StockTradeTicket({ stock, limitZones, onConfirmed }: StockTradeTicketProps) {
   const { publicKey, connected } = useWallet();
   const { setVisible } = useWalletModal();
   const wallet = publicKey?.toBase58();
@@ -89,6 +96,7 @@ export function StockTradeTicket({ stock, onConfirmed }: StockTradeTicketProps) 
   const quote = useExecutionStore((state) => state.quote);
   const prepared = useExecutionStore((state) => state.prepared);
   const isLoading = useExecutionStore((state) => state.isLoading);
+  const isRefreshingQuote = useExecutionStore((state) => state.isRefreshingQuote);
   const quoteTrade = useExecutionStore((state) => state.quoteTrade);
   const resetTrade = useExecutionStore((state) => state.resetTrade);
   const {
@@ -100,9 +108,34 @@ export function StockTradeTicket({ stock, onConfirmed }: StockTradeTicketProps) 
     setError: setLocalError,
     setFlowStatus,
   } = useQuoteExecution(onConfirmed);
+  const {
+    confirmation: limitConfirmation,
+    error: limitError,
+    executeLimitOrder,
+    cancelLimitOrder,
+    flowStatus: limitFlowStatus,
+    resetFeedback: resetLimitFeedback,
+  } = useLimitOrderExecution(async () => {
+    await refreshOpenOrders();
+    await onConfirmed?.();
+  });
+  const {
+    secondsLeft,
+    refreshFailed,
+    refreshQuote,
+  } = useQuoteRefresh({
+    enabled: Boolean(connected && wallet),
+    flowStatus,
+  });
+  const [orderMode, setOrderMode] = useState<OrderMode>("market");
   const [side, setSide] = useState<TradeSide>("buy");
   const [amount, setAmount] = useState("100");
+  const [limitPrice, setLimitPrice] = useState("");
   const [reviewOpen, setReviewOpen] = useState(false);
+  const [limitProposal, setLimitProposal] = useState<LimitOrderProposal>();
+  const [limitReviewOpen, setLimitReviewOpen] = useState(false);
+  const [limitBusy, setLimitBusy] = useState(false);
+  const [openOrders, setOpenOrders] = useState<LimitOrderRecord[]>([]);
   const autoQuoteKeyRef = useRef<string | undefined>(undefined);
   const tradableRoutes = stock.variants.filter((variant) => variant.tradable).length;
   const position = useMemo(
@@ -113,6 +146,9 @@ export function StockTradeTicket({ stock, onConfirmed }: StockTradeTicketProps) 
   const stockBalance = position?.availableQuantity ?? 0;
   const parsedAmount = Number(amount);
   const amountIsValid = Number.isFinite(parsedAmount) && parsedAmount > 0;
+  const parsedLimitPrice = Number(limitPrice);
+  const limitPriceIsValid = Number.isFinite(parsedLimitPrice) && parsedLimitPrice > 0;
+  const sideZone = limitZones?.find((zone) => zone.side === side);
   const buyAmountUsd = side === "buy" && amountIsValid ? parsedAmount : 0;
   const sellQuantity = side === "sell" && amountIsValid ? parsedAmount : 0;
   const activeQuote =
@@ -170,11 +206,41 @@ export function StockTradeTicket({ stock, onConfirmed }: StockTradeTicketProps) 
     }
   }, [loadPortfolio, portfolio, wallet]);
 
+  const refreshOpenOrders = useCallback(async () => {
+    if (!wallet) {
+      setOpenOrders([]);
+      return;
+    }
+    try {
+      const orders = await listLimitOrders(wallet);
+      setOpenOrders(
+        orders.filter(
+          (order) =>
+            order.status === "open" &&
+            (order.assetId === stock.assetId || order.ticker === stock.ticker),
+        ),
+      );
+    } catch {
+      // Keep last known list; listing is best-effort.
+    }
+  }, [stock.assetId, stock.ticker, wallet]);
+
+  useEffect(() => {
+    void refreshOpenOrders();
+  }, [refreshOpenOrders]);
+
+  useEffect(() => {
+    if (sideZone && !limitPrice) {
+      setLimitPrice(String(sideZone.preferredUsd));
+    }
+  }, [side, sideZone?.preferredUsd]);
+
   useEffect(() => {
     resetTrade();
     resetFeedback();
+    resetLimitFeedback();
     return resetTrade;
-  }, [resetFeedback, resetTrade]);
+  }, [resetFeedback, resetLimitFeedback, resetTrade]);
 
   const requestQuote = useCallback(
     async ({ openReview }: { openReview: boolean }) => {
@@ -227,12 +293,20 @@ export function StockTradeTicket({ stock, onConfirmed }: StockTradeTicketProps) 
   );
 
   useEffect(() => {
-    if (!connected || !wallet || blockingError || activeQuote || isLoading) {
+    if (orderMode !== "market") return;
+    if (!connected || !wallet || blockingError || isLoading || isRefreshingQuote) {
       return;
     }
 
     const quoteKey = `${wallet}:${stock.assetId}:${side}:${parsedAmount}`;
-    if (autoQuoteKeyRef.current === quoteKey) {
+    const hasMatchingLiveQuote =
+      activeQuote && new Date(activeQuote.expiresAt).getTime() > Date.now();
+    if (hasMatchingLiveQuote) {
+      autoQuoteKeyRef.current = quoteKey;
+      return;
+    }
+
+    if (autoQuoteKeyRef.current === quoteKey && activeQuote) {
       return;
     }
 
@@ -242,7 +316,31 @@ export function StockTradeTicket({ stock, onConfirmed }: StockTradeTicketProps) 
     }, 450);
 
     return () => window.clearTimeout(timeout);
-  }, [activeQuote, blockingError, connected, isLoading, parsedAmount, requestQuote, side, stock.assetId, wallet]);
+  }, [
+    activeQuote,
+    blockingError,
+    connected,
+    isLoading,
+    isRefreshingQuote,
+    orderMode,
+    parsedAmount,
+    requestQuote,
+    side,
+    stock.assetId,
+    wallet,
+  ]);
+
+  const handleModeChange = (nextMode: OrderMode) => {
+    setOrderMode(nextMode);
+    setReviewOpen(false);
+    setLimitReviewOpen(false);
+    setLimitProposal(undefined);
+    setLocalError(undefined);
+    resetLimitFeedback();
+    if (nextMode === "market") {
+      autoQuoteKeyRef.current = undefined;
+    }
+  };
 
   const handleSideChange = (nextSide: TradeSide) => {
     setSide(nextSide);
@@ -251,6 +349,10 @@ export function StockTradeTicket({ stock, onConfirmed }: StockTradeTicketProps) 
     setFlowStatus("idle");
     setLocalError(undefined);
     setReviewOpen(false);
+    setLimitProposal(undefined);
+    setLimitReviewOpen(false);
+    const zone = limitZones?.find((item) => item.side === nextSide);
+    setLimitPrice(zone ? String(zone.preferredUsd) : "");
   };
 
   const handleAmountChange = (nextAmount: string) => {
@@ -268,16 +370,62 @@ export function StockTradeTicket({ stock, onConfirmed }: StockTradeTicketProps) 
   };
 
   const handlePrepareSignConfirm = async () => {
-    const activeQuote = useExecutionStore.getState().quote;
-    if (!activeQuote) {
-      setLocalError("Request a fresh quote before signing.");
-      setFlowStatus("failed");
-      return;
-    }
-    await executeQuote(activeQuote);
+    await executeQuote();
   };
 
-  const ctaLabel = !connected ? "Connect wallet" : activeQuote ? "Review quote" : "Get quote";
+  const handleProposeLimit = async () => {
+    setLocalError(undefined);
+    if (!connected || !wallet) {
+      setVisible(true);
+      return;
+    }
+    if (blockingError) {
+      setLocalError(blockingError);
+      return;
+    }
+    if (!limitPriceIsValid) {
+      setLocalError("Enter a valid limit price.");
+      return;
+    }
+
+    setLimitBusy(true);
+    try {
+      const proposal = await proposeLimitOrder({
+        wallet,
+        assetId: stock.assetId,
+        ticker: stock.ticker,
+        side,
+        amountUsd: side === "buy" ? parsedAmount : undefined,
+        amount: side === "sell" ? parsedAmount : undefined,
+        limitPriceUsd: parsedLimitPrice,
+        basis: sideZone?.basis,
+        slippageBps: 0,
+      });
+      setLimitProposal(proposal);
+      setLimitReviewOpen(true);
+    } catch (error) {
+      setLocalError(error instanceof Error ? error.message : "Unable to propose limit order");
+    } finally {
+      setLimitBusy(false);
+    }
+  };
+
+  const ctaLabel = !connected
+    ? "Connect wallet"
+    : orderMode === "limit"
+      ? "Review limit order"
+      : isRefreshingQuote
+        ? "Updating quote…"
+        : activeQuote
+          ? "Review quote"
+          : "Get quote";
+
+  const limitEstimatedReceive =
+    orderMode === "limit" && amountIsValid && limitPriceIsValid
+      ? side === "buy"
+        ? parsedAmount / parsedLimitPrice
+        : parsedAmount * parsedLimitPrice
+      : 0;
   const inputSymbol = side === "buy" ? "USDC" : stock.ticker;
   const outputSymbol = side === "buy" ? stock.ticker : "USDC";
   const inputName = side === "buy" ? "USD Coin" : stock.name;
@@ -293,6 +441,28 @@ export function StockTradeTicket({ stock, onConfirmed }: StockTradeTicketProps) 
   return (
     <>
       <Card className="overflow-hidden p-4">
+        <div className="mb-3 flex justify-center">
+          <div className="inline-flex rounded-[16px] bg-panel-subtle p-1 text-sm font-semibold">
+            {([
+              ["market", "Market"],
+              ["limit", "Limit"],
+            ] as const).map(([value, label]) => (
+              <button
+                aria-pressed={orderMode === value}
+                className={cn(
+                  "h-9 min-w-20 rounded-[12px] px-4 transition-colors",
+                  orderMode === value ? "bg-panel text-foreground shadow-sm" : "text-muted hover:text-foreground",
+                )}
+                key={value}
+                onClick={() => handleModeChange(value)}
+                type="button"
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+
         <div className="mb-4 flex justify-center">
           <div className="inline-flex rounded-[16px] bg-panel-subtle p-1 text-sm font-semibold">
             {(["buy", "sell"] as TradeSide[]).map((item) => (
@@ -311,6 +481,41 @@ export function StockTradeTicket({ stock, onConfirmed }: StockTradeTicketProps) 
             ))}
           </div>
         </div>
+
+        {orderMode === "limit" ? (
+          <div className="mb-3 space-y-2">
+            <div className="rounded-[18px] border border-border bg-panel-subtle px-4 py-3">
+              <div className="flex items-center justify-between text-xs uppercase tracking-[0.12em] text-muted">
+                <span>Limit price (USD)</span>
+                {stock.priceUsd ? <span>Mkt {formatCurrency(stock.priceUsd)}</span> : null}
+              </div>
+              <input
+                aria-label="Limit price in USD"
+                className="mt-2 w-full bg-transparent font-display text-3xl font-semibold outline-none placeholder:text-muted-2"
+                inputMode="decimal"
+                onChange={(event) => setLimitPrice(event.target.value)}
+                placeholder="0.00"
+                value={limitPrice}
+              />
+            </div>
+            {limitZones?.length ? (
+              <div className="flex flex-wrap gap-2">
+                {limitZones
+                  .filter((zone) => zone.side === side)
+                  .map((zone) => (
+                    <button
+                      className="rounded-full bg-panel px-3 py-1.5 text-xs font-semibold shadow-sm ring-1 ring-border"
+                      key={`${zone.side}-${zone.preferredUsd}`}
+                      onClick={() => setLimitPrice(String(zone.preferredUsd))}
+                      type="button"
+                    >
+                      TA {formatCurrency(zone.preferredUsd)}
+                    </button>
+                  ))}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
 
         <div className="relative space-y-3">
           <div className="rounded-[24px] border border-border bg-panel-subtle p-5">
@@ -353,7 +558,17 @@ export function StockTradeTicket({ stock, onConfirmed }: StockTradeTicketProps) 
             </div>
             <div className="mt-4 flex items-center justify-between gap-4">
               <TokenBadge logoUrl={side === "buy" ? logoUrl : "/usdc.svg"} name={outputName} symbol={outputSymbol} tone={side === "buy" ? "stock" : "cash"} />
-              <p className="min-w-0 flex-1 truncate text-right font-display text-4xl font-semibold">{activeQuote ? formatNumber(activeQuote.outputAmount, 4) : amountIsValid ? formatNumber(estimatedReceive, side === "buy" ? 4 : 2) : "0"}</p>
+              <p className="min-w-0 flex-1 truncate text-right font-display text-4xl font-semibold">
+                {orderMode === "limit"
+                  ? amountIsValid && limitPriceIsValid
+                    ? formatNumber(limitEstimatedReceive, side === "buy" ? 4 : 2)
+                    : "0"
+                  : activeQuote
+                    ? formatNumber(activeQuote.outputAmount, 4)
+                    : amountIsValid
+                      ? formatNumber(estimatedReceive, side === "buy" ? 4 : 2)
+                      : "0"}
+              </p>
             </div>
             <p className="mt-4 text-right text-xs text-muted">
               {side === "buy" ? `~ ${formatCurrency(parsedAmount || 0)}` : `~ ${formatNumber(parsedAmount || 0, 6)} ${stock.ticker}`}
@@ -362,46 +577,110 @@ export function StockTradeTicket({ stock, onConfirmed }: StockTradeTicketProps) 
         </div>
 
         <div className="mt-5 space-y-3">
-          <RouteRow label="Route" value={routeValue} />
-          <RouteRow label="Minimum received" value={minimumReceivedValue} />
-          <RouteRow label="Rate" value={activeQuote ? `1 ${activeQuote.outputSymbol} ~ ${formatCurrency(activeQuote.estimatedPriceUsd)}` : stock.priceUsd ? formatCurrency(stock.priceUsd) : "Unavailable"} />
-          <RouteRow label="Network fee" value={activeQuote?.networkFeeUsd ? formatCurrency(activeQuote.networkFeeUsd, 4) : "Estimated by wallet"} />
+          {orderMode === "market" ? (
+            <>
+              <RouteRow label="Route" value={routeValue} />
+              <RouteRow label="Minimum received" value={minimumReceivedValue} />
+              <RouteRow label="Rate" value={activeQuote ? `1 ${activeQuote.outputSymbol} ~ ${formatCurrency(activeQuote.estimatedPriceUsd)}` : stock.priceUsd ? formatCurrency(stock.priceUsd) : "Unavailable"} />
+              <RouteRow label="Network fee" value={activeQuote?.networkFeeUsd ? formatCurrency(activeQuote.networkFeeUsd, 4) : "Estimated by wallet"} />
+            </>
+          ) : (
+            <>
+              <RouteRow label="Order type" value="Jupiter Trigger limit" />
+              <RouteRow
+                label="Limit price"
+                value={limitPriceIsValid ? formatCurrency(parsedLimitPrice) : "Enter a price"}
+              />
+              <RouteRow
+                label="If filled"
+                value={
+                  amountIsValid && limitPriceIsValid
+                    ? side === "buy"
+                      ? `${formatNumber(limitEstimatedReceive, 6)} ${stock.ticker}`
+                      : formatCurrency(limitEstimatedReceive)
+                    : "—"
+                }
+              />
+            </>
+          )}
         </div>
 
-        {blockingError || displayedError ? (
+        {blockingError || displayedError || limitError ? (
           <div className="mt-4 flex gap-2 rounded-[16px] border border-red-200 bg-red-50 p-3 text-xs leading-5 text-red-900">
             <HugeiconsIcon className="mt-0.5 shrink-0" color="currentColor" icon={AlertCircleIcon} size={14} strokeWidth={1.8} />
             <span>
-              {liveRouteUnavailable
+              {liveRouteUnavailable && orderMode === "market"
                 ? `No live Jupiter route is available for ${stock.ticker} at this amount. Try a smaller amount or another stock with deeper liquidity.`
-                : (executionError ?? blockingError)}
+                : (limitError ?? executionError ?? blockingError)}
             </span>
+          </div>
+        ) : null}
+
+        {openOrders.length ? (
+          <div className="mt-4 space-y-2 rounded-[18px] border border-border p-3">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted">
+              Open limit orders
+            </p>
+            {openOrders.map((order) => (
+              <div className="flex items-center justify-between gap-3 text-xs" key={order.orderKey}>
+                <div>
+                  <p className="font-semibold capitalize">
+                    {order.side} @ {formatCurrency(order.limitPriceUsd)}
+                  </p>
+                  <p className="text-muted">{formatCurrency(order.amountUsd ?? 0)}</p>
+                </div>
+                <Button
+                  disabled={limitFlowStatus === "preparing" || limitFlowStatus === "signing"}
+                  onClick={() => void cancelLimitOrder(order.orderKey)}
+                  size="sm"
+                  variant="secondary"
+                >
+                  Cancel
+                </Button>
+              </div>
+            ))}
           </div>
         ) : null}
 
         <Button
           className="mt-5 h-12 w-full rounded-[16px]"
-          disabled={connected ? Boolean(blockingError) || isLoading : false}
-          onClick={activeQuote ? () => setReviewOpen(true) : () => void handleQuote()}
+          disabled={
+            connected
+              ? Boolean(blockingError) ||
+                isLoading ||
+                isRefreshingQuote ||
+                limitBusy ||
+                (orderMode === "limit" && !limitPriceIsValid)
+              : false
+          }
+          onClick={() => {
+            if (orderMode === "limit") {
+              void handleProposeLimit();
+              return;
+            }
+            if (activeQuote && !isRefreshingQuote) {
+              setReviewOpen(true);
+              return;
+            }
+            void handleQuote();
+          }}
           variant="primary"
         >
-          {isLoading ? (
+          {isLoading || isRefreshingQuote || limitBusy ? (
             <>
               <HugeiconsIcon className="animate-spin" color="currentColor" icon={Loading03Icon} size={16} strokeWidth={1.8} />
-              Loading quote
+              {limitBusy ? "Building limit order" : isRefreshingQuote ? "Updating quote…" : "Loading quote"}
             </>
           ) : !connected ? (
             <>
               <HugeiconsIcon color="currentColor" icon={Wallet02Icon} size={16} strokeWidth={1.8} />
               {ctaLabel}
             </>
-          ) : activeQuote ? (
+          ) : (
             <>
               <HugeiconsIcon color="currentColor" icon={CoinsSwapIcon} size={16} strokeWidth={1.8} />
               {ctaLabel}
             </>
-          ) : (
-            ctaLabel
           )}
         </Button>
       </Card>
@@ -409,11 +688,28 @@ export function StockTradeTicket({ stock, onConfirmed }: StockTradeTicketProps) 
       <QuoteReviewModal
         confirmation={confirmation}
         error={executionError}
+        isRefreshingQuote={isRefreshingQuote}
         onClose={() => setReviewOpen(false)}
+        onRefreshQuote={() => void refreshQuote()}
         onSign={handlePrepareSignConfirm}
         open={reviewOpen}
         quote={activeQuote}
+        refreshFailed={refreshFailed}
+        secondsLeft={secondsLeft}
         status={flowStatus}
+      />
+
+      <LimitOrderReviewModal
+        confirmation={limitConfirmation}
+        error={limitError}
+        onClose={() => setLimitReviewOpen(false)}
+        onSign={async () => {
+          if (!limitProposal) return;
+          await executeLimitOrder(limitProposal);
+        }}
+        open={limitReviewOpen}
+        proposal={limitProposal}
+        status={limitFlowStatus === "idle" ? "quoted" : limitFlowStatus}
       />
     </>
   );

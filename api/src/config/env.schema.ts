@@ -11,6 +11,7 @@ export interface AppEnv {
   ALCHEMY_API_KEY: string;
   SOLANA_NETWORK: SolanaNetwork;
   JUPITER_API_URL?: string;
+  JUPITER_TRIGGER_API_URL?: string;
   OPENAI_API_KEY?: string;
   OPENAI_MODEL: string;
   ANTHROPIC_API_KEY?: string;
@@ -79,6 +80,10 @@ export function validateEnv(env: EnvSource = process.env): AppEnv {
     JUPITER_API_URL:
       readEnv(env, 'JUPITER_API_URL')?.replace(/\/$/, '') ??
       'https://lite-api.jup.ag/swap/v1',
+    JUPITER_TRIGGER_API_URL: readEnv(env, 'JUPITER_TRIGGER_API_URL')?.replace(
+      /\/$/,
+      '',
+    ),
     OPENAI_API_KEY: readEnv(env, 'OPENAI_API_KEY'),
     OPENAI_MODEL: readEnv(env, 'OPENAI_MODEL') || 'gpt-5-mini',
     ANTHROPIC_API_KEY: readEnv(env, 'ANTHROPIC_API_KEY'),

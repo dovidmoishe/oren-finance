@@ -77,6 +77,15 @@ export class BasketExpiredError extends ProviderError {
   }
 }
 
+export class LimitOrderExpiredError extends ProviderError {
+  constructor(
+    message = 'Limit order proposal expired or not found. Create a fresh proposal and try again.',
+  ) {
+    super(message, 'LIMIT_ORDER_EXPIRED', 400);
+    this.name = 'LimitOrderExpiredError';
+  }
+}
+
 export class ExecutionNotFoundError extends ProviderError {
   constructor(message = 'Execution not found') {
     super(message, 'EXECUTION_NOT_FOUND', 404);

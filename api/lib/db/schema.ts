@@ -28,7 +28,21 @@ export const executionTypeEnum = pgEnum('execution_type', [
   'basket_purchase',
   'lock',
   'unlock',
+  'limit_buy',
+  'limit_sell',
+  'limit_cancel',
 ]);
+
+export const limitOrderStatusEnum = pgEnum('limit_order_status', [
+  'open',
+  'filled',
+  'cancelled',
+  'expired',
+  'failed',
+  'awaiting_signature',
+]);
+
+export const limitOrderSideEnum = pgEnum('limit_order_side', ['buy', 'sell']);
 
 export const executionStatusEnum = pgEnum('execution_status', [
   'preparing',
@@ -222,6 +236,54 @@ export const vaultPositions = pgTable(
     index('vault_positions_owner_idx').on(table.owner),
     index('vault_positions_asset_id_idx').on(table.assetId),
     index('vault_positions_unlock_at_idx').on(table.unlockAt),
+  ],
+);
+
+/** Jupiter Trigger V1 orders indexed for app memory (Jupiter remains ledger). */
+export const limitOrders = pgTable(
+  'limit_orders',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    walletAddress: text('wallet_address').notNull(),
+    orderKey: text('order_key').notNull(),
+    side: limitOrderSideEnum('side').notNull(),
+    assetId: text('asset_id'),
+    ticker: text('ticker'),
+    inputMint: text('input_mint').notNull(),
+    outputMint: text('output_mint').notNull(),
+    makingAmount: numeric('making_amount', {
+      precision: 40,
+      scale: 18,
+    }).notNull(),
+    takingAmount: numeric('taking_amount', {
+      precision: 40,
+      scale: 18,
+    }).notNull(),
+    limitPriceUsd: numeric('limit_price_usd', {
+      precision: 20,
+      scale: 8,
+    }).notNull(),
+    amountUsd: numeric('amount_usd', { precision: 20, scale: 8 }),
+    status: limitOrderStatusEnum('status').notNull().default('open'),
+    basis: text('basis'),
+    openSignature: text('open_signature'),
+    closeSignature: text('close_signature'),
+    expiredAt: timestamp('expired_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    uniqueIndex('limit_orders_order_key_idx').on(table.orderKey),
+    index('limit_orders_wallet_created_at_idx').on(
+      table.walletAddress,
+      table.createdAt,
+    ),
+    index('limit_orders_status_idx').on(table.status),
+    index('limit_orders_asset_id_idx').on(table.assetId),
   ],
 );
 
