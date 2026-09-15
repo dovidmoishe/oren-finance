@@ -9,7 +9,31 @@ export type { Position, PositionVariant } from './position';
 
 export type { Quote, TradeSide } from './quote';
 
-export type { StockAnalysis, StockOpportunity } from './analysis';
+export type {
+  LimitOrderIntent,
+  LimitOrderProposal,
+  LimitOrderRecord,
+  LimitOrderStatus,
+  PreparedLimitCancel,
+  PreparedLimitOrder,
+} from './limit-order';
+
+export type {
+  LimitZone,
+  LimitZoneBasis,
+  LimitZoneSide,
+  BollingerSnapshot,
+  MacdSnapshot,
+  NewsAlignment,
+  NewsOverlayItem,
+  PriceLevel,
+  SetupClass,
+  StockAnalysis,
+  StockOpportunity,
+  TechnicalBrief,
+  TimeframeIndicators,
+  TrendRegime,
+} from './analysis';
 
 export type { ScoreDimensions, StockSignals } from './signals';
 
@@ -19,6 +43,19 @@ export type {
   PortfolioHistoryPoint,
   PortfolioSnapshot,
 } from './portfolio';
+
+export type {
+  TradingCalendarAgentEvent,
+  TradingCalendarContributor,
+  TradingCalendarDayResponse,
+  TradingCalendarDaySummary,
+  TradingCalendarEvent,
+  TradingCalendarQuery,
+  TradingCalendarRange,
+  TradingCalendarResponse,
+  TradingCalendarTrade,
+  TradingCalendarVaultEvent,
+} from './calendar';
 
 export type {
   ChartRange,
@@ -85,6 +122,8 @@ export type {
   AgentMessageRole,
   AgentPage,
   AgentPageContext,
+  AgentPortfolioContext,
+  AgentPortfolioPositionContext,
   AgentStreamEvent,
   AgentThread,
   AgentThreadMessagesResponse,
@@ -112,6 +151,9 @@ export type {
   GetMarketTrendingResponse,
   GetMarketsOverviewResponse,
   GetPortfolioActivityResponse,
+  GetPortfolioCalendarDayResponse,
+  GetPortfolioCalendarQuery,
+  GetPortfolioCalendarResponse,
   GetPortfolioHistoryResponse,
   GetPortfolioResponse,
   GetSignalsResponse,

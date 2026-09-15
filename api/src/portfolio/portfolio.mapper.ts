@@ -18,6 +18,17 @@ export function isCashMint(mint: string, assetId?: string): boolean {
   return mint === USDC_MINT || assetId === USD_ASSET_ID;
 }
 
+/** Observed stock/equity value from a snapshot; excludes idle USDC cash. */
+export function equityValueFromSnapshot(snapshot: {
+  availableValueUsd: string | number;
+  lockedValueUsd: string | number;
+}): number {
+  const available = Number(snapshot.availableValueUsd);
+  const locked = Number(snapshot.lockedValueUsd);
+  if (!Number.isFinite(available) || !Number.isFinite(locked)) return 0;
+  return available + locked;
+}
+
 export function buildLockedByMint(
   locks: VaultPositionRow[],
 ): Map<string, number> {

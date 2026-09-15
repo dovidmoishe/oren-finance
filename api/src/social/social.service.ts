@@ -23,6 +23,7 @@ import type {
 } from '../../types/social';
 import { MIN_BASKET_LEG_USD } from '../config/constants';
 import { ExecutionService } from '../execution/execution.service';
+import { equityValueFromSnapshot } from '../portfolio/portfolio.mapper';
 import { PortfolioRepository, type SnapshotRow } from '../portfolio/portfolio.repository';
 import { PortfolioService } from '../portfolio/portfolio.service';
 import { SocialRepository, type TraderProfileRow } from './social.repository';
@@ -248,8 +249,8 @@ function buildLeaderboardRow(
   const chronological = [...snapshots].reverse();
   const latest = chronological[chronological.length - 1];
   const baseline = findBaseline(chronological, timeframe);
-  const latestValue = Number(latest.totalValueUsd);
-  const baselineValue = Number(baseline.totalValueUsd);
+  const latestValue = equityValueFromSnapshot(latest);
+  const baselineValue = equityValueFromSnapshot(baseline);
 
   if (!Number.isFinite(latestValue) || !Number.isFinite(baselineValue)) {
     return null;
@@ -459,8 +460,8 @@ function riskFromSnapshots(snapshots: SnapshotRow[]): SocialRiskLabel {
   if (snapshots.length < 3) return 'new';
   const returns: number[] = [];
   for (let i = 1; i < snapshots.length; i += 1) {
-    const previous = Number(snapshots[i - 1].totalValueUsd);
-    const current = Number(snapshots[i].totalValueUsd);
+    const previous = equityValueFromSnapshot(snapshots[i - 1]);
+    const current = equityValueFromSnapshot(snapshots[i]);
     if (previous > 0 && Number.isFinite(current)) {
       returns.push(((current - previous) / previous) * 100);
     }

@@ -3,6 +3,7 @@ import {
   buildPortfolio,
   buildPositions,
   cashFromBalances,
+  equityValueFromSnapshot,
   isCashMint,
   type HoldingLot,
 } from './portfolio.mapper';
@@ -47,6 +48,15 @@ describe('portfolio.mapper', () => {
           { mint: USDC_MINT, amount: 0, decimals: 6, uiAmount: 0 },
         ]),
       ).toBe(50);
+    });
+
+    it('derives equity-only snapshot value from available and locked holdings', () => {
+      expect(
+        equityValueFromSnapshot({
+          availableValueUsd: '120',
+          lockedValueUsd: '30',
+        }),
+      ).toBe(150);
     });
   });
 

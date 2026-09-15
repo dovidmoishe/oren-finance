@@ -43,7 +43,7 @@ Do not leave completed work marked `pending` on the board.
 
 ## Current focus (update as you go)
 
-See **Active phase** at the top of [`docs/api-build-board.md`](docs/api-build-board.md). As of the last sync: **Phase 4 — News** is next after Foundation → Portfolio → Trading → Intelligence.
+See **Active phase** at the top of [`docs/api-build-board.md`](docs/api-build-board.md). As of the last sync: **Phase 16 — Vault UI** is active. **Phase 18 — Agent Technical Analysis** and **Phase 19 — Jupiter Limit Orders** are completed (Trigger V1 propose/sign flow; market quotes auto-refresh on expiry).
 
 ## App-specific notes
 

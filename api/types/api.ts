@@ -4,6 +4,11 @@ import type {
   AgentChatResponse,
   AgentThreadMessagesResponse,
 } from './agent';
+import type {
+  TradingCalendarDayResponse,
+  TradingCalendarQuery,
+  TradingCalendarResponse,
+} from './calendar';
 import type { StockAnalysis, StockOpportunity } from './analysis';
 import type { Equity, EquitySummary } from './equity';
 import type {
@@ -51,6 +56,14 @@ export type GetPortfolioHistoryResponse = PortfolioHistory;
 
 /** GET /portfolio/:wallet/activity */
 export type GetPortfolioActivityResponse = ActivityFeed;
+
+/** GET /portfolio/:wallet/calendar */
+export type GetPortfolioCalendarQuery = TradingCalendarQuery;
+
+export type GetPortfolioCalendarResponse = TradingCalendarResponse;
+
+/** GET /portfolio/:wallet/calendar/:date */
+export type GetPortfolioCalendarDayResponse = TradingCalendarDayResponse;
 
 /** GET /stocks?page=&limit= */
 export interface GetStocksQuery {
@@ -149,6 +162,29 @@ export interface PostBasketPrepareRequest {
 }
 
 export type PostBasketPrepareResponse = PreparedBasketPurchase;
+
+/** POST /execution/limit-order */
+export type PostLimitOrderRequest = import('./limit-order').LimitOrderIntent;
+export type PostLimitOrderResponse = import('./limit-order').LimitOrderProposal;
+
+/** POST /execution/limit-order/prepare */
+export interface PostLimitOrderPrepareRequest {
+  proposalId: string;
+  wallet: string;
+}
+export type PostLimitOrderPrepareResponse =
+  import('./limit-order').PreparedLimitOrder;
+
+/** POST /execution/limit-order/confirm */
+export interface PostLimitOrderConfirmRequest {
+  proposalId: string;
+  wallet: string;
+  signature: string;
+  orderKey?: string;
+}
+
+/** GET /execution/limit-orders/:wallet */
+export type GetLimitOrdersResponse = import('./limit-order').LimitOrderRecord[];
 
 /** GET /vaults/:wallet */
 export type GetVaultsResponse = VaultSummary;

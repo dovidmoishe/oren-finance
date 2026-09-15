@@ -1,5 +1,12 @@
 import { apiRequest } from "./api-client";
-import type { PortfolioActivityItem, PortfolioRange, PortfolioSnapshot, PortfolioSummary } from "@/types";
+import type {
+  PortfolioActivityItem,
+  PortfolioRange,
+  PortfolioSnapshot,
+  PortfolioSummary,
+  TradingCalendarDayResponse,
+  TradingCalendarResponse,
+} from "@/types";
 
 interface ApiPortfolioPosition {
   assetId: string;
@@ -75,6 +82,25 @@ export function getPortfolioActivity(wallet: string) {
   return apiRequest<ApiActivityFeed>(`/portfolio/${wallet}/activity`).then((feed) =>
     feed.items.map(mapActivityItem),
   );
+}
+
+export function getTradingCalendar(
+  wallet: string,
+  input: { month?: string; start?: string; end?: string; timeZone?: string },
+) {
+  return apiRequest<TradingCalendarResponse>(`/portfolio/${wallet}/calendar`, {
+    query: input,
+  });
+}
+
+export function getTradingCalendarDay(
+  wallet: string,
+  date: string,
+  input: { timeZone?: string },
+) {
+  return apiRequest<TradingCalendarDayResponse>(`/portfolio/${wallet}/calendar/${date}`, {
+    query: input,
+  });
 }
 
 export function mapPortfolio(portfolio: ApiPortfolioSummary): PortfolioSummary {

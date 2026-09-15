@@ -72,6 +72,35 @@ describe('SocialService', () => {
     expect(leaderboard.rows[1].pnlPct).toBe(20);
   });
 
+  it('ignores idle cash when ranking leaderboard P&L', async () => {
+    socialRepository.listPublicProfiles.mockResolvedValue([profileA, profileB]);
+    portfolioRepository.listSnapshots.mockImplementation((wallet: string) => {
+      if (wallet === 'wallet-a') {
+        return Promise.resolve([
+          snapshot('wallet-a', 220, now, 120, [
+            position('nvda', 'NVDA', 120, 100),
+          ]),
+          snapshot('wallet-a', 200, now - 10 * 86_400_000, 100, [
+            position('nvda', 'NVDA', 100, 100),
+          ]),
+        ]);
+      }
+      return Promise.resolve([
+        snapshot('wallet-b', 300, now, 150, [
+          position('aapl', 'AAPL', 150, 100),
+        ]),
+        snapshot('wallet-b', 250, now - 10 * 86_400_000, 100, [
+          position('aapl', 'AAPL', 100, 100),
+        ]),
+      ]);
+    });
+
+    const leaderboard = await service.getLeaderboard({ timeframe: '30D' });
+
+    expect(leaderboard.rows[0].pnlPct).toBe(50);
+    expect(leaderboard.rows[1].pnlPct).toBe(20);
+  });
+
   it('returns a safe 404 for private or missing trader profiles', async () => {
     socialRepository.findBySlug.mockResolvedValue({
       ...profileA,
@@ -86,7 +115,7 @@ describe('SocialService', () => {
   it('preserves source portfolio weights when creating copy proposals', async () => {
     socialRepository.findBySlug.mockResolvedValue(profileA);
     portfolioRepository.listSnapshots.mockResolvedValue([
-      snapshot('wallet-a', 1000, now, [
+      snapshot('wallet-a', 1000, now, 1000, [
         position('nvda', 'NVDA', 700, 70),
         position('aapl', 'AAPL', 300, 30),
         position('cash', 'CASH', 0, 0),
@@ -164,6 +193,7 @@ function snapshot(
   walletAddress: string,
   totalValueUsd: number,
   timestampMs: number,
+  availableValueUsd = totalValueUsd,
   positionsJson?: unknown[],
 ) {
   return {
@@ -171,7 +201,7 @@ function snapshot(
     walletAddress,
     timestamp: new Date(timestampMs),
     totalValueUsd: String(totalValueUsd),
-    availableValueUsd: String(totalValueUsd),
+    availableValueUsd: String(availableValueUsd),
     lockedValueUsd: '0',
     positionsJson: positionsJson ?? [
       {
@@ -179,7 +209,7 @@ function snapshot(
         ticker: 'NVDA',
         name: 'Nvidia',
         allocationPercent: 100,
-        valueUsd: totalValueUsd,
+        valueUsd: availableValueUsd,
       },
     ],
   };
