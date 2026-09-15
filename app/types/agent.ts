@@ -4,14 +4,40 @@ import type {
   PreparedBasketPurchase,
   QuoteResponse,
 } from './execution';
+import type {
+  LimitOrderProposal,
+  LimitOrderRecord,
+} from './limit-order';
 import type { PortfolioSummary } from './portfolio';
 import type { StockAnalysis, StockDetail, StockSummary } from './stock';
 import type { PreparedVaultTransaction, VaultPosition } from './vault';
 import type { CopyPortfolioProposal } from './social';
+import type { TradingCalendarDayResponse, TradingCalendarResponse } from './calendar';
 
-export type AgentPage = 'dashboard' | 'leaderboard' | 'markets' | 'stock' | 'vault' | 'activity';
+export type AgentPage = 'dashboard' | 'calendar' | 'leaderboard' | 'markets' | 'stock' | 'vault' | 'activity';
 export type AgentRole = 'user' | 'assistant';
 export type AgentToolStatus = 'running' | 'completed' | 'failed';
+
+export interface AgentPortfolioPositionContext {
+  assetId: string;
+  ticker: string;
+  name: string;
+  quantity: number;
+  valueUsd: number;
+  allocationPct: number;
+  change24hPct?: number;
+}
+
+export interface AgentPortfolioContext {
+  totalValueUsd: number;
+  availableValueUsd: number;
+  lockedValueUsd: number;
+  cashValueUsd?: number;
+  changeUsd?: number;
+  changePct?: number;
+  positions: AgentPortfolioPositionContext[];
+  updatedAt?: string;
+}
 
 export interface AgentPageContext {
   page: AgentPage;
@@ -37,12 +63,16 @@ export type AgentArtifact =
   | { type: 'analysis'; data: StockAnalysis }
   | { type: 'opportunities'; data: StockSummary[] }
   | { type: 'quote'; data: QuoteResponse }
+  | { type: 'limit_order'; data: LimitOrderProposal }
+  | { type: 'limit_orders'; data: LimitOrderRecord[] }
   | { type: 'prepared_swap'; data: ExecutionPreparedTransaction }
   | { type: 'basket'; data: BasketResponse }
   | { type: 'prepared_basket'; data: PreparedBasketPurchase }
   | { type: 'prepared_lock'; data: PreparedVaultTransaction }
   | { type: 'prepared_unlock'; data: PreparedVaultTransaction }
   | { type: 'copy_portfolio_proposal'; data: CopyPortfolioProposal }
+  | { type: 'trading_calendar'; data: TradingCalendarResponse }
+  | { type: 'trading_calendar_day'; data: TradingCalendarDayResponse }
   | { type: 'vaults'; data: AgentVaultSummary };
 
 export interface AgentDisplayMessage {

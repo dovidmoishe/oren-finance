@@ -1,6 +1,7 @@
 'use client';
 
 import {
+  Activity01Icon,
   ArrowUpRight01Icon,
   Briefcase01Icon,
   ChartLineData01Icon,
@@ -10,20 +11,25 @@ import {
 } from '@hugeicons/core-free-icons';
 import { HugeiconsIcon, type IconSvgElement } from '@hugeicons/react';
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
-import type { AgentArtifact, BasketResponse, QuoteResponse } from '@/types';
+import { useEffect } from 'react';
+import type { AgentArtifact, BasketResponse, LimitOrderProposal, QuoteResponse } from '@/types';
+import { TechnicalBriefPanel } from '@/components/stock/technical-brief-panel';
 import { Button, cn, formatCurrency, formatNumber } from '@/components/ui';
+import { useQuoteRefresh } from '@/hooks/use-quote-refresh';
+import { useExecutionStore } from '@/store';
 
 interface AgentArtifactsProps {
   artifacts: AgentArtifact[];
   onReviewQuote: (quote: QuoteResponse) => void;
   onReviewBasket: (basket: BasketResponse) => void;
+  onReviewLimitOrder: (proposal: LimitOrderProposal) => void;
 }
 
 export function AgentArtifacts({
   artifacts,
   onReviewQuote,
   onReviewBasket,
+  onReviewLimitOrder,
 }: AgentArtifactsProps) {
   return (
     <div className="mt-3 space-y-3">
@@ -32,6 +38,7 @@ export function AgentArtifacts({
           artifact={artifact}
           key={`${artifact.type}-${index}`}
           onReviewBasket={onReviewBasket}
+          onReviewLimitOrder={onReviewLimitOrder}
           onReviewQuote={onReviewQuote}
         />
       ))}
@@ -43,10 +50,12 @@ function AgentArtifactCard({
   artifact,
   onReviewQuote,
   onReviewBasket,
+  onReviewLimitOrder,
 }: {
   artifact: AgentArtifact;
   onReviewQuote: (quote: QuoteResponse) => void;
   onReviewBasket: (basket: BasketResponse) => void;
+  onReviewLimitOrder: (proposal: LimitOrderProposal) => void;
 }) {
   switch (artifact.type) {
     case 'portfolio': {
@@ -122,11 +131,17 @@ function AgentArtifactCard({
           {analysis.summary ? (
             <p className="mt-3 text-xs leading-5 text-muted">{analysis.summary}</p>
           ) : null}
-          <div className="mt-3 grid grid-cols-3 gap-2">
-            <Metric label="RSI" value={formatSignal(analysis.signals.rsi14)} />
-            <Metric label="30d momentum" value={formatPercentSignal(analysis.signals.momentum30d)} />
-            <Metric label="30d volatility" value={formatPercentSignal(analysis.signals.volatility30d)} />
-          </div>
+          {analysis.technicalBrief ? (
+            <div className="mt-3 border-t border-black/8 pt-3">
+              <TechnicalBriefPanel brief={analysis.technicalBrief} compact />
+            </div>
+          ) : (
+            <div className="mt-3 grid grid-cols-3 gap-2">
+              <Metric label="RSI" value={formatSignal(analysis.signals.rsi14)} />
+              <Metric label="30d momentum" value={formatPercentSignal(analysis.signals.momentum30d)} />
+              <Metric label="30d volatility" value={formatPercentSignal(analysis.signals.volatility30d)} />
+            </div>
+          )}
           {analysis.highlights.length ? (
             <div className="mt-3 border-t border-black/8 pt-3">
               <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted">
@@ -166,6 +181,67 @@ function AgentArtifactCard({
       );
     case 'quote':
       return <QuoteArtifact key={artifact.data.id} onReview={onReviewQuote} quote={artifact.data} />;
+    case 'limit_order':
+      return (
+        <ArtifactShell icon={CoinsSwapIcon} label="Limit order proposal" tone="lavender">
+          <div className="flex items-end justify-between gap-3">
+            <div>
+              <p className="text-xs uppercase tracking-[0.12em] text-muted capitalize">
+                {artifact.data.side} limit
+              </p>
+              <p className="font-display text-xl font-semibold">{artifact.data.ticker}</p>
+            </div>
+            <p className="font-mono text-sm font-semibold">
+              {formatCurrency(artifact.data.limitPriceUsd)}
+            </p>
+          </div>
+          <div className="mt-3 flex items-center justify-between border-t border-black/8 pt-3 text-xs">
+            <span className="text-muted">Notional</span>
+            <span className="font-mono">{formatCurrency(artifact.data.amountUsd)}</span>
+          </div>
+          <div className="mt-2 flex items-center justify-between text-xs">
+            <span className="text-muted">If filled</span>
+            <span className="font-mono">
+              {formatNumber(artifact.data.takingAmount, 6)} {artifact.data.outputSymbol}
+            </span>
+          </div>
+          {artifact.data.wouldFillImmediately ? (
+            <p className="mt-3 rounded-[13px] bg-white/60 px-3 py-2 text-[11px] leading-4 text-muted">
+              This limit is already through market — it may fill right after you sign.
+            </p>
+          ) : null}
+          <Button
+            className="mt-4 h-10 w-full rounded-[14px]"
+            onClick={() => onReviewLimitOrder(artifact.data)}
+            variant="primary"
+          >
+            Review limit order
+          </Button>
+        </ArtifactShell>
+      );
+    case 'limit_orders':
+      return (
+        <ArtifactShell icon={Clock01Icon} label="Limit orders" tone="plain">
+          {artifact.data.length === 0 ? (
+            <p className="text-xs text-muted">No open limit orders for this wallet.</p>
+          ) : (
+            <div className="space-y-2">
+              {artifact.data.slice(0, 5).map((order) => (
+                <div
+                  className="flex items-center justify-between rounded-[14px] bg-white/70 px-3 py-2 text-xs"
+                  key={order.orderKey}
+                >
+                  <span>
+                    <strong className="capitalize">{order.side}</strong>{' '}
+                    {order.ticker ?? '—'} @ {formatCurrency(order.limitPriceUsd)}
+                  </span>
+                  <span className="font-mono capitalize text-muted">{order.status}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </ArtifactShell>
+      );
     case 'basket':
       return (
         <ArtifactShell icon={Briefcase01Icon} label="Basket proposal" tone="pink">
@@ -218,6 +294,49 @@ function AgentArtifactCard({
           </Button>
         </ArtifactShell>
       );
+    case 'trading_calendar':
+      return (
+        <ArtifactShell icon={ChartLineData01Icon} label="Trading calendar" tone="yellow">
+          <div className="flex items-end justify-between gap-3">
+            <div>
+              <p className="text-xs text-muted">{artifact.data.range.month ?? `${artifact.data.range.start} to ${artifact.data.range.end}`}</p>
+              <p className="font-display text-xl font-semibold">
+                {formatCurrency(artifact.data.days.reduce((sum, day) => sum + day.pnlUsd, 0))}
+              </p>
+            </div>
+            <span className="rounded-full bg-white/75 px-2 py-1 text-xs font-semibold">
+              {artifact.data.days.filter((day) => day.hasData).length} days
+            </span>
+          </div>
+          <Link className="mt-4 inline-flex items-center gap-1 text-xs font-semibold" href="/calendar">
+            Open calendar <HugeiconsIcon icon={ArrowUpRight01Icon} size={13} strokeWidth={1.8} />
+          </Link>
+        </ArtifactShell>
+      );
+    case 'trading_calendar_day':
+      return (
+        <ArtifactShell icon={Activity01Icon} label="Calendar day" tone="plain">
+          <div className="flex items-end justify-between gap-3">
+            <div>
+              <p className="text-xs text-muted">{artifact.data.date}</p>
+              <p className="font-display text-xl font-semibold">{formatCurrency(artifact.data.summary.pnlUsd)}</p>
+            </div>
+            <span className={cn('rounded-full px-2 py-1 text-xs font-semibold', artifact.data.summary.pnlUsd >= 0 ? 'bg-accent-yellow' : 'bg-accent-pink')}>
+              {formatNumber(artifact.data.summary.returnPct, 2)}%
+            </span>
+          </div>
+          {artifact.data.contributors.length ? (
+            <div className="mt-3 space-y-2 border-t border-black/8 pt-3">
+              {artifact.data.contributors.slice(0, 3).map((item) => (
+                <div className="flex items-center justify-between text-xs" key={item.assetId}>
+                  <span className="font-semibold">{item.ticker}</span>
+                  <span className="font-mono">{formatCurrency(item.valueChangeUsd)}</span>
+                </div>
+              ))}
+            </div>
+          ) : null}
+        </ArtifactShell>
+      );
     case 'vaults':
       return (
         <ArtifactShell icon={SafeIcon} label="Vault" tone="lavender">
@@ -247,51 +366,89 @@ function QuoteArtifact({
   quote: QuoteResponse;
   onReview: (quote: QuoteResponse) => void;
 }) {
-  const [expired, setExpired] = useState(
-    () => new Date(quote.expiresAt).getTime() <= Date.now(),
-  );
+  const seedQuote = useExecutionStore((state) => state.seedQuote);
+  const storeQuote = useExecutionStore((state) => state.quote);
+  const {
+    secondsLeft,
+    expired,
+    isRefreshingQuote,
+    refreshFailed,
+    refreshQuote,
+  } = useQuoteRefresh({
+    enabled: true,
+    seedQuote: quote,
+  });
 
   useEffect(() => {
-    const expiry = new Date(quote.expiresAt).getTime();
-    if (expiry <= Date.now()) return;
-    const timeout = window.setTimeout(
-      () => setExpired(true),
-      Math.max(0, expiry - Date.now()),
-    );
-    return () => window.clearTimeout(timeout);
-  }, [quote.expiresAt]);
+    seedQuote(quote);
+  }, [quote, seedQuote]);
+
+  const liveQuote =
+    storeQuote?.id === quote.id ||
+    (storeQuote?.assetId === quote.assetId &&
+      storeQuote?.side === quote.side &&
+      storeQuote?.amountUsd === quote.amountUsd)
+      ? storeQuote
+      : quote;
 
   return (
     <ArtifactShell icon={CoinsSwapIcon} label="Executable quote" tone="yellow">
       <div className="flex items-end justify-between gap-3">
         <div>
-          <p className="text-xs uppercase tracking-[0.12em] text-muted">{quote.side}</p>
-          <p className="font-display text-xl font-semibold">{quote.ticker}</p>
+          <p className="text-xs uppercase tracking-[0.12em] text-muted">{liveQuote.side}</p>
+          <p className="font-display text-xl font-semibold">{liveQuote.ticker}</p>
         </div>
-        <p className="font-mono text-sm font-semibold">{formatCurrency(quote.amountUsd)}</p>
+        <p className="font-mono text-sm font-semibold">{formatCurrency(liveQuote.amountUsd)}</p>
       </div>
       <div className="mt-3 flex items-center justify-between border-t border-black/8 pt-3 text-xs">
         <span className="text-muted">Estimated receive</span>
-        <span className="font-mono">{formatNumber(quote.outputAmount, 6)} {quote.outputSymbol}</span>
+        <span className="font-mono">{formatNumber(liveQuote.outputAmount, 6)} {liveQuote.outputSymbol}</span>
       </div>
       <div className="mt-2 flex items-center justify-between text-xs">
         <span className="text-muted">Price impact</span>
-        <span className="font-mono">{formatNumber(quote.priceImpactPercent, 2)}%</span>
+        <span className="font-mono">{formatNumber(liveQuote.priceImpactPercent, 2)}%</span>
+      </div>
+      <div className="mt-2 flex items-center justify-between text-xs">
+        <span className="text-muted">Quote expiry</span>
+        <span className="font-mono">
+          {isRefreshingQuote
+            ? 'Updating…'
+            : expired
+              ? 'Refreshing…'
+              : `${secondsLeft}s left`}
+        </span>
       </div>
       <p className="mt-3 rounded-[13px] bg-white/60 px-3 py-2 text-[11px] leading-4 text-muted">
-        {expired
-          ? 'This quote is no longer actionable. Request a fresh quote to continue.'
-          : 'Live quotes can move before signing. Review route, expiry, and wallet details before approval.'}
+        {refreshFailed
+          ? 'Could not refresh this quote. Retry to keep it actionable.'
+          : isRefreshingQuote || expired
+            ? 'Updating the live route so you can still review and sign.'
+            : 'Live quotes can move before signing. Review route, expiry, and wallet details before approval.'}
       </p>
-      <Button
-        className="mt-4 h-10 w-full rounded-[14px]"
-        disabled={expired}
-        onClick={() => onReview(quote)}
-        variant="primary"
-      >
-        <HugeiconsIcon icon={expired ? Clock01Icon : CoinsSwapIcon} size={15} strokeWidth={1.8} />
-        {expired ? 'Quote expired' : 'Review quote'}
-      </Button>
+      {refreshFailed ? (
+        <Button
+          className="mt-4 h-10 w-full rounded-[14px]"
+          onClick={() => void refreshQuote()}
+          variant="secondary"
+        >
+          <HugeiconsIcon icon={Clock01Icon} size={15} strokeWidth={1.8} />
+          Retry quote refresh
+        </Button>
+      ) : (
+        <Button
+          className="mt-4 h-10 w-full rounded-[14px]"
+          disabled={isRefreshingQuote || expired}
+          onClick={() => onReview(liveQuote)}
+          variant="primary"
+        >
+          <HugeiconsIcon
+            icon={isRefreshingQuote || expired ? Clock01Icon : CoinsSwapIcon}
+            size={15}
+            strokeWidth={1.8}
+          />
+          {isRefreshingQuote || expired ? 'Updating quote…' : 'Review quote'}
+        </Button>
+      )}
     </ArtifactShell>
   );
 }

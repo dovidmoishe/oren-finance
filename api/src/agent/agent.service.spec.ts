@@ -28,6 +28,9 @@ describe('AgentService', () => {
     getSchemas: jest.fn(),
     dispatch: jest.fn(),
   };
+  const portfolioService = {
+    getPortfolio: jest.fn(),
+  };
   const openai = {
     responses: {
       create: jest.fn(),
@@ -59,9 +62,30 @@ describe('AgentService', () => {
       },
     ]);
     tools.getSchemas.mockReturnValue([]);
+    portfolioService.getPortfolio.mockResolvedValue({
+      walletAddress: 'wallet-1',
+      totalValueUsd: 10_000,
+      absoluteChangeUsd: 120,
+      percentChange: 1.2,
+      availableValueUsd: 8_000,
+      lockedValueUsd: 500,
+      cashValueUsd: 1_500,
+      positions: [
+        {
+          assetId: 'nvda',
+          ticker: 'NVDA',
+          name: 'NVIDIA',
+          quantity: 10,
+          valueUsd: 2_000,
+          allocationPercent: 20,
+        },
+      ],
+      updatedAt: new Date('2026-09-13T10:00:00Z'),
+    });
     service = new AgentService(
       repository as never,
       tools as never,
+      portfolioService as never,
       { OPENAI_MODEL: 'gpt-5-mini' } as never,
       openai as never,
     );
@@ -108,6 +132,13 @@ describe('AgentService', () => {
     }
 
     expect(repository.createThread).toHaveBeenCalledWith('wallet-1');
+    expect(portfolioService.getPortfolio).toHaveBeenCalledWith('wallet-1');
+    expect(openai.responses.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        instructions: expect.stringContaining('Top holdings: NVDA 20.0%'),
+      }),
+      expect.any(Object),
+    );
     expect(tools.dispatch).toHaveBeenCalledWith('analyzeStock', {
       assetIdOrTicker: 'NVDA',
     });

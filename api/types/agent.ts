@@ -1,4 +1,8 @@
 import type { ActivityFeed } from './activity';
+import type {
+  TradingCalendarDayResponse,
+  TradingCalendarResponse,
+} from './calendar';
 import type { StockAnalysis, StockOpportunity } from './analysis';
 import type { Equity, EquitySummary } from './equity';
 import type {
@@ -53,11 +57,34 @@ export interface AgentChatResponse {
 
 export type AgentPage =
   | 'dashboard'
+  | 'calendar'
   | 'leaderboard'
   | 'markets'
   | 'stock'
   | 'vault'
   | 'activity';
+
+export interface AgentPortfolioPositionContext {
+  assetId: string;
+  ticker: string;
+  name: string;
+  quantity: number;
+  valueUsd: number;
+  allocationPct: number;
+  change24hPct?: number;
+}
+
+/** Compact portfolio snapshot injected into agent instructions. */
+export interface AgentPortfolioContext {
+  totalValueUsd: number;
+  availableValueUsd: number;
+  lockedValueUsd: number;
+  cashValueUsd?: number;
+  changeUsd?: number;
+  changePct?: number;
+  positions: AgentPortfolioPositionContext[];
+  updatedAt?: string;
+}
 
 export interface AgentPageContext {
   page: AgentPage;
@@ -69,12 +96,16 @@ export type AgentArtifact =
   | { type: 'stock'; data: Equity }
   | { type: 'basket'; data: Basket }
   | { type: 'quote'; data: Quote }
+  | { type: 'limit_order'; data: import('./limit-order').LimitOrderProposal }
+  | { type: 'limit_orders'; data: import('./limit-order').LimitOrderRecord[] }
   | { type: 'analysis'; data: StockAnalysis }
   | { type: 'prepared_swap'; data: PreparedTransaction }
   | { type: 'prepared_basket'; data: PreparedBasketPurchase }
   | { type: 'prepared_lock'; data: PreparedVaultTransaction }
   | { type: 'prepared_unlock'; data: PreparedVaultTransaction }
   | { type: 'copy_portfolio_proposal'; data: CopyPortfolioProposal }
+  | { type: 'trading_calendar'; data: TradingCalendarResponse }
+  | { type: 'trading_calendar_day'; data: TradingCalendarDayResponse }
   | { type: 'opportunities'; data: StockOpportunity[] }
   | { type: 'vaults'; data: VaultSummary };
 
@@ -171,6 +202,20 @@ export interface AgentTools {
   getPortfolio(wallet: string): Promise<Portfolio>;
 
   getPortfolioActivity(wallet: string): Promise<ActivityFeed>;
+
+  getTradingCalendar(input: {
+    wallet: string;
+    month?: string;
+    start?: string;
+    end?: string;
+    timeZone?: string;
+  }): Promise<TradingCalendarResponse>;
+
+  getTradingCalendarDay(input: {
+    wallet: string;
+    date: string;
+    timeZone?: string;
+  }): Promise<TradingCalendarDayResponse>;
 
   getStock(assetIdOrTicker: string): Promise<Equity>;
 

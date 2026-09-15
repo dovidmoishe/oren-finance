@@ -66,12 +66,93 @@ export interface StockSignals {
   calculatedAt: string;
 }
 
+export type TrendRegime = "uptrend" | "downtrend" | "range";
+
+export type SetupClass =
+  | "continuation"
+  | "mean_reversion"
+  | "breakout"
+  | "insufficient";
+
+export type NewsAlignment = "with_regime" | "against_regime" | "neutral";
+
+export interface PriceLevel {
+  price: number;
+  label: "support" | "resistance";
+  distancePct: number;
+}
+
+export type LimitZoneSide = "buy" | "sell";
+
+export type LimitZoneBasis =
+  | "swing_support"
+  | "swing_resistance"
+  | "bollinger_lower"
+  | "bollinger_upper";
+
+export interface LimitZone {
+  side: LimitZoneSide;
+  preferredUsd: number;
+  conservativeUsd?: number;
+  aggressiveUsd?: number;
+  basis: LimitZoneBasis;
+  distancePct: number;
+}
+
+export interface MacdSnapshot {
+  line: number;
+  signal: number;
+  histogram: number;
+}
+
+export interface BollingerSnapshot {
+  upper: number;
+  middle: number;
+  lower: number;
+  bandwidth: number;
+}
+
+export interface TimeframeIndicators {
+  timeframe: "daily" | "weekly" | "hourly";
+  rsi14: number;
+  sma20: number;
+  sma50: number;
+  sma200?: number;
+  macd: MacdSnapshot;
+  atr14: number;
+  bollinger: BollingerSnapshot;
+  volumeTrend?: number;
+  momentum7d?: number;
+  momentum30d?: number;
+}
+
+export interface NewsOverlayItem {
+  headline: string;
+  alignment: NewsAlignment;
+  publishedAt: string;
+  url?: string;
+}
+
+export interface TechnicalBrief {
+  regime: TrendRegime;
+  setup: SetupClass;
+  primaryTimeframe: TimeframeIndicators;
+  weeklyTimeframe?: TimeframeIndicators;
+  hourlyTimeframe?: TimeframeIndicators;
+  levels: PriceLevel[];
+  limitZones?: LimitZone[];
+  risks: string[];
+  limitedHistory: boolean;
+  newsOverlay?: NewsOverlayItem[];
+}
+
 export interface StockAnalysis {
   assetId: string;
   ticker: string;
   name?: string;
   opportunityScore: number;
   summary?: string;
+  technicalBrief?: TechnicalBrief;
   signals: StockSignals;
   highlights: string[];
   riskLabel?: "low" | "moderate" | "elevated" | "high";

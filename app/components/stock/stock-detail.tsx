@@ -5,6 +5,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { MarketChart, type MarketChartMode, type MarketChartRange } from "@/components/charts";
+import { TechnicalBriefPanel } from "@/components/stock/technical-brief-panel";
 import { StockTradeTicket } from "@/components/trading";
 import {
   Button,
@@ -260,7 +261,12 @@ export function StockDetail({ assetId }: { assetId: string }) {
           onRangeChange={handleRangeChange}
           value={chart.at(-1)?.close ?? stock.priceUsd}
         />
-        <StockTradeTicket key={stock.assetId} onConfirmed={handleTradeConfirmed} stock={stock} />
+        <StockTradeTicket
+          key={stock.assetId}
+          limitZones={analysis?.technicalBrief?.limitZones}
+          onConfirmed={handleTradeConfirmed}
+          stock={stock}
+        />
       </div>
 
       <div className="grid gap-5 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
@@ -279,6 +285,9 @@ export function StockDetail({ assetId }: { assetId: string }) {
           <CardContent className="space-y-5">
             {analysis ? (
               <>
+                {analysis.technicalBrief ? (
+                  <TechnicalBriefPanel brief={analysis.technicalBrief} />
+                ) : null}
                 <SignalsGrid signals={analysis.signals} />
                 <div>
                   <p className="text-xs uppercase tracking-[0.12em] text-muted">What stands out</p>

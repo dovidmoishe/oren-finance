@@ -27,6 +27,8 @@ import { AgentService } from './agent.service';
 
 const AGENT_PAGES: AgentPage[] = [
   'dashboard',
+  'calendar',
+  'leaderboard',
   'markets',
   'stock',
   'vault',

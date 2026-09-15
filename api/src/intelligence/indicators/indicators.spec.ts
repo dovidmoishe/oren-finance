@@ -1,3 +1,7 @@
+import { atr } from './atr';
+import { bollinger } from './bollinger';
+import { ema } from './ema';
+import { macd } from './macd';
 import { momentum } from './momentum';
 import { rsi } from './rsi';
 import { sma } from './sma';
@@ -38,5 +42,36 @@ describe('indicators', () => {
     const prior = Array(7).fill(100);
     const recent = Array(7).fill(200);
     expect(volumeTrend([...prior, ...recent], 7)).toBeCloseTo(2);
+  });
+
+  it('computes EMA', () => {
+    const values = Array.from({ length: 20 }, (_, index) => index + 1);
+    expect(ema(values, 10)).toBeGreaterThan(10);
+  });
+
+  it('computes MACD components', () => {
+    const closes = Array.from({ length: 60 }, (_, index) => 100 + index * 0.5);
+    const result = macd(closes);
+    expect(result.line).not.toBe(0);
+    expect(result.histogram).toBeCloseTo(result.line - result.signal, 5);
+  });
+
+  it('computes ATR from OHLCV bars', () => {
+    const bars = Array.from({ length: 20 }, (_, index) => ({
+      timestamp: new Date(index),
+      open: 100,
+      high: 105,
+      low: 95,
+      close: 102,
+      volume: 1000,
+    }));
+    expect(atr(bars, 14)).toBeGreaterThan(0);
+  });
+
+  it('computes Bollinger bands', () => {
+    const closes = Array.from({ length: 30 }, () => 100);
+    const bands = bollinger(closes, 20, 2);
+    expect(bands.upper).toBeGreaterThanOrEqual(bands.middle);
+    expect(bands.lower).toBeLessThanOrEqual(bands.middle);
   });
 });

@@ -38,10 +38,12 @@ describe('IntelligenceService opportunities', () => {
         },
       ]),
     };
+    const news = { getEquityNews: jest.fn() };
     const service = new IntelligenceService(
       tokens as never,
       repository as never,
       catalog as never,
+      news as never,
     );
 
     await expect(service.getOpportunities()).resolves.toEqual([

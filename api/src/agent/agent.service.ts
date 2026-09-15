@@ -1,4 +1,4 @@
-import { BadRequestException, Inject, Injectable } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, Logger } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import type {
   AgentArtifact,
@@ -6,7 +6,6 @@ import type {
   AgentChatResponse,
   AgentDisplayMessage,
   AgentMessage,
-  AgentPageContext,
   AgentStreamEvent,
   AgentThreadMessagesResponse,
   AgentToolActivity,
@@ -14,9 +13,10 @@ import type {
 import { AgentUnavailableError } from '../common/errors/provider.errors';
 import { APP_ENV } from '../config/constants';
 import type { AppEnv } from '../config/env.schema';
-import { OREN_AGENT_PROMPT } from './agent.prompt';
+import { buildInstructions, portfolioToContext } from './agent-context';
 import { AgentRepository } from './agent.repository';
 import { OPENAI_CLIENT, type OpenAIClient } from './openai.provider';
+import { PortfolioService } from '../portfolio/portfolio.service';
 import { AgentToolRegistry } from './tools/agent-tool.registry';
 
 const MAX_TOOL_ROUNDS = 5;
@@ -28,9 +28,12 @@ type ResponseStreamEvent = Record<string, unknown> & { type: string };
 
 @Injectable()
 export class AgentService {
+  private readonly logger = new Logger(AgentService.name);
+
   constructor(
     private readonly repository: AgentRepository,
     private readonly tools: AgentToolRegistry,
+    private readonly portfolioService: PortfolioService,
     @Inject(APP_ENV) private readonly env: AppEnv,
     @Inject(OPENAI_CLIENT) private readonly openai: OpenAIClient,
   ) {}
@@ -106,13 +109,18 @@ export class AgentService {
       const artifacts: AgentArtifact[] = [];
       const activities: AgentToolActivity[] = [];
       let assistantContent = '';
+      const portfolioContext = await this.loadPortfolioContext(walletAddress);
 
       for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
         throwIfAborted(signal);
         const stream = (await this.openai.responses.create(
           {
             model: this.env.OPENAI_MODEL,
-            instructions: buildInstructions(body.context),
+            instructions: buildInstructions(
+              walletAddress,
+              body.context,
+              portfolioContext,
+            ),
             input,
             tools: this.tools.getSchemas() as never,
             tool_choice: 'auto',
@@ -335,6 +343,21 @@ export class AgentService {
       content,
     });
   }
+
+  private async loadPortfolioContext(walletAddress: string) {
+    try {
+      return portfolioToContext(
+        await this.portfolioService.getPortfolio(walletAddress),
+      );
+    } catch (error) {
+      this.logger.warn(
+        `Portfolio context unavailable for ${walletAddress}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+      return undefined;
+    }
+  }
 }
 
 function findUnansweredUser(
@@ -355,15 +378,6 @@ function messagesToInput(messages: AgentMessage[]): ResponseInput {
   return messages
     .filter((message) => message.role === 'user' || message.role === 'assistant')
     .map((message) => ({ role: message.role, content: message.content }));
-}
-
-function buildInstructions(context?: AgentPageContext): string {
-  if (!context) return OREN_AGENT_PROMPT;
-  const asset =
-    context.page === 'stock' && context.assetId
-      ? ` The user is viewing stock asset ${context.assetId}.`
-      : '';
-  return `${OREN_AGENT_PROMPT}\n\nInterface context: the user is currently on the ${context.page} page.${asset} Use this only to make the response more relevant; do not claim you inspected page data without a tool call.`;
 }
 
 function isFunctionCall(item: ResponseOutputItem): item is ResponseOutputItem & {
@@ -475,10 +489,14 @@ function artifactFromToolOutput(
 ): AgentArtifact | undefined {
   switch (toolName) {
     case 'getPortfolio': return { type: 'portfolio', data: data as never };
+    case 'getTradingCalendar': return { type: 'trading_calendar', data: data as never };
+    case 'getTradingCalendarDay': return { type: 'trading_calendar_day', data: data as never };
     case 'getStock': return { type: 'stock', data: data as never };
     case 'analyzeStock': return { type: 'analysis', data: data as never };
     case 'findOpportunities': return { type: 'opportunities', data: data as never };
     case 'getSwapQuote': return { type: 'quote', data: data as never };
+    case 'proposeLimitOrder': return { type: 'limit_order', data: data as never };
+    case 'getLimitOrders': return { type: 'limit_orders', data: data as never };
     case 'createBasket': return { type: 'basket', data: data as never };
     case 'prepareSwap': return { type: 'prepared_swap', data: data as never };
     case 'prepareBasketPurchase': return { type: 'prepared_basket', data: data as never };

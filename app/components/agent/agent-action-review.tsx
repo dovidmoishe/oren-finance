@@ -11,39 +11,95 @@ import { useConnection, useWallet } from '@solana/wallet-adapter-react';
 import { useWalletModal } from '@solana/wallet-adapter-react-ui';
 import { useEffect, useRef, useState } from 'react';
 import { decodeBase64Transaction, useQuoteExecution } from '@/hooks/use-quote-execution';
+import { useQuoteRefresh } from '@/hooks/use-quote-refresh';
+import { useLimitOrderExecution } from '@/hooks/use-limit-order-execution';
 import { usePortfolioRefresh } from '@/hooks/use-portfolio-refresh';
 import { useExecutionStore } from '@/store';
-import type { BasketExecutionProgress, BasketResponse, QuoteResponse } from '@/types';
+import type {
+  BasketExecutionProgress,
+  BasketResponse,
+  LimitOrderProposal,
+  QuoteResponse,
+} from '@/types';
 import { Button, Modal, Toast } from '@/components/ui';
 import { BasketReview } from '@/components/trading/basket-review';
 import { QuoteReviewModal } from '@/components/trading/quote-review-modal';
+import { LimitOrderReviewModal } from '@/components/trading/limit-order-review-modal';
 
 interface AgentActionReviewProps {
   quote?: QuoteResponse;
   basket?: BasketResponse;
+  limitOrder?: LimitOrderProposal;
   onClose: () => void;
 }
 
-export function AgentActionReview({ quote, basket, onClose }: AgentActionReviewProps) {
-  const resetTrade = useExecutionStore((state) => state.resetTrade);
+export function AgentActionReview({
+  quote,
+  basket,
+  limitOrder,
+  onClose,
+}: AgentActionReviewProps) {
+  const seedQuoteIntoStore = useExecutionStore((state) => state.seedQuote);
+  const storeQuote = useExecutionStore((state) => state.quote);
   const { confirmation, error, executeQuote, flowStatus, resetFeedback } =
     useQuoteExecution();
+  const {
+    confirmation: limitConfirmation,
+    error: limitError,
+    executeLimitOrder,
+    flowStatus: limitFlowStatus,
+    resetFeedback: resetLimitFeedback,
+  } = useLimitOrderExecution();
+  const {
+    secondsLeft,
+    isRefreshingQuote,
+    refreshFailed,
+    refreshQuote,
+  } = useQuoteRefresh({
+    enabled: Boolean(quote),
+    flowStatus,
+    seedQuote: quote,
+  });
 
   useEffect(() => {
     if (!quote) return;
-    resetTrade();
+    seedQuoteIntoStore(quote);
     resetFeedback();
-  }, [quote, resetFeedback, resetTrade]);
+  }, [quote, resetFeedback, seedQuoteIntoStore]);
+
+  useEffect(() => {
+    if (!limitOrder) return;
+    resetLimitFeedback();
+  }, [limitOrder, resetLimitFeedback]);
+
+  if (limitOrder) {
+    return (
+      <LimitOrderReviewModal
+        confirmation={limitConfirmation}
+        error={limitError}
+        onClose={onClose}
+        onSign={() => executeLimitOrder(limitOrder)}
+        open
+        proposal={limitOrder}
+        status={limitFlowStatus === 'idle' ? 'quoted' : limitFlowStatus}
+      />
+    );
+  }
 
   if (quote) {
+    const liveQuote = storeQuote?.assetId === quote.assetId ? storeQuote : quote;
     return (
       <QuoteReviewModal
         confirmation={confirmation}
         error={error}
+        isRefreshingQuote={isRefreshingQuote}
         onClose={onClose}
-        onSign={() => executeQuote(quote)}
+        onRefreshQuote={() => void refreshQuote()}
+        onSign={() => executeQuote()}
         open
-        quote={quote}
+        quote={liveQuote}
+        refreshFailed={refreshFailed}
+        secondsLeft={secondsLeft}
         status={flowStatus === 'idle' ? 'quoted' : flowStatus}
       />
     );

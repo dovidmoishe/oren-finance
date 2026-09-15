@@ -36,6 +36,7 @@ interface ApiStockAnalysis {
   name?: string;
   opportunityScore: number;
   summary?: string;
+  technicalBrief?: StockAnalysis["technicalBrief"];
   signals: StockAnalysis["signals"];
   highlights: string[];
   riskLabel?: StockAnalysis["riskLabel"];

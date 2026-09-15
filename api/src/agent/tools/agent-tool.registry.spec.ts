@@ -35,6 +35,10 @@ describe('AgentToolRegistry', () => {
     getTraderDetail: jest.fn(),
     prepareCopyPortfolio: jest.fn(),
   };
+  const calendar = {
+    getCalendar: jest.fn(),
+    getDay: jest.fn(),
+  };
 
   let registry: AgentToolRegistry;
 
@@ -48,6 +52,7 @@ describe('AgentToolRegistry', () => {
       execution as never,
       vault as never,
       social as never,
+      calendar as never,
     );
   });
 
@@ -91,20 +96,24 @@ describe('AgentToolRegistry', () => {
       Object.keys(candidates.items.properties),
     );
 
+    expect(registry.getSchemas().map((schema) => schema.name)).toEqual(
+      expect.arrayContaining([
+        'getLeaderboard',
+        'getTraderProfile',
+        'prepareCopyPortfolio',
+        'getTradingCalendar',
+        'getTradingCalendarDay',
+        'proposeLimitOrder',
+        'getLimitOrders',
+      ]),
+    );
+
     expect(registry.getSchemas().map((schema) => schema.name)).not.toEqual(
       expect.arrayContaining([
         'prepareSwap',
         'prepareBasketPurchase',
         'prepareLock',
         'prepareUnlock',
-      ]),
-    );
-
-    expect(registry.getSchemas().map((schema) => schema.name)).toEqual(
-      expect.arrayContaining([
-        'getLeaderboard',
-        'getTraderProfile',
-        'prepareCopyPortfolio',
       ]),
     );
   });
@@ -270,6 +279,62 @@ describe('AgentToolRegistry', () => {
         data: {
           source: { slug: 'alpha', displayName: 'Alpha' },
           basket: { id: 'basket-1', totalAmountUsd: 100 },
+        },
+      },
+    });
+  });
+
+  it('dispatches trading calendar tools and returns artifacts', async () => {
+    calendar.getCalendar.mockResolvedValue({
+      walletAddress: 'wallet-1',
+      days: [],
+    });
+    calendar.getDay.mockResolvedValue({
+      walletAddress: 'wallet-1',
+      date: '2026-09-15',
+      contributors: [],
+    });
+
+    await expect(
+      registry.dispatch('getTradingCalendar', {
+        wallet: 'wallet-1',
+        month: '2026-09',
+        start: null,
+        end: null,
+        timeZone: 'UTC',
+      }),
+    ).resolves.toEqual({
+      output: {
+        walletAddress: 'wallet-1',
+        days: [],
+      },
+      artifact: {
+        type: 'trading_calendar',
+        data: {
+          walletAddress: 'wallet-1',
+          days: [],
+        },
+      },
+    });
+
+    await expect(
+      registry.dispatch('getTradingCalendarDay', {
+        wallet: 'wallet-1',
+        date: '2026-09-15',
+        timeZone: 'UTC',
+      }),
+    ).resolves.toEqual({
+      output: {
+        walletAddress: 'wallet-1',
+        date: '2026-09-15',
+        contributors: [],
+      },
+      artifact: {
+        type: 'trading_calendar_day',
+        data: {
+          walletAddress: 'wallet-1',
+          date: '2026-09-15',
+          contributors: [],
         },
       },
     });

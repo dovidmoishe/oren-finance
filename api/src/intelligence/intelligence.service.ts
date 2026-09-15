@@ -1,12 +1,18 @@
 import { Injectable, Logger } from '@nestjs/common';
 import type { StockAnalysis, StockOpportunity } from '../../types/analysis';
 import type { Equity } from '../../types/equity';
+import type { MarketCandle } from '../../types/market';
 import type { ScoreDimensions, StockSignals } from '../../types/signals';
 import {
   DEFAULT_MIN_OPPORTUNITY_SCORE,
   DEFAULT_OPPORTUNITIES_LIMIT,
+  SIGNAL_DAILY_LOOKBACK_DAYS,
   SIGNAL_TTL_MS,
+  TA_DAILY_LOOKBACK_DAYS,
+  TA_HOURLY_LOOKBACK_DAYS,
 } from '../config/constants';
+import type { ChartWindow } from '../tokens/chart-range.util';
+import { NewsService } from '../news/news.service';
 import { StockCatalogRepository } from '../tokens/stock-catalog.repository';
 import { TokensService } from '../tokens/tokens.service';
 import { buildHighlights, riskLabelFromVolatility } from './highlights';
@@ -17,6 +23,8 @@ import { volatility } from './indicators/volatility';
 import { volumeTrend } from './indicators/volume-trend';
 import { computeOpportunityScore } from './scoring/opportunity-score';
 import { SignalsRepository } from './signals.repository';
+import { buildTechnicalSummary } from './ta/summary';
+import { buildTechnicalBrief } from './ta/technical-brief';
 
 @Injectable()
 export class IntelligenceService {
@@ -26,6 +34,7 @@ export class IntelligenceService {
     private readonly tokens: TokensService,
     private readonly repository: SignalsRepository,
     private readonly catalog: StockCatalogRepository,
+    private readonly news: NewsService,
   ) {}
 
   async getSignals(
@@ -65,6 +74,29 @@ export class IntelligenceService {
       // risk optional
     }
 
+    const riskLabel = riskLabelFromVolatility(signals.volatility30d, tokensRisk);
+    const [dailyBars, hourlyBars, newsFeed] = await Promise.all([
+      this.fetchTaBars(equity.id, TA_DAILY_LOOKBACK_DAYS, '1D'),
+      this.fetchTaBars(equity.id, TA_HOURLY_LOOKBACK_DAYS, '1H'),
+      this.news.getEquityNews(equity.id, { limit: 3 }).catch(() => ({
+        assetId: equity.id,
+        items: [],
+      })),
+    ]);
+
+    const technicalBrief = buildTechnicalBrief({
+      price,
+      dailyBars,
+      hourlyBars,
+      newsItems: newsFeed.items,
+    });
+    const summary = buildTechnicalSummary({
+      ticker: equity.ticker,
+      opportunityScore: signals.opportunityScore,
+      riskLabel,
+      technicalBrief,
+    });
+
     return {
       assetId: equity.id,
       ticker: equity.ticker,
@@ -72,7 +104,9 @@ export class IntelligenceService {
       opportunityScore: signals.opportunityScore,
       signals,
       highlights,
-      riskLabel: riskLabelFromVolatility(signals.volatility30d, tokensRisk),
+      summary,
+      technicalBrief,
+      riskLabel,
       analyzedAt: new Date(),
     };
   }
@@ -143,23 +177,22 @@ export class IntelligenceService {
     dimensions: ScoreDimensions;
     limitedHistory: boolean;
   }> {
-    const start = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
-    let bars: Awaited<ReturnType<TokensService['getOHLCV']>> = [];
+    let bars: MarketCandle[] = [];
     try {
-      bars = await this.tokens.getOHLCV(equity.id, {
-        start,
-        timeframe: '1D',
-      });
+      bars = await this.tokens.getCandlesForWindow(
+        equity.id,
+        this.buildCandleWindow(SIGNAL_DAILY_LOOKBACK_DAYS, '1D'),
+      );
     } catch (err) {
       this.logger.warn(
-        `OHLCV failed for ${equity.id}: ${
+        `Signal candles failed for ${equity.id}: ${
           err instanceof Error ? err.message : String(err)
         }`,
       );
     }
 
     bars = [...bars].sort(
-      (a, b) => a.timestamp.getTime() - b.timestamp.getTime(),
+      (left, right) => left.timestamp.getTime() - right.timestamp.getTime(),
     );
 
     const closes = bars.map((b) => b.close).filter((c) => Number.isFinite(c));
@@ -211,6 +244,41 @@ export class IntelligenceService {
     };
 
     return { signals, dimensions, limitedHistory };
+  }
+
+  private buildCandleWindow(
+    lookbackDays: number,
+    interval: ChartWindow['interval'],
+  ): ChartWindow {
+    const to = Math.floor(Date.now() / 1000);
+    return {
+      interval,
+      to,
+      from: to - lookbackDays * 24 * 60 * 60,
+    };
+  }
+
+  private async fetchTaBars(
+    assetId: string,
+    lookbackDays: number,
+    interval: ChartWindow['interval'],
+  ): Promise<MarketCandle[]> {
+    try {
+      const bars = await this.tokens.getCandlesForWindow(
+        assetId,
+        this.buildCandleWindow(lookbackDays, interval),
+      );
+      return [...bars].sort(
+        (left, right) => left.timestamp.getTime() - right.timestamp.getTime(),
+      );
+    } catch (err) {
+      this.logger.warn(
+        `TA candles failed for ${assetId} (${interval}): ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+      return [];
+    }
   }
 }
 

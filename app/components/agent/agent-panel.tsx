@@ -18,12 +18,13 @@ import { useWallet } from '@solana/wallet-adapter-react';
 import { useWalletModal } from '@solana/wallet-adapter-react-ui';
 import { usePathname } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useAgentStore, useStockStore } from '@/store';
+import { useAgentStore, usePortfolioStore, useStockStore } from '@/store';
 import type {
   AgentDisplayMessage,
   AgentPageContext,
   AgentToolActivity,
   BasketResponse,
+  LimitOrderProposal,
   QuoteResponse,
 } from '@/types';
 import { Button, cn } from '@/components/ui';
@@ -39,6 +40,8 @@ export function AgentPanel() {
   const { connected, publicKey } = useWallet();
   const { setVisible } = useWalletModal();
   const selectedStock = useStockStore((state) => state.selected);
+  const portfolio = usePortfolioStore((state) => state.portfolio);
+  const loadPortfolio = usePortfolioStore((state) => state.loadPortfolio);
   const walletAddress = publicKey?.toBase58();
   const panelOpen = useAgentStore((state) => state.panelOpen);
   const hydrated = useAgentStore((state) => state.hydrated);
@@ -59,6 +62,7 @@ export function AgentPanel() {
   const [showHistory, setShowHistory] = useState(false);
   const [reviewQuote, setReviewQuote] = useState<QuoteResponse>();
   const [reviewBasket, setReviewBasket] = useState<BasketResponse>();
+  const [reviewLimitOrder, setReviewLimitOrder] = useState<LimitOrderProposal>();
   const scrollRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLElement>(null);
   const composerRef = useRef<HTMLTextAreaElement>(null);
@@ -82,6 +86,11 @@ export function AgentPanel() {
   }, [initialize, walletAddress]);
 
   useEffect(() => {
+    if (!walletAddress || portfolio?.wallet === walletAddress) return;
+    void loadPortfolio(walletAddress);
+  }, [loadPortfolio, portfolio?.wallet, walletAddress]);
+
+  useEffect(() => {
     if (!panelOpen || typeof window === 'undefined' || window.innerWidth >= 640) return;
     const previous = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
@@ -93,7 +102,7 @@ export function AgentPanel() {
   useEffect(() => {
     if (!panelOpen) return;
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape' || reviewQuote || reviewBasket) return;
+      if (event.key !== 'Escape' || reviewQuote || reviewBasket || reviewLimitOrder) return;
       if (showHistory) {
         setShowHistory(false);
         return;
@@ -102,7 +111,7 @@ export function AgentPanel() {
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [closePanel, panelOpen, reviewBasket, reviewQuote, showHistory]);
+  }, [closePanel, panelOpen, reviewBasket, reviewLimitOrder, reviewQuote, showHistory]);
 
   useEffect(() => {
     if (!panelOpen || !hydrated) return;
@@ -148,9 +157,18 @@ export function AgentPanel() {
     setReviewBasket(basket);
   };
 
+  const openLimitOrderReview = (proposal: LimitOrderProposal) => {
+    reviewOriginRef.current =
+      document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null;
+    setReviewLimitOrder(proposal);
+  };
+
   const closeReview = () => {
     setReviewQuote(undefined);
     setReviewBasket(undefined);
+    setReviewLimitOrder(undefined);
     window.requestAnimationFrame(() => reviewOriginRef.current?.focus());
   };
 
@@ -255,6 +273,7 @@ export function AgentPanel() {
                   key={message.id}
                   message={message}
                   onReviewBasket={openBasketReview}
+                  onReviewLimitOrder={openLimitOrderReview}
                   onReviewQuote={openQuoteReview}
                 />
               ))}
@@ -334,7 +353,12 @@ export function AgentPanel() {
         {!isSending && messages.at(-1)?.role === 'assistant' ? 'Oren response complete' : ''}
       </div>
 
-      <AgentActionReview basket={reviewBasket} onClose={closeReview} quote={reviewQuote} />
+      <AgentActionReview
+        basket={reviewBasket}
+        limitOrder={reviewLimitOrder}
+        onClose={closeReview}
+        quote={reviewQuote}
+      />
     </>
   );
 }
@@ -343,10 +367,12 @@ function Message({
   message,
   onReviewQuote,
   onReviewBasket,
+  onReviewLimitOrder,
 }: {
   message: AgentDisplayMessage;
   onReviewQuote: (quote: QuoteResponse) => void;
   onReviewBasket: (basket: BasketResponse) => void;
+  onReviewLimitOrder: (proposal: LimitOrderProposal) => void;
 }) {
   if (message.role === 'user') {
     return (
@@ -368,7 +394,12 @@ function Message({
         <span className="t-shimmer text-sm" data-text="Oren is thinking">Oren is thinking</span>
       ) : null}
       {message.artifacts?.length ? (
-        <AgentArtifacts artifacts={message.artifacts} onReviewBasket={onReviewBasket} onReviewQuote={onReviewQuote} />
+        <AgentArtifacts
+          artifacts={message.artifacts}
+          onReviewBasket={onReviewBasket}
+          onReviewLimitOrder={onReviewLimitOrder}
+          onReviewQuote={onReviewQuote}
+        />
       ) : null}
       {message.interrupted && message.content ? <p className="mt-2 text-xs text-muted">Stopped before completion</p> : null}
     </article>
@@ -451,6 +482,7 @@ function ConversationHistory({
 
 function pageContext(pathname: string): AgentPageContext {
   if (pathname.startsWith('/stocks/')) return { page: 'stock', assetId: decodeURIComponent(pathname.split('/')[2] ?? '') };
+  if (pathname.startsWith('/calendar')) return { page: 'calendar' };
   if (pathname.startsWith('/leaderboard')) return { page: 'leaderboard' };
   if (pathname.startsWith('/markets')) return { page: 'markets' };
   if (pathname.startsWith('/vault')) return { page: 'vault' };
@@ -461,6 +493,7 @@ function pageContext(pathname: string): AgentPageContext {
 function promptSuggestions(context: AgentPageContext, ticker?: string): string[] {
   switch (context.page) {
     case 'stock': return [`Analyze ${ticker ?? 'this stock'} for me`, `What is the latest news on ${ticker ?? 'this stock'}?`, `What are the main risks here?`];
+    case 'calendar': return ['Summarize my month', 'What were my biggest wins and losses?', 'Explain my recent drawdowns'];
     case 'leaderboard': return ['Who is leading right now?', 'Compare the top traders', 'Help me copy a public portfolio'];
     case 'markets': return ['What is standing out in the market?', 'Find three moderate-risk opportunities', 'Build me a balanced $200 basket'];
     case 'vault': return ['How much of my portfolio is locked?', "What's unlocking next?", 'Explain my vault positions'];
@@ -473,6 +506,8 @@ function toolLabel(toolName: string) {
   const labels: Record<string, string> = {
     getPortfolio: 'Checking your portfolio',
     getPortfolioActivity: 'Reading portfolio activity',
+    getTradingCalendar: 'Reading trading calendar',
+    getTradingCalendarDay: 'Opening day drilldown',
     getStock: 'Loading stock data',
     getStockChart: 'Reading price history',
     getStockNews: 'Reading recent news',
@@ -481,6 +516,8 @@ function toolLabel(toolName: string) {
     findOpportunities: 'Comparing opportunities',
     getSignals: 'Calculating market signals',
     getSwapQuote: 'Requesting a live quote',
+    proposeLimitOrder: 'Proposing a limit order',
+    getLimitOrders: 'Listing limit orders',
     prepareSwap: 'Preparing an unsigned trade',
     createBasket: 'Building a basket',
     prepareBasketPurchase: 'Preparing basket transactions',

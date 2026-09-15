@@ -6,6 +6,7 @@ import { ExecutionService } from '../../execution/execution.service';
 import { IntelligenceService } from '../../intelligence/intelligence.service';
 import { MarketService } from '../../market/market.service';
 import { NewsService } from '../../news/news.service';
+import { PortfolioCalendarService } from '../../portfolio/portfolio-calendar.service';
 import { PortfolioService } from '../../portfolio/portfolio.service';
 import { SocialService } from '../../social/social.service';
 import { VaultService } from '../../vault/vault.service';
@@ -33,6 +34,7 @@ export class AgentToolRegistry {
     private readonly execution: ExecutionService,
     private readonly vault: VaultService,
     private readonly social: SocialService,
+    private readonly calendar: PortfolioCalendarService,
   ) {}
 
   getSchemas(): ToolDefinition[] {
@@ -58,6 +60,31 @@ export class AgentToolRegistry {
         return {
           output: await this.portfolio.getActivity(required(input, 'wallet')),
         };
+
+      case 'getTradingCalendar': {
+        const calendar = await this.calendar.getCalendar(required(input, 'wallet'), {
+          month: optionalString(input, 'month'),
+          start: optionalString(input, 'start'),
+          end: optionalString(input, 'end'),
+          timeZone: optionalString(input, 'timeZone'),
+        });
+        return {
+          output: calendar,
+          artifact: { type: 'trading_calendar', data: calendar },
+        };
+      }
+
+      case 'getTradingCalendarDay': {
+        const day = await this.calendar.getDay(
+          required(input, 'wallet'),
+          required(input, 'date'),
+          { timeZone: optionalString(input, 'timeZone') },
+        );
+        return {
+          output: day,
+          artifact: { type: 'trading_calendar_day', data: day },
+        };
+      }
 
       case 'getStock': {
         const stock = await this.getStockByInput(
@@ -128,6 +155,64 @@ export class AgentToolRegistry {
         };
         const quote = await this.execution.getQuote(intent);
         return { output: quote, artifact: { type: 'quote', data: quote } };
+      }
+
+      case 'proposeLimitOrder': {
+        let limitPriceUsd = optionalNumber(input, 'limitPriceUsd');
+        let basis: import('../../../types/analysis').LimitZoneBasis | undefined;
+        const side = required(input, 'side') as 'buy' | 'sell';
+        const ticker = optionalString(input, 'ticker') ?? '';
+        const assetId = optionalString(input, 'assetId');
+
+        if (limitPriceUsd === undefined) {
+          const stockKey = assetId || ticker;
+          if (!stockKey) {
+            throw new BadRequestException('ticker or assetId is required');
+          }
+          const stock = await this.getStockByInput(stockKey);
+          const analysis = await this.intelligence.getAnalysis(stock.id);
+          const zone = analysis.technicalBrief?.limitZones?.find(
+            (item) => item.side === side,
+          );
+          if (!zone) {
+            throw new BadRequestException(
+              `No deterministic ${side} limit zone available for ${stock.ticker}. Provide limitPriceUsd explicitly.`,
+            );
+          }
+          limitPriceUsd = zone.preferredUsd;
+          basis = zone.basis;
+        }
+
+        const proposal = await this.execution.proposeLimitOrder({
+          side,
+          ticker,
+          assetId,
+          amountUsd: optionalNumber(input, 'amountUsd'),
+          amount: optionalNumber(input, 'amount'),
+          limitPriceUsd,
+          preferredMint: optionalString(input, 'preferredMint'),
+          expiredAt: optionalNumber(input, 'expiredAt'),
+          slippageBps: optionalNumber(input, 'slippageBps'),
+          wallet: optionalString(input, 'wallet'),
+          basis,
+        });
+        return {
+          output: proposal,
+          artifact: { type: 'limit_order', data: proposal },
+        };
+      }
+
+      case 'getLimitOrders': {
+        const orders = await this.execution.listLimitOrders(
+          required(input, 'wallet'),
+          {
+            includeHistory: optional(input, 'includeHistory') === true,
+          },
+        );
+        return {
+          output: orders,
+          artifact: { type: 'limit_orders', data: orders },
+        };
       }
 
       case 'prepareSwap': {
@@ -256,14 +341,39 @@ const stringSchema = { type: 'string' };
 const numberSchema = { type: 'number' };
 const nullableStringSchema = { type: ['string', 'null'] };
 const nullableNumberSchema = { type: ['number', 'null'] };
+const nullableBooleanSchema = { type: ['boolean', 'null'] };
 
 const TOOL_SCHEMAS: ToolDefinition[] = [
-  tool('getPortfolio', 'Get the user portfolio for a Solana wallet.', {
-    wallet: stringSchema,
-  }),
+  tool(
+    'getPortfolio',
+    'Get the latest portfolio for the connected wallet. Use the attached snapshot for conversational advice; call this before trade sizing or quotes when balances may have changed.',
+    {
+      wallet: stringSchema,
+    },
+  ),
   tool('getPortfolioActivity', 'Get Oren and wallet activity for a wallet.', {
     wallet: stringSchema,
   }),
+  tool(
+    'getTradingCalendar',
+    'Get observed daily portfolio P&L, event markers, and calendar summaries for a wallet.',
+    {
+      wallet: stringSchema,
+      month: nullableStringSchema,
+      start: nullableStringSchema,
+      end: nullableStringSchema,
+      timeZone: nullableStringSchema,
+    },
+  ),
+  tool(
+    'getTradingCalendarDay',
+    'Get a day drilldown with observed P&L, contributors, trades, vault events, agent events, and wallet activity.',
+    {
+      wallet: stringSchema,
+      date: stringSchema,
+      timeZone: nullableStringSchema,
+    },
+  ),
   tool('getStock', 'Get canonical stock detail by asset id or ticker.', {
     assetIdOrTicker: stringSchema,
   }),
@@ -283,7 +393,7 @@ const TOOL_SCHEMAS: ToolDefinition[] = [
   }),
   tool(
     'analyzeStock',
-    'Get deterministic Oren Score and analysis for a stock.',
+    'Get deterministic Oren Score plus a full technical-analysis brief (regime, setup, support/resistance, multi-timeframe indicators, summary, and news overlay) for a stock.',
     {
       assetIdOrTicker: stringSchema,
     },
@@ -313,6 +423,30 @@ const TOOL_SCHEMAS: ToolDefinition[] = [
       amount: nullableNumberSchema,
       preferredMint: nullableStringSchema,
       slippageBps: nullableNumberSchema,
+    },
+  ),
+  tool(
+    'proposeLimitOrder',
+    'Propose a Jupiter Trigger V1 limit order at a USD price. If limitPriceUsd is omitted, uses the deterministic TA limit zone from analyzeStock. Returns a reviewable proposal — never prepares or signs.',
+    {
+      side: { type: 'string', enum: ['buy', 'sell'] },
+      ticker: nullableStringSchema,
+      assetId: nullableStringSchema,
+      amountUsd: nullableNumberSchema,
+      amount: nullableNumberSchema,
+      limitPriceUsd: nullableNumberSchema,
+      preferredMint: nullableStringSchema,
+      expiredAt: nullableNumberSchema,
+      slippageBps: nullableNumberSchema,
+      wallet: nullableStringSchema,
+    },
+  ),
+  tool(
+    'getLimitOrders',
+    'List the wallet open (and optionally historical) Jupiter Trigger limit orders.',
+    {
+      wallet: stringSchema,
+      includeHistory: nullableBooleanSchema,
     },
   ),
   tool(

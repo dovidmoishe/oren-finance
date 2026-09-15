@@ -4,7 +4,7 @@ import type { ChartRange, MarketCandle, OhlcvBar } from '../../types/market';
 import type { EquityRisk, MarketNewsItem } from '../../types/news';
 import type { TokensService as TokensServiceContract } from '../../types/providers/tokens-provider';
 import { TokensNotFoundError } from '../common/errors/provider.errors';
-import { chartRangeToWindow } from './chart-range.util';
+import { chartRangeToWindow, type ChartWindow } from './chart-range.util';
 import { TokensClient } from './tokens.client';
 import {
   extractAssetList,
@@ -112,7 +112,17 @@ export class TokensService implements TokensServiceContract {
     assetId: string,
     range: ChartRange,
   ): Promise<MarketCandle[]> {
-    const window = chartRangeToWindow(range);
+    return this.getCandlesForWindow(assetId, chartRangeToWindow(range));
+  }
+
+  /**
+   * Same candle path as stock charts: price-chart first, then OHLCV with the
+   * best tradable mint. Intelligence/TA must use this instead of raw OHLCV.
+   */
+  async getCandlesForWindow(
+    assetId: string,
+    window: ChartWindow,
+  ): Promise<MarketCandle[]> {
     const raw = await this.client.get<unknown>(
       `/assets/${encodeURIComponent(assetId)}/price-chart`,
       {

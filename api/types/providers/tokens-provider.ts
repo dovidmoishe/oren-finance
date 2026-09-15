@@ -1,5 +1,12 @@
 import type { Equity, TokenizedEquity } from '../equity';
 import type { ChartRange, MarketCandle, OhlcvBar } from '../market';
+
+/** Re-exported from Nest chart-range util for provider typing. */
+export type ChartWindow = {
+  interval: '1m' | '5m' | '15m' | '1H' | '4H' | '1D' | '1W';
+  from: number;
+  to: number;
+};
 import type { MarketNewsItem, EquityRisk } from '../news';
 
 /**
@@ -20,6 +27,11 @@ export interface TokensService {
   getCurrentMarketData(assetId: string): Promise<Equity>;
 
   getPriceChart(assetId: string, range: ChartRange): Promise<MarketCandle[]>;
+
+  getCandlesForWindow(
+    assetId: string,
+    window: ChartWindow,
+  ): Promise<MarketCandle[]>;
 
   getOHLCV(
     assetId: string,
