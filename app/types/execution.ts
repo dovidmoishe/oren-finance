@@ -52,6 +52,7 @@ export interface PrepareExecutionRequest {
 }
 
 export interface ExecutionPreparedTransaction {
+  executionId: string;
   quoteId: string;
   wallet: string;
   transaction: string;
@@ -60,17 +61,19 @@ export interface ExecutionPreparedTransaction {
 }
 
 export interface ConfirmExecutionRequest {
+  executionId: string;
   wallet: string;
   quoteId: string;
   signature: string;
 }
 
 export interface ExecutionStatus {
+  executionId: string;
   quoteId: string;
   wallet: string;
   signature: string;
-  status: "confirmed";
-  portfolioRefreshed: boolean;
+  status: "submitted";
+  trackingStatus: "pending";
 }
 
 export interface BasketIntent {

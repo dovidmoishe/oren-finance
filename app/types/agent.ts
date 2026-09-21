@@ -13,8 +13,10 @@ import type { StockAnalysis, StockDetail, StockSummary } from './stock';
 import type { PreparedVaultTransaction, VaultPosition } from './vault';
 import type { CopyPortfolioProposal } from './social';
 import type { TradingCalendarDayResponse, TradingCalendarResponse } from './calendar';
+import type { BitgetMarketContext } from './bitget';
 
 export type AgentPage = 'dashboard' | 'calendar' | 'leaderboard' | 'markets' | 'stock' | 'vault' | 'activity';
+export type AgentArtifactDensity = 'inline' | 'chips' | 'rail';
 export type AgentRole = 'user' | 'assistant';
 export type AgentToolStatus = 'running' | 'completed' | 'failed';
 
@@ -60,6 +62,7 @@ export interface AgentVaultSummary {
 export type AgentArtifact =
   | { type: 'portfolio'; data: PortfolioSummary }
   | { type: 'stock'; data: StockDetail }
+  | { type: 'bitget_market'; data: BitgetMarketContext }
   | { type: 'analysis'; data: StockAnalysis }
   | { type: 'opportunities'; data: StockSummary[] }
   | { type: 'quote'; data: QuoteResponse }

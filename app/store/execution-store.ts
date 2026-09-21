@@ -27,7 +27,7 @@ interface ExecutionState {
   quoteTrade: (intent: TradeIntent) => Promise<QuoteResponse | undefined>;
   refreshQuote: () => Promise<QuoteResponse | undefined>;
   prepareTrade: (request: PrepareExecutionRequest) => Promise<void>;
-  confirmTrade: (wallet: string, quoteId: string, signature: string) => Promise<void>;
+  confirmTrade: (wallet: string, executionId: string, quoteId: string, signature: string) => Promise<void>;
   buildBasket: (intent: BasketIntent) => Promise<void>;
   prepareBasketTrades: (request: { basketId: string; wallet: string }) => Promise<void>;
   seedQuote: (quote: QuoteResponse, intent?: TradeIntent) => void;
@@ -102,10 +102,10 @@ export const useExecutionStore = create<ExecutionState>((set, get) => ({
       set({ error: error instanceof Error ? error.message : "Unable to prepare trade", isLoading: false });
     }
   },
-  async confirmTrade(wallet, quoteId, signature) {
+  async confirmTrade(wallet, executionId, quoteId, signature) {
     set({ isLoading: true, error: undefined });
     try {
-      const status = await confirmExecution({ wallet, quoteId, signature });
+      const status = await confirmExecution({ wallet, executionId, quoteId, signature });
       set({ status, isLoading: false });
     } catch (error) {
       set({ error: error instanceof Error ? error.message : "Unable to confirm trade", isLoading: false });

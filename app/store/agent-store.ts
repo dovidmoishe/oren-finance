@@ -21,6 +21,7 @@ interface AgentState {
   messages: AgentDisplayMessage[];
   recentThreads: AgentRecentThread[];
   panelOpen: boolean;
+  expanded: boolean;
   hydrated: boolean;
   isLoadingHistory: boolean;
   isSending: boolean;
@@ -28,6 +29,7 @@ interface AgentState {
   lastRequest?: AgentRequest;
   initialize: (walletAddress?: string) => Promise<void>;
   setPanelOpen: (open: boolean) => void;
+  setExpanded: (expanded: boolean) => void;
   newChat: () => void;
   loadThread: (threadId: string) => Promise<void>;
   sendMessage: (
@@ -43,6 +45,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
   messages: [],
   recentThreads: [],
   panelOpen: false,
+  expanded: false,
   hydrated: false,
   isLoadingHistory: false,
   isSending: false,
@@ -65,6 +68,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
         messages: [],
         recentThreads: [],
         panelOpen,
+        expanded: false,
         hydrated: true,
         isLoadingHistory: false,
         isSending: false,
@@ -80,6 +84,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
       messages: [],
       recentThreads,
       panelOpen,
+      expanded: false,
       hydrated: true,
       isSending: false,
       error: undefined,
@@ -89,7 +94,11 @@ export const useAgentStore = create<AgentState>((set, get) => ({
 
   setPanelOpen(panelOpen) {
     writePanelPreference(get().walletAddress, panelOpen);
-    set({ panelOpen });
+    set(panelOpen ? { panelOpen } : { panelOpen, expanded: false });
+  },
+
+  setExpanded(expanded) {
+    set({ expanded });
   },
 
   newChat() {

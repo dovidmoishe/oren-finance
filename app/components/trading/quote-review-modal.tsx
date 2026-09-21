@@ -12,7 +12,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { Button, Modal, Toast, cn, formatCurrency, formatNumber } from "@/components/ui";
 import type { ExecutionStatus, QuoteResponse } from "@/types";
 
-type TradeFlowStatus = "idle" | "quoted" | "preparing" | "signing" | "confirming" | "confirmed" | "failed";
+type TradeFlowStatus = "idle" | "quoted" | "preparing" | "signing" | "confirming" | "submitted" | "confirmed" | "failed";
 
 interface QuoteReviewModalProps {
   open: boolean;
@@ -66,12 +66,13 @@ export function QuoteReviewModal({
   onClose,
   onSign,
 }: QuoteReviewModalProps) {
-  const expired = quote ? new Date(quote.expiresAt).getTime() <= Date.now() : false;
+  const expired = Boolean(quote && secondsLeft <= 0);
   const isBusy = status === "preparing" || status === "signing" || status === "confirming";
-  const signed = status === "confirming" || status === "confirmed";
+  const signed = status === "confirming" || status === "submitted" || status === "confirmed";
   const confirmed = status === "confirmed";
+  const submitted = status === "submitted";
   const waitingOnRefresh = expired || isRefreshingQuote;
-  const signDisabled = !quote || waitingOnRefresh || isBusy || confirmed || refreshFailed;
+  const signDisabled = !quote || waitingOnRefresh || isBusy || submitted || confirmed || refreshFailed;
   const minimumReceived = quote
     ? quote.outputAmount * (1 - quote.slippageBps / 10_000)
     : 0;
@@ -101,7 +102,7 @@ export function QuoteReviewModal({
             <div className="mt-5 grid grid-cols-3 gap-2">
               <Step done label="Quote" />
               <Step active={status === "preparing" || status === "signing"} done={signed || confirmed} label="Sign" />
-              <Step active={status === "confirming"} done={confirmed} label="Confirm" />
+              <Step active={status === "confirming" || status === "submitted"} done={confirmed} label="Verify" />
             </div>
           </div>
 
@@ -131,7 +132,8 @@ export function QuoteReviewModal({
               <div className="flex items-start gap-3">
                 <HugeiconsIcon className="mt-0.5 shrink-0" color="currentColor" icon={CheckmarkCircle01Icon} size={16} strokeWidth={1.8} />
                 <div>
-                  <p className="font-semibold">Transaction confirmed</p>
+                  <p className="font-semibold">Transaction submitted</p>
+                  <p className="mt-1 text-xs opacity-75">Oren is verifying the fill without holding up your trade.</p>
                   <p className="mt-1 break-all text-xs opacity-75">{confirmation.signature}</p>
                 </div>
               </div>
@@ -149,6 +151,11 @@ export function QuoteReviewModal({
                 <>
                   <HugeiconsIcon className="animate-spin" color="currentColor" icon={Clock01Icon} size={16} strokeWidth={1.8} />
                   {status === "preparing" ? "Preparing" : status === "signing" ? "Awaiting wallet" : "Confirming"}
+                </>
+              ) : status === "submitted" ? (
+                <>
+                  <HugeiconsIcon color="currentColor" icon={CheckmarkCircle01Icon} size={16} strokeWidth={1.8} />
+                  Submitted · syncing
                 </>
               ) : confirmed ? (
                 <>

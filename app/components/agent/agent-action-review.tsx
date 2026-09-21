@@ -185,17 +185,17 @@ function BasketExecutionReview({
           current = updateLeg(current, index, 'submitted');
           setProgress(current);
           resetTrade();
-          await confirmTrade(wallet, prepared.quoteId, signature);
+          await confirmTrade(wallet, prepared.executionId, prepared.quoteId, signature);
           const confirmed = useExecutionStore.getState().status;
           if (!confirmed || confirmed.quoteId !== prepared.quoteId) {
             throw new Error(
               useExecutionStore.getState().error ?? `Unable to confirm ${leg.ticker}`,
             );
           }
-          current = updateLeg(current, index, 'confirmed');
+          current = updateLeg(current, index, 'submitted');
           setProgress(current);
           setNextLeg(index + 1);
-          await refreshPortfolio();
+          void refreshPortfolio();
         } catch (legError) {
           const message = legError instanceof Error ? legError.message : 'Transaction failed';
           current = updateLeg(current, index, 'failed', message);

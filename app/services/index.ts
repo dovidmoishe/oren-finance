@@ -5,3 +5,4 @@ export * from "./market-service";
 export * from "./portfolio-service";
 export * from "./social-service";
 export * from "./vault-service";
+export * from "./volume-service";

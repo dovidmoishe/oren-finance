@@ -12,7 +12,13 @@ import {
 import { HugeiconsIcon, type IconSvgElement } from '@hugeicons/react';
 import Link from 'next/link';
 import { useEffect } from 'react';
-import type { AgentArtifact, BasketResponse, LimitOrderProposal, QuoteResponse } from '@/types';
+import type {
+  AgentArtifact,
+  AgentArtifactDensity,
+  BasketResponse,
+  LimitOrderProposal,
+  QuoteResponse,
+} from '@/types';
 import { TechnicalBriefPanel } from '@/components/stock/technical-brief-panel';
 import { Button, cn, formatCurrency, formatNumber } from '@/components/ui';
 import { useQuoteRefresh } from '@/hooks/use-quote-refresh';
@@ -20,23 +26,44 @@ import { useExecutionStore } from '@/store';
 
 interface AgentArtifactsProps {
   artifacts: AgentArtifact[];
+  density?: AgentArtifactDensity;
   onReviewQuote: (quote: QuoteResponse) => void;
   onReviewBasket: (basket: BasketResponse) => void;
   onReviewLimitOrder: (proposal: LimitOrderProposal) => void;
+  onNavigate?: () => void;
 }
 
 export function AgentArtifacts({
   artifacts,
+  density = 'inline',
   onReviewQuote,
   onReviewBasket,
   onReviewLimitOrder,
+  onNavigate,
 }: AgentArtifactsProps) {
+  if (density === 'chips') {
+    return (
+      <div className="mt-3 flex flex-wrap gap-1.5">
+        {artifacts.map((artifact, index) => (
+          <span
+            className="rounded-full border border-border bg-panel-subtle px-2.5 py-1 text-[11px] font-semibold text-muted"
+            key={`${artifact.type}-${index}`}
+          >
+            {artifactChipLabel(artifact)}
+          </span>
+        ))}
+      </div>
+    );
+  }
+
   return (
-    <div className="mt-3 space-y-3">
+    <div className={cn('mt-3', density === 'rail' ? 'space-y-4' : 'space-y-3')}>
       {artifacts.map((artifact, index) => (
         <AgentArtifactCard
           artifact={artifact}
+          density={density}
           key={`${artifact.type}-${index}`}
+          onNavigate={onNavigate}
           onReviewBasket={onReviewBasket}
           onReviewLimitOrder={onReviewLimitOrder}
           onReviewQuote={onReviewQuote}
@@ -48,14 +75,18 @@ export function AgentArtifacts({
 
 function AgentArtifactCard({
   artifact,
+  density = 'inline',
   onReviewQuote,
   onReviewBasket,
   onReviewLimitOrder,
+  onNavigate,
 }: {
   artifact: AgentArtifact;
+  density?: AgentArtifactDensity;
   onReviewQuote: (quote: QuoteResponse) => void;
   onReviewBasket: (basket: BasketResponse) => void;
   onReviewLimitOrder: (proposal: LimitOrderProposal) => void;
+  onNavigate?: () => void;
 }) {
   switch (artifact.type) {
     case 'portfolio': {
@@ -107,7 +138,11 @@ function AgentArtifactCard({
               </p>
             </div>
           </div>
-          <Link className="mt-4 inline-flex items-center gap-1 text-xs font-semibold" href={`/stocks/${stock.assetId}`}>
+          <Link
+            className="mt-4 inline-flex items-center gap-1 text-xs font-semibold"
+            href={`/app/stocks/${stock.assetId}`}
+            onClick={onNavigate}
+          >
             Open stock <HugeiconsIcon icon={ArrowUpRight01Icon} size={13} strokeWidth={1.8} />
           </Link>
         </ArtifactShell>
@@ -133,7 +168,7 @@ function AgentArtifactCard({
           ) : null}
           {analysis.technicalBrief ? (
             <div className="mt-3 border-t border-black/8 pt-3">
-              <TechnicalBriefPanel brief={analysis.technicalBrief} compact />
+              <TechnicalBriefPanel brief={analysis.technicalBrief} compact={density !== 'rail'} />
             </div>
           ) : (
             <div className="mt-3 grid grid-cols-3 gap-2">
@@ -162,6 +197,76 @@ function AgentArtifactCard({
         </ArtifactShell>
       );
     }
+    case 'bitget_market': {
+      const context = artifact.data;
+      const quote = context.quote;
+      const change = quote?.change24hPct;
+      const observedAt = new Date(context.source.observedAt);
+      return (
+        <ArtifactShell icon={Activity01Icon} label="Bitget Reality" tone="plain">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="font-display text-xl font-semibold">
+                {context.symbol ? formatBitgetSymbol(context.symbol) : context.ticker}
+              </p>
+              <p className="mt-1 text-xs text-muted">
+                {context.available
+                  ? `Live tokenized-stock venue · ${context.range}`
+                  : context.reason === 'BITGET_REALITY_SYMBOL_UNAVAILABLE'
+                    ? 'No matching Bitget Reality market'
+                    : 'Live Bitget context unavailable'}
+              </p>
+            </div>
+            {quote ? (
+              <div className="text-right">
+                <p className="font-mono font-semibold">{formatCurrency(quote.lastPriceUsd)}</p>
+                <p className={cn('text-xs', (change ?? 0) >= 0 ? 'text-positive' : 'text-negative')}>
+                  {change === undefined ? '24h —' : `${change >= 0 ? '+' : ''}${formatNumber(change, 2)}%`}
+                </p>
+              </div>
+            ) : null}
+          </div>
+          {quote ? (
+            <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+              <Metric
+                label="24h turnover"
+                value={quote.turnover24hUsd === undefined ? '—' : formatCurrency(quote.turnover24hUsd)}
+              />
+              <Metric
+                label="Bid / ask spread"
+                value={quote.spreadBps === undefined ? '—' : `${formatNumber(quote.spreadBps, 1)} bps`}
+              />
+            </div>
+          ) : null}
+          {context.comparison ? (
+            <div className="mt-2 flex items-center justify-between rounded-[14px] bg-panel-subtle px-3 py-2 text-xs">
+              <span className="text-muted">vs Oren reference</span>
+              <span className="font-mono font-semibold">
+                {context.comparison.differencePct >= 0 ? '+' : ''}
+                {formatNumber(context.comparison.differencePct, 2)}%
+              </span>
+            </div>
+          ) : null}
+          {context.trading ? (
+            <p className="mt-3 text-[11px] leading-4 text-muted">
+              {context.trading.weekendTradable ? 'Weekend trading supported' : 'Standard supported sessions'}
+              {context.trading.supportedPeriods.length
+                ? ` · ${context.trading.supportedPeriods.map(formatSession).join(', ')}`
+                : ''}
+            </p>
+          ) : null}
+          <p className="mt-2 text-[10px] text-muted-2">
+            Bitget Reality · {context.source.stale ? 'cached fallback' : 'observed'}{' '}
+            {Number.isNaN(observedAt.getTime()) ? '' : observedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+          </p>
+          {context.warnings?.length ? (
+            <p className="mt-2 rounded-[12px] bg-[#fff9c9] px-3 py-2 text-[10px] leading-4 text-muted">
+              {context.warnings.join(' ')}
+            </p>
+          ) : null}
+        </ArtifactShell>
+      );
+    }
     case 'opportunities':
       return (
         <ArtifactShell icon={ChartLineData01Icon} label="Top opportunities" tone="yellow">
@@ -169,8 +274,9 @@ function AgentArtifactCard({
             {artifact.data.slice(0, 5).map((stock, index) => (
               <Link
                 className="flex items-center justify-between rounded-[14px] bg-white/70 px-3 py-2 text-xs hover:bg-white"
-                href={`/stocks/${stock.assetId}`}
+                href={`/app/stocks/${stock.assetId}`}
                 key={stock.assetId}
+                onClick={onNavigate}
               >
                 <span><span className="mr-2 text-muted">{index + 1}</span><strong>{stock.ticker}</strong></span>
                 <span className="font-mono font-semibold">{Math.round(stock.opportunityScore ?? 0)}</span>
@@ -308,7 +414,7 @@ function AgentArtifactCard({
               {artifact.data.days.filter((day) => day.hasData).length} days
             </span>
           </div>
-          <Link className="mt-4 inline-flex items-center gap-1 text-xs font-semibold" href="/calendar">
+          <Link className="mt-4 inline-flex items-center gap-1 text-xs font-semibold" href="/app/calendar">
             Open calendar <HugeiconsIcon icon={ArrowUpRight01Icon} size={13} strokeWidth={1.8} />
           </Link>
         </ArtifactShell>
@@ -337,14 +443,24 @@ function AgentArtifactCard({
           ) : null}
         </ArtifactShell>
       );
-    case 'vaults':
+        case 'vaults': {
+      const nextUnlock = [...artifact.data.positions].sort(
+        (a, b) => new Date(a.unlockAt).getTime() - new Date(b.unlockAt).getTime(),
+      )[0];
       return (
         <ArtifactShell icon={SafeIcon} label="Vault" tone="lavender">
           <p className="font-display text-2xl font-semibold">{formatCurrency(artifact.data.totalLockedValueUsd)}</p>
-          <p className="mt-1 text-xs text-muted">{artifact.data.positions.length} locked position{artifact.data.positions.length === 1 ? '' : 's'}</p>
+          <p className="mt-1 text-xs text-muted">
+            {artifact.data.positions.length} locked position{artifact.data.positions.length === 1 ? '' : 's'}
+            {nextUnlock ? ` · next unlock ${nextUnlock.ticker ?? 'asset'}` : ''}
+          </p>
+          <p className="mt-2 text-xs leading-5 text-muted">
+            Vault UI preview is available, but the onchain program is not live yet so locks cannot be signed.
+          </p>
         </ArtifactShell>
       );
-    case 'prepared_swap':
+    }
+case 'prepared_swap':
     case 'prepared_basket':
     case 'prepared_lock':
     case 'prepared_unlock':
@@ -498,4 +614,53 @@ function formatSignal(value?: number) {
 
 function formatPercentSignal(value?: number) {
   return value === undefined ? '—' : `${value >= 0 ? '+' : ''}${formatNumber(value, 1)}%`;
+}
+
+function artifactChipLabel(artifact: AgentArtifact): string {
+  switch (artifact.type) {
+    case 'portfolio':
+      return `Portfolio ${formatCurrency(artifact.data.totalValueUsd)}`;
+    case 'stock':
+      return artifact.data.ticker;
+    case 'analysis':
+      return `${artifact.data.ticker} analysis`;
+    case 'bitget_market':
+      return artifact.data.symbol
+        ? `Bitget ${formatBitgetSymbol(artifact.data.symbol)}`
+        : `Bitget ${artifact.data.ticker}`;
+    case 'opportunities':
+      return `${artifact.data.length} opportunities`;
+    case 'quote':
+      return `${artifact.data.side} ${artifact.data.ticker}`;
+    case 'limit_order':
+      return `${artifact.data.side} ${artifact.data.ticker} limit`;
+    case 'limit_orders':
+      return `${artifact.data.length} limit orders`;
+    case 'basket':
+      return `Basket ${formatCurrency(artifact.data.totalAmountUsd)}`;
+    case 'copy_portfolio_proposal':
+      return `Copy ${artifact.data.source.displayName}`;
+    case 'trading_calendar':
+      return 'Trading calendar';
+    case 'trading_calendar_day':
+      return artifact.data.date;
+    case 'vaults':
+      return 'Vault positions';
+    case 'prepared_swap':
+    case 'prepared_basket':
+    case 'prepared_lock':
+    case 'prepared_unlock':
+      return 'Prepared action';
+  }
+}
+
+function formatBitgetSymbol(symbol: string): string {
+  const normalized = symbol.toUpperCase();
+  const base = normalized.endsWith('USDT') ? normalized.slice(0, -4) : normalized;
+  const realityTicker = base.startsWith('R') ? `r${base.slice(1)}` : base;
+  return normalized.endsWith('USDT') ? `${realityTicker}/USDT` : realityTicker;
+}
+
+function formatSession(value: string): string {
+  return value.replaceAll('_', ' ').replace(/\b\w/g, (character) => character.toUpperCase());
 }
