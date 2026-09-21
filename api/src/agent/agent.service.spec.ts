@@ -261,6 +261,15 @@ describe('AgentService', () => {
         createdAt: new Date('2026-09-13T10:00:01Z'),
       },
       {
+        id: 'tool-2',
+        threadId: 'thread-1',
+        role: 'tool',
+        toolName: 'getBitgetMarketContext',
+        content:
+          '{"available":true,"ticker":"NVDA","symbol":"RNVDAUSDT","candles":[],"source":{"provider":"Bitget","product":"Reality","observedAt":"2026-09-13T10:00:01Z","stale":false}}',
+        createdAt: new Date('2026-09-13T10:00:01Z'),
+      },
+      {
         id: 'assistant-1',
         threadId: 'thread-1',
         role: 'assistant',
@@ -280,8 +289,11 @@ describe('AgentService', () => {
 
     expect(result.messages[1]).toMatchObject({
       role: 'assistant',
-      activities: [{ toolName: 'analyzeStock', status: 'completed' }],
-      artifacts: [{ type: 'analysis' }],
+      activities: [
+        { toolName: 'analyzeStock', status: 'completed' },
+        { toolName: 'getBitgetMarketContext', status: 'completed' },
+      ],
+      artifacts: [{ type: 'analysis' }, { type: 'bitget_market' }],
     });
     expect(result.messages.at(-1)).toMatchObject({ interrupted: true });
   });

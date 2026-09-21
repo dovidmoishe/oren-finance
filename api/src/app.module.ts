@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
 import { AlchemyModule } from './alchemy/alchemy.module';
+import { AnalyticsModule } from './analytics/analytics.module';
 import { AgentModule } from './agent/agent.module';
+import { BitgetModule } from './bitget/bitget.module';
 import { CommonModule } from './common/common.module';
 import { ConfigModule } from './config/config.module';
 import { DatabaseModule } from './database/database.module';
@@ -19,8 +21,10 @@ import { VaultModule } from './vault/vault.module';
     ConfigModule,
     DatabaseModule,
     CommonModule,
+    BitgetModule,
     TokensModule,
     AlchemyModule,
+    AnalyticsModule,
     HealthModule,
     PortfolioModule,
     IntelligenceModule,

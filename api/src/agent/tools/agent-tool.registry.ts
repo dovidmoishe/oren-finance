@@ -2,6 +2,7 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import type { AgentArtifact } from '../../../types/agent';
 import type { TradeIntent } from '../../../types/execution';
 import type { ChartRange } from '../../../types/market';
+import { BitgetService } from '../../bitget/bitget.service';
 import { ExecutionService } from '../../execution/execution.service';
 import { IntelligenceService } from '../../intelligence/intelligence.service';
 import { MarketService } from '../../market/market.service';
@@ -27,6 +28,7 @@ export type ToolDefinition = {
 @Injectable()
 export class AgentToolRegistry {
   constructor(
+    private readonly bitget: BitgetService,
     private readonly portfolio: PortfolioService,
     private readonly market: MarketService,
     private readonly news: NewsService,
@@ -91,6 +93,29 @@ export class AgentToolRegistry {
           required(input, 'assetIdOrTicker'),
         );
         return { output: stock, artifact: { type: 'stock', data: stock } };
+      }
+
+      case 'getBitgetMarketContext': {
+        const stock = await this.getStockByInput(
+          required(input, 'assetIdOrTicker'),
+        );
+        const range = optional(input, 'range') as ChartRange | undefined;
+        const context = await this.bitget.getMarketContext({
+          assetId: stock.id,
+          ticker: stock.ticker,
+          referencePriceUsd: stock.price,
+          range: range ?? '1D',
+        });
+        const agentContext = {
+          ...context,
+          totalCandleCount: context.candles.length,
+          // Keep tool/SSE payloads lean while retaining recent raw OHLC evidence.
+          candles: context.candles.slice(-20),
+        };
+        return {
+          output: agentContext,
+          artifact: { type: 'bitget_market', data: agentContext },
+        };
       }
 
       case 'getStockChart': {
@@ -216,10 +241,13 @@ export class AgentToolRegistry {
       }
 
       case 'prepareSwap': {
-        const prepared = await this.execution.prepare({
-          quoteId: required(input, 'quoteId'),
-          wallet: required(input, 'wallet'),
-        });
+        const prepared = await this.execution.prepare(
+          {
+            quoteId: required(input, 'quoteId'),
+            wallet: required(input, 'wallet'),
+          },
+          'agent',
+        );
         return {
           output: prepared,
           artifact: { type: 'prepared_swap', data: prepared },
@@ -377,6 +405,17 @@ const TOOL_SCHEMAS: ToolDefinition[] = [
   tool('getStock', 'Get canonical stock detail by asset id or ticker.', {
     assetIdOrTicker: stringSchema,
   }),
+  tool(
+    'getBitgetMarketContext',
+    'Get live Bitget Reality tokenized-stock venue context: price, 24h movement, volume/turnover, bid/ask spread, normalized candles, trading periods, and US market sessions. Use for current, after-hours, overnight, weekend, or explicitly Bitget market questions. This is research context, not a Jupiter execution quote.',
+    {
+      assetIdOrTicker: stringSchema,
+      range: {
+        type: ['string', 'null'],
+        enum: ['1D', '1W', '1M', '3M', '1Y', 'ALL', null],
+      },
+    },
+  ),
   tool(
     'getStockChart',
     'Get normalized stock chart candles.',

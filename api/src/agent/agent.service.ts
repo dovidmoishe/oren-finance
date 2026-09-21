@@ -492,6 +492,7 @@ function artifactFromToolOutput(
     case 'getTradingCalendar': return { type: 'trading_calendar', data: data as never };
     case 'getTradingCalendarDay': return { type: 'trading_calendar_day', data: data as never };
     case 'getStock': return { type: 'stock', data: data as never };
+    case 'getBitgetMarketContext': return { type: 'bitget_market', data: data as never };
     case 'analyzeStock': return { type: 'analysis', data: data as never };
     case 'findOpportunities': return { type: 'opportunities', data: data as never };
     case 'getSwapQuote': return { type: 'quote', data: data as never };

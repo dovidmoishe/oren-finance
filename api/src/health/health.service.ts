@@ -3,6 +3,7 @@ import { ALCHEMY_HEALTH_PUBKEY } from '../config/constants';
 import { DatabaseService } from '../database/database.provider';
 import { TokensService } from '../tokens/tokens.service';
 import { AlchemyService } from '../alchemy/alchemy.service';
+import { VolumeService } from '../analytics/volume.service';
 
 export type HealthStatus = 'ok' | 'degraded' | 'down';
 
@@ -18,6 +19,7 @@ export interface HealthResponse {
     database: HealthCheckResult;
     tokens: HealthCheckResult;
     alchemy: HealthCheckResult;
+    volumeWorker: HealthCheckResult;
   };
   timestamp: string;
 }
@@ -28,24 +30,37 @@ export class HealthService {
     private readonly database: DatabaseService,
     private readonly tokens: TokensService,
     private readonly alchemy: AlchemyService,
+    private readonly volume: VolumeService,
   ) {}
 
   async check(): Promise<HealthResponse> {
-    const [database, tokens, alchemy] = await Promise.all([
+    const [database, tokens, alchemy, volumeWorker] = await Promise.all([
       this.checkDatabase(),
       this.checkTokens(),
       this.checkAlchemy(),
+      this.checkVolumeWorker(),
     ]);
 
-    const results = [database, tokens, alchemy];
+    const results = [database, tokens, alchemy, volumeWorker];
     const allOk = results.every((r) => r.ok);
     const allDown = results.every((r) => !r.ok);
 
     return {
       status: allOk ? 'ok' : allDown ? 'down' : 'degraded',
-      checks: { database, tokens, alchemy },
+      checks: { database, tokens, alchemy, volumeWorker },
       timestamp: new Date().toISOString(),
     };
+  }
+
+  private async checkVolumeWorker(): Promise<HealthCheckResult> {
+    try {
+      const deadJobs = await this.volume.deadJobCount();
+      return deadJobs === 0
+        ? { ok: true }
+        : { ok: false, error: `${deadJobs} volume job(s) require attention` };
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : String(err) };
+    }
   }
 
   private async checkDatabase(): Promise<HealthCheckResult> {

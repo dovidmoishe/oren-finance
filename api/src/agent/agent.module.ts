@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { BitgetModule } from '../bitget/bitget.module';
 import { ExecutionModule } from '../execution/execution.module';
 import { IntelligenceModule } from '../intelligence/intelligence.module';
 import { MarketModule } from '../market/market.module';
@@ -14,6 +15,7 @@ import { AgentToolRegistry } from './tools/agent-tool.registry';
 
 @Module({
   imports: [
+    BitgetModule,
     PortfolioModule,
     MarketModule,
     NewsModule,

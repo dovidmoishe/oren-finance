@@ -15,6 +15,7 @@ import type { MarketNewsItem } from './news';
 import type { Portfolio } from './portfolio';
 import type { Quote } from './quote';
 import type { StockSignals } from './signals';
+import type { BitgetMarketContext } from './bitget';
 import type {
   CopyPortfolioProposal,
   LeaderboardResponse,
@@ -94,6 +95,7 @@ export interface AgentPageContext {
 export type AgentArtifact =
   | { type: 'portfolio'; data: Portfolio }
   | { type: 'stock'; data: Equity }
+  | { type: 'bitget_market'; data: BitgetMarketContext }
   | { type: 'basket'; data: Basket }
   | { type: 'quote'; data: Quote }
   | { type: 'limit_order'; data: import('./limit-order').LimitOrderProposal }
@@ -218,6 +220,11 @@ export interface AgentTools {
   }): Promise<TradingCalendarDayResponse>;
 
   getStock(assetIdOrTicker: string): Promise<Equity>;
+
+  getBitgetMarketContext(
+    assetIdOrTicker: string,
+    range?: string,
+  ): Promise<BitgetMarketContext>;
 
   getStockChart(assetIdOrTicker: string, range?: string): Promise<ChartSeries>;
 

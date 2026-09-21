@@ -53,6 +53,30 @@ export const executionStatusEnum = pgEnum('execution_status', [
   'failed',
 ]);
 
+export const executionFeatureEnum = pgEnum('execution_feature', [
+  'direct',
+  'agent',
+  'basket',
+  'copy_trade',
+  'limit_order',
+]);
+
+export const tradeSideEnum = pgEnum('trade_side', ['buy', 'sell']);
+
+export const executionJobKindEnum = pgEnum('execution_job_kind', [
+  'swap_fill',
+  'limit_fill',
+  'dune_sync',
+]);
+
+export const executionJobStatusEnum = pgEnum('execution_job_status', [
+  'pending',
+  'processing',
+  'retry',
+  'completed',
+  'dead',
+]);
+
 export const agentMessageRoleEnum = pgEnum('agent_message_role', [
   'user',
   'assistant',
@@ -195,11 +219,15 @@ export const executions = pgTable(
     amount: numeric('amount', { precision: 40, scale: 18 }),
     amountUsd: numeric('amount_usd', { precision: 20, scale: 8 }),
     provider: text('provider'),
+    featureSource: executionFeatureEnum('feature_source')
+      .notNull()
+      .default('direct'),
     transactionSignature: text('transaction_signature'),
     status: executionStatusEnum('status').notNull().default('preparing'),
     createdAt: timestamp('created_at', { withTimezone: true })
       .defaultNow()
       .notNull(),
+    submittedAt: timestamp('submitted_at', { withTimezone: true }),
   },
   (table) => [
     index('executions_wallet_created_at_idx').on(
@@ -210,6 +238,80 @@ export const executions = pgTable(
     index('executions_asset_id_idx').on(table.assetId),
     uniqueIndex('executions_transaction_signature_idx').on(
       table.transactionSignature,
+    ),
+  ],
+);
+
+/** Verified Oren-routed stock/USDC fills. Public volume is aggregated only. */
+export const tradeFills = pgTable(
+  'trade_fills',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    executionId: uuid('execution_id').references(() => executions.id),
+    orderKey: text('order_key'),
+    transactionSignature: text('transaction_signature').notNull(),
+    fillIndex: integer('fill_index').notNull().default(0),
+    walletAddress: text('wallet_address').notNull(),
+    assetId: text('asset_id').notNull(),
+    ticker: text('ticker').notNull(),
+    tokenMint: text('token_mint').notNull(),
+    side: tradeSideEnum('side').notNull(),
+    stockAmount: numeric('stock_amount', { precision: 40, scale: 18 }).notNull(),
+    usdNotional: numeric('usd_notional', { precision: 28, scale: 8 }).notNull(),
+    executionPriceUsd: numeric('execution_price_usd', {
+      precision: 28,
+      scale: 8,
+    }).notNull(),
+    featureSource: executionFeatureEnum('feature_source').notNull(),
+    provider: text('provider').notNull(),
+    slot: numeric('slot', { precision: 20, scale: 0 }).notNull(),
+    blockTime: timestamp('block_time', { withTimezone: true }).notNull(),
+    verifiedAt: timestamp('verified_at', { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    uniqueIndex('trade_fills_signature_asset_fill_idx').on(
+      table.transactionSignature,
+      table.assetId,
+      table.fillIndex,
+    ),
+    index('trade_fills_asset_time_idx').on(table.assetId, table.blockTime),
+    index('trade_fills_side_time_idx').on(table.side, table.blockTime),
+    index('trade_fills_feature_time_idx').on(
+      table.featureSource,
+      table.blockTime,
+    ),
+  ],
+);
+
+/** Durable Postgres outbox. Workers lease rows; user requests never await RPC/Dune. */
+export const executionJobs = pgTable(
+  'execution_jobs',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    kind: executionJobKindEnum('kind').notNull(),
+    dedupeKey: text('dedupe_key').notNull(),
+    executionId: uuid('execution_id').references(() => executions.id),
+    orderKey: text('order_key'),
+    transactionSignature: text('transaction_signature'),
+    status: executionJobStatusEnum('status').notNull().default('pending'),
+    attempts: integer('attempts').notNull().default(0),
+    availableAt: timestamp('available_at', { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    lockedAt: timestamp('locked_at', { withTimezone: true }),
+    lastError: text('last_error'),
+    completedAt: timestamp('completed_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    uniqueIndex('execution_jobs_dedupe_key_idx').on(table.dedupeKey),
+    index('execution_jobs_status_available_idx').on(
+      table.status,
+      table.availableAt,
     ),
   ],
 );

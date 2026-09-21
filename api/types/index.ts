@@ -195,3 +195,14 @@ export type {
   SearchStocksQuery,
   SearchStocksResponse,
 } from './api';
+
+export type {
+  FeatureVolume,
+  StockVolume,
+  VerifiedTradeFill,
+  VolumeInterval,
+  VolumePoint,
+  VolumeRange,
+  VolumeResponse,
+  VolumeTotals,
+} from './volume';

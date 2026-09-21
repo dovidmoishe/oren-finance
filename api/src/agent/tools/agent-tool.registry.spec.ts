@@ -2,6 +2,9 @@ import { BadRequestException } from '@nestjs/common';
 import { AgentToolRegistry } from './agent-tool.registry';
 
 describe('AgentToolRegistry', () => {
+  const bitget = {
+    getMarketContext: jest.fn(),
+  };
   const portfolio = {
     getPortfolio: jest.fn(),
     getActivity: jest.fn(),
@@ -45,6 +48,7 @@ describe('AgentToolRegistry', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     registry = new AgentToolRegistry(
+      bitget as never,
       portfolio as never,
       market as never,
       news as never,
@@ -105,6 +109,7 @@ describe('AgentToolRegistry', () => {
         'getTradingCalendarDay',
         'proposeLimitOrder',
         'getLimitOrders',
+        'getBitgetMarketContext',
       ]),
     );
 
@@ -116,6 +121,54 @@ describe('AgentToolRegistry', () => {
         'prepareUnlock',
       ]),
     );
+  });
+
+  it('combines canonical stock resolution with live Bitget context', async () => {
+    market.getStock.mockResolvedValue({
+      id: 'nvda',
+      ticker: 'NVDA',
+      price: 190,
+    });
+    bitget.getMarketContext.mockResolvedValue({
+      available: true,
+      assetId: 'nvda',
+      ticker: 'NVDA',
+      symbol: 'RNVDAUSDT',
+      candles: [],
+    });
+
+    await expect(
+      registry.dispatch('getBitgetMarketContext', {
+        assetIdOrTicker: 'NVDA',
+        range: '1D',
+      }),
+    ).resolves.toEqual({
+      output: {
+        available: true,
+        assetId: 'nvda',
+        ticker: 'NVDA',
+        symbol: 'RNVDAUSDT',
+        candles: [],
+        totalCandleCount: 0,
+      },
+      artifact: {
+        type: 'bitget_market',
+        data: {
+          available: true,
+          assetId: 'nvda',
+          ticker: 'NVDA',
+          symbol: 'RNVDAUSDT',
+          candles: [],
+          totalCandleCount: 0,
+        },
+      },
+    });
+    expect(bitget.getMarketContext).toHaveBeenCalledWith({
+      assetId: 'nvda',
+      ticker: 'NVDA',
+      referencePriceUsd: 190,
+      range: '1D',
+    });
   });
 
   it('dispatches valid read tools to backing services', async () => {
