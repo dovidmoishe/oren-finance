@@ -218,7 +218,7 @@ export function TraderProfile({ slug }: { slug: string }) {
 
   return (
     <div className="mx-auto max-w-[1540px] space-y-6 pb-20">
-      <Link className="inline-flex items-center gap-2 text-sm text-muted hover:text-foreground" href="/leaderboard">
+      <Link className="inline-flex items-center gap-2 text-sm text-muted hover:text-foreground" href="/app/leaderboard">
         <HugeiconsIcon color="currentColor" icon={ArrowLeft01Icon} size={16} strokeWidth={1.8} />
         Back to leaderboard
       </Link>
@@ -301,7 +301,7 @@ export function TraderProfile({ slug }: { slug: string }) {
                   {positions.map((position) => (
                     <TableRow className="transition-colors hover:bg-panel-subtle/70" key={position.assetId}>
                       <TableCell>
-                        <Link className="flex min-w-[220px] items-center gap-3" href={`/stocks/${position.assetId}`}>
+                        <Link className="flex min-w-[220px] items-center gap-3" href={`/app/stocks/${position.assetId}`}>
                           <PositionLogo position={position} />
                           <div className="min-w-0">
                             <div className="truncate font-semibold">{position.name}</div>

@@ -9,21 +9,22 @@ import {
   SafeIcon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
-import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { AgentPanel } from "@/components/agent/agent-panel";
+import { OrenLogo } from "@/components/brand/oren-logo";
 import { WalletButton } from "./wallet-button";
-import { cn } from "@/components/ui";
+import { Button, cn } from "@/components/ui";
 import { useAgentStore } from "@/store";
 
 const navItems = [
-  { href: "/", label: "Dashboard", icon: Home01Icon },
-  { href: "/calendar", label: "Calendar", icon: Calendar03Icon },
-  { href: "/leaderboard", label: "Leaderboard", icon: RankingIcon },
-  { href: "/markets", label: "Market", icon: MarketAnalysisIcon },
-  { href: "/vault", label: "Vault", icon: SafeIcon },
-  { href: "/activity", label: "Activity", icon: Activity01Icon },
+  { href: "/app", label: "Dashboard", icon: Home01Icon },
+  { href: "/app/calendar", label: "Calendar", icon: Calendar03Icon },
+  { href: "/app/leaderboard", label: "Leaderboard", icon: RankingIcon },
+  { href: "/app/markets", label: "Market", icon: MarketAnalysisIcon },
+  { href: "/app/volume", label: "Volume", icon: MarketAnalysisIcon },
+  { href: "/app/vault", label: "Vault", icon: SafeIcon },
+  { href: "/app/activity", label: "Activity", icon: Activity01Icon },
 ];
 
 function Icon({ icon, className, size = 18 }: { icon: IconSvgElement; className?: string; size?: number }) {
@@ -33,29 +34,25 @@ function Icon({ icon, className, size = 18 }: { icon: IconSvgElement; className?
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const agentOpen = useAgentStore((state) => state.panelOpen && state.hydrated);
+  const agentExpanded = useAgentStore((state) => state.expanded);
+  const setPanelOpen = useAgentStore((state) => state.setPanelOpen);
+  const reserveSidecarGutter = agentOpen && !agentExpanded;
 
   return (
     <div className="min-h-screen bg-background text-foreground">
       <header className="sticky top-0 z-30 border-b border-border bg-background/95 backdrop-blur">
         <div className="mx-auto grid min-h-[72px] max-w-[1540px] grid-cols-[auto_1fr_auto] items-center gap-4 px-4 sm:px-6">
-          <Link className="flex items-center gap-2" href="/">
-            <Image
-              alt="Oren"
-              className="h-8 w-8 object-contain"
-              height={32}
-              priority
-              src="/oren-logo.png"
-              width={32}
-            />
+          <Link className="flex items-center gap-2" href="/app">
+            <OrenLogo className="h-8 w-8" size={32} />
             <span className="font-display text-lg font-semibold">Oren</span>
           </Link>
           <nav className="flex items-stretch justify-center gap-3 overflow-x-auto sm:gap-8">
             {navItems.map((item) => {
               const active =
-                item.href === "/"
-                  ? pathname === "/"
-                  : item.href === "/markets"
-                    ? pathname === "/markets" || pathname.startsWith("/stocks/")
+                item.href === "/app"
+                  ? pathname === "/app"
+                  : item.href === "/app/markets"
+                    ? pathname === "/app/markets" || pathname.startsWith("/app/stocks/")
                     : pathname.startsWith(item.href);
 
               return (
@@ -79,10 +76,24 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </div>
         </div>
       </header>
-      <main className={cn("agent-shell-main min-w-0 px-4 py-8 sm:px-6", agentOpen && "2xl:pr-[456px]")}>
+      <main className={cn("agent-shell-main min-w-0 px-4 py-8 sm:px-6", reserveSidecarGutter && "2xl:pr-[456px]")}>
         {children}
       </main>
       <AgentPanel />
+      <div className="pointer-events-none fixed inset-x-0 bottom-5 z-[100] px-4 sm:px-6">
+        <div className="mx-auto flex max-w-[1540px] justify-end">
+          <Button
+            aria-label="Open Oren"
+            className="pointer-events-auto h-14 w-14 overflow-visible rounded-[20px] bg-foreground text-white shadow-[0_18px_50px_rgba(23,23,23,0.24)] transition-[background-color,transform] hover:scale-[1.04] hover:bg-black/85"
+            id="oren-agent-launcher"
+            onClick={() => setPanelOpen(true)}
+            size="icon"
+            variant="primary"
+          >
+            <OrenLogo size={38} />
+          </Button>
+        </div>
+      </div>
     </div>
   );
 }

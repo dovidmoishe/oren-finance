@@ -296,7 +296,7 @@ export function PortfolioDashboard() {
           <p className="text-sm text-muted">Dashboard</p>
           <h1 className="font-display text-4xl font-semibold tracking-normal">Overview</h1>
         </div>
-        <Link className="text-sm font-semibold underline underline-offset-4" href="/portfolio">
+        <Link className="text-sm font-semibold underline underline-offset-4" href="/app/portfolio">
           View Details
         </Link>
       </div>
@@ -338,7 +338,7 @@ export function PortfolioDashboard() {
         <DetailMetric
           change={portfolio?.changePct}
           className="bg-accent-pink"
-          detail="Positions held inside Oren Vault"
+          detail="Timelocked holdings"
           label="Locked Positions"
           value={formatCurrency(portfolio?.lockedValueUsd)}
         />
@@ -350,6 +350,14 @@ export function PortfolioDashboard() {
           value={formatCurrency(portfolio?.cashValueUsd)}
         />
       </div>
+
+      <p className="text-sm text-muted">
+        <Link className="font-semibold text-foreground underline-offset-2 hover:underline" href="/app/vault">
+          Open Vault
+        </Link>
+        {" "}
+        to preview locks and unlock eligibility. The onchain program is not live yet, so signing stays disabled.
+      </p>
 
       <div className="rounded-[24px] border border-border bg-panel p-5">
         <p className="text-sm text-muted">Total portfolio</p>
@@ -384,7 +392,7 @@ export function PortfolioDashboard() {
                   {portfolio.positions.map((position) => (
                     <TableRow className="transition-colors hover:bg-panel-subtle/70" key={position.assetId}>
                       <TableCell>
-                        <Link className="flex min-w-[220px] items-center gap-3" href={`/stocks/${position.assetId}`}>
+                        <Link className="flex min-w-[220px] items-center gap-3" href={`/app/stocks/${position.assetId}`}>
                           <PositionLogo position={position} />
                           <div className="min-w-0">
                             <div className="truncate font-semibold">{position.name}</div>

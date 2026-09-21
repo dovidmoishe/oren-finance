@@ -1,7 +1,7 @@
 import { AppShell } from "@/components/shell";
 import { TraderProfile } from "@/components/social";
 
-export default async function TraderProfilePage({ params }: PageProps<"/leaderboard/[slug]">) {
+export default async function TraderProfilePage({ params }: PageProps<"/app/leaderboard/[slug]">) {
   const { slug } = await params;
 
   return (

@@ -5,7 +5,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Skeleton, cn, formatCurrency, formatPercent } from "@/components/ui";
-import { getStockChart } from "@/services";
+import { getStockChart, getStockVolumes } from "@/services";
 import { useMarketStore } from "@/store";
 import type { MarketCandle, StockSummary } from "@/types";
 
@@ -151,13 +151,13 @@ function formatCompactCurrency(value?: number) {
   }).format(value);
 }
 
-function StockRow({ stock }: { stock: StockSummary }) {
+function StockRow({ stock, orenVolume }: { stock: StockSummary; orenVolume?: number }) {
   const positive = (stock.change24hPct ?? 0) >= 0;
 
   return (
     <Link
       className="grid min-w-[820px] grid-cols-[minmax(240px,1.5fr)_140px_120px_220px_150px_150px] items-center border-t border-border px-4 py-4 text-sm transition-colors hover:bg-panel-subtle"
-      href={`/stocks/${stock.assetId}`}
+      href={`/app/stocks/${stock.assetId}`}
       prefetch={false}
     >
       <div className="flex min-w-0 items-center gap-3">
@@ -172,7 +172,7 @@ function StockRow({ stock }: { stock: StockSummary }) {
         {positive ? "▲" : "▼"} {formatPercent(Math.abs(stock.change24hPct ?? 0), false)}
       </div>
       <Sparkline stock={stock} />
-      <div className="font-mono">{formatCompactCurrency(stock.volume24hUsd)}</div>
+      <div className="font-mono">{formatCompactCurrency(orenVolume)}</div>
       <div className="font-mono">{formatCompactCurrency(stock.liquidityUsd)}</div>
     </Link>
   );
@@ -215,9 +215,13 @@ export function MarketsOverview() {
   const search = useMarketStore((state) => state.search);
   const loadMoreRef = useRef<HTMLDivElement>(null);
   const [query, setQuery] = useState("");
+  const [orenVolumes, setOrenVolumes] = useState<Map<string, number>>(new Map());
 
   useEffect(() => {
     void loadMarkets();
+    void getStockVolumes("24h")
+      .then((response) => setOrenVolumes(new Map(response.items.map((item) => [item.assetId, item.grossVolumeUsd]))))
+      .catch(() => setOrenVolumes(new Map()));
   }, [loadMarkets]);
 
   useEffect(() => {
@@ -301,7 +305,7 @@ export function MarketsOverview() {
             <p className="text-base font-semibold">{item.title}</p>
             <p className="mt-1 text-xs text-foreground/65">{item.detail}</p>
             {item.stock ? (
-              <Link className="mt-6 flex items-end justify-between gap-4" href={`/stocks/${item.stock.assetId}`} prefetch={false}>
+              <Link className="mt-6 flex items-end justify-between gap-4" href={`/app/stocks/${item.stock.assetId}`} prefetch={false}>
                 <div>
                   <p className="font-display text-3xl font-semibold">{item.stock.ticker}</p>
                   <p className="mt-1 line-clamp-1 text-sm text-foreground/70">{item.stock.name}</p>
@@ -324,12 +328,12 @@ export function MarketsOverview() {
           <div className="flex items-center gap-1">Price <SortIcon /></div>
           <div className="flex items-center gap-1">1D <SortIcon /></div>
           <div>Last 24h</div>
-          <div className="flex items-center gap-1">24h Volume <SortIcon /></div>
+          <div className="flex items-center gap-1">Oren Volume 24h <SortIcon /></div>
           <div className="flex items-center gap-1">Liquidity <SortIcon /></div>
         </div>
         {(isLoading || isSearching) && rows.length === 0 ? <TableSkeleton /> : null}
         {rows.length && !(isSearching && searchResults.length === 0)
-          ? rows.map((stock) => <StockRow key={stock.assetId} stock={stock} />)
+          ? rows.map((stock) => <StockRow key={stock.assetId} orenVolume={orenVolumes.get(stock.assetId)} stock={stock} />)
           : null}
         {rows.length && !searching ? (
           <div aria-live="polite" ref={loadMoreRef}>

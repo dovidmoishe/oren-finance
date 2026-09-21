@@ -277,7 +277,7 @@ function LeaderboardTableRow({ row }: { row: LeaderboardRow }) {
   return (
     <Link
       className="grid min-w-[940px] grid-cols-[80px_minmax(240px,1.3fr)_130px_130px_150px_150px_120px] items-center border-t border-border px-4 py-4 text-sm transition-colors hover:bg-panel-subtle"
-      href={`/leaderboard/${row.slug}`}
+      href={`/app/leaderboard/${row.slug}`}
     >
       <div className="font-display text-xl font-semibold">#{row.rank}</div>
       <div className="flex min-w-0 items-center gap-3">
@@ -298,7 +298,7 @@ function LeaderboardTableRow({ row }: { row: LeaderboardRow }) {
 
 function LeaderboardMobileRow({ row }: { row: LeaderboardRow }) {
   return (
-    <Link className="block rounded-[20px] border border-border bg-panel p-4 shadow-sm" href={`/leaderboard/${row.slug}`}>
+    <Link className="block rounded-[20px] border border-border bg-panel p-4 shadow-sm" href={`/app/leaderboard/${row.slug}`}>
       <div className="flex items-start justify-between gap-3">
         <div className="flex min-w-0 items-center gap-3">
           <TraderAvatar row={row} />

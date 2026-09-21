@@ -1,8 +1,6 @@
 import type { Metadata } from "next";
 import localFont from "next/font/local";
-import { AppProviders } from "./providers";
 import "./globals.css";
-import "@solana/wallet-adapter-react-ui/styles.css";
 
 const neueFreigeist = localFont({
   variable: "--font-neue-freigeist",
@@ -112,7 +110,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       className={`${neueFreigeist.variable} h-full antialiased`}
     >
       <body className="min-h-full">
-        <AppProviders>{children}</AppProviders>
+        {children}
       </body>
     </html>
   );
