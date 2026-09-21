@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { IntelligenceModule } from '../intelligence/intelligence.module';
+import { AnalyticsModule } from '../analytics/analytics.module';
 import { PortfolioModule } from '../portfolio/portfolio.module';
 import { TokensModule } from '../tokens/tokens.module';
 import { BasketCache } from './basket-cache';
@@ -13,9 +14,10 @@ import { LimitOrderCache } from './limit-order-cache';
 import { LimitOrderRepository } from './limit-order.repository';
 import { QuoteCache } from './quote-cache';
 import { VariantSelector } from './variant-selector';
+import { LimitOrderFillPoller } from './limit-order-fill.poller';
 
 @Module({
-  imports: [TokensModule, PortfolioModule, IntelligenceModule],
+  imports: [TokensModule, PortfolioModule, IntelligenceModule, AnalyticsModule],
   controllers: [ExecutionController],
   providers: [
     BasketCache,
@@ -28,6 +30,7 @@ import { VariantSelector } from './variant-selector';
     ExecutionRepository,
     LimitOrderRepository,
     ExecutionService,
+    LimitOrderFillPoller,
   ],
   exports: [ExecutionService, JupiterService],
 })

@@ -127,6 +127,14 @@ export class LimitOrderRepository {
       .orderBy(desc(limitOrders.createdAt));
   }
 
+  async listAllOpen(): Promise<LimitOrderRow[]> {
+    return this.db
+      .select()
+      .from(limitOrders)
+      .where(eq(limitOrders.status, 'open'))
+      .orderBy(desc(limitOrders.updatedAt));
+  }
+
   toRecord(row: LimitOrderRow): LimitOrderRecord {
     return {
       id: row.id,

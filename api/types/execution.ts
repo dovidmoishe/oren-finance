@@ -20,6 +20,13 @@ export type ExecutionStatus =
   | 'confirmed'
   | 'failed';
 
+export type ExecutionFeature =
+  | 'direct'
+  | 'agent'
+  | 'basket'
+  | 'copy_trade'
+  | 'limit_order';
+
 /** Intent in canonical-equity terms (before mint / Jupiter resolution). */
 export interface TradeIntent {
   side: TradeSide;
@@ -44,6 +51,7 @@ export interface QuoteRequest {
 }
 
 export interface PreparedTransaction {
+  executionId: string;
   quoteId: string;
   wallet: string;
   /** Base64-serialized transaction for wallet signing. */
@@ -68,6 +76,7 @@ export interface Basket {
   allocations: BasketAllocation[];
   thesis?: string;
   riskLabel?: string;
+  featureSource?: Extract<ExecutionFeature, 'basket' | 'copy_trade'>;
   createdAt: Date;
 }
 

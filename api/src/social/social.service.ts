@@ -189,6 +189,7 @@ export class SocialService {
       allocations,
       thesis: `Copying ${source.displayName}'s observed Oren portfolio weights with ${formatUsd(totalAmountUsd)}.`,
       riskLabel: riskForBasket(sourcePortfolio),
+      featureSource: 'copy_trade',
     });
 
     return {

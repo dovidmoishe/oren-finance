@@ -132,17 +132,19 @@ export type PostExecutionPrepareResponse = PreparedTransaction;
 
 /** POST /execution/confirm */
 export interface PostExecutionConfirmRequest {
+  executionId?: string;
   quoteId: string;
   wallet: string;
   signature: string;
 }
 
 export interface PostExecutionConfirmResponse {
+  executionId: string;
   quoteId: string;
   wallet: string;
   signature: string;
-  status: 'confirmed';
-  portfolioRefreshed: boolean;
+  status: 'submitted';
+  trackingStatus: 'pending';
 }
 
 /** POST /execution/basket (P1) */

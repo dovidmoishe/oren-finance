@@ -54,6 +54,8 @@ describe('ExecutionService basket support', () => {
     insert: jest.fn(),
     updateStatus: jest.fn(),
     findLatestAwaitingSignature: jest.fn(),
+    submitAndEnqueue: jest.fn(),
+    findById: jest.fn(),
   };
   const portfolio = {
     getPortfolio: jest.fn(),
@@ -103,6 +105,27 @@ describe('ExecutionService basket support', () => {
       tokens as never,
       intelligence as never,
     );
+  });
+
+  it('acknowledges a submitted swap without waiting for RPC or portfolio refresh', async () => {
+    quoteCache.getPendingExecution.mockReturnValue({ executionId: 'execution-1', wallet });
+    repository.submitAndEnqueue.mockResolvedValue({ id: 'execution-1' });
+
+    await expect(service.confirm({
+      executionId: 'execution-1',
+      quoteId: 'quote-NVDA',
+      wallet,
+      signature: 'signature-1',
+    })).resolves.toEqual({
+      executionId: 'execution-1',
+      quoteId: 'quote-NVDA',
+      wallet,
+      signature: 'signature-1',
+      status: 'submitted',
+      trackingStatus: 'pending',
+    });
+    expect(repository.submitAndEnqueue).toHaveBeenCalled();
+    expect(portfolio.getPortfolio).not.toHaveBeenCalled();
   });
 
   it('creates score-weighted baskets from explicit candidates', async () => {

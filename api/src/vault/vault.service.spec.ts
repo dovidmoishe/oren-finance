@@ -1,5 +1,5 @@
-import { BadRequestException } from '@nestjs/common';
-import { VaultService } from './vault.service';
+import { BadRequestException, ServiceUnavailableException } from '@nestjs/common';
+import { VaultService, VAULT_PROGRAM_NOT_LIVE } from './vault.service';
 
 const wallet = '11111111111111111111111111111111';
 const mint = 'So11111111111111111111111111111111111111112';
@@ -28,17 +28,23 @@ describe('VaultService', () => {
     getMarketSnapshots: jest.fn(),
     resolveMint: jest.fn(),
   };
+  const env = {
+    VAULT_PROGRAM_LIVE: true,
+  };
+
 
   let service: VaultService;
 
   beforeEach(() => {
     jest.clearAllMocks();
+    env.VAULT_PROGRAM_LIVE = true;
     service = new VaultService(
       repository as never,
       builder as never,
       alchemy as never,
       portfolio as never,
       tokens as never,
+      env as never,
     );
   });
 
@@ -116,4 +122,61 @@ describe('VaultService', () => {
       }),
     ).rejects.toBeInstanceOf(BadRequestException);
   });
+
+  it('includes programLive=false on list when the program is not live', async () => {
+    env.VAULT_PROGRAM_LIVE = false;
+    repository.listByOwner.mockResolvedValue([]);
+    tokens.getMarketSnapshots.mockResolvedValue([]);
+
+    await expect(service.listVaults(wallet)).resolves.toMatchObject({
+      walletAddress: wallet,
+      totalLockedValueUsd: 0,
+      positions: [],
+      programLive: false,
+    });
+  });
+
+  it('returns 503 with VAULT_PROGRAM_NOT_LIVE when preparing a lock while not live', async () => {
+    env.VAULT_PROGRAM_LIVE = false;
+
+    await expect(
+      service.prepareLock({
+        action: 'lock',
+        wallet,
+        asset: 'NVDA',
+        amount: 1,
+        unlockAt: new Date('2027-01-01T00:00:00Z'),
+      }),
+    ).rejects.toBeInstanceOf(ServiceUnavailableException);
+
+    try {
+      await service.prepareLock({
+        action: 'lock',
+        wallet,
+        asset: 'NVDA',
+        amount: 1,
+        unlockAt: new Date('2027-01-01T00:00:00Z'),
+      });
+    } catch (error) {
+      const body = (error as ServiceUnavailableException).getResponse() as {
+        error?: string;
+      };
+      expect(body.error).toBe(VAULT_PROGRAM_NOT_LIVE);
+    }
+
+    expect(builder.buildLock).not.toHaveBeenCalled();
+  });
+
+  it('returns 503 when confirming unlock while not live', async () => {
+    env.VAULT_PROGRAM_LIVE = false;
+
+    await expect(
+      service.confirmUnlock({
+        wallet,
+        signature: 'sig',
+        lockAddress: wallet,
+      }),
+    ).rejects.toBeInstanceOf(ServiceUnavailableException);
+  });
+
 });

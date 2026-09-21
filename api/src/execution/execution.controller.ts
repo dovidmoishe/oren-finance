@@ -89,6 +89,11 @@ class ExecutionPrepareDto implements PostExecutionPrepareRequest {
 }
 
 class ExecutionConfirmDto implements PostExecutionConfirmRequest {
+  @IsOptional()
+  @IsString()
+  @MinLength(1)
+  executionId?: string;
+
   @IsString()
   @MinLength(1)
   quoteId!: string;
@@ -268,6 +273,11 @@ export class ExecutionController {
     @Body() body: ExecutionConfirmDto,
   ): Promise<PostExecutionConfirmResponse> {
     return this.execution.confirm(body);
+  }
+
+  @Get(':executionId/status')
+  status(@Param('executionId') executionId: string) {
+    return this.execution.getExecutionStatus(executionId);
   }
 
   @Post('basket')

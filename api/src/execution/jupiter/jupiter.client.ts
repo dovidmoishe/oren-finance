@@ -11,11 +11,13 @@ import type { JupiterQuoteRaw, JupiterSwapRaw } from './jupiter.types';
 export class JupiterClient {
   private readonly logger = new Logger(JupiterClient.name);
   private readonly baseUrl: string;
+  private readonly trackingAccount?: string;
 
   constructor(@Inject(APP_ENV) env: AppEnv) {
     this.baseUrl = (
       env.JUPITER_API_URL ?? 'https://lite-api.jup.ag/swap/v1'
     ).replace(/\/$/, '');
+    this.trackingAccount = env.JUPITER_TRACKING_ACCOUNT;
   }
 
   async getQuote(params: {
@@ -39,6 +41,8 @@ export class JupiterClient {
     wrapAndUnwrapSol?: boolean;
     dynamicComputeUnitLimit?: boolean;
     useSharedAccounts?: boolean;
+    /** null explicitly disables the configured integrator marker. */
+    trackingAccount?: string | null;
   }): Promise<JupiterSwapRaw> {
     return this.request<JupiterSwapRaw>(`${this.baseUrl}/swap`, {
       method: 'POST',
@@ -49,6 +53,10 @@ export class JupiterClient {
         wrapAndUnwrapSol: body.wrapAndUnwrapSol ?? true,
         dynamicComputeUnitLimit: body.dynamicComputeUnitLimit ?? true,
         useSharedAccounts: body.useSharedAccounts,
+        trackingAccount:
+          body.trackingAccount === null
+            ? undefined
+            : body.trackingAccount ?? this.trackingAccount,
       }),
     });
   }

@@ -62,3 +62,26 @@ export interface AlchemySignatureInfo {
   confirmationStatus?: string;
   memo?: string | null;
 }
+
+export interface AlchemyParsedTokenBalance {
+  accountIndex?: number;
+  mint?: string;
+  owner?: string;
+  uiTokenAmount?: {
+    amount?: string;
+    decimals?: number;
+    uiAmount?: number | null;
+    uiAmountString?: string;
+  };
+}
+
+export interface AlchemyParsedTransaction {
+  slot?: number;
+  blockTime?: number | null;
+  meta?: {
+    err?: unknown;
+    fee?: number;
+    preTokenBalances?: AlchemyParsedTokenBalance[];
+    postTokenBalances?: AlchemyParsedTokenBalance[];
+  };
+}

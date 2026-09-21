@@ -22,6 +22,8 @@ export interface VaultSummary {
   walletAddress: string;
   totalLockedValueUsd: number;
   positions: VaultPosition[];
+  /** False until the onchain vault program is deployed. Clients must not offer signing. */
+  programLive: boolean;
 }
 
 export interface LockIntent {

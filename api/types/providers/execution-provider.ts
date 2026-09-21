@@ -11,7 +11,10 @@ export interface ExecutionProvider {
 
   getQuote(input: QuoteRequest): Promise<Quote>;
 
-  prepareSwap(quote: Quote, wallet: string): Promise<PreparedTransaction>;
+  prepareSwap(
+    quote: Quote,
+    wallet: string,
+  ): Promise<Omit<PreparedTransaction, 'executionId'>>;
 
   validateQuote?(quote: Quote): Promise<boolean>;
 }

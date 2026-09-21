@@ -1,4 +1,10 @@
-import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import {
+  BadRequestException,
+  Inject,
+  Injectable,
+  Logger,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import type { TokenizedEquity } from '../../types/equity';
 import type { TokenAccount } from '../../types/providers/alchemy-provider';
 import type {
@@ -13,6 +19,8 @@ import type {
 } from '../../types/vault';
 import { AlchemyService } from '../alchemy/alchemy.service';
 import { InvalidWalletAddressError } from '../common/errors/provider.errors';
+import { APP_ENV } from '../config/constants';
+import type { AppEnv } from '../config/env.schema';
 import { PortfolioService } from '../portfolio/portfolio.service';
 import { TokensService } from '../tokens/tokens.service';
 import {
@@ -26,6 +34,11 @@ import {
 } from './vault.repository';
 import { PublicKey } from '@solana/web3.js';
 
+export const VAULT_PROGRAM_NOT_LIVE = 'VAULT_PROGRAM_NOT_LIVE';
+
+const VAULT_NOT_LIVE_MESSAGE =
+  'Oren Vault program is not live yet. Lock and unlock transactions cannot be prepared or confirmed until the onchain program is deployed.';
+
 @Injectable()
 export class VaultService {
   private readonly logger = new Logger(VaultService.name);
@@ -36,6 +49,7 @@ export class VaultService {
     private readonly alchemy: AlchemyService,
     private readonly portfolio: PortfolioService,
     private readonly tokens: TokensService,
+    @Inject(APP_ENV) private readonly env: AppEnv,
   ) {}
 
   async listVaults(walletAddress: string): Promise<VaultSummary> {
@@ -49,10 +63,12 @@ export class VaultService {
         0,
       ),
       positions,
+      programLive: this.env.VAULT_PROGRAM_LIVE,
     };
   }
 
   async prepareLock(input: LockIntent): Promise<PreparedVaultTransaction> {
+    this.assertProgramLive();
     const wallet = assertPublicKey(input.wallet, 'wallet');
     const unlockAt = toDate(input.unlockAt);
     if (unlockAt.getTime() <= Date.now()) {
@@ -91,6 +107,7 @@ export class VaultService {
   }
 
   async confirmLock(input: ConfirmLockRequest): Promise<ConfirmVaultResponse> {
+    this.assertProgramLive();
     const wallet = assertPublicKey(input.wallet, 'wallet');
     const signature = assertNonEmpty(input.signature, 'signature');
     await this.assertConfirmed(signature);
@@ -115,6 +132,7 @@ export class VaultService {
   }
 
   async prepareUnlock(input: UnlockIntent): Promise<PreparedVaultTransaction> {
+    this.assertProgramLive();
     const wallet = assertPublicKey(input.wallet, 'wallet');
     const lockAddress = assertPublicKey(input.lockAddress, 'lockAddress');
     const row = await this.getIndexedPosition(wallet, lockAddress);
@@ -148,6 +166,7 @@ export class VaultService {
   async confirmUnlock(
     input: ConfirmUnlockRequest,
   ): Promise<ConfirmVaultResponse> {
+    this.assertProgramLive();
     const wallet = assertPublicKey(input.wallet, 'wallet');
     const lockAddress = assertPublicKey(input.lockAddress, 'lockAddress');
     const signature = assertNonEmpty(input.signature, 'signature');
@@ -166,6 +185,18 @@ export class VaultService {
     });
 
     return this.confirmResponse(wallet, lockAddress, signature);
+  }
+
+
+  private assertProgramLive(): void {
+    if (this.env.VAULT_PROGRAM_LIVE) {
+      return;
+    }
+    throw new ServiceUnavailableException({
+      statusCode: 503,
+      message: VAULT_NOT_LIVE_MESSAGE,
+      error: VAULT_PROGRAM_NOT_LIVE,
+    });
   }
 
   private async selectLockVariant(wallet: string, input: LockIntent): Promise<{
@@ -221,6 +252,9 @@ export class VaultService {
   }
 
   private async enrich(rows: VaultPositionRow[]): Promise<VaultPosition[]> {
+    if (rows.length === 0) {
+      return [];
+    }
     const mints = [...new Set(rows.map((row) => row.mint))];
     const snapshots = await this.tokens.getMarketSnapshots(mints).catch((err) => {
       this.logger.warn(

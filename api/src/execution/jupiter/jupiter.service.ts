@@ -111,7 +111,7 @@ export class JupiterService implements ExecutionProvider {
   async prepareSwap(
     quote: Quote,
     wallet: string,
-  ): Promise<PreparedTransaction> {
+  ): Promise<Omit<PreparedTransaction, 'executionId'>> {
     await this.validateQuote(quote);
 
     const quoteResponse = quote.routePayload as JupiterQuoteRaw | undefined;
@@ -119,18 +119,25 @@ export class JupiterService implements ExecutionProvider {
       throw new QuoteExpiredError('Quote missing Jupiter route payload');
     }
 
-    const swap = await this.client
-      .postSwap({
+    let swap;
+    try {
+      swap = await this.client.postSwap({
         quoteResponse,
         userPublicKey: wallet,
         useSharedAccounts: false,
-      })
-      .catch(() =>
-        this.client.postSwap({
+      });
+    } catch {
+      try {
+        swap = await this.client.postSwap({ quoteResponse, userPublicKey: wallet });
+      } catch {
+        // Attribution must never prevent a user from receiving a transaction.
+        swap = await this.client.postSwap({
           quoteResponse,
           userPublicKey: wallet,
-        }),
-      );
+          trackingAccount: null,
+        });
+      }
+    }
 
     if (!swap.swapTransaction) {
       throw new QuoteExpiredError('Jupiter did not return a swap transaction');

@@ -10,6 +10,7 @@ import { AlchemyClient } from './alchemy.client';
 import type {
   AlchemySignatureInfo,
   AlchemyTokenAccountRaw,
+  AlchemyParsedTransaction,
 } from './alchemy.types';
 
 @Injectable()
@@ -122,14 +123,7 @@ export class AlchemyService implements AlchemyProvider {
   }
 
   async getTransaction(signature: string): Promise<WalletTransaction | null> {
-    const tx = await this.client.call<{
-      slot?: number;
-      blockTime?: number | null;
-      meta?: { err?: unknown; fee?: number };
-    } | null>('getTransaction', [
-      signature,
-      { encoding: 'json', maxSupportedTransactionVersion: 0 },
-    ]);
+    const tx = await this.getParsedTransaction(signature);
 
     if (!tx) return null;
 
@@ -141,6 +135,19 @@ export class AlchemyService implements AlchemyProvider {
       feeSol: tx.meta?.fee !== undefined ? tx.meta.fee / 1e9 : undefined,
       err: tx.meta?.err ?? undefined,
     };
+  }
+
+  async getParsedTransaction(
+    signature: string,
+  ): Promise<AlchemyParsedTransaction | null> {
+    return this.client.call<AlchemyParsedTransaction | null>('getTransaction', [
+      signature,
+      {
+        encoding: 'jsonParsed',
+        commitment: 'finalized',
+        maxSupportedTransactionVersion: 0,
+      },
+    ]);
   }
 
   async getTransactionStatus(signature: string): Promise<TransactionStatus> {

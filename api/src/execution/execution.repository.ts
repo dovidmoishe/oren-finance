@@ -2,8 +2,12 @@ import { Inject, Injectable } from '@nestjs/common';
 import { and, desc, eq } from 'drizzle-orm';
 import { DRIZZLE } from '../config/constants';
 import type { Database } from '../database/database.provider';
-import { executions } from '../database/schema';
-import type { ExecutionStatus, ExecutionType } from '../../types/execution';
+import { executionJobs, executions } from '../database/schema';
+import type {
+  ExecutionFeature,
+  ExecutionStatus,
+  ExecutionType,
+} from '../../types/execution';
 
 export type ExecutionRow = typeof executions.$inferSelect;
 
@@ -18,6 +22,7 @@ export interface InsertExecutionInput {
   amount?: number;
   amountUsd?: number;
   provider?: string;
+  featureSource?: ExecutionFeature;
   status: ExecutionStatus;
   transactionSignature?: string;
 }
@@ -42,11 +47,48 @@ export class ExecutionRepository {
         amountUsd:
           input.amountUsd !== undefined ? String(input.amountUsd) : undefined,
         provider: input.provider,
+        featureSource: input.featureSource ?? 'direct',
         status: input.status,
         transactionSignature: input.transactionSignature,
       })
       .returning();
     return row;
+  }
+
+  async submitAndEnqueue(input: {
+    executionId: string;
+    walletAddress: string;
+    transactionSignature: string;
+  }): Promise<ExecutionRow | null> {
+    return this.db.transaction(async (tx) => {
+      const [row] = await tx
+        .update(executions)
+        .set({
+          status: 'submitted',
+          transactionSignature: input.transactionSignature,
+          submittedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(executions.id, input.executionId),
+            eq(executions.walletAddress, input.walletAddress),
+          ),
+        )
+        .returning();
+      if (!row) return null;
+
+      await tx
+        .insert(executionJobs)
+        .values({
+          kind: 'swap_fill',
+          dedupeKey: `swap:${input.transactionSignature}`,
+          executionId: row.id,
+          transactionSignature: input.transactionSignature,
+          status: 'pending',
+        })
+        .onConflictDoNothing({ target: executionJobs.dedupeKey });
+      return row;
+    });
   }
 
   async updateStatus(

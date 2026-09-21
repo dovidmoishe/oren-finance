@@ -13,6 +13,7 @@ import type {
   PreparedBasketPurchase,
   QuoteRequest,
   TradeIntent,
+  ExecutionFeature,
 } from '../../types/execution';
 import type {
   LimitOrderIntent,
@@ -158,6 +159,7 @@ export class ExecutionService {
       allocations,
       thesis: buildBasketThesis(input.prompt, allocations.length),
       riskLabel: riskLabelFromCandidates(selected),
+      featureSource: 'basket',
       createdAt: new Date(),
     };
 
@@ -170,6 +172,7 @@ export class ExecutionService {
     allocations: Basket['allocations'];
     thesis: string;
     riskLabel?: Basket['riskLabel'];
+    featureSource?: Extract<ExecutionFeature, 'basket' | 'copy_trade'>;
   }): Basket {
     const totalAmountUsd = Number(input.totalAmountUsd);
     if (!Number.isFinite(totalAmountUsd) || totalAmountUsd <= 0) {
@@ -185,6 +188,7 @@ export class ExecutionService {
       allocations: input.allocations,
       thesis: input.thesis,
       riskLabel: input.riskLabel,
+      featureSource: input.featureSource ?? 'basket',
       createdAt: new Date(),
     };
 
@@ -216,10 +220,10 @@ export class ExecutionService {
           ticker: allocation.ticker,
           amountUsd: allocation.amountUsd,
         });
-        const preparedTransaction = await this.prepare({
-          quoteId: quote.id,
-          wallet,
-        });
+        const preparedTransaction = await this.prepare(
+          { quoteId: quote.id, wallet },
+          basket.featureSource ?? 'basket',
+        );
         transactions.push(preparedTransaction);
         legs.push({
           assetId: allocation.assetId,
@@ -257,6 +261,7 @@ export class ExecutionService {
 
   async prepare(
     input: PostExecutionPrepareRequest,
+    featureSource: ExecutionFeature = 'direct',
   ): Promise<PreparedTransaction> {
     const wallet = assertWallet(input.wallet);
     if (!input.quoteId?.trim()) {
@@ -280,14 +285,16 @@ export class ExecutionService {
       amount: quote.side === 'buy' ? quote.outputAmount : quote.inputAmount,
       amountUsd: quote.amountUsd,
       provider: quote.provider,
+      featureSource,
       status: 'awaiting_signature',
     });
 
     this.cache.attachExecution(quote.id, row.id, wallet);
-    return prepared;
+    return { ...prepared, executionId: row.id };
   }
 
   async confirm(input: {
+    executionId?: string;
     quoteId: string;
     wallet: string;
     signature: string;
@@ -300,13 +307,8 @@ export class ExecutionService {
       throw new BadRequestException('signature is required');
     }
 
-    let executionId =
-      this.cache.getPendingExecution(input.quoteId)?.executionId ?? null;
-
-    if (!executionId) {
-      const latest = await this.repository.findLatestAwaitingSignature(wallet);
-      executionId = latest?.id ?? null;
-    }
+    const cached = this.cache.getPendingExecution(input.quoteId);
+    const executionId = input.executionId?.trim() || cached?.executionId;
 
     if (!executionId) {
       throw new ExecutionNotFoundError(
@@ -314,31 +316,35 @@ export class ExecutionService {
       );
     }
 
-    await this.repository.updateStatus(executionId, {
-      status: 'confirmed',
+    const submitted = await this.repository.submitAndEnqueue({
+      executionId,
+      walletAddress: wallet,
       transactionSignature: input.signature.trim(),
     });
+    if (!submitted) {
+      throw new ExecutionNotFoundError(`Execution not found: ${executionId}`);
+    }
 
     this.cache.delete(input.quoteId);
 
-    let portfolioRefreshed = false;
-    try {
-      await this.portfolio.getPortfolio(wallet);
-      portfolioRefreshed = true;
-    } catch (err) {
-      this.logger.warn(
-        `Post-confirm portfolio refresh failed: ${
-          err instanceof Error ? err.message : String(err)
-        }`,
-      );
-    }
-
     return {
+      executionId,
       quoteId: input.quoteId,
       wallet,
       signature: input.signature.trim(),
-      status: 'confirmed',
-      portfolioRefreshed,
+      status: 'submitted',
+      trackingStatus: 'pending',
+    };
+  }
+
+  async getExecutionStatus(executionId: string) {
+    const row = await this.repository.findById(executionId);
+    if (!row) throw new ExecutionNotFoundError(`Execution not found: ${executionId}`);
+    return {
+      executionId: row.id,
+      signature: row.transactionSignature ?? undefined,
+      status: row.status,
+      submittedAt: row.submittedAt ?? undefined,
     };
   }
 
@@ -477,6 +483,7 @@ export class ExecutionService {
         proposal.side === 'buy' ? proposal.takingAmount : proposal.makingAmount,
       amountUsd: proposal.amountUsd,
       provider: proposal.provider,
+      featureSource: 'limit_order',
       status: 'awaiting_signature',
     });
 
