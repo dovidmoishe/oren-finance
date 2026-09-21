@@ -117,6 +117,27 @@ impl TestContext {
         self.send_tx(&[instruction])
     }
 
+    pub fn send_top_up_vault(&mut self, amount: u64) -> Result<(), String> {
+        let (lockbox, _) = self.lockbox_pda();
+        let (token_vault, _) = self.token_vault_pda(&lockbox);
+
+        let instruction = Instruction::new_with_bytes(
+            self.program_id,
+            &program::instruction::TopUpVault { amount }.data(),
+            program::accounts::TopUpVault {
+                user: self.user.pubkey(),
+                token_mint: self.mint,
+                user_token_account: self.user_token_account,
+                lockbox,
+                token_vault,
+                token_program: TOKEN_ID.into(),
+            }
+            .to_account_metas(None),
+        );
+
+        self.send_tx(&[instruction])
+    }
+
     pub fn send_withdraw_tokens(&mut self) -> Result<(), String> {
         let (lockbox, _) = self.lockbox_pda();
         let (token_vault, _) = self.token_vault_pda(&lockbox);
