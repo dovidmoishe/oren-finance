@@ -13,9 +13,14 @@ coverage/
 .env
 .env.*
 !.env.example
-!.env.production.example
 .release.env
 backups/
+DEPLOYMENT.md
+*.pem
+*.p12
+*.pfx
+id_ed25519*
+id_rsa*
 
 # Logs & OS
 logs/
