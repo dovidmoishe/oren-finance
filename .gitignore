@@ -17,10 +17,11 @@ coverage/
 backups/
 DEPLOYMENT.md
 *.pem
+*.key
 *.p12
 *.pfx
-id_ed25519*
-id_rsa*
+*id_ed25519*
+*id_rsa*
 
 # Logs & OS
 logs/
