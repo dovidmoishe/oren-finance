@@ -17,10 +17,9 @@ fi
 apt-get update
 apt-get install -y ca-certificates curl gnupg ufw
 install -m 0755 -d /etc/apt/keyrings
-if [[ ! -f /etc/apt/keyrings/docker.asc ]]; then
-  curl -fsSL https://download.docker.com/linux/"$(. /etc/os-release && echo "${ID}")"/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.asc
-  chmod a+r /etc/apt/keyrings/docker.asc
-fi
+curl -fsSL https://download.docker.com/linux/"$(. /etc/os-release && echo "${ID}")"/gpg \
+  -o /etc/apt/keyrings/docker.asc
+chmod a+r /etc/apt/keyrings/docker.asc
 ARCH="$(dpkg --print-architecture)"
 CODENAME="$(. /etc/os-release && echo "${VERSION_CODENAME}")"
 DISTRO="$(. /etc/os-release && echo "${ID}")"
