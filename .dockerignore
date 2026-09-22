@@ -1,0 +1,18 @@
+# Production services build from api/ and app/ independently. Keep this for
+# tooling and any future root-level Docker build.
+.git
+.github
+node_modules
+.pnpm-store
+**/node_modules
+**/.next
+**/dist
+**/coverage
+**/*.tsbuildinfo
+.env
+.env.*
+!.env.example
+*.log
+docs
+program/target
+program/test-ledger

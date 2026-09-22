@@ -13,6 +13,9 @@ coverage/
 .env
 .env.*
 !.env.example
+!.env.production.example
+.release.env
+backups/
 
 # Logs & OS
 logs/

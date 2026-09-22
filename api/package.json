@@ -21,7 +21,7 @@
     "test:bitget:live": "node scripts/bitget-live-smoke.mjs",
     "test:bitget:agent-live": "node scripts/bitget-agent-live-smoke.mjs",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "tsx lib/db/migrate.ts",
+    "db:migrate": "node lib/db/migrate.mjs",
     "db:sync-stocks": "node lib/db/sync-stocks.mjs",
     "db:studio": "drizzle-kit studio"
   },

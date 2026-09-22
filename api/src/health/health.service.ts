@@ -52,6 +52,11 @@ export class HealthService {
     };
   }
 
+  async ready(): Promise<{ status: 'ok' }> {
+    await this.database.ping();
+    return { status: 'ok' };
+  }
+
   private async checkVolumeWorker(): Promise<HealthCheckResult> {
     try {
       const deadJobs = await this.volume.deadJobCount();

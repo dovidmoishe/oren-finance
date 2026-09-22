@@ -1,0 +1,20 @@
+(security_headers) {
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+	}
+}
+
+{$DOMAIN} {
+	encode zstd gzip
+	import security_headers
+	reverse_proxy app:3000
+}
+
+{$API_DOMAIN} {
+	encode zstd gzip
+	import security_headers
+	reverse_proxy api:3000
+}

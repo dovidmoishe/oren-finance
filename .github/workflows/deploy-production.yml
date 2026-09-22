@@ -1,0 +1,118 @@
+name: Deploy production release
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [master]
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: Immutable Git SHA to deploy or roll back to
+        required: true
+        type: string
+
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build:
+    name: Build and publish release images
+    if: >-
+      github.event_name == 'workflow_run' &&
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_repository.full_name == github.repository
+    runs-on: ubuntu-24.04
+    outputs:
+      image_tag: ${{ steps.release.outputs.image_tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+      - id: release
+        run: echo "image_tag=${{ github.event.workflow_run.head_sha }}" >> "$GITHUB_OUTPUT"
+      - name: Validate public application origin
+        env:
+          PUBLIC_APP_ORIGIN: ${{ vars.PUBLIC_APP_ORIGIN }}
+          PUBLIC_API_ORIGIN: ${{ vars.PUBLIC_API_ORIGIN }}
+        run: |
+          test -n "$PUBLIC_APP_ORIGIN"
+          test -n "$PUBLIC_API_ORIGIN"
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: ./api
+          file: ./api/Dockerfile
+          push: true
+          tags: ghcr.io/${{ github.repository_owner }}/oren-api:${{ steps.release.outputs.image_tag }}
+          cache-from: type=gha,scope=oren-api
+          cache-to: type=gha,mode=max,scope=oren-api
+      - uses: docker/build-push-action@v6
+        with:
+          context: ./app
+          file: ./app/Dockerfile
+          build-args: |
+            NEXT_PUBLIC_OREN_API_URL=${{ vars.PUBLIC_API_ORIGIN }}/api
+          push: true
+          tags: ghcr.io/${{ github.repository_owner }}/oren-app:${{ steps.release.outputs.image_tag }}
+          cache-from: type=gha,scope=oren-app
+          cache-to: type=gha,mode=max,scope=oren-app
+
+  deploy:
+    name: Deploy release to VPS
+    needs: [build]
+    if: >-
+      always() &&
+      (github.event_name == 'workflow_dispatch' || needs.build.result == 'success')
+    runs-on: ubuntu-24.04
+    environment: production
+    permissions:
+      contents: read
+    env:
+      IMAGE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.image_tag || needs.build.outputs.image_tag }}
+      GHCR_OWNER: ${{ github.repository_owner }}
+      VPS_HOST: ${{ secrets.VPS_HOST }}
+      VPS_PORT: ${{ secrets.VPS_PORT }}
+      VPS_USER: ${{ secrets.VPS_USER }}
+      VPS_SSH_KNOWN_HOSTS: ${{ secrets.VPS_SSH_KNOWN_HOSTS }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate production configuration
+        env:
+          PUBLIC_APP_ORIGIN: ${{ vars.PUBLIC_APP_ORIGIN }}
+          PUBLIC_API_ORIGIN: ${{ vars.PUBLIC_API_ORIGIN }}
+        run: |
+          test -n "$IMAGE_TAG"
+          test -n "$PUBLIC_APP_ORIGIN"
+          test -n "$PUBLIC_API_ORIGIN"
+          test -n "$VPS_HOST"
+          test -n "$VPS_USER"
+          test -n "$VPS_SSH_KNOWN_HOSTS"
+      - uses: webfactory/ssh-agent@v0.9.1
+        with:
+          ssh-private-key: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
+      - name: Configure verified VPS host key
+        run: |
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$VPS_SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+      - name: Copy release configuration
+        run: |
+          scp -P "${VPS_PORT:-22}" -o StrictHostKeyChecking=yes \
+            deploy.yml Caddyfile "$VPS_USER@$VPS_HOST:/opt/oren/"
+          scp -r -P "${VPS_PORT:-22}" -o StrictHostKeyChecking=yes \
+            infra "$VPS_USER@$VPS_HOST:/opt/oren/"
+      - name: Activate immutable release
+        run: |
+          ssh -p "${VPS_PORT:-22}" -o StrictHostKeyChecking=yes "$VPS_USER@$VPS_HOST" \
+            "cd /opt/oren && printf 'GHCR_OWNER=%s\\nIMAGE_TAG=%s\\n' '$GHCR_OWNER' '$IMAGE_TAG' > .release.env && docker compose --env-file .env --env-file .release.env -f deploy.yml pull && docker compose --env-file .env --env-file .release.env -f deploy.yml up -d --wait --wait-timeout 180 --remove-orphans && docker image prune -f"
