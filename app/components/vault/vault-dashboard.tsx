@@ -38,6 +38,10 @@ function defaultUnlockDate() {
   return date.toISOString().slice(0, 10);
 }
 
+function minimumUnlockDate() {
+  return new Date(Date.now() + 86_400_000).toISOString().slice(0, 10);
+}
+
 function daysUntil(iso: string) {
   return Math.max(0, Math.ceil((new Date(iso).getTime() - Date.now()) / 86_400_000));
 }
@@ -89,6 +93,7 @@ export function VaultDashboard() {
   const [assetId, setAssetId] = useState("");
   const [amount, setAmount] = useState("");
   const [unlockDate, setUnlockDate] = useState(defaultUnlockDate);
+  const [minUnlockDate] = useState(minimumUnlockDate);
   const [formError, setFormError] = useState<string>();
   const [review, setReview] = useState<VaultReviewDetails>();
 
@@ -106,16 +111,6 @@ export function VaultDashboard() {
     void loadVaults(wallet);
     void loadPortfolio(wallet);
   }, [connected, loadPortfolio, loadVaults, resetVault, wallet]);
-
-  useEffect(() => {
-    if (!selected) {
-      setAssetId("");
-      return;
-    }
-    if (!assetId || !lockable.some((position) => position.assetId === assetId)) {
-      setAssetId(selected.assetId);
-    }
-  }, [assetId, lockable, selected]);
 
   const upcoming = useMemo(
     () =>
@@ -377,7 +372,7 @@ export function VaultDashboard() {
                   <span className="font-semibold">Unlock date</span>
                   <input
                     className="h-11 w-full rounded-[14px] border border-border bg-panel px-3 outline-none focus:border-foreground"
-                    min={new Date(Date.now() + 86_400_000).toISOString().slice(0, 10)}
+                    min={minUnlockDate}
                     onChange={(event) => setUnlockDate(event.target.value)}
                     type="date"
                     value={unlockDate}

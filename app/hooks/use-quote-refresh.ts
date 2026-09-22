@@ -70,7 +70,6 @@ export function useQuoteRefresh(options: {
   }, [canRefresh, refreshQuote]);
 
   useEffect(() => {
-    setSecondsLeft(secondsUntilExpiry(activeQuote));
     if (!activeQuote) return;
 
     const tick = window.setInterval(() => {
@@ -78,13 +77,16 @@ export function useQuoteRefresh(options: {
     }, 1000);
 
     return () => window.clearInterval(tick);
-  }, [activeQuote?.id, activeQuote?.expiresAt]);
+  }, [activeQuote]);
 
   useEffect(() => {
     if (!enabled || !activeQuote || signing || isRefreshingQuote) return;
     if (!isQuoteExpired(activeQuote)) return;
     if (!lastQuoteIntent) return;
-    void runRefresh();
+    const timeout = window.setTimeout(() => {
+      void runRefresh();
+    }, 0);
+    return () => window.clearTimeout(timeout);
   }, [
     activeQuote,
     enabled,

@@ -99,6 +99,25 @@ export function StockTradeTicket({ stock, limitZones, onConfirmed }: StockTradeT
   const isRefreshingQuote = useExecutionStore((state) => state.isRefreshingQuote);
   const quoteTrade = useExecutionStore((state) => state.quoteTrade);
   const resetTrade = useExecutionStore((state) => state.resetTrade);
+  const [openOrders, setOpenOrders] = useState<LimitOrderRecord[]>([]);
+  const refreshOpenOrders = useCallback(async () => {
+    if (!wallet) {
+      setOpenOrders([]);
+      return;
+    }
+    try {
+      const orders = await listLimitOrders(wallet);
+      setOpenOrders(
+        orders.filter(
+          (order) =>
+            order.status === "open" &&
+            (order.assetId === stock.assetId || order.ticker === stock.ticker),
+        ),
+      );
+    } catch {
+      // Keep last known list; listing is best-effort.
+    }
+  }, [stock.assetId, stock.ticker, wallet]);
   const {
     confirmation,
     error: executionError,
@@ -115,10 +134,10 @@ export function StockTradeTicket({ stock, limitZones, onConfirmed }: StockTradeT
     cancelLimitOrder,
     flowStatus: limitFlowStatus,
     resetFeedback: resetLimitFeedback,
-  } = useLimitOrderExecution(async () => {
+  } = useLimitOrderExecution(useCallback(async () => {
     await refreshOpenOrders();
     await onConfirmed?.();
-  });
+  }, [onConfirmed, refreshOpenOrders]));
   const {
     secondsLeft,
     refreshFailed,
@@ -130,12 +149,14 @@ export function StockTradeTicket({ stock, limitZones, onConfirmed }: StockTradeT
   const [orderMode, setOrderMode] = useState<OrderMode>("market");
   const [side, setSide] = useState<TradeSide>("buy");
   const [amount, setAmount] = useState("100");
-  const [limitPrice, setLimitPrice] = useState("");
+  const [limitPrice, setLimitPrice] = useState(() => {
+    const buyZone = limitZones?.find((zone) => zone.side === "buy");
+    return buyZone ? String(buyZone.preferredUsd) : "";
+  });
   const [reviewOpen, setReviewOpen] = useState(false);
   const [limitProposal, setLimitProposal] = useState<LimitOrderProposal>();
   const [limitReviewOpen, setLimitReviewOpen] = useState(false);
   const [limitBusy, setLimitBusy] = useState(false);
-  const [openOrders, setOpenOrders] = useState<LimitOrderRecord[]>([]);
   const autoQuoteKeyRef = useRef<string | undefined>(undefined);
   const tradableRoutes = stock.variants.filter((variant) => variant.tradable).length;
   const position = useMemo(
@@ -206,34 +227,12 @@ export function StockTradeTicket({ stock, limitZones, onConfirmed }: StockTradeT
     }
   }, [loadPortfolio, portfolio, wallet]);
 
-  const refreshOpenOrders = useCallback(async () => {
-    if (!wallet) {
-      setOpenOrders([]);
-      return;
-    }
-    try {
-      const orders = await listLimitOrders(wallet);
-      setOpenOrders(
-        orders.filter(
-          (order) =>
-            order.status === "open" &&
-            (order.assetId === stock.assetId || order.ticker === stock.ticker),
-        ),
-      );
-    } catch {
-      // Keep last known list; listing is best-effort.
-    }
-  }, [stock.assetId, stock.ticker, wallet]);
-
   useEffect(() => {
-    void refreshOpenOrders();
+    const timeout = window.setTimeout(() => {
+      void refreshOpenOrders();
+    }, 0);
+    return () => window.clearTimeout(timeout);
   }, [refreshOpenOrders]);
-
-  useEffect(() => {
-    if (sideZone && !limitPrice) {
-      setLimitPrice(String(sideZone.preferredUsd));
-    }
-  }, [side, sideZone?.preferredUsd]);
 
   useEffect(() => {
     resetTrade();
