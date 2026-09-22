@@ -6,9 +6,9 @@ pulls those images; API keys and database credentials remain on the VPS.
 
 ## One-time VPS setup
 
-1. Point both production `A`/`AAAA` records—`oren.finance` and
-   `api.oren.finance`—at the VPS. Ports 80 and 443 must be reachable for
-   Caddy to issue certificates.
+1. Point `A` records for `oren.finance` and `api.oren.finance` at the VPS.
+   Add `AAAA` records only if the VPS has a working public IPv6 address.
+   Ports 80 and 443 must be reachable for Caddy to issue certificates.
 2. Create a non-root, key-only SSH user. Run
    `sudo OREN_DEPLOY_USER=<user> OREN_SSH_PORT=<port> bash infra/vps-bootstrap.sh`
    once from a checkout, then log in again after its Docker group change.
@@ -17,16 +17,14 @@ pulls those images; API keys and database credentials remain on the VPS.
    placeholder, and run `chmod 600 /opt/oren/.env`. `POSTGRES_URL` uses host
    `db`, not `localhost`.
 4. Create `/opt/oren/.release.env` with `GHCR_OWNER=<GitHub owner>` and a
-   temporary `IMAGE_TAG`. Login on the VPS with a fine-grained token permitted
-   to read this repository's packages:
-
-   ```bash
-   echo '<GHCR_READ_TOKEN>' | docker login ghcr.io -u '<GitHub user>' --password-stdin
-   ```
+   temporary `IMAGE_TAG`. The deployment workflow logs into GHCR on the VPS
+   with its short-lived `GITHUB_TOKEN` for each pull, then logs out; no
+   long-lived package-read token is needed.
 
 5. Create GitHub environment `production`, add `VPS_HOST`, `VPS_PORT`,
    `VPS_USER`, `VPS_SSH_PRIVATE_KEY`, and `VPS_SSH_KNOWN_HOSTS` (the pinned
-   `ssh-keyscan -H <VPS IP>` output). Protect it with reviewers if desired.
+   host key verified against the VPS, not an unverified first-use scan).
+   Protect it with reviewers if desired.
    Add repository variables `PUBLIC_APP_ORIGIN=https://oren.finance` and
    `PUBLIC_API_ORIGIN=https://api.oren.finance`, each with no trailing slash.
    They must agree with VPS `DOMAIN`, `API_DOMAIN`, and `CORS_ORIGIN`.

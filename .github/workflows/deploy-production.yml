@@ -78,6 +78,7 @@ jobs:
     environment: production
     permissions:
       contents: read
+      packages: read
     env:
       IMAGE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.image_tag || needs.build.outputs.image_tag }}
       GHCR_OWNER: ${{ github.repository_owner }}
@@ -112,7 +113,14 @@ jobs:
             deploy.yml Caddyfile "$VPS_USER@$VPS_HOST:/opt/oren/"
           scp -r -P "${VPS_PORT:-22}" -o StrictHostKeyChecking=yes \
             infra "$VPS_USER@$VPS_HOST:/opt/oren/"
+      - name: Authenticate VPS to GHCR for this release
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GHCR_USER: ${{ github.actor }}
+        run: |
+          printf '%s' "$GHCR_TOKEN" | ssh -p "${VPS_PORT:-22}" -o StrictHostKeyChecking=yes "$VPS_USER@$VPS_HOST" \
+            "docker login ghcr.io -u '$GHCR_USER' --password-stdin"
       - name: Activate immutable release
         run: |
           ssh -p "${VPS_PORT:-22}" -o StrictHostKeyChecking=yes "$VPS_USER@$VPS_HOST" \
-            "cd /opt/oren && printf 'GHCR_OWNER=%s\\nIMAGE_TAG=%s\\n' '$GHCR_OWNER' '$IMAGE_TAG' > .release.env && docker compose --env-file .env --env-file .release.env -f deploy.yml pull && docker compose --env-file .env --env-file .release.env -f deploy.yml up -d --wait --wait-timeout 180 --remove-orphans && docker image prune -f"
+            "cd /opt/oren && printf 'GHCR_OWNER=%s\\nIMAGE_TAG=%s\\n' '$GHCR_OWNER' '$IMAGE_TAG' > .release.env && docker compose --env-file .env --env-file .release.env -f deploy.yml pull && docker logout ghcr.io && docker compose --env-file .env --env-file .release.env -f deploy.yml up -d --wait --wait-timeout 180 --remove-orphans && docker image prune -f"
