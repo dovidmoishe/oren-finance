@@ -1,0 +1,22 @@
+5:import { useEffect, useMemo, useState } from "react";
+21:import { usePortfolioStore, useWalletStore } from "@/store";
+103:  const wallet = useWalletStore((state) => state.address);
+104:  const connected = useWalletStore((state) => state.connected);
+105:  const calendar = usePortfolioStore((state) => state.calendar);
+106:  const calendarDay = usePortfolioStore((state) => state.calendarDay);
+107:  const isLoading = usePortfolioStore((state) => state.isCalendarLoading);
+108:  const error = usePortfolioStore((state) => state.error);
+109:  const loadCalendar = usePortfolioStore((state) => state.loadCalendar);
+110:  const loadCalendarDay = usePortfolioStore((state) => state.loadCalendarDay);
+111:  const reset = usePortfolioStore((state) => state.reset);
+116:  useEffect(() => {
+117:    if (!wallet || !connected) {
+121:    void loadCalendar(wallet, { month, timeZone });
+122:  }, [connected, loadCalendar, month, reset, timeZone, wallet]);
+124:  useEffect(() => {
+125:    if (!wallet || !connected || !selectedDate) return;
+126:    void loadCalendarDay(wallet, selectedDate, { timeZone });
+127:  }, [connected, loadCalendarDay, selectedDate, timeZone, wallet]);
+140:  if (!connected) {
+167:        <Button disabled={isLoading || !wallet} onClick={() => wallet && loadCalendar(wallet, { month, timeZone })} variant="secondary">
+173:      {error ? <ErrorState description={error} onRetry={() => wallet && loadCalendar(wallet, { month, timeZone })} /> : null}

@@ -1,0 +1,30 @@
+          Refresh
+        </Button>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-3">
+        <DetailMetric
+          change={portfolio?.changePct}
+          className="bg-accent-yellow"
+          detail="Supported equities ready to trade"
+          label="Available Assets"
+          value={formatCurrency(portfolio?.availableValueUsd)}
+        />
+        <DetailMetric
+          change={portfolio?.changePct}
+          className="bg-accent-pink"
+          detail="Positions held inside Oren Vault"
+          label="Locked Positions"
+          value={formatCurrency(portfolio?.lockedValueUsd)}
+        />
+        <DetailMetric
+          change={0}
+          className="bg-accent-lavender"
+          detail="Stablecoin balance available for quotes"
+          label="Cash Balance"
+          value={formatCurrency(portfolio?.cashValueUsd)}
+        />
+      </div>
+
+      <div className="rounded-[24px] border border-border bg-panel p-5">
+        <p className="text-sm text-muted">Total portfolio</p>

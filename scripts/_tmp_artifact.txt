@@ -1,0 +1,13 @@
+case 'vaults':
+      return (
+        <ArtifactShell icon={SafeIcon} label="Vault" tone="lavender">
+          <p className="font-display text-2xl font-semibold">{formatCurrency(artifact.data.totalLockedValueUsd)}</p>
+          <p className="mt-1 text-xs text-muted">{artifact.data.positions.length} locked position{artifact.data.positions.length === 1 ? '' : 's'}</p>
+        </ArtifactShell>
+      );
+    case 'prepared_swap':
+    case 'prepared_basket':
+    case 'prepared_lock':
+    case 'prepared_unlock':
+      return (
+        <ArtifactShell icon={SafeIcon} label="Prepared action" tone="plain"
