@@ -2,7 +2,6 @@
 
 import { ArrowLeft01Icon, RefreshCwIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import Image from "next/image";
 import Link from "next/link";
 import { OrenLogo } from "@/components/brand/oren-logo";
 import { Button } from "@/components/ui";
@@ -51,12 +50,12 @@ export function RouteErrorPage({
         </div>
 
         <div className="relative min-h-[42vh] overflow-hidden border-t border-black/8 lg:min-h-0 lg:border-l lg:border-t-0">
-          <Image
+          {/* This intentionally bypasses Next image optimization because the
+              production VPS cannot load sharp's x64-v2 binary. */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
             alt="A sunrise path pausing at a quiet break before continuing toward the mountains"
-            className="object-cover object-center lg:object-[58%_center]"
-            fill
-            priority
-            sizes="(min-width: 1024px) 61vw, 100vw"
+            className="absolute inset-0 h-full w-full object-cover object-center lg:object-[58%_center]"
             src="/oren-error-landscape.png"
           />
           <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-[#f7f2e8]/30 via-transparent to-[#f7f2e8]/15 lg:bg-gradient-to-r lg:from-[#f7f2e8]/55 lg:via-transparent lg:to-transparent" />

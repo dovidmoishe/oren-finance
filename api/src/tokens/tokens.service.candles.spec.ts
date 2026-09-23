@@ -9,6 +9,7 @@ describe('TokensService candle fetching', () => {
         .mockResolvedValueOnce({
           assetId: 'cost',
           ticker: 'COST',
+          category: 'equity',
           variants: [
             {
               mint: 'mint-cost',

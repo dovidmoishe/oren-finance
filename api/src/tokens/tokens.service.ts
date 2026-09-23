@@ -10,6 +10,7 @@ import {
   extractAssetList,
   extractCandles,
   extractNews,
+  isEquityAsset,
   mapCandles,
   mapEquity,
   mapEquityList,
@@ -74,6 +75,9 @@ export class TokensService implements TokensServiceContract {
       `/assets/${encodeURIComponent(assetId)}`,
       { include: 'profile,risk' },
     );
+    if (!isEquityAsset(raw)) {
+      throw new TokensNotFoundError(`Equity asset not found: ${assetId}`);
+    }
     const equity = mapEquity(raw);
     if (!equity.id) {
       throw new TokensNotFoundError(`Asset not found: ${assetId}`);
@@ -97,7 +101,7 @@ export class TokensService implements TokensServiceContract {
       );
       const assetId = resolved.assetId ?? resolved.asset?.assetId;
       if (!assetId) return null;
-      return this.getStock(assetId);
+      return await this.getStock(assetId);
     } catch (err) {
       if (err instanceof TokensNotFoundError) return null;
       throw err;

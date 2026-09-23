@@ -41,9 +41,6 @@ importers:
       react-dom:
         specifier: 19.2.8
         version: 19.2.8(react@19.2.8)
-      sharp:
-        specifier: ^0.35.4
-        version: 0.35.4(@types/node@20.19.43)
       zustand:
         specifier: ^5.0.15
         version: 5.0.15(@types/react@19.3.0)(react@19.2.8)(use-sync-external-store@1.2.0(react@19.2.8))
@@ -66,6 +63,9 @@ importers:
       eslint-config-next:
         specifier: 16.3.4
         version: 16.3.4(@typescript-eslint/parser@8.70.0(eslint@9.39.5(jiti@2.7.0)(supports-color@7.2.0))(supports-color@8.1.1)(typescript@5.9.3))(eslint@9.39.5(jiti@2.7.0)(supports-color@7.2.0))(supports-color@8.1.1)(typescript@5.9.3)
+      sharp:
+        specifier: ^0.35.4
+        version: 0.35.4(@types/node@20.19.43)
       tailwindcss:
         specifier: ^4
         version: 4.3.3
