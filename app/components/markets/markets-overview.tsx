@@ -5,7 +5,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Skeleton, cn, formatCurrency, formatPercent } from "@/components/ui";
-import { getStockChart, getStockVolumes } from "@/services";
+import { getStockChart } from "@/services";
 import { useMarketStore } from "@/store";
 import type { MarketCandle, StockSummary } from "@/types";
 
@@ -151,12 +151,12 @@ function formatCompactCurrency(value?: number) {
   }).format(value);
 }
 
-function StockRow({ stock, orenVolume }: { stock: StockSummary; orenVolume?: number }) {
+function StockRow({ stock }: { stock: StockSummary }) {
   const positive = (stock.change24hPct ?? 0) >= 0;
 
   return (
     <Link
-      className="grid min-w-[820px] grid-cols-[minmax(240px,1.5fr)_140px_120px_220px_150px_150px] items-center border-t border-border px-4 py-4 text-sm transition-colors hover:bg-panel-subtle"
+      className="grid min-w-[700px] grid-cols-[minmax(240px,1.5fr)_140px_120px_220px_150px] items-center border-t border-border px-4 py-4 text-sm transition-colors hover:bg-panel-subtle"
       href={`/app/stocks/${stock.assetId}`}
       prefetch={false}
     >
@@ -172,7 +172,6 @@ function StockRow({ stock, orenVolume }: { stock: StockSummary; orenVolume?: num
         {positive ? "▲" : "▼"} {formatPercent(Math.abs(stock.change24hPct ?? 0), false)}
       </div>
       <Sparkline stock={stock} />
-      <div className="font-mono">{formatCompactCurrency(orenVolume)}</div>
       <div className="font-mono">{formatCompactCurrency(stock.liquidityUsd)}</div>
     </Link>
   );
@@ -183,7 +182,7 @@ function TableSkeleton({ count = 10 }: { count?: number }) {
     <>
       {Array.from({ length: count }).map((_, index) => (
         <div
-          className="grid min-w-[820px] grid-cols-[minmax(240px,1.5fr)_140px_120px_220px_150px_150px] items-center gap-4 border-t border-border px-4 py-4"
+          className="grid min-w-[700px] grid-cols-[minmax(240px,1.5fr)_140px_120px_220px_150px] items-center gap-4 border-t border-border px-4 py-4"
           key={index}
         >
           <div className="flex items-center gap-3">
@@ -193,7 +192,6 @@ function TableSkeleton({ count = 10 }: { count?: number }) {
           <Skeleton className="h-4 w-20" />
           <Skeleton className="h-4 w-16" />
           <Skeleton className="h-8 w-32" />
-          <Skeleton className="h-4 w-20" />
           <Skeleton className="h-4 w-20" />
         </div>
       ))}
@@ -215,13 +213,9 @@ export function MarketsOverview() {
   const search = useMarketStore((state) => state.search);
   const loadMoreRef = useRef<HTMLDivElement>(null);
   const [query, setQuery] = useState("");
-  const [orenVolumes, setOrenVolumes] = useState<Map<string, number>>(new Map());
 
   useEffect(() => {
     void loadMarkets();
-    void getStockVolumes("24h")
-      .then((response) => setOrenVolumes(new Map(response.items.map((item) => [item.assetId, item.grossVolumeUsd]))))
-      .catch(() => setOrenVolumes(new Map()));
   }, [loadMarkets]);
 
   useEffect(() => {
@@ -323,17 +317,16 @@ export function MarketsOverview() {
       </div>
 
       <div className="overflow-x-auto rounded-[24px] border border-border bg-panel shadow-[0_18px_60px_rgba(23,23,23,0.04)]">
-        <div className="grid min-w-[820px] grid-cols-[minmax(240px,1.5fr)_140px_120px_220px_150px_150px] bg-panel-subtle/70 px-4 py-3 text-xs font-semibold text-foreground">
+        <div className="grid min-w-[700px] grid-cols-[minmax(240px,1.5fr)_140px_120px_220px_150px] bg-panel-subtle/70 px-4 py-3 text-xs font-semibold text-foreground">
           <div className="flex items-center gap-1">Token Name <SortIcon /></div>
           <div className="flex items-center gap-1">Price <SortIcon /></div>
           <div className="flex items-center gap-1">1D <SortIcon /></div>
           <div>Last 24h</div>
-          <div className="flex items-center gap-1">Oren Volume 24h <SortIcon /></div>
           <div className="flex items-center gap-1">Liquidity <SortIcon /></div>
         </div>
         {(isLoading || isSearching) && rows.length === 0 ? <TableSkeleton /> : null}
         {rows.length && !(isSearching && searchResults.length === 0)
-          ? rows.map((stock) => <StockRow key={stock.assetId} orenVolume={orenVolumes.get(stock.assetId)} stock={stock} />)
+          ? rows.map((stock) => <StockRow key={stock.assetId} stock={stock} />)
           : null}
         {rows.length && !searching ? (
           <div aria-live="polite" ref={loadMoreRef}>

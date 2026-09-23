@@ -22,7 +22,6 @@ const navItems = [
   { href: "/app/calendar", label: "Calendar", icon: Calendar03Icon },
   { href: "/app/leaderboard", label: "Leaderboard", icon: RankingIcon },
   { href: "/app/markets", label: "Market", icon: MarketAnalysisIcon },
-  { href: "/app/volume", label: "Volume", icon: MarketAnalysisIcon },
   { href: "/app/vault", label: "Vault", icon: SafeIcon },
   { href: "/app/activity", label: "Activity", icon: Activity01Icon },
 ];
@@ -80,20 +79,22 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         {children}
       </main>
       <AgentPanel />
-      <div className="pointer-events-none fixed inset-x-0 bottom-5 z-[100] px-4 sm:px-6">
-        <div className="mx-auto flex max-w-[1540px] justify-end">
-          <Button
-            aria-label="Open Oren"
-            className="pointer-events-auto h-14 w-14 overflow-visible rounded-[20px] bg-foreground text-white shadow-[0_18px_50px_rgba(23,23,23,0.24)] transition-[background-color,transform] hover:scale-[1.04] hover:bg-black/85"
-            id="oren-agent-launcher"
-            onClick={() => setPanelOpen(true)}
-            size="icon"
-            variant="primary"
-          >
-            <OrenLogo size={38} />
-          </Button>
+      {!agentOpen ? (
+        <div className="pointer-events-none fixed inset-x-0 bottom-5 z-[100] px-4 sm:px-6">
+          <div className="mx-auto flex max-w-[1540px] justify-end">
+            <Button
+              aria-label="Open Oren"
+              className="pointer-events-auto h-14 w-14 overflow-visible rounded-[20px] bg-foreground text-white shadow-[0_18px_50px_rgba(23,23,23,0.24)] transition-[background-color,transform] hover:scale-[1.04] hover:bg-black/85"
+              id="oren-agent-launcher"
+              onClick={() => setPanelOpen(true)}
+              size="icon"
+              variant="primary"
+            >
+              <OrenLogo size={38} />
+            </Button>
+          </div>
         </div>
-      </div>
+      ) : null}
     </div>
   );
 }

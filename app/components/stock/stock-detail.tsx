@@ -22,8 +22,7 @@ import {
   formatRelativeTime,
 } from "@/components/ui";
 import { useStockStore } from "@/store";
-import { getStockVolume } from "@/services";
-import type { ChartRange, StockDetail as StockDetailType, StockSignals, StockVolumeResponse, VolumeRange } from "@/types";
+import type { ChartRange, StockDetail as StockDetailType, StockSignals } from "@/types";
 
 const rangeMap: Record<MarketChartRange, ChartRange> = {
   "24H": "1D",
@@ -136,17 +135,13 @@ function ScorePanel({ score, riskLabel }: { score: number; riskLabel?: string })
   );
 }
 
-function MarketSnapshot({ stock, volume }: { stock: StockDetailType; volume: Partial<Record<VolumeRange, StockVolumeResponse>> }) {
+function MarketSnapshot({ stock }: { stock: StockDetailType }) {
   return (
     <Card>
       <CardHeader>
         <h2 className="font-display text-lg font-semibold">Market snapshot</h2>
       </CardHeader>
       <CardContent className="space-y-3 text-sm">
-        <div className="flex justify-between gap-4"><span className="text-muted">Oren volume · 24h</span><span className="font-mono">{formatCurrency(volume["24h"]?.grossVolumeUsd, 0)}</span></div>
-        <div className="flex justify-between gap-4"><span className="text-muted">Oren volume · 7d</span><span className="font-mono">{formatCurrency(volume["7d"]?.grossVolumeUsd, 0)}</span></div>
-        <div className="flex justify-between gap-4"><span className="text-muted">Oren volume · all time</span><span className="font-mono">{formatCurrency(volume.all?.grossVolumeUsd, 0)}</span></div>
-        <div className="flex justify-between gap-4"><span className="text-muted">24h buys / sells</span><span className="font-mono">{formatCurrency(volume["24h"]?.buyVolumeUsd, 0)} / {formatCurrency(volume["24h"]?.sellVolumeUsd, 0)}</span></div>
         <div className="flex justify-between gap-4"><span className="text-muted">Liquidity</span><span className="font-mono">{formatCurrency(stock.liquidityUsd, 0)}</span></div>
         <div className="flex justify-between gap-4"><span className="text-muted">Tradable routes</span><span className="font-mono">{stock.variants.filter((variant) => variant.tradable).length}</span></div>
       </CardContent>
@@ -168,15 +163,9 @@ export function StockDetail({ assetId }: { assetId: string }) {
   const reset = useStockStore((state) => state.reset);
   const [range, setRange] = useState<MarketChartRange>("30D");
   const [mode, setMode] = useState<MarketChartMode>("line");
-  const [orenVolume, setOrenVolume] = useState<Partial<Record<VolumeRange, StockVolumeResponse>>>({});
 
   useEffect(() => {
     void loadStock(assetId, "1M");
-    void Promise.all(
-      (["24h", "7d", "30d", "all"] as VolumeRange[]).map(async (volumeRange) => [volumeRange, await getStockVolume(assetId, volumeRange)] as const),
-    )
-      .then((entries) => setOrenVolume(Object.fromEntries(entries)))
-      .catch(() => setOrenVolume({}));
     return reset;
   }, [assetId, loadStock, reset]);
 
@@ -281,7 +270,7 @@ export function StockDetail({ assetId }: { assetId: string }) {
 
       <div className="grid gap-5 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
         <ScorePanel riskLabel={analysis?.riskLabel} score={score} />
-        <MarketSnapshot stock={stock} volume={orenVolume} />
+        <MarketSnapshot stock={stock} />
       </div>
 
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1.15fr)_minmax(340px,0.85fr)]">
