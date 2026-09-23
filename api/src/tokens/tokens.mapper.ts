@@ -24,6 +24,49 @@ function pickAsset(raw: TokensAssetRaw): TokensAssetRaw {
   return raw.asset ?? raw;
 }
 
+const EQUITY_CLASSIFICATIONS = new Set([
+  'equity',
+  'equities',
+  'etf',
+  'index',
+  'rwa',
+  'stock',
+  'stocks',
+  'tokenized_equity',
+  'tokenized-equity',
+]);
+
+/**
+ * The provider's curated stocks endpoint has occasionally included unrelated
+ * crypto assets. Only admit assets carrying explicit equity metadata; never
+ * infer that an unknown category is a stock merely because it was returned by
+ * that list.
+ */
+export function isEquityAsset(rawInput: TokensAssetRaw): boolean {
+  const raw = pickAsset(rawInput);
+  const classifications = [
+    raw.category,
+    raw.assetClass,
+    raw.assetType,
+    raw.classification,
+    raw.type,
+  ];
+
+  if (
+    classifications.some((value) =>
+      value ? EQUITY_CLASSIFICATIONS.has(value.trim().toLowerCase()) : false,
+    )
+  ) {
+    return true;
+  }
+
+  return [raw.primaryVariant, ...(raw.variants ?? [])].some(
+    (variant) =>
+      variant?.kind?.toLowerCase() === 'tokenized_equity' ||
+      Boolean(variant?.stockVariantTier),
+  );
+}
+
 export function mapVariant(raw: TokensVariantRaw): TokenizedEquity | null {
   if (!raw.mint) return null;
   return {
@@ -94,6 +137,7 @@ export function mapEquity(rawInput: TokensAssetRaw): Equity {
 export function mapEquityList(items?: TokensAssetRaw[] | null): Equity[] {
   if (!items?.length) return [];
   return items
+    .filter(isEquityAsset)
     .map((item) => {
       try {
         return mapEquity(item);

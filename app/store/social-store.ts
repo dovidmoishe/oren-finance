@@ -38,7 +38,7 @@ export const useSocialStore = create<SocialState>((set, get) => ({
     }
   },
   async loadTrader(slug, timeframe = get().timeframe) {
-    set({ timeframe, isLoading: true, error: undefined });
+    set({ timeframe, selectedTrader: undefined, isLoading: true, error: undefined });
     try {
       const selectedTrader = await getTraderProfile(slug, timeframe);
       set({ selectedTrader, isLoading: false });

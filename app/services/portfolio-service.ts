@@ -104,6 +104,8 @@ export function getTradingCalendarDay(
 }
 
 export function mapPortfolio(portfolio: ApiPortfolioSummary): PortfolioSummary {
+  const positions = Array.isArray(portfolio.positions) ? portfolio.positions : [];
+
   return {
     wallet: portfolio.walletAddress,
     totalValueUsd: portfolio.totalValueUsd,
@@ -113,7 +115,7 @@ export function mapPortfolio(portfolio: ApiPortfolioSummary): PortfolioSummary {
     changeUsd: portfolio.absoluteChangeUsd,
     changePct: portfolio.percentChange,
     updatedAt: portfolio.updatedAt,
-    positions: portfolio.positions.map((position) => ({
+    positions: positions.map((position) => ({
       assetId: position.assetId,
       ticker: position.ticker,
       name: position.name,

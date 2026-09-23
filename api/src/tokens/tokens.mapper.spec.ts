@@ -1,4 +1,9 @@
-import { extractCandles, mapCandles, mapEquity } from './tokens.mapper';
+import {
+  extractCandles,
+  mapCandles,
+  mapEquity,
+  mapEquityList,
+} from './tokens.mapper';
 
 describe('tokens mapper', () => {
   it('maps the curated asset image and canonical stats', () => {
@@ -38,6 +43,42 @@ describe('tokens mapper', () => {
     });
 
     expect(equity.logo).toBe('ipfs://tesla-logo');
+  });
+
+  it('keeps explicit equities and rejects unrelated assets leaked by curated lists', () => {
+    const equities = mapEquityList([
+      {
+        assetId: 'nvidia',
+        symbol: 'NVDA',
+        name: 'NVIDIA',
+        category: 'equity',
+      },
+      {
+        assetId: 'spacex',
+        symbol: 'SPCX',
+        name: 'SpaceX',
+        primaryVariant: {
+          mint: 'spacex-mint',
+          kind: 'tokenized_equity',
+        },
+      },
+      {
+        assetId: 'zcash',
+        symbol: 'ZEC',
+        name: 'Zcash',
+        category: 'cryptocurrency',
+      },
+      {
+        assetId: 'runescape-gold',
+        symbol: 'GP',
+        name: 'RuneScape Gold',
+      },
+    ]);
+
+    expect(equities.map((equity) => equity.id)).toEqual([
+      'nvidia',
+      'spacex',
+    ]);
   });
 
   it('maps tuple OHLCV candles from nested provider envelopes', () => {

@@ -74,12 +74,19 @@ interface ApiTraderDetailResponse extends Omit<TraderDetailResponse, "portfolio"
 }
 
 function mapTraderDetail(detail: ApiTraderDetailResponse): TraderDetailResponse {
+  const activityItems = Array.isArray(detail.activity?.items) ? detail.activity.items : [];
+  const historyPoints = Array.isArray(detail.history?.points) ? detail.history.points : [];
+
   return {
     ...detail,
     portfolio: mapPortfolio(detail.portfolio),
+    history: {
+      walletAddress: detail.history?.walletAddress ?? detail.portfolio.walletAddress,
+      points: historyPoints,
+    },
     activity: {
-      walletAddress: detail.activity.walletAddress,
-      items: detail.activity.items.map(mapActivityItem),
+      walletAddress: detail.activity?.walletAddress ?? detail.portfolio.walletAddress,
+      items: activityItems.map(mapActivityItem),
     },
   };
 }

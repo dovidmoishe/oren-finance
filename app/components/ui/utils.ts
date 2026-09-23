@@ -35,11 +35,16 @@ export function formatDate(value?: string) {
     return "Not updated";
   }
 
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "Not updated";
+  }
+
   return new Intl.DateTimeFormat("en-US", {
     month: "short",
     day: "numeric",
     year: "numeric",
-  }).format(new Date(value));
+  }).format(date);
 }
 
 export function formatRelativeTime(value?: string) {
@@ -48,6 +53,9 @@ export function formatRelativeTime(value?: string) {
   }
 
   const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "Unknown";
+  }
   const diffMs = date.getTime() - Date.now();
   const absMs = Math.abs(diffMs);
   const units: Array<[Intl.RelativeTimeFormatUnit, number]> = [

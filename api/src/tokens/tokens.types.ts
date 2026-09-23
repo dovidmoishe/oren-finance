@@ -38,6 +38,10 @@ export interface TokensAssetRaw {
   symbol?: string;
   name?: string;
   category?: string;
+  assetClass?: string;
+  assetType?: string;
+  classification?: string;
+  type?: string;
   logo?: string | null;
   logoUrl?: string | null;
   imageUrl?: string | null;
