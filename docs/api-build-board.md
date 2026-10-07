@@ -4,15 +4,21 @@
 > Visual twin: [`api-build-board.html`](api-build-board.html)  
 > Project agent contract: [`../AGENTS.md`](../AGENTS.md)
 
-**Active phase:** `22-panta-foundation`  
+**Active phase:** `23-panta-discover`
 **Last updated:** 2026-10-07  
-**Planned next (API/agent):** Phase 22 Panta foundation on feat/panta; retain Phase 21 connected-wallet and Dune follow-ups.
+**Planned next (API/agent):** Phase 24 Panta Create proposals on feat/panta; retain Phase 21 connected-wallet and Dune follow-ups.
 
 ---
 
 ## Status / Notes
 
 ### Done
+
+- **Phase 23 Panta Discover** — Investing-only catalog/detail endpoints, deterministic stock/macro relevance, bounded local search with partial coverage, three read-only agent tools and cited on-request research landed. Predictions page, URL-selected drawer, independent stock events and restored agent artifacts share Powered by Panta attribution. Server chat wallet controls personalization; evidence caching excludes portfolio context. Live catalog/detail and research passed on 2026-10-07 (five citation URLs, two supporting entries, one counterargument). Panta supplied 26 rows with 19 missing titles; omissions are explicit and catalog/detail lifecycle values can differ. Contractual rules, payouts, fees and depth remain unavailable. Next: Phase 24 Create proposal contracts; Phase 21 follow-ups remain recorded.
+
+- **Panta live verification** — Panta authenticated read-only smoke passed on 2026-10-07: eight categories, market list and matching detail; source fresh, selected secondary market had no spot prices and these remain unavailable. Phase 22 is completed (5/5). Next: Phase 23 Discover agent. Settlement conflict, resolution metadata and write/network/eligibility gates remain for later phases; no writes executed.
+
+- **Panta key setup** — Panta key setup helper added: api/scripts/panta-create-keys.ps1 prompts for API-account credentials, creates live/test keys without revoking existing keys, saves each secret immediately into ignored api/.env, and preserves an existing active key. PowerShell syntax verified; no authentication or key creation executed by the agent. Run locally, then rerun the read-only smoke; pa-access/pa-gate remain open.
 
 - **Panta foundation** — Panta foundation on feat/panta: read-only Nest provider, normalized types, optional configuration, bounded fresh/stale cache, sanitized errors and live smoke implemented. Official API/playground contracts documented in docs/panta-integration.md. 30 targeted tests, API build and targeted ESLint pass. Live smoke skipped: URL/key configuration incomplete; pa-access and pa-gate remain in_progress. Settlement documentation conflict and missing resolution/depth APIs are recorded before later writes. Phase 21 connected-wallet/Dune follow-ups remain outstanding.
 
@@ -75,7 +81,7 @@
 
 ### Blockers / follow-ups
 
-- **Panta live verification** — Supply the PANTA_API_BASE_URL/PANTA_API_KEY pair and run the built provider read-only smoke. No authenticated live reads or writes verified; Phase 22 stays in_progress. See [integration handoff](panta-integration.md) for payout, resolution metadata, secondary API and network/eligibility gates.
+- **Panta later-phase gates** — Live reads are verified. Resolve payout documentation conflict and confirm rules/depth availability, write cluster/permissions and eligibility before corresponding features; see [integration handoff](panta-integration.md).
 
 - Public HTTPS activation requires DNS A records for `oren.finance` + `api.oren.finance` to `104.207.95.184`; Caddy cannot issue certificates while both names fail DNS. Automatic GitHub releases still require published GHCR images and configured Actions secrets (`VPS_HOST`, `VPS_PORT`, `VPS_USER`, `VPS_SSH_PRIVATE_KEY`, `VPS_SSH_KNOWN_HOSTS`). The workflow defaults public origins to the documented production domains, and repository Actions variables can override them. The VPS `.env`, migrations, and initial catalog sync are complete. Add encrypted off-VPS backups and test a restore before relying on the local backup schedule.
 - Live Postgres migration and Tokens catalog sync are verified; Alchemy and `/api/health` runtime verification remain.
@@ -89,7 +95,7 @@
 
 ### Next
 
-- **22 Panta Foundation** — Complete authenticated live read smoke, then Phase 23 Discover. Phase 24 Create remains gated on verified write network/permissions; no signing or publication in foundation.
+- **23 Panta Discover** — Build market filtering, portfolio relevance, grounded research/tools and thesis cards. Phase 22 is complete; no creation/trading writes have been verified.
 
 - **Panta feature path** — Implement on `feat/panta`: 22 Foundation → 23 Discover → 24 Create → 25 Positions/Watch → 26 Validation/Launch. Review this plan before implementation; branch feat/panta is now created and checked out. Native writes are gated on verified provider support.
 
@@ -123,8 +129,8 @@
 | 19 · Jupiter Limit Orders | P0      | completed | 6/6   |
 | 20 · Bitget Live Market Context | P0 | completed | 6/6   |
 | 21 · Volume Analytics + Dune | P0 | in_progress | 6/7   |
-| 22 · Panta Integration Foundation | P0 | in_progress | 3/5 |
-| 23 · Panta Discover Agent | P0 | pending | 0/6 |
+| 22 · Panta Integration Foundation | P0 | completed | 5/5 |
+| 23 · Panta Discover Agent | P0 | completed | 6/6 |
 | 24 · Panta Create Agent + Proposal Sheet | P0 | pending | 0/10 |
 | 25 · Prediction Positions + Thesis Watch | P1 | pending | 0/6 |
 | 26 · Panta Validation + Launch Motion Film | P1 | pending | 0/6 |
@@ -448,22 +454,22 @@ Status values: `pending` | `in_progress` | `completed`
 
 ---
 
-### 22 · Panta Integration Foundation (`22-panta-foundation`) — P0 — in_progress
+### 22 · Panta Integration Foundation (`22-panta-foundation`) — P0 — completed
 
 **Goal:** Verify Panta integration access before promising native creation or trading; implement on feat/panta.  
 **Depends on:** 1-portfolio, 5-agent, 12-agent-ui  
 **Branch:** `feat/panta`  
-**Contract:** Research and draft autonomously; explicit user review gates creation and money moves. Proposed routes below are Oren routes, not verified Panta API paths. Solana/provider state is the ledger; Postgres stores drafts and observations only.
+**Contract:** Read-only discovery; event research runs on explicit request. Missing contractual fields remain unavailable. Creation, trading and monitoring follow later. The routes below are Oren routes under `/api`.
 
 | ID | Task | Proposed endpoint | Status |
 | --- | --- | --- | --- |
-| pa-access | Verify official API/SDK, credentials, rate limits, market search/detail, creation, artwork upload, external-wallet signing, settlement and supported regions; record actual supported capabilities |  | in_progress |
+| pa-access | Verify official API/SDK, credentials, rate limits, market search/detail, creation, artwork upload, external-wallet signing, settlement and supported regions; record actual supported capabilities |  | completed |
 | pa-contract | Document provider payloads, market phases, fees, payout math, resolution/dispute rules and unavailable capabilities; never assume a winning share pays $1 |  | completed |
 | pa-provider | Add NestJS Panta provider and api/types contracts with server-side credentials, timeouts, caching, attribution and fresh/stale timestamps |  | completed |
 | pa-model | Normalize provider IDs, canonical stock links, underlying versus tokenized prices, YES/NO terms, order depth, deadlines and resolution state |  | completed |
-| pa-gate | Verify read-only provider smoke; native write phases depend on documented support, with unsupported actions shown explicitly rather than fake completion |  | in_progress |
+| pa-gate | Verify read-only provider smoke; native write phases depend on documented support, with unsupported actions shown explicitly rather than fake completion |  | completed |
 
-### 23 · Panta Discover Agent (`23-panta-discover`) — P0 — pending
+### 23 · Panta Discover Agent (`23-panta-discover`) — P0 — completed
 
 **Goal:** Connect existing prediction markets to stock theses and wallet holdings through the existing Oren sidecar.  
 **Depends on:** 22-panta-foundation, 18-agent-ta, 20-bitget-market  
@@ -472,12 +478,12 @@ Status values: `pending` | `in_progress` | `completed`
 
 | ID | Task | Proposed endpoint | Status |
 | --- | --- | --- | --- |
-| pd-search | Search/filter relevant company, stock-versus-stock and macro markets; rank by relevance, activity, freshness and executable depth | GET /predictions/markets | pending |
-| pd-detail | Return full rules, sources, dates/timezone, phase, fees, payouts and liquidity; distinguish spot price from probability | GET /predictions/markets/:marketId | pending |
-| pd-research | Research official disclosures and news with dated citations, counterarguments and uncertainty; keep event signals separate from deterministic Oren Score |  | pending |
-| pd-agent | Add searchPredictionMarkets, getPredictionMarket and researchPredictionMarket tools with portfolio context and grounded tool traces |  | pending |
-| pd-ui | Render Discover thesis cards and stock event cards with evidence, portfolio relevance, liquidity, deadlines and Panta attribution |  | pending |
-| pd-checks | Verify relevance mapping, weak/stale evidence, missing markets, provider outages and restored agent artifacts |  | pending |
+| pd-search | Browse investing categories with bounded scans, exact stock links, deterministic relevance/freshness/volume ranking and truthful coverage | GET /predictions/markets | completed |
+| pd-detail | Return normalized lifecycle, prices, dates/timezone and available contract fields; preserve unavailable rules, payouts, fees and depth | GET /predictions/markets/:marketId | completed |
+| pd-research | Research one selected event with live citations, counterarguments, uncertainty, cancellation and separate portfolio context |  | completed |
+| pd-agent | Add searchPredictionMarkets, getPredictionMarket and researchPredictionMarket with server-bound wallet context and restored artifacts |  | completed |
+| pd-ui | Ship Predictions filters/detail drawer, independent stock events and shared attributed agent briefs; research prompts require explicit send |  | completed |
+| pd-checks | Pass discovery/research/tool/history tests, API/frontend builds and live catalog/detail/research; verify mobile drawer and fixture cards |  | completed |
 
 ### 24 · Panta Create Agent + Proposal Sheet (`24-panta-create`) — P0 — pending
 
@@ -589,8 +595,8 @@ Oren route names are provisional until Phase 22 validates provider capabilities.
 
 | Endpoint | Shipped |
 | --- | --- |
-| GET /predictions/markets | no |
-| GET /predictions/markets/:marketId | no |
+| GET /predictions/markets | yes |
+| GET /predictions/markets/:marketId | yes |
 | POST /predictions/creation/propose | no |
 | POST /predictions/creation/prepare | no |
 | POST /predictions/creation/confirm | no |

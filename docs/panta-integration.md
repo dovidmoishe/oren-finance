@@ -10,9 +10,9 @@ Production base URL: `https://live-api.panta.market/api/v1`. Playground also nam
 
 | Capability | Documented contract | Foundation implementation | Live verification |
 | --- | --- | --- | --- |
-| Catalog/filtering | `GET /markets/`; category, status, createdBy=me, opaque cursor, limit default 20/max 50 | Implemented in PantaService | Pending credentials |
-| Spot detail | `GET /markets/{marketId}/`; base58 event address | Implemented; validates returned identity | Pending credentials |
-| Categories | `GET /categories/`; categories string array | Implemented | Pending credentials |
+| Catalog/filtering | `GET /markets/`; category, status, createdBy=me, opaque cursor, limit default 20/max 50 | Implemented in PantaService | Passed 2026-10-07 |
+| Spot detail | `GET /markets/{marketId}/`; base58 event address | Implemented; validates returned identity | Passed 2026-10-07 |
+| Categories | `GET /categories/`; categories string array | Implemented | Passed 2026-10-07 |
 | Text search | No text-query parameter in documented list contract | Not implemented; Phase 23 must use documented filters and local relevance matching | Not verified |
 | Image upload | `POST /markets/create/image-upload/`; signed Cloudinary fields, then external upload | Documented only; no uploads | Not exercised |
 | Create quote | `POST /markets/create/quote/`; short-lived createId, fee and expectedEventPda | Documented only; no quote sessions created | Not exercised |
@@ -65,12 +65,26 @@ npx eslint src/panta/*.ts src/config/panta-env.spec.ts src/config/env.schema.ts 
 npm run test:panta:live
 ```
 
-The smoke loads `.env` through dotenv, uses the compiled provider, and makes GET calls only: categories, one-item market list and its detail. It skips clearly if the URL/key pair is absent and fails if no market can be inspected. It does not print secrets, wallet holdings, provider response bodies or stack traces. Latest local result: 30 tests pass; API build and targeted ESLint pass; live smoke skipped because the required URL/key pair is incomplete. Live access remains unverified.
+The smoke loads `.env` through dotenv, uses the compiled provider, and makes GET calls only: categories, one-item market list and its detail. It skips clearly if the URL/key pair is absent and fails if no market can be inspected. It does not print secrets, wallet holdings, provider response bodies or stack traces. Latest local result: 30 tests pass; API build and targeted ESLint pass; authenticated live smoke passed on 2026-10-07 with eight categories and matching list/detail identity. The selected secondary market had no spot prices; missing values remained unavailable.
 
 ## Remaining gates
 
-- Configure the authenticated production URL/key pair and rerun the read-only smoke; do not mark pa-gate or Phase 22 completed before success.
+- Authenticated read-only verification is complete; Phase 22 and pa-gate are completed. Write capabilities remain documentation-only until later-phase verification.
 - Confirm settlement model and contractual resolution metadata access with Panta before payout/risk claims.
 - Confirm write cluster/program/mint, actual create permission and secondary execution support before corresponding features.
 - Confirm geographic/age/KYC/market eligibility requirements before native writes; the `region` metadata value is not an eligibility decision. Terms leave integration responsibilities to the developer and do not provide a complete jurisdiction allowlist.
-- Future Panta-powered UI must visibly display **Powered by Panta**. Normalized source metadata carries this attribution; no frontend surface is shipped in this phase.
+- Panta-powered UI visibly displays **Powered by Panta** across the Predictions page, stock events and agent artifacts.
+
+## Phase 23 discovery and research
+
+`GET /api/predictions/markets` accepts `q`, `category` (finance/crypto/world), `phase`, comma-separated canonical `assetIds`, `page` and `limit`. Text search is local: at most two 50-row pages per eligible category. World markets require an explicit economic event in their title. Pagination covers only these scanned results, not the whole Panta catalog. Coverage reports scanned row count, truncation, stale reads, malformed-record omissions and partial category failures; complete provider failure is not an empty result.
+
+`GET /api/predictions/markets/:marketId` preserves Panta fields and exact/unambiguous canonical stock links. Prices remain decimal USDC/share strings, not probabilities or winning payouts. Macro relevance is possible economic context, without a quantified price effect. Rules, payout, fees and liquidity/depth remain unavailable when the API does not supply them.
+
+The agent exposes `searchPredictionMarkets`, `getPredictionMarket` and `researchPredictionMarket`. Browse/detail make no web-research calls. Research requires the active server chat wallet; only relevant identities and allocation percentages enter the final portfolio section. Wallet addresses and balances never enter web queries or shared evidence caches. The shared installed OpenAI Responses provider uses `OPENAI_MODEL`, at most three live web calls and a 45-second research deadline. Citation URLs come from provider annotations; unknown publication dates remain unknown. Missing/failed citations return insufficient evidence. Five-minute bounded evidence caching and concurrent deduplication compose wallet context separately.
+
+The Predictions page has investing/lifecycle filters, pagination, holdings filtering and a URL-selected drawer. Stock event loading is independent. Research buttons only prefill the sidecar; users explicitly send. Conversation restoration retains original citation URLs, timestamps and warnings. No creation/trading controls or database migration were introduced.
+
+Verification: 70 targeted API tests and eight frontend tests pass; both builds pass. Live discovery/detail and paid research passed on 2026-10-07 with five citation URLs, two supporting entries and one counterargument. The observed catalog had 26 rows, including 19 blank titles; unusable rows are omitted explicitly. Catalog and detail phases were inconsistent across responses, so Oren preserves each observed value rather than inventing lifecycle transitions. Active investing coverage can be empty.
+
+Run from `api/` after `npm run build`: `npm run test:predictions:live` and, intentionally incurring research usage, `npm run test:predictions:research-live`. Smoke output contains only sanitized counts, coverage and verification flags. If active coverage is empty, a real titled investing detail can verify research; no fixture market is presented as live data.

@@ -127,8 +127,8 @@
     </p>
 
     <div class="meta">
-      <div class="pill">Active phase: <strong id="active-phase">22-panta-foundation</strong></div>
-      <div class="pill">Updated: <strong>2026-10-06</strong></div>
+      <div class="pill">Active phase: <strong id="active-phase">23-panta-discover</strong></div>
+      <div class="pill">Updated: <strong>2026-10-07</strong></div>
       <div class="pill">Tasks done: <strong id="tasks-done">—</strong></div>
     </div>
 
@@ -161,9 +161,12 @@
   </div>
 
   <script>
-    const ACTIVE = "22-panta-foundation";
+    const ACTIVE = "23-panta-discover";
 
 const NOTES = `Done
+• Phase 23 Panta Discover: investing catalog/detail endpoints, deterministic stock/macro relevance, bounded search, three read-only tools and cited on-request research landed. Predictions page, URL drawer, independent stock events and restored agent artifacts share Powered by Panta attribution. Server chat wallet controls personalization. Live catalog/detail and research passed on 2026-10-07: five sources, two supporting entries, one counterargument. Nineteen of 26 Panta catalog rows had missing titles; omissions and partial coverage remain explicit. Lifecycle values can differ between list/detail; rules, payouts, fees and depth remain unavailable. Next: Phase 24 Create proposals; retain Phase 21 wallet/Dune follow-ups.
+• Panta authenticated read-only smoke passed on 2026-10-07: eight categories, market list and matching detail; source fresh, selected secondary market had no spot prices and these remain unavailable. Phase 22 is completed (5/5). Next: Phase 23 Discover agent. Settlement conflict, resolution metadata and write/network/eligibility gates remain for later phases; no writes executed.
+• Panta key setup helper added: api/scripts/panta-create-keys.ps1 prompts for API-account credentials, creates live/test keys without revoking existing keys, saves each secret immediately into ignored api/.env, and preserves an existing active key. PowerShell syntax verified; no authentication or key creation executed by the agent. Run locally, then rerun the read-only smoke; pa-access/pa-gate remain open.
 • Panta foundation on feat/panta: read-only Nest provider, normalized types, optional configuration, bounded fresh/stale cache, sanitized errors and live smoke implemented. Official API/playground contracts documented in docs/panta-integration.md. 30 targeted tests, API build and targeted ESLint pass. Live smoke skipped: URL/key configuration incomplete; pa-access and pa-gate remain in_progress. Settlement documentation conflict and missing resolution/depth APIs are recorded before later writes. Phase 21 connected-wallet/Dune follow-ups remain outstanding.
 • Panta roadmap added for inspection: phases 22–26 on feat/panta cover Discover, researched Create proposals, stock/versus artwork, reviewed execution, positions/watch and a dedicated launch film after feature validation. Foundation implementation has started; remaining phases are pending and live capabilities still require verification. Existing Phase 21 follow-ups remain active.
 • Launch film revision 4 — simpler graphics and catchier music: delivered oren-launch/renders/oren-launch-simple.mp4. Removed all dot labels, outer paragraphs, paper labels including Proposed. Never automatic., and small research/allocation/review captions. Main headlines use softer power3 entrances and line stagger. Generated one new ElevenLabs take around a repeating four-note nu-disco hook and funky bass; prior take preserved. Verified 25.000 seconds, 1920×1080, 60 FPS, stereo AAC; final audio −16.13 LUFS / −1.95 dBTP. HyperFrames checks pass without warnings; six scene frames and final basket export reviewed. Next: creative listening/review.
@@ -234,17 +237,17 @@ Next
 • 21 Volume Analytics — apply the migration, run connected-wallet smoke, configure Dune, then return to 17 Demo Polish.`;
 
     const TASK_STATUS = {
-      "pa-access": "in_progress",
+      "pa-access": "completed",
       "pa-contract": "completed",
       "pa-provider": "completed",
       "pa-model": "completed",
-      "pa-gate": "in_progress",
-      "pd-search": "pending",
-      "pd-detail": "pending",
-      "pd-research": "pending",
-      "pd-agent": "pending",
-      "pd-ui": "pending",
-      "pd-checks": "pending",
+      "pa-gate": "completed",
+      "pd-search": "completed",
+      "pd-detail": "completed",
+      "pd-research": "completed",
+      "pd-agent": "completed",
+      "pd-ui": "completed",
+      "pd-checks": "completed",
       "pc-intent": "pending",
       "pc-rules": "pending",
       "pc-versus": "pending",
@@ -335,12 +338,12 @@ Next
   "tasks": [
     {
       "id": "pd-search",
-      "content": "Search/filter relevant company, stock-versus-stock and macro markets; rank by relevance, activity, freshness and executable depth",
+      "content": "Browse investing categories with bounded scans, exact stock links, deterministic relevance/freshness/volume ranking and truthful coverage",
       "endpoint": "GET /predictions/markets"
     },
     {
       "id": "pd-detail",
-      "content": "Return full rules, sources, dates/timezone, phase, fees, payouts and liquidity; distinguish spot price from probability",
+      "content": "Return normalized lifecycle, prices, dates/timezone and available contract fields; preserve unavailable rules, payouts, fees and depth",
       "endpoint": "GET /predictions/markets/:marketId"
     },
     {
@@ -742,8 +745,8 @@ Next
     ];
 
     const ENDPOINTS = [
-      ["GET /predictions/markets",false],
-      ["GET /predictions/markets/:marketId",false],
+      ["GET /predictions/markets",true],
+      ["GET /predictions/markets/:marketId",true],
       ["POST /predictions/creation/propose",false],
       ["POST /predictions/creation/prepare",false],
       ["POST /predictions/creation/confirm",false],
