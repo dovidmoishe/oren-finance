@@ -25,6 +25,8 @@ import { Button, Modal, Toast } from '@/components/ui';
 import { BasketReview } from '@/components/trading/basket-review';
 import { QuoteReviewModal } from '@/components/trading/quote-review-modal';
 import { LimitOrderReviewModal } from '@/components/trading/limit-order-review-modal';
+import { CreationReviewSheet } from '@/components/predictions/creation-proposal';
+import { usePredictionCreationStore } from '@/store/prediction-creation-store';
 
 interface AgentActionReviewProps {
   quote?: QuoteResponse;
@@ -39,6 +41,8 @@ export function AgentActionReview({
   limitOrder,
   onClose,
 }: AgentActionReviewProps) {
+  const creation = usePredictionCreationStore(s => s.draft);
+  const closeCreation = usePredictionCreationStore(s => s.close);
   const seedQuoteIntoStore = useExecutionStore((state) => state.seedQuote);
   const storeQuote = useExecutionStore((state) => state.quote);
   const { confirmation, error, executeQuote, flowStatus, resetFeedback } =
@@ -72,6 +76,7 @@ export function AgentActionReview({
     resetLimitFeedback();
   }, [limitOrder, resetLimitFeedback]);
 
+  if (creation) return <CreationReviewSheet draft={creation} onClose={closeCreation}/>;
   if (limitOrder) {
     return (
       <LimitOrderReviewModal

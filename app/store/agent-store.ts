@@ -2,6 +2,9 @@
 
 import { create } from 'zustand';
 import { getAgentThreadMessages, streamAgentMessage } from '@/services';
+import { clearCreationSession } from '@/services/prediction-creation-service';
+import { ApiError } from '@/services/api-client';
+import { usePredictionCreationStore } from './prediction-creation-store';
 import type {
   AgentDisplayMessage,
   AgentPageContext,
@@ -57,6 +60,8 @@ export const useAgentStore = create<AgentState>((set, get) => ({
 
   async initialize(walletAddress) {
     if (get().walletAddress === walletAddress && get().hydrated) return;
+    clearCreationSession();
+    usePredictionCreationStore.getState().close();
     activeController?.abort();
     activeController = undefined;
 
@@ -125,7 +130,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
       touchRecent(set, walletAddress, threadId);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unable to load this conversation';
-      removeRecent(set, walletAddress, threadId);
+      if (!(error instanceof ApiError && error.status === 401)) removeRecent(set, walletAddress, threadId);
       set({ threadId: undefined, messages: [], isLoadingHistory: false, error: message });
     }
   },

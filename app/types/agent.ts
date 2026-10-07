@@ -43,6 +43,7 @@ export interface AgentPortfolioContext {
 }
 
 export interface AgentPageContext {
+  timezone?: string;
   marketId?: string;
   page: AgentPage;
   assetId?: string;
@@ -62,6 +63,8 @@ export interface AgentVaultSummary {
 }
 
 export type AgentArtifact =
+  | {type: 'prediction_creation'; data: import('./prediction-creation').PredictionCreationDraft}
+  | {type: 'prediction_creation_auth'; data: {walletVerificationRequired: true; intent?: string; draftId?: string; timezone?: string}}
   | {type: 'prediction_markets'; data: PredictionResults}
   | {type: 'prediction_market'; data: PredictionMarket}
   | {type: 'prediction_research'; data: PredictionResearch}

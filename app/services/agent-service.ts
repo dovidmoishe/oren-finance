@@ -2,6 +2,7 @@ import { apiRequest, ApiError, buildApiUrl } from './api-client';
 import { mapStockDetail, mapStockSummary } from './market-service';
 import { mapPortfolio } from './portfolio-service';
 import { parseAgentSseChunk } from './agent-sse';
+import { creationSessionHeaders } from './prediction-creation-service';
 import type {
   AgentArtifact,
   AgentDisplayMessage,
@@ -17,6 +18,7 @@ type UnknownRecord = Record<string, unknown>;
 export function sendAgentMessage(request: AgentRequest) {
   return apiRequest<AgentResponse>('/agent/message', {
     method: 'POST',
+    headers: creationSessionHeaders(request.walletAddress),
     body: request,
   }).then((response) => ({
     ...response,
@@ -32,7 +34,7 @@ export async function streamAgentMessage(
 ): Promise<void> {
   const response = await fetch(buildApiUrl('/agent/message/stream'), {
     method: 'POST',
-    headers: { Accept: 'text/event-stream', 'Content-Type': 'application/json' },
+    headers: { Accept: 'text/event-stream', 'Content-Type': 'application/json', ...creationSessionHeaders(request.walletAddress) },
     body: JSON.stringify(request),
     signal,
   });
@@ -70,7 +72,7 @@ export function getAgentThreadMessages(
 ) {
   return apiRequest<AgentThreadMessagesResponse>(
     `/agent/threads/${threadId}/messages`,
-    { query: { walletAddress } },
+    { query: { walletAddress }, headers: creationSessionHeaders(walletAddress) },
   ).then((response) => ({
     ...response,
     messages: response.messages.map(normalizeMessage),

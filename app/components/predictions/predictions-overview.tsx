@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useWallet } from "@solana/wallet-adapter-react";
-import { usePortfolioStore } from "@/store";
+import { usePortfolioStore, useAgentStore } from "@/store";
 import {
   predictionSearchKey,
   usePredictionsStore,
@@ -12,7 +12,10 @@ import type { PredictionSearch } from "@/types/predictions";
 import { Button } from "@/components/ui";
 import { PoweredByPanta, PredictionCard } from "./prediction-cards";
 
+import { CreationRecovery } from "./creation-proposal";
+
 export function PredictionsOverview() {
+  const prefill = useAgentStore((s) => s.prefillPrompt);
   const router = useRouter(),
     params = useSearchParams();
   const marketId = params.get("marketId");
@@ -27,6 +30,12 @@ export function PredictionsOverview() {
     [holdings, setHoldings] = useState(false),
     [page, setPage] = useState(1);
   const [revision, setRevision] = useState(0);
+  useEffect(() => {
+    const refresh = () => setRevision((n) => n + 1);
+    window.addEventListener("oren:predictions-refresh", refresh);
+    return () =>
+      window.removeEventListener("oren:predictions-refresh", refresh);
+  }, []);
   const search = usePredictionsStore((s) => s.search),
     loadDetail = usePredictionsStore((s) => s.detail);
   const dialog = useRef<HTMLDialogElement>(null);
@@ -97,6 +106,17 @@ export function PredictionsOverview() {
   return (
     <div className="space-y-6">
       <header>
+        <Button
+          variant="primary"
+          className="float-right"
+          onClick={() =>
+            prefill(
+              "Create a prediction market about [describe an investing event, assets, observation dates and sources]. Research it and prepare an editable proposal for my review.",
+            )
+          }
+        >
+          Create market
+        </Button>
         <p className="text-sm text-muted">
           Events that matter to your portfolio
         </p>
@@ -167,6 +187,7 @@ export function PredictionsOverview() {
         />
         Relevant to my holdings{!wallet ? " · Connect a wallet" : ""}
       </label>
+      <CreationRecovery />
       <PoweredByPanta />
       {error ? (
         <div role="alert" className="rounded-xl border border-border p-4">

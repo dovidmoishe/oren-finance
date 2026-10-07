@@ -15,6 +15,8 @@ import type { BasketResponse, LimitOrderProposal, QuoteResponse } from '@/types'
 import { OrenLogo, type OrenLogoState } from '@/components/brand/oren-logo';
 import { Button, cn } from '@/components/ui';
 import { AgentActionReview } from './agent-action-review';
+import { CreationWalletVerification } from '@/components/predictions/creation-proposal';
+import { usePredictionCreationStore } from '@/store/prediction-creation-store';
 import {
   AgentComposer,
   AgentConversationThread,
@@ -100,6 +102,7 @@ export function AgentPanel() {
   const reviewOriginRef = useRef<HTMLElement | null>(null);
   const shouldFollowRef = useRef(true);
   const search = useSearchParams().toString();
+  const creationDraft = usePredictionCreationStore(s => s.draft);
   const context = useMemo(() => pageContext(pathname,search), [pathname,search]);
   const prompts = useMemo(
     () => promptSuggestions(context, selectedStock?.ticker),
@@ -211,7 +214,7 @@ export function AgentPanel() {
     if (!walletAddress || !value.trim()) return;
     setComposer('');
     shouldFollowRef.current = true;
-    await sendMessage(value, walletAddress, context);
+    await sendMessage(value, walletAddress, {...context, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'});
   };
 
   const openQuoteReview = (quote: QuoteResponse) => {
@@ -247,7 +250,7 @@ export function AgentPanel() {
     closePanel();
   };
 
-  const hasReviewOpen = Boolean(reviewQuote || reviewBasket || reviewLimitOrder);
+  const hasReviewOpen = Boolean(reviewQuote || reviewBasket || reviewLimitOrder || creationDraft);
   return (
     <>
       <div
@@ -365,6 +368,7 @@ export function AgentPanel() {
           />
         ) : null}
 
+        {error?.includes('Verify the connected wallet') ? <div className="p-3"><CreationWalletVerification/></div> : null}
         {expanded ? (
           <AgentWorkspace
             composer={composer}

@@ -20,6 +20,7 @@ import type {
   QuoteResponse,
 } from '@/types';
 import { PredictionCard, PredictionBrief, PoweredByPanta } from '@/components/predictions/prediction-cards';
+import { CreationProposalCard, CreationWalletVerification } from '@/components/predictions/creation-proposal';
 import { TechnicalBriefPanel } from '@/components/stock/technical-brief-panel';
 import { Button, cn, formatCurrency, formatNumber } from '@/components/ui';
 import { useQuoteRefresh } from '@/hooks/use-quote-refresh';
@@ -90,6 +91,8 @@ function AgentArtifactCard({
   onNavigate?: () => void;
 }) {
   switch (artifact.type) {
+    case 'prediction_creation': return <CreationProposalCard draft={artifact.data}/>;
+    case 'prediction_creation_auth': return <CreationWalletVerification {...artifact.data}/>;
     case 'prediction_markets': return <section className="space-y-3"><PoweredByPanta/>{artifact.data.coverage.warnings.map(w=><p className="text-xs text-muted" key={w}>{w}</p>)}{artifact.data.items.length ? artifact.data.items.map(m=><PredictionCard key={m.marketId} market={m}/>) : <p>No matching investing events in the scanned catalog.</p>}</section>;
     case 'prediction_market': return <PredictionCard market={artifact.data} detail/>;
     case 'prediction_research': return <PredictionBrief brief={artifact.data}/>;
@@ -621,6 +624,8 @@ function formatPercentSignal(value?: number) {
 }
 
 function artifactChipLabel(artifact: AgentArtifact): string {
+  if (artifact.type === 'prediction_creation') return 'Creation proposal';
+  if (artifact.type === 'prediction_creation_auth') return 'Verify creation wallet';
   if(artifact.type==='prediction_markets')return `${artifact.data.items.length} prediction markets`;
   if(artifact.type==='prediction_market')return 'Prediction event';
   if(artifact.type==='prediction_research')return 'Event research';
