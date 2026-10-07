@@ -4,15 +4,21 @@
 > Visual twin: [`api-build-board.html`](api-build-board.html)  
 > Project agent contract: [`../AGENTS.md`](../AGENTS.md)
 
-**Active phase:** `23-panta-discover`
+**Active phase:** `24-panta-create`
 **Last updated:** 2026-10-07  
-**Planned next (API/agent):** Phase 24 Panta Create proposals on feat/panta; retain Phase 21 connected-wallet and Dune follow-ups.
+**Planned next (API/agent):** Phase 24 Panta Create verification and database/contract access blockers on feat/panta; retain Phase 21 connected-wallet and Dune follow-ups.
 
 ---
 
 ## Status / Notes
 
 ### Done
+
+- **Phase 24 creation implementation** — Versioned owned drafts, nonce-signed one-hour sessions, cited research, conservative investing templates, deterministic 1024-square artwork, editable creation sheets and exact quote/version/payment binding implemented on feat/panta. Upload/build/register use native fetch; unsigned transactions resolve lookup tables and reject unsupported programs, accounts, payments and signers. Signature recovery keeps chain and registration pending distinct; submitted attempts cannot request a second payment.
+
+- **Phase 24 verification** — 98 targeted API tests, 16 frontend tests, 12 real-message offline transaction checks, both production builds and ESLint without fixes pass. Frontend lint retains five existing unrelated warnings. Desktop and 360px mobile proposal fixtures were inspected; no horizontal overflow. Each prepared attempt retains its exact provider payload, artwork hash and derived build accounts for historical recovery.
+
+- **Phase 24 blockers (2026-10-07)** — Read-only /whoami/ verified canCreateMarkets=true. Publication remains disabled: no audited genesis/program deployment, instruction, fee, resolution/oracle, dispute or eligibility manifest/RPC is configured. Unsigned live quote/build simulation and a human-signed registration smoke remain open. The additive migration was attempted but the configured Postgres connection returns tenant/user not found (XX000); no schema was added. Update the database connection and run npm run db:migrate. Phase 21 wallet/Dune follow-ups remain recorded.
 
 - **Phase 23 Panta Discover** — Investing-only catalog/detail endpoints, deterministic stock/macro relevance, bounded local search with partial coverage, three read-only agent tools and cited on-request research landed. Predictions page, URL-selected drawer, independent stock events and restored agent artifacts share Powered by Panta attribution. Server chat wallet controls personalization; evidence caching excludes portfolio context. Live catalog/detail and research passed on 2026-10-07 (five citation URLs, two supporting entries, one counterargument). Panta supplied 26 rows with 19 missing titles; omissions are explicit and catalog/detail lifecycle values can differ. Contractual rules, payouts, fees and depth remain unavailable. Next: Phase 24 Create proposal contracts; Phase 21 follow-ups remain recorded.
 
@@ -131,7 +137,7 @@
 | 21 · Volume Analytics + Dune | P0 | in_progress | 6/7   |
 | 22 · Panta Integration Foundation | P0 | completed | 5/5 |
 | 23 · Panta Discover Agent | P0 | completed | 6/6 |
-| 24 · Panta Create Agent + Proposal Sheet | P0 | pending | 0/10 |
+| 24 · Panta Create Agent + Proposal Sheet | P0 | in_progress | 7/10 |
 | 25 · Prediction Positions + Thesis Watch | P1 | pending | 0/6 |
 | 26 · Panta Validation + Launch Motion Film | P1 | pending | 0/6 |
 
@@ -485,7 +491,7 @@ Status values: `pending` | `in_progress` | `completed`
 | pd-ui | Ship Predictions filters/detail drawer, independent stock events and shared attributed agent briefs; research prompts require explicit send |  | completed |
 | pd-checks | Pass discovery/research/tool/history tests, API/frontend builds and live catalog/detail/research; verify mobile drawer and fixture cards |  | completed |
 
-### 24 · Panta Create Agent + Proposal Sheet (`24-panta-create`) — P0 — pending
+### 24 · Panta Create Agent + Proposal Sheet (`24-panta-create`) — P0 — in_progress
 
 **Goal:** Turn natural-language ideas into researched market drafts, editable review sheets and exact approved Panta submissions.  
 **Depends on:** 22-panta-foundation, 23-panta-discover, 13-trading-ui  
@@ -494,16 +500,16 @@ Status values: `pending` | `in_progress` | `completed`
 
 | ID | Task | Proposed endpoint | Status |
 | --- | --- | --- | --- |
-| pc-intent | Parse market intent and research feasibility; ask only material questions, suggest defaults and detect duplicate or near-duplicate existing markets |  | pending |
-| pc-rules | Draft objective YES/NO criteria, event start/end/timezone, primary resolution source, fallback and tie/missing-data/corporate-action handling |  | pending |
-| pc-versus | Support stock-versus-stock templates using percentage returns over exact dates and sessions; specify underlying price source and tie outcome |  | pending |
-| pc-artwork | Reuse canonical stock logos; compose single-stock and paired versus artwork with preview, upload validation and neutral fallback |  | pending |
-| pc-draft | Persist versioned drafts and cited research as app memory; validate provider fields and separate thesis explanation from binding resolution rules | POST /predictions/creation/propose | pending |
-| pc-sheet | Reuse proposal-sheet interaction with editable title, description, rules, source, dates, artwork, fees/funding and complete final API payload preview |  | pending |
-| pc-integrity | Bind approval to a validated draft version/payload; any changed rules, fees or artwork invalidate approval; reject expired or unsupported drafts |  | pending |
-| pc-prepare | Prepare provider-supported creation from explicit sheet approval; user reviews required wallet actions and signs, agent never signs or broadcasts | POST /predictions/creation/prepare | pending |
-| pc-confirm | Confirm provider/onchain result with idempotency, rejected-signature and retry recovery; return actual market ID/link and refresh created markets | POST /predictions/creation/confirm | pending |
-| pc-checks | Verify idea-to-live flow, ambiguous rules, duplicate markets, source failure, invalid artwork, edited approval, fee changes and duplicate submission |  | pending |
+| pc-intent | Parse market intent and research feasibility; ask only material questions, suggest defaults and detect duplicate or near-duplicate existing markets |  | completed |
+| pc-rules | Draft objective YES/NO criteria, event start/end/timezone, primary resolution source, fallback and tie/missing-data/corporate-action handling |  | completed |
+| pc-versus | Support stock-versus-stock templates using percentage returns over exact dates and sessions; specify underlying price source and tie outcome |  | completed |
+| pc-artwork | Reuse canonical stock logos; compose single-stock and paired versus artwork with preview, upload validation and neutral fallback |  | completed |
+| pc-draft | Persist versioned drafts and cited research as app memory; validate provider fields and separate thesis explanation from binding resolution rules | POST /predictions/creation/propose | completed |
+| pc-sheet | Reuse proposal-sheet interaction with editable title, description, rules, source, dates, artwork, fees/funding and complete final API payload preview |  | completed |
+| pc-integrity | Bind approval to a validated draft version/payload; any changed rules, fees or artwork invalidate approval; reject expired or unsupported drafts |  | completed |
+| pc-prepare | Prepare provider-supported creation from explicit sheet approval; user reviews required wallet actions and signs, agent never signs or broadcasts | POST /predictions/creation/prepare | in_progress |
+| pc-confirm | Confirm provider/onchain result with idempotency, rejected-signature and retry recovery; return actual market ID/link and refresh created markets | POST /predictions/creation/confirm | in_progress |
+| pc-checks | Verify idea-to-live flow, ambiguous rules, duplicate markets, source failure, invalid artwork, edited approval, fee changes and duplicate submission |  | in_progress |
 
 ### 25 · Prediction Positions + Thesis Watch (`25-panta-positions`) — P1 — pending
 
@@ -597,9 +603,15 @@ Oren route names are provisional until Phase 22 validates provider capabilities.
 | --- | --- |
 | GET /predictions/markets | yes |
 | GET /predictions/markets/:marketId | yes |
-| POST /predictions/creation/propose | no |
-| POST /predictions/creation/prepare | no |
-| POST /predictions/creation/confirm | no |
+| POST /predictions/creation/session/challenge | yes |
+| POST /predictions/creation/session | yes |
+| GET /predictions/creation/:draftId | yes |
+| PATCH /predictions/creation/:draftId | yes |
+| POST /predictions/creation/:draftId/quote | yes |
+| POST /predictions/creation/:draftId/release-expired | yes |
+| POST /predictions/creation/propose | yes |
+| POST /predictions/creation/prepare | yes |
+| POST /predictions/creation/confirm | yes |
 | POST /predictions/trades/propose | no |
 | POST /predictions/trades/prepare | no |
 | POST /predictions/trades/confirm | no |

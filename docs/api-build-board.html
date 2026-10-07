@@ -127,7 +127,7 @@
     </p>
 
     <div class="meta">
-      <div class="pill">Active phase: <strong id="active-phase">23-panta-discover</strong></div>
+      <div class="pill">Active phase: <strong id="active-phase">24-panta-create</strong></div>
       <div class="pill">Updated: <strong>2026-10-07</strong></div>
       <div class="pill">Tasks done: <strong id="tasks-done">—</strong></div>
     </div>
@@ -161,9 +161,11 @@
   </div>
 
   <script>
-    const ACTIVE = "23-panta-discover";
+    const ACTIVE = "24-panta-create";
 
 const NOTES = `Done
+• Phase 24 verification: 98 targeted API tests, 16 frontend tests, 12 real-message offline transaction checks, both builds and ESLint without fixes passed. Five unrelated frontend warnings remain. Desktop/mobile fixtures verified without overflow. Exact provider payload/artwork hash/build-derived accounts are retained per attempt.
+• Phase 24 creation implementation: owned versioned drafts, signed one-hour wallet sessions, cited research, investing templates, deterministic artwork, editable proposal sheet, exact approval binding and recoverable attempts landed. Read-only /whoami/ confirms canCreateMarkets=true. Publication is disabled pending audited genesis/program/instructions/fees and resolution/oracle/dispute/eligibility contract. Live unsigned build/simulation and human-signed registration checks remain open. Migration blocked: configured Postgres tenant/user not found (XX000); update connection then run npm run db:migrate. Phase 24 remains active; retain Phase 21 wallet/Dune follow-ups.
 • Phase 23 Panta Discover: investing catalog/detail endpoints, deterministic stock/macro relevance, bounded search, three read-only tools and cited on-request research landed. Predictions page, URL drawer, independent stock events and restored agent artifacts share Powered by Panta attribution. Server chat wallet controls personalization. Live catalog/detail and research passed on 2026-10-07: five sources, two supporting entries, one counterargument. Nineteen of 26 Panta catalog rows had missing titles; omissions and partial coverage remain explicit. Lifecycle values can differ between list/detail; rules, payouts, fees and depth remain unavailable. Next: Phase 24 Create proposals; retain Phase 21 wallet/Dune follow-ups.
 • Panta authenticated read-only smoke passed on 2026-10-07: eight categories, market list and matching detail; source fresh, selected secondary market had no spot prices and these remain unavailable. Phase 22 is completed (5/5). Next: Phase 23 Discover agent. Settlement conflict, resolution metadata and write/network/eligibility gates remain for later phases; no writes executed.
 • Panta key setup helper added: api/scripts/panta-create-keys.ps1 prompts for API-account credentials, creates live/test keys without revoking existing keys, saves each secret immediately into ignored api/.env, and preserves an existing active key. PowerShell syntax verified; no authentication or key creation executed by the agent. Run locally, then rerun the read-only smoke; pa-access/pa-gate remain open.
@@ -248,16 +250,16 @@ Next
       "pd-agent": "completed",
       "pd-ui": "completed",
       "pd-checks": "completed",
-      "pc-intent": "pending",
-      "pc-rules": "pending",
-      "pc-versus": "pending",
-      "pc-artwork": "pending",
-      "pc-draft": "pending",
-      "pc-sheet": "pending",
-      "pc-integrity": "pending",
-      "pc-prepare": "pending",
-      "pc-confirm": "pending",
-      "pc-checks": "pending",
+      "pc-intent": "completed",
+      "pc-rules": "completed",
+      "pc-versus": "completed",
+      "pc-artwork": "completed",
+      "pc-draft": "completed",
+      "pc-sheet": "completed",
+      "pc-integrity": "completed",
+      "pc-prepare": "in_progress",
+      "pc-confirm": "in_progress",
+      "pc-checks": "in_progress",
       "pp-propose": "pending",
       "pp-execute": "pending",
       "pp-holdings": "pending",
@@ -747,9 +749,15 @@ Next
     const ENDPOINTS = [
       ["GET /predictions/markets",true],
       ["GET /predictions/markets/:marketId",true],
-      ["POST /predictions/creation/propose",false],
-      ["POST /predictions/creation/prepare",false],
-      ["POST /predictions/creation/confirm",false],
+      ["POST /predictions/creation/session/challenge",true],
+      ["POST /predictions/creation/session",true],
+      ["GET /predictions/creation/:draftId",true],
+      ["PATCH /predictions/creation/:draftId",true],
+      ["POST /predictions/creation/:draftId/quote",true],
+      ["POST /predictions/creation/:draftId/release-expired",true],
+      ["POST /predictions/creation/propose",true],
+      ["POST /predictions/creation/prepare",true],
+      ["POST /predictions/creation/confirm",true],
       ["POST /predictions/trades/propose",false],
       ["POST /predictions/trades/prepare",false],
       ["POST /predictions/trades/confirm",false],
