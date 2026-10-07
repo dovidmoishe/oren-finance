@@ -21,23 +21,28 @@ export interface AppEnv {
   ANTHROPIC_API_KEY?: string;
   BITGET_API_BASE_URL: string;
   BITGET_REQUEST_TIMEOUT_MS: number;
+  PANTA_ENABLED?: boolean;
+  PANTA_API_BASE_URL?: string;
+  PANTA_API_KEY?: string;
+  PANTA_REQUEST_TIMEOUT_MS?: number;
   VAULT_PROGRAM_ID: string;
   /** When false, vault prepare/confirm routes return 503. Defaults to false until the program is deployed. */
   VAULT_PROGRAM_LIVE: boolean;
 }
 
-const REQUIRED = [
-  'POSTGRES_URL',
-  'TOKENS_API_KEY',
-  'ALCHEMY_API_KEY',
-] as const;
+const REQUIRED = ['POSTGRES_URL', 'TOKENS_API_KEY', 'ALCHEMY_API_KEY'] as const;
 
 type EnvSource = NodeJS.ProcessEnv | Record<string, unknown>;
 
 function readEnv(env: EnvSource, key: string): string | undefined {
   const raw = env[key];
   if (raw == null) return undefined;
-  const value = typeof raw === 'string' ? raw.trim() : String(raw).trim();
+  const value =
+    typeof raw === 'string'
+      ? raw.trim()
+      : typeof raw === 'number' || typeof raw === 'boolean'
+        ? String(raw)
+        : '';
   return value || undefined;
 }
 
@@ -58,7 +63,11 @@ function readBool(env: EnvSource, key: string, fallback: boolean): boolean {
   return fallback;
 }
 
-function readPositiveInt(env: EnvSource, key: string, fallback: number): number {
+function readPositiveInt(
+  env: EnvSource,
+  key: string,
+  fallback: number,
+): number {
   const raw = readEnv(env, key);
   const value = Number(raw ?? fallback);
   if (!Number.isInteger(value) || value <= 0) {
@@ -93,7 +102,41 @@ export function validateEnv(env: EnvSource = process.env): AppEnv {
     throw new Error(`Invalid PORT: ${portRaw}`);
   }
 
+  const pantaEnabled = readBool(env, 'PANTA_ENABLED', false);
+  const pantaBaseUrl = readEnv(env, 'PANTA_API_BASE_URL')?.replace(/\/+$/, '');
+  const pantaKey = readEnv(env, 'PANTA_API_KEY');
+  if (pantaEnabled && (!pantaBaseUrl || !pantaKey)) {
+    throw new Error(
+      'PANTA_API_BASE_URL and PANTA_API_KEY are required when PANTA_ENABLED is true',
+    );
+  }
+  if (pantaBaseUrl) {
+    let url: URL;
+    try {
+      url = new URL(pantaBaseUrl);
+    } catch {
+      throw new Error('Invalid PANTA_API_BASE_URL');
+    }
+    if (
+      !['http:', 'https:'].includes(url.protocol) ||
+      url.username ||
+      url.password ||
+      url.search ||
+      url.hash
+    ) {
+      throw new Error('Invalid PANTA_API_BASE_URL');
+    }
+  }
+
   return {
+    PANTA_ENABLED: pantaEnabled,
+    PANTA_API_BASE_URL: pantaBaseUrl,
+    PANTA_API_KEY: pantaKey,
+    PANTA_REQUEST_TIMEOUT_MS: readPositiveInt(
+      env,
+      'PANTA_REQUEST_TIMEOUT_MS',
+      8000,
+    ),
     PORT: port,
     CORS_ORIGIN: readEnv(env, 'CORS_ORIGIN') ?? '*',
     POSTGRES_URL: requireEnv(env, 'POSTGRES_URL'),

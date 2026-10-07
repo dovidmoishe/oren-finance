@@ -23,7 +23,8 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "node lib/db/migrate.mjs",
     "db:sync-stocks": "node lib/db/sync-stocks.mjs",
-    "db:studio": "drizzle-kit studio"
+    "db:studio": "drizzle-kit studio",
+    "test:panta:live": "node scripts/panta-live-smoke.mjs"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",
