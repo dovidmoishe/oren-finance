@@ -1,0 +1,866 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Oren Build Board</title>
+  <style>
+    :root {
+      --bg: #0f1115;
+      --panel: #171a21;
+      --panel2: #1e2330;
+      --text: #e8eaed;
+      --muted: #9aa3b2;
+      --border: #2a3142;
+      --accent: #6ea8fe;
+      --ok: #3ecf8e;
+      --warn: #f0b429;
+      --pending: #6b7280;
+      --p0: #f07178;
+      --p1: #c3a6ff;
+      --infra: #7dd3fc;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.45;
+    }
+    .wrap { max-width: 1100px; margin: 0 auto; padding: 28px 20px 64px; }
+    h1 { font-size: 1.75rem; margin: 0 0 6px; letter-spacing: -0.02em; }
+    .sub { color: var(--muted); margin-bottom: 20px; }
+    .sub a { color: var(--accent); }
+    .meta {
+      display: flex; flex-wrap: wrap; gap: 10px;
+      margin-bottom: 22px;
+    }
+    .pill {
+      display: inline-flex; align-items: center; gap: 6px;
+      border: 1px solid var(--border);
+      background: var(--panel);
+      border-radius: 999px;
+      padding: 4px 12px;
+      font-size: 0.85rem;
+      color: var(--muted);
+    }
+    .pill strong { color: var(--text); font-weight: 600; }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 12px;
+      margin-bottom: 28px;
+    }
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px;
+    }
+    .card.active { border-color: var(--accent); box-shadow: 0 0 0 1px rgba(110,168,254,0.25); }
+    .card h3 { margin: 0 0 6px; font-size: 0.95rem; }
+    .bar {
+      height: 6px; border-radius: 999px; background: var(--panel2);
+      overflow: hidden; margin: 10px 0 6px;
+    }
+    .bar > span { display: block; height: 100%; background: var(--ok); }
+    .bar.partial > span { background: var(--warn); }
+    .bar.empty > span { width: 0 !important; }
+    .small { font-size: 0.8rem; color: var(--muted); }
+    .badge {
+      font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.04em;
+      padding: 2px 7px; border-radius: 6px; border: 1px solid var(--border);
+    }
+    .badge.p0 { color: var(--p0); }
+    .badge.p1 { color: var(--p1); }
+    .badge.infra { color: var(--infra); }
+    .badge.completed { color: var(--ok); border-color: rgba(62,207,142,0.35); }
+    .badge.pending { color: var(--pending); }
+    .badge.in_progress { color: var(--warn); }
+    section { margin-bottom: 28px; }
+    section > h2 { font-size: 1.15rem; margin: 0 0 10px; }
+    table {
+      width: 100%; border-collapse: collapse;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    th, td {
+      text-align: left; padding: 10px 12px;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.9rem;
+      vertical-align: top;
+    }
+    th { color: var(--muted); font-weight: 600; background: var(--panel2); }
+    tr:last-child td { border-bottom: none; }
+    code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.82rem;
+      background: var(--panel2);
+      padding: 1px 6px;
+      border-radius: 4px;
+    }
+    .notes {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px 18px;
+      white-space: pre-wrap;
+      font-size: 0.92rem;
+      color: var(--muted);
+    }
+    .notes strong { color: var(--text); }
+    .yes { color: var(--ok); }
+    .no { color: var(--pending); }
+    footer { margin-top: 36px; color: var(--muted); font-size: 0.8rem; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Oren Build Board</h1>
+    <p class="sub">
+      Shared progress board for agents.
+      Markdown twin: <a href="./api-build-board.md">api-build-board.md</a> ·
+      Contract: <a href="../AGENTS.md">../AGENTS.md</a>
+    </p>
+
+    <div class="meta">
+      <div class="pill">Active phase: <strong id="active-phase">22-panta-foundation</strong></div>
+      <div class="pill">Updated: <strong>2026-10-06</strong></div>
+      <div class="pill">Tasks done: <strong id="tasks-done">—</strong></div>
+    </div>
+
+    <div class="grid" id="phase-cards"></div>
+
+    <section>
+      <h2>Status / Notes</h2>
+      <div class="notes" id="notes"></div>
+    </section>
+
+    <section>
+      <h2>Phases &amp; tasks</h2>
+      <div id="phases"></div>
+    </section>
+
+    <section>
+      <h2>Endpoints</h2>
+      <table>
+        <thead>
+          <tr><th>Endpoint</th><th>Shipped</th></tr>
+        </thead>
+        <tbody id="endpoints"></tbody>
+      </table>
+    </section>
+
+    <footer>
+      Keep this file in sync with <code>docs/api-build-board.md</code> when completing work.
+      Cursor’s interactive canvas is separate and not the shared source of truth.
+    </footer>
+  </div>
+
+  <script>
+    const ACTIVE = "22-panta-foundation";
+
+const NOTES = `Done
+• Panta foundation on feat/panta: read-only Nest provider, normalized types, optional configuration, bounded fresh/stale cache, sanitized errors and live smoke implemented. Official API/playground contracts documented in docs/panta-integration.md. 30 targeted tests, API build and targeted ESLint pass. Live smoke skipped: URL/key configuration incomplete; pa-access and pa-gate remain in_progress. Settlement documentation conflict and missing resolution/depth APIs are recorded before later writes. Phase 21 connected-wallet/Dune follow-ups remain outstanding.
+• Panta roadmap added for inspection: phases 22–26 on feat/panta cover Discover, researched Create proposals, stock/versus artwork, reviewed execution, positions/watch and a dedicated launch film after feature validation. Foundation implementation has started; remaining phases are pending and live capabilities still require verification. Existing Phase 21 follow-ups remain active.
+• Launch film revision 4 — simpler graphics and catchier music: delivered oren-launch/renders/oren-launch-simple.mp4. Removed all dot labels, outer paragraphs, paper labels including Proposed. Never automatic., and small research/allocation/review captions. Main headlines use softer power3 entrances and line stagger. Generated one new ElevenLabs take around a repeating four-note nu-disco hook and funky bass; prior take preserved. Verified 25.000 seconds, 1920×1080, 60 FPS, stereo AAC; final audio −16.13 LUFS / −1.95 dBTP. HyperFrames checks pass without warnings; six scene frames and final basket export reviewed. Next: creative listening/review.
+• ElevenLabs launch soundtrack — generated one successful music_v2_5 take after the key permission update and delivered oren-launch/renders/oren-launch-elevenlabs.mp4. Seven connected music sections match approved scene durations. Raw MP3, mastered stereo WAV, plan and metadata preserved; Studio and landscape builder use the new master. Verified 25.000-second 1080p/60 FPS H.264/AAC export, zero-start streams, unchanged video bitstream hash and final audio at −16.05 LUFS / −3.52 dBTP. HyperFrames checks pass without warnings. Next: human listening and creative review of the first generated take.
+• ElevenLabs music tooling — added a key-safe Node generation script, dry-run command and 25-second / seven-section music_v2_5 plan in oren-launch/. It preserves raw takes, masters audio, stream-copies approved picture and updates Studio only after success. Credential presence, plan duration and syntax checks pass. Initial provider request returned HTTP 401 missing_permissions for music_generation; no music was generated. Previous synthesized soundtrack was rejected by the user.
+• Launch film synchronized score — Delivered oren-launch/renders/oren-launch-scored.mp4 with original stereo music, 53 named motion cues, quiet typing/candle details, transitions and an Oren closing motif. Includes mastered music-only WAV, editable synthesizer, separate stems and cue sheet. Verified 25.000-second 1080p/60 FPS H.264/AAC export; video bitstream hash exactly matches approved revision 3. AAC audio measures −16.06 LUFS / −1.50 dBTP; both streams start at zero and span 25 seconds. HyperFrames checks pass without warnings. Studio uses the same mastered WAV. Next: listen and creative review.
+• Launch film revision 3 — Delivered oren-launch/renders/oren-launch-landscape-v3.mp4: verified 25.000 seconds, 1920×1080, 60 FPS H.264/AAC. Fixed opening card convergence behind the mascot with separated positions and independent outward exits. Official AAPLx, NVDAx, MSFTx and TSLAx logos from Backed's Solana token metadata now appear across opening, discovery, research and basket scenes. Assets and provenance are local. Lint/runtime/layout/motion pass without warnings; 18/18 contrast checks pass. Dense opening transition samples and final MP4 opening/basket frames reviewed. Next: creative review.
+• Launch film revision 2 — Delivered oren-launch/renders/oren-launch-landscape.mp4: verified 25.000 seconds, 1920×1080, 60 FPS H.264 with AAC original audio. White canvas and local Instrument Sans; outer marketing labels removed; official Solana symbol plus Solana bottom right. Seven connected beats show gathering stocks, discovery, an agent request, research/candles/news, donut allocation, review/signature and mascot callback. Lint, runtime, layout, motion and contrast pass; mounted scenes and final export reviewed. Next: creative review. Original square MP4 preserved.
+• Oren launch film — Completed editable oren-launch/ HyperFrames source and renders/oren-launch.mp4: verified 20.000 seconds, 1440×1440, H.264 at 60 FPS with AAC original audio. Uses current Neue Freigeist fonts, brand palette, exact mascot paths, scripted eye/cursor behavior, morphing UI and explicit review/signature handoff. Lint, runtime, layout, motion and all 53 contrast checks pass; export frame and audio verified. Studio: http://localhost:3017/#project/oren-launch. Next: creative review and requested revisions.
+• Production dynamic-route + portfolio equity-boundary fix — diagnosed live React server-render digest 550951418 to sharp's Linux x64-v2 binary being incompatible with the VPS CPU. Browser icon and Open Graph art now ship as static assets, runtime error-page imagery bypasses Next image optimization, and sharp is development-only; Docker-equivalent standalone smokes return 200 for trader profiles, stock detail, icon, and social image. getStock now requires explicit equity evidence, while resolveMint awaits and converts non-equity 404s to null, preventing ordinary crypto from entering portfolios. Regression tests and API/app builds pass.
+• Leaderboard route resilience + branded error recovery — hardened public trader mapping against missing legacy activity/history/position fields, clears stale trader state between profile loads, and safely formats invalid timestamps so /app/leaderboard/:slug degrades instead of crashing. Added terminal and global error boundaries with retry/dashboard actions and a custom editorial Oren landscape asset derived from the landing-page visual language. App lint, tests, and production build pass.
+• Stocks-only market guard + agent launcher state — market ingestion now rejects non-equity assets leaked by upstream curated/search/trending feeds unless they carry an explicit stock/equity classification or tokenized-equity variant metadata. The floating Oren launcher is hidden whenever the agent sidecar is already open. Mapper regression tests and API/app production builds pass.
+• Production VPS first release — deployment commit dd994fc is pushed; both Docker images were built on the VPS, Postgres/API/app/Caddy are healthy, migrations ran, 401 stocks were seeded, a compressed backup passed verification, and daily 02:15 UTC local backups are scheduled. A dedicated non-root deployment key works; temporary root keys were revoked.
+• Production deployment foundation — immutable SHA-based GHCR API/app releases, GitHub CI and protected-environment VPS deployment/rollback, multi-stage Docker images, Caddy TLS routing for oren.finance + api.oren.finance, Compose Postgres/migration ordering, liveness/readiness endpoints, VPS bootstrap, and backup helpers now ship. The VPS-specific runbook and production environment template were removed from the public checkout; no live credentials were found in those tracked files.
+• Production release origin defaults — the release workflow falls back to the documented https://oren.finance and https://api.oren.finance origins when Actions variables are unset; configured variables still override them.
+• Social sharing image — added a 1200×630, font-embedded Open Graph route using the Oren landing landscape and a server-safe rendering of the Oren mascot; browser icon uses the same mark.
+• Shared Oren browser icon — replaced the legacy favicon with a statically generated Next.js icon route that renders the product's Oren SVG component, keeping browser tabs aligned with the in-app mark.
+• 21 Volume Analytics core — finalized stock/USDC wallet deltas now feed idempotent per-stock buy/sell totals through a Postgres outbox and background worker, never through the signing request. Exact execution IDs, feature attribution, Trigger fill polling, and public aggregate APIs remain available for Dune. Volume details live on Dune, with no volume displays in the app; optional no-wallet Dune uploads, tests, and production builds ship.
+• 20 Bitget Live Market Context — official Bitget V3 Reality stock-info, spot ticker, candles/history, and US market-state APIs now feed a resilient getBitgetMarketContext agent tool. Canonical Oren stocks resolve to Bitget rTokens, requests run concurrently, live results carry Bitget attribution/timestamps and compact UI artifacts, and bounded timeouts plus fresh/stale caches keep provider failures non-fatal. Real RNVDAUSDT ticker/candle/turnover data was verified without mocks or credentials; backend tests and API/app production builds pass.
+• Hero agent gesture polish — upgraded the landing Oren mark from a single low-range tilt to layered pointer behavior: pixel-based proximity falloff, fast independent eye tracking, a heavier shell spring, velocity lag, responsive highlight/glow, CTA focus/hover awareness, touch feedback, clean leave-to-rest behavior, and reduced-motion preservation. App lint/tests/logo validation, production build, and desktop browser smoke pass.
+• Oren-context hero landscape — the public landing page is now intentionally hero-only: a light editorial market landscape frames the existing centered Oren mark, copy, CTA, and product preview. The edge-framing artwork uses restrained chart-like terraces, token forms, and onchain paths, stays hidden on narrow mobile layouts, and fades before the product preview.
+• Public landing + /app terminal routing — the premium light landing hero now owns / with an rAF-smoothed pointer-aware Oren mark, unclipped ambient bloom, restrained product preview, and shared primary-button sheen that returns after focus/hover leaves. The authenticated terminal is canonical under /app/*; wallet providers are scoped to that layout, internal links moved with it, and legacy terminal URLs redirect safely.
+• Landing product story — added responsive, portfolio-led intent processing, conversational portfolio construction, and portfolio-aware NVDAx research sections. They use canonical tokenized-equity notation, respect reduced motion, and retain the existing light terminal system.
+• Landing SaaS continuity pass — reframed those product surfaces as one numbered Oren workflow with a persistent desktop progression rail, scroll-timed frame reveals, and a single conversion handoff instead of isolated feature blocks.
+• Landing SaaS redesign — replaced the editorial landing emphasis with a clearer SaaS hierarchy: product-led hero, concise value proposition and controls disclosure, a gray-icon Integrations strip (Solana, Jupiter, OpenAI, Alchemy), and three visual benefit cards. Testimonials remain intentionally absent before launch.
+• 0 Foundation — Config, Drizzle/Postgres, Tokens, Alchemy, common, health
+• 1 Portfolio Spine — portfolio/history/activity + stocks + trending
+• 2 Trading — Jupiter quote/prepare/confirm + executions + refresh
+• 3 Intelligence — indicators, Oren Score, stock_signals, analysis + opportunities
+• 4 News — Tokens news wrapper, cached stock news endpoint, agent context
+• 5 Agent — Responses orchestration, tool registry, persisted threads/messages, artifacts + events
+• 6 Vault — manual Solana/Anchor transaction builders, indexed vault positions, confirm routes, agent vault tools
+• 7 Basket + Polish — deterministic basket generation, sequential basket preparation, quote/basket expiry errors, demo walkthrough
+• 8 App Data Foundation — Next app types, API services, and Zustand stores
+• 9 App Shell — Oren shell, navigation routes, wallet adapter provider/state, UI primitives, typography/theme, and shared feedback states
+• 10 Portfolio UI — wallet-driven portfolio loading, summary metrics, reusable line/candlestick chart component, positions, activity, and refresh hook
+• Portfolio UI bugfix — frontend API requests now preserve the /api prefix, and portfolio history/activity responses are normalized for the UI store
+• App shell UI structure — removed the left navigation rail, stretched navigation across the top bar, switched to the public Oren logo, made the agent panel a compact floating launcher, and made the home screen markets-first
+• Markets shell polish + signals fix — made stock_signals persistence use atomic Postgres upsert, switched visible app icons to Hugeicons, trimmed the navbar to Leaderboard / Market, reduced navbar and wallet sizing, and simplified Stocks to one table
+• Compact portfolio overview — restored a lightweight connected-wallet portfolio summary above Market with balance, USDC cash, and supported stock positions only
+• App typography — switched the Next app to the newly added Neue Haas Grotesk Text and Display files in app/public/fonts/
+• Paginated stock market list — GET /stocks?page=&limit= now pages through Tokens upstream, canonical imageUrl/stats fields map correctly, the app appends pages on scroll, broken logos fall back cleanly, and 24h sparklines render as lines
+• Persisted stock catalog — added a migrated cached_stocks read-through cache, stale-while-revalidate market pagination/search, and pnpm db:sync-stocks; the live seed cached 399 stocks. Market startup no longer blocks on trending/opportunities, and opportunities read persisted signals/catalog rows instead of fetching analysis for the full universe.
+• 11 Markets + Stock UI — verified canonical search, market lists, stock detail routing, Lightweight Charts, Oren Score/signals, and stock news in the Next app; production build and source lint pass.
+• App UI refresh — reworked the app toward a clean white dashboard system with black wallet CTA, compact top navigation, rounded white panels, pink/yellow/lavender metric cards, and polished dashboard/market/stock surfaces.
+• Market list persistence bugfix — Market refreshes now keep the last loaded stock list visible and merge incoming assets instead of replacing loaded pages with the first page on navigation.
+• Stock detail data correctness — chart parsing now supports nested/tuple price data and falls back from price-chart to OHLCV; stock news now filters out broad market headlines that do not mention the asset, ticker, or company.
+• 13 Trading + Basket UI — stock detail now has a right-rail buy/sell ticket, quote review drawer, wallet signing handoff, confirm/portfolio refresh flow, and reusable basket review with per-leg status.
+• 12 Agent UI — persistent responsive Oren sidecar, Responses API SSE streaming, wallet-owned Postgres history, local recent chats, real tool traces, structured artifacts, explicit quote/basket review handoffs, accessibility/motion polish, retry/stop behavior, and strict OpenAI-compatible tool schemas.
+• 14 Social Trading + Leaderboard — opt-in public trader profiles, Oren-observed leaderboard ranking, public trader profile pages, signed visibility publishing, proportional copy-portfolio proposals, and agent social tools/artifacts.
+• 15 Trading Calendar — snapshot-derived daily P&L memory, significant event markers, day drilldowns, calendar UI, and agent tools/artifacts for daily and monthly performance context.
+• 18 Agent Technical Analysis — MACD/ATR/Bollinger/SMA200, swing S/R, trend regime/setup, multi-timeframe TA brief, deterministic summary, news overlay, composite analyzeStock, agent TA playbook, and stock/agent UI surfaces.
+• 19 Jupiter Limit Orders — Trigger V1 propose/prepare/confirm/cancel, deterministic TA limitZones, agent proposeLimitOrder/getLimitOrders, stock ticket Limit tab, and market-quote auto-refresh on expiry.
+• Agent fullscreen workspace — expandable lg+ two-column agent overlay (thread + artifact rail) on top of the existing sidecar; session-only expanded state, page-context chip, chip summaries in thread, collapse on stock navigation, Escape hierarchy, and sidecar gutter suppressed while expanded.
+• Agent launcher wide-screen positioning — anchored the floating agent opener to the centered app shell instead of the viewport edge, so it stays beside the product surface when the browser is zoomed out or displayed on an ultra-wide screen while preserving mobile insets.
+
+Blockers / follow-ups
+• Public HTTPS activation requires DNS A records for oren.finance and api.oren.finance to 104.207.95.184; Caddy cannot issue certificates yet. Automatic GitHub releases still require published GHCR images and Actions secrets (VPS_HOST, VPS_PORT, VPS_USER, VPS_SSH_PRIVATE_KEY, VPS_SSH_KNOWN_HOSTS). The workflow defaults public origins to the documented production domains, with Actions variables available as overrides. VPS .env, migrations, and initial catalog sync are complete. Add encrypted off-VPS backups and test a restore.
+• Live Postgres migration and Tokens catalog sync are verified; Alchemy and /api/health runtime verification remain.
+• After the main MVP flow is stable, run anchor build, copy the generated IDL into a tracked stable path (program/idl/program.json or api/src/vault/idl/program.json), and verify or replace the manual vault instruction builders against that IDL.
+• Frontend production build, source lint, and local landing-page browser smoke are verified; live browser smoke against a running Nest API still needs NEXT_PUBLIC_OREN_API_URL verification.
+• Trading UI build/lint is verified; live wallet smoke still needs a connected wallet, active Nest API, and tradable Jupiter route.
+• Agent API tests, app stream tests, builds, lint, and disconnected mobile browser acceptance are verified; the connected-wallet live OpenAI/Jupiter path still requires local provider credentials and a wallet.
+• Limit-order live smoke still needs a connected wallet + Jupiter Trigger V1 route; run 0003_limit_orders migration before testing.
+• Bitget's live ticker/candle path is verified; its US market-state endpoint returned an empty list during the smoke run, so session metadata remains optional. A connected live OpenAI agent/UI smoke still depends on the local provider credentials and wallet path.
+• Volume analytics requires 0004_volume_analytics before runtime. Connected swap/partial-limit receipt parsing and the public Dune dashboard need production credentials and transaction samples; Dune remains optional.
+Next
+• 21 Volume Analytics — apply the migration, run connected-wallet smoke, configure Dune, then return to 17 Demo Polish.`;
+
+    const TASK_STATUS = {
+      "pa-access": "in_progress",
+      "pa-contract": "completed",
+      "pa-provider": "completed",
+      "pa-model": "completed",
+      "pa-gate": "in_progress",
+      "pd-search": "pending",
+      "pd-detail": "pending",
+      "pd-research": "pending",
+      "pd-agent": "pending",
+      "pd-ui": "pending",
+      "pd-checks": "pending",
+      "pc-intent": "pending",
+      "pc-rules": "pending",
+      "pc-versus": "pending",
+      "pc-artwork": "pending",
+      "pc-draft": "pending",
+      "pc-sheet": "pending",
+      "pc-integrity": "pending",
+      "pc-prepare": "pending",
+      "pc-confirm": "pending",
+      "pc-checks": "pending",
+      "pp-propose": "pending",
+      "pp-execute": "pending",
+      "pp-holdings": "pending",
+      "pp-lifecycle": "pending",
+      "pp-watch": "pending",
+      "pp-checks": "pending",
+      "pl-smoke": "pending",
+      "pl-quality": "pending",
+      "pl-assets": "pending",
+      "pl-story": "pending",
+      "pl-film": "pending",
+      "pl-review": "pending",
+      "f-env": "completed", "f-db": "completed", "f-tokens": "completed",
+      "f-alchemy": "completed", "f-common": "completed",
+      "p-construct": "completed", "p-endpoint": "completed", "p-snapshot": "completed",
+      "p-history": "completed", "p-activity": "completed", "p-stocks": "completed",
+      "p-detail": "completed", "p-chart": "completed", "p-trending": "completed",
+      "t-jupiter": "completed", "t-resolve": "completed", "t-quote": "completed",
+      "t-prepare": "completed", "t-record": "completed", "t-refresh": "completed",
+      "i-indicators": "completed", "i-score": "completed", "i-persist": "completed",
+      "i-analysis": "completed", "i-opps": "completed",
+      "n-service": "completed", "n-endpoint": "completed", "n-cache": "completed", "n-context": "completed",
+      "a-tools": "completed", "a-safety": "completed", "a-endpoint": "completed",
+      "a-persist": "completed", "a-artifacts": "completed",
+      "v-client": "completed", "v-list": "completed", "v-lock": "completed",
+      "v-unlock": "completed", "v-index": "completed", "v-portfolio": "completed",
+      "b-gen": "completed", "b-exec": "completed", "b-errors": "completed", "b-demo": "completed",
+      "app-types": "completed", "app-services": "completed", "app-stores": "completed", "app-flow": "completed",
+      "shell-layout": "completed", "shell-nav": "completed", "shell-wallet": "completed", "shell-ui": "completed", "shell-states": "completed", "shell-theme": "completed",
+      "ui-portfolio-load": "completed", "ui-portfolio-summary": "completed", "ui-portfolio-chart": "completed", "ui-positions": "completed", "ui-activity": "completed", "ui-portfolio-refresh": "completed",
+      "ui-markets-load": "completed", "ui-search": "completed", "ui-market-lists": "completed", "ui-stock-route": "completed", "ui-stock-chart": "completed", "ui-stock-intel": "completed", "ui-stock-news": "completed",
+      "ui-agent-panel": "completed", "ui-agent-chat": "completed", "ui-agent-tools": "completed", "ui-agent-artifacts": "completed", "ui-agent-actions": "completed",
+      "bg-service": "completed", "bg-normalize": "completed", "bg-resilience": "completed", "bg-agent": "completed", "bg-ui": "completed", "bg-tests": "completed",
+      "ui-trade-ticket": "completed", "ui-quote-review": "completed", "ui-sign-flow": "completed", "ui-confirm-flow": "completed", "ui-basket-review": "completed", "ui-trade-errors": "completed",
+      "social-profile-model": "completed", "social-pnl-engine": "completed", "social-leaderboard-api": "completed", "social-trader-api": "completed", "social-leaderboard-ui": "completed", "social-profile-ui": "completed", "social-copy-agent": "completed",
+      "calendar-data-model": "completed", "calendar-pnl-engine": "completed", "calendar-api": "completed", "calendar-day-api": "completed", "calendar-ui": "completed", "calendar-agent": "completed",
+      "ui-vault-load": "completed", "ui-vault-list": "completed", "ui-lock-flow": "completed", "ui-unlock-flow": "completed", "ui-vault-safety": "completed",
+      "polish-responsive": "in_progress", "polish-loading": "pending", "polish-copy": "pending", "polish-demo": "pending", "polish-build": "completed", "polish-launch-video": "completed", "polish-launch-music": "completed",
+      "ta-indicators": "completed", "ta-structure": "completed", "ta-brief": "completed", "ta-agent": "completed", "ta-ui": "completed", "ta-tests": "completed",
+      "lo-zones": "completed", "lo-trigger": "completed", "lo-api": "completed", "lo-agent": "completed", "lo-ui": "completed", "lo-quote-refresh": "completed",
+      "vol-schema": "completed", "vol-submit": "completed", "vol-worker": "completed", "vol-limit": "completed", "vol-api": "completed", "vol-ui": "completed", "vol-dune": "in_progress"
+    };
+
+    const PHASES = [
+{
+  "id": "22-panta-foundation",
+  "title": "22 · Panta Integration Foundation",
+  "priority": "P0",
+  "goal": "Verify Panta integration access before promising native creation or trading; implement on feat/panta. Depends on: 1-portfolio, 5-agent, 12-agent-ui. Branch: feat/panta. User review gates all creation and money moves; API support unverified.",
+  "tasks": [
+    {
+      "id": "pa-access",
+      "content": "Verify official API/SDK, credentials, rate limits, market search/detail, creation, artwork upload, external-wallet signing, settlement and supported regions; record actual supported capabilities"
+    },
+    {
+      "id": "pa-contract",
+      "content": "Document provider payloads, market phases, fees, payout math, resolution/dispute rules and unavailable capabilities; never assume a winning share pays $1"
+    },
+    {
+      "id": "pa-provider",
+      "content": "Add NestJS Panta provider and api/types contracts with server-side credentials, timeouts, caching, attribution and fresh/stale timestamps"
+    },
+    {
+      "id": "pa-model",
+      "content": "Normalize provider IDs, canonical stock links, underlying versus tokenized prices, YES/NO terms, order depth, deadlines and resolution state"
+    },
+    {
+      "id": "pa-gate",
+      "content": "Verify read-only provider smoke; native write phases depend on documented support, with unsupported actions shown explicitly rather than fake completion"
+    }
+  ]
+},
+{
+  "id": "23-panta-discover",
+  "title": "23 · Panta Discover Agent",
+  "priority": "P0",
+  "goal": "Connect existing prediction markets to stock theses and wallet holdings through the existing Oren sidecar. Depends on: 22-panta-foundation, 18-agent-ta, 20-bitget-market. Branch: feat/panta. User review gates all creation and money moves; API support unverified.",
+  "tasks": [
+    {
+      "id": "pd-search",
+      "content": "Search/filter relevant company, stock-versus-stock and macro markets; rank by relevance, activity, freshness and executable depth",
+      "endpoint": "GET /predictions/markets"
+    },
+    {
+      "id": "pd-detail",
+      "content": "Return full rules, sources, dates/timezone, phase, fees, payouts and liquidity; distinguish spot price from probability",
+      "endpoint": "GET /predictions/markets/:marketId"
+    },
+    {
+      "id": "pd-research",
+      "content": "Research official disclosures and news with dated citations, counterarguments and uncertainty; keep event signals separate from deterministic Oren Score"
+    },
+    {
+      "id": "pd-agent",
+      "content": "Add searchPredictionMarkets, getPredictionMarket and researchPredictionMarket tools with portfolio context and grounded tool traces"
+    },
+    {
+      "id": "pd-ui",
+      "content": "Render Discover thesis cards and stock event cards with evidence, portfolio relevance, liquidity, deadlines and Panta attribution"
+    },
+    {
+      "id": "pd-checks",
+      "content": "Verify relevance mapping, weak/stale evidence, missing markets, provider outages and restored agent artifacts"
+    }
+  ]
+},
+{
+  "id": "24-panta-create",
+  "title": "24 · Panta Create Agent + Proposal Sheet",
+  "priority": "P0",
+  "goal": "Turn natural-language ideas into researched market drafts, editable review sheets and exact approved Panta submissions. Depends on: 22-panta-foundation, 23-panta-discover, 13-trading-ui. Branch: feat/panta. User review gates all creation and money moves; API support unverified.",
+  "tasks": [
+    {
+      "id": "pc-intent",
+      "content": "Parse market intent and research feasibility; ask only material questions, suggest defaults and detect duplicate or near-duplicate existing markets"
+    },
+    {
+      "id": "pc-rules",
+      "content": "Draft objective YES/NO criteria, event start/end/timezone, primary resolution source, fallback and tie/missing-data/corporate-action handling"
+    },
+    {
+      "id": "pc-versus",
+      "content": "Support stock-versus-stock templates using percentage returns over exact dates and sessions; specify underlying price source and tie outcome"
+    },
+    {
+      "id": "pc-artwork",
+      "content": "Reuse canonical stock logos; compose single-stock and paired versus artwork with preview, upload validation and neutral fallback"
+    },
+    {
+      "id": "pc-draft",
+      "content": "Persist versioned drafts and cited research as app memory; validate provider fields and separate thesis explanation from binding resolution rules",
+      "endpoint": "POST /predictions/creation/propose"
+    },
+    {
+      "id": "pc-sheet",
+      "content": "Reuse proposal-sheet interaction with editable title, description, rules, source, dates, artwork, fees/funding and complete final API payload preview"
+    },
+    {
+      "id": "pc-integrity",
+      "content": "Bind approval to a validated draft version/payload; any changed rules, fees or artwork invalidate approval; reject expired or unsupported drafts"
+    },
+    {
+      "id": "pc-prepare",
+      "content": "Prepare provider-supported creation from explicit sheet approval; user reviews required wallet actions and signs, agent never signs or broadcasts",
+      "endpoint": "POST /predictions/creation/prepare"
+    },
+    {
+      "id": "pc-confirm",
+      "content": "Confirm provider/onchain result with idempotency, rejected-signature and retry recovery; return actual market ID/link and refresh created markets",
+      "endpoint": "POST /predictions/creation/confirm"
+    },
+    {
+      "id": "pc-checks",
+      "content": "Verify idea-to-live flow, ambiguous rules, duplicate markets, source failure, invalid artwork, edited approval, fee changes and duplicate submission"
+    }
+  ]
+},
+{
+  "id": "25-panta-positions",
+  "title": "25 · Prediction Positions + Thesis Watch",
+  "priority": "P1",
+  "goal": "Support reviewed event positions and meaningful thesis updates while preserving user authority over money moves. Depends on: 23-panta-discover, 24-panta-create. Branch: feat/panta. User review gates all creation and money moves; API support unverified.",
+  "tasks": [
+    {
+      "id": "pp-propose",
+      "content": "Prepare a requested YES/NO thesis proposal with evidence, countercase, cost, actual payout scenarios and maximum loss; no invented confidence",
+      "endpoint": "POST /predictions/trades/propose"
+    },
+    {
+      "id": "pp-execute",
+      "content": "Implement provider-supported quote, prepare, wallet sign and confirmation; refresh stale quotes and terms before signing",
+      "endpoint": "POST /predictions/trades/prepare; POST /predictions/trades/confirm"
+    },
+    {
+      "id": "pp-holdings",
+      "content": "Index authoritative positions and created markets; separate event exposure from equity allocation and show mark value, claimable payout and settlement state",
+      "endpoint": "GET /predictions/positions/:wallet; GET /predictions/created/:wallet"
+    },
+    {
+      "id": "pp-lifecycle",
+      "content": "Implement supported sell/cancel/claim actions with review and wallet signature; handle acquisition-phase exit restrictions and disputes"
+    },
+    {
+      "id": "pp-watch",
+      "content": "Add explicit opt-in thesis watches for new evidence, deadlines and meaningful market changes; dedupe alerts, cite changes and provide stop controls"
+    },
+    {
+      "id": "pp-checks",
+      "content": "Verify signing rejection, insufficient funds/depth, expired quotes, partial fills, delayed resolution, claim recovery and quiet unchanged watches"
+    }
+  ]
+},
+{
+  "id": "26-panta-launch",
+  "title": "26 · Panta Validation + Launch Motion Film",
+  "priority": "P1",
+  "goal": "Validate the shipped Discover/Create story, then make a dedicated Oren + Panta launch film using the main-product film as the creative reference. Depends on: 23-panta-discover, 24-panta-create; include 25-panta-positions only when verified. Branch: feat/panta. User review gates all creation and money moves; API support unverified.",
+  "tasks": [
+    {
+      "id": "pl-smoke",
+      "content": "Run real connected Discover and reviewed creation smoke on feat/panta, verifying approved payload matches provider submission and final market"
+    },
+    {
+      "id": "pl-quality",
+      "content": "Run relevant API/app checks; verify responsive proposal sheets, accessible edit/review flow, recoverable errors and credential-safe logs"
+    },
+    {
+      "id": "pl-assets",
+      "content": "Obtain official Panta logo/brand assets; assemble Oren mascot, stock logos, versus cards and screenshots from shipped flows"
+    },
+    {
+      "id": "pl-story",
+      "content": "Write motion storyboard: ask Oren, discover relevant events, describe a market, research/rules/artwork, review proposal, user signs, live Panta market"
+    },
+    {
+      "id": "pl-film",
+      "content": "After feature validation, create editable motion source and final MP4 with Oren/Panta branding and music, matching the main launch film creative quality"
+    },
+    {
+      "id": "pl-review",
+      "content": "Verify timing, legibility, branding, audio and export; human creative review before publication; do not depict unsupported API actions as shipped"
+    }
+  ]
+},
+      {
+        id: "0-foundation", title: "0 · Foundation", priority: "infra",
+        goal: "Config, DB, and provider shells so every module can wire in.",
+        tasks: [
+          { id: "f-env", content: "ConfigModule + .env (POSTGRES_URL, Tokens, Alchemy, Jupiter, LLM)" },
+          { id: "f-db", content: "DatabaseModule — Drizzle client, inject db, migrate script" },
+          { id: "f-tokens", content: "TokensModule — HTTP client + normalize Equity / TokenizedEquity" },
+          { id: "f-alchemy", content: "AlchemyModule — balances, tx status, history helpers" },
+          { id: "f-common", content: "common/ — errors, wallet validation, response helpers" }
+        ]
+      },
+      {
+        id: "1-portfolio", title: "1 · Portfolio Spine", priority: "P0",
+        goal: "Wallet → Alchemy → Tokens resolve → prices → portfolio + stock detail + chart.",
+        tasks: [
+          { id: "p-construct", content: "PortfolioService — balances → resolveMint → price → Position[]", endpoint: "GET /portfolio/:wallet" },
+          { id: "p-endpoint", content: "Ship GET /portfolio/:wallet (available + locked + cash)", endpoint: "GET /portfolio/:wallet" },
+          { id: "p-snapshot", content: "Write portfolio_snapshots on refresh / after mutations", endpoint: "GET /portfolio/:wallet/history" },
+          { id: "p-history", content: "GET /portfolio/:wallet/history from snapshots", endpoint: "GET /portfolio/:wallet/history" },
+          { id: "p-activity", content: "GET /portfolio/:wallet/activity (Oren + Alchemy)", endpoint: "GET /portfolio/:wallet/activity" },
+          { id: "p-stocks", content: "GET /stocks + /stocks/search via Tokens", endpoint: "GET /stocks" },
+          { id: "p-detail", content: "GET /stocks/:assetId detail payload", endpoint: "GET /stocks/:assetId" },
+          { id: "p-chart", content: "GET /stocks/:assetId/chart (normalized candles)", endpoint: "GET /stocks/:assetId/chart" },
+          { id: "p-trending", content: "GET /markets/trending", endpoint: "GET /markets/trending" }
+        ]
+      },
+      {
+        id: "2-trading", title: "2 · Trading", priority: "P0",
+        goal: "Equity intent → variant → Jupiter quote → prepared tx → confirm → refresh.",
+        tasks: [
+          { id: "t-jupiter", content: "JupiterService — getQuote, prepareSwap, validateQuote" },
+          { id: "t-resolve", content: "Representation selection using Tokens variants + Jupiter output" },
+          { id: "t-quote", content: "POST /execution/quote from TradeIntent", endpoint: "POST /execution/quote" },
+          { id: "t-prepare", content: "POST /execution/prepare → base64 tx for wallet sign", endpoint: "POST /execution/prepare" },
+          { id: "t-record", content: "Persist executions row + lifecycle status transitions" },
+          { id: "t-refresh", content: "Post-confirm: Alchemy refresh → portfolio → snapshot" }
+        ]
+      },
+      {
+        id: "3-intelligence", title: "3 · Intelligence", priority: "P0",
+        goal: "OHLCV → indicators → Oren Score → opportunities → analysis.",
+        tasks: [
+          { id: "i-indicators", content: "Indicators: momentum, RSI, SMA, volatility, volume trend" },
+          { id: "i-score", content: "Opportunity score 0–100 with transparent dimensions" },
+          { id: "i-persist", content: "Persist stock_signals; periodic job / on-demand refresh" },
+          { id: "i-analysis", content: "GET /stocks/:assetId/analysis", endpoint: "GET /stocks/:assetId/analysis" },
+          { id: "i-opps", content: "GET /markets/opportunities ranked + highlights", endpoint: "GET /markets/opportunities" }
+        ]
+      },
+      {
+        id: "4-news", title: "4 · News", priority: "P0",
+        goal: "Tokens news → stock page + agent context (+ optional cache).",
+        tasks: [
+          { id: "n-service", content: "NewsModule / NewsService wrapping Tokens news" },
+          { id: "n-endpoint", content: "GET /stocks/:assetId/news", endpoint: "GET /stocks/:assetId/news" },
+          { id: "n-cache", content: "Optional cached_news for 5–15m TTL" },
+          { id: "n-context", content: "getNewsContextForAgent helper for portfolio-aware digests" }
+        ]
+      },
+      {
+        id: "5-agent", title: "5 · Agent", priority: "P0",
+        goal: "Tool-driven chat: propose only — user always signs money moves.",
+        tasks: [
+          { id: "a-tools", content: "Implement AgentTools (portfolio, stock, news, analysis, quote…)" },
+          { id: "a-safety", content: "Safety: propose → prepare → USER reviews → USER signs" },
+          { id: "a-endpoint", content: "POST /agent/message (+ optional streaming later)", endpoint: "POST /agent/message" },
+          { id: "a-persist", content: "Optional agent_threads / agent_messages persistence" },
+          { id: "a-artifacts", content: "Return structured artifacts (basket, quote, analysis)" }
+        ]
+      },
+      {
+        id: "6-vault", title: "6 · Vault", priority: "P0",
+        goal: "Lock/unlock via timelock program client; index; portfolio reflects locked.",
+        tasks: [
+          { id: "v-client", content: "Manual Solana/Anchor instruction builders for lock + unlock" },
+          { id: "v-list", content: "GET /vaults/:wallet (indexed + enriched)", endpoint: "GET /vaults/:wallet" },
+          { id: "v-lock", content: "POST /vaults/prepare-lock + confirm-lock", endpoint: "POST /vaults/prepare-lock" },
+          { id: "v-unlock", content: "POST /vaults/prepare-unlock + confirm-unlock", endpoint: "POST /vaults/prepare-unlock" },
+          { id: "v-index", content: "Index vault_positions; never override onchain truth" },
+          { id: "v-portfolio", content: "Post-confirm portfolio refresh + locked valuation metadata" }
+        ]
+      },
+      {
+        id: "7-basket", title: "7 · Basket + Polish", priority: "P1",
+        goal: "Basket generate/execute (sequential OK) + API hardening for demo.",
+        tasks: [
+          { id: "b-gen", content: "createBasket tool — allocations + thesis + risk label" },
+          { id: "b-exec", content: "prepareBasketPurchase — sequential legs + progress model" },
+          { id: "b-errors", content: "Consistent error shapes + quote expiry handling" },
+          { id: "b-demo", content: "End-to-end API walkthrough for core demo script" }
+        ]
+      },
+      {
+        id: "8-app-data", title: "8 · App Data Foundation", priority: "P0",
+        goal: "Typed API responses, service functions, and Zustand stores before UI work.",
+        tasks: [
+          { id: "app-types", content: "Define frontend domain types for portfolio, stocks, execution, agent, vault" },
+          { id: "app-services", content: "Create API client + service functions for shipped Nest endpoints" },
+          { id: "app-stores", content: "Create Zustand stores consuming services for portfolio, market, stock, agent, execution, vault" },
+          { id: "app-flow", content: "Establish data flow: API endpoints → services → store → future components" }
+        ]
+      },
+      {
+        id: "9-app-shell", title: "9 · App Shell", priority: "P0",
+        goal: "Replace the starter page with the real Oren application shell and routing structure.",
+        tasks: [
+          { id: "shell-layout", content: "App frame with header/sidebar/main content/agent panel zones" },
+          { id: "shell-nav", content: "Navigation for Portfolio, Markets, Vault, Activity, and stock routes" },
+          { id: "shell-wallet", content: "Solana wallet connect/disconnect state and address propagation" },
+          { id: "shell-ui", content: "Base UI primitives: button, card, tabs, table/list, modal/drawer, toast" },
+          { id: "shell-states", content: "Shared loading, empty, error, and transaction feedback patterns" },
+          { id: "shell-theme", content: "Oren visual system: typography, color tokens, spacing, responsive rules" }
+        ]
+      },
+      {
+        id: "10-portfolio-ui", title: "10 · Portfolio UI", priority: "P0",
+        goal: "Connect wallet → portfolio store → dashboard view with available + locked value.",
+        tasks: [
+          { id: "ui-portfolio-load", content: "Load portfolio/history/activity from usePortfolioStore" },
+          { id: "ui-portfolio-summary", content: "Total value, available value, locked value, cash, day change" },
+          { id: "ui-portfolio-chart", content: "Historical value chart with empty-history handling" },
+          { id: "ui-positions", content: "Position list with allocation, available quantity, locked quantity" },
+          { id: "ui-activity", content: "Recent activity feed from Oren + Alchemy activity" },
+          { id: "ui-portfolio-refresh", content: "Refresh and post-transaction reload behavior" }
+        ]
+      },
+      {
+        id: "11-markets-stock-ui", title: "11 · Markets + Stock UI", priority: "P0",
+        goal: "Discover canonical equities and open full stock pages without issuer complexity.",
+        tasks: [
+          { id: "ui-markets-load", content: "Load stocks, trending, and opportunities from useMarketStore" },
+          { id: "ui-search", content: "Search by company/ticker with canonical equity results" },
+          { id: "ui-market-lists", content: "Trending, opportunities, and browsable stock lists" },
+          { id: "ui-stock-route", content: "Dynamic stock detail route by assetId" },
+          { id: "ui-stock-chart", content: "Lightweight chart integration using normalized candles" },
+          { id: "ui-stock-intel", content: "Oren Score, analysis, signals, risks, and highlights" },
+          { id: "ui-stock-news", content: "Compact relevant news feed" }
+        ]
+      },
+      {
+        id: "12-agent-ui", title: "12 · Agent UI", priority: "P0",
+        goal: "Make Oren feel like a persistent investing copilot using real tool outputs.",
+        tasks: [
+          { id: "ui-agent-panel", content: "Persistent agent panel available across core pages" },
+          { id: "ui-agent-chat", content: "Message composer/history using useAgentStore" },
+          { id: "ui-agent-tools", content: "Honest tool/activity states without fake progress" },
+          { id: "ui-agent-artifacts", content: "Render portfolio, stock, analysis, opportunity, quote, basket artifacts" },
+          { id: "ui-agent-actions", content: "Convert proposed actions into review flows, never auto-sign" }
+        ]
+      },
+      {
+        id: "13-trading-ui", title: "13 · Trading + Basket UI", priority: "P0",
+        goal: "Turn buy/sell and basket intents into quote → review → wallet signature → confirmation flows.",
+        tasks: [
+          { id: "ui-trade-ticket", content: "Buy/sell ticket for canonical equities" },
+          { id: "ui-quote-review", content: "Quote review with expiry, price impact, route summary, warnings" },
+          { id: "ui-sign-flow", content: "Wallet signing handoff for prepared transactions" },
+          { id: "ui-confirm-flow", content: "Confirmation polling/result display + portfolio refresh" },
+          { id: "ui-basket-review", content: "Basket allocation review with per-leg progress" },
+          { id: "ui-trade-errors", content: "No route, insufficient balance, rejected signature, expired quote states" }
+        ]
+      },
+      {
+        id: "14-social-trading", title: "14 · Social Trading", priority: "P0",
+        goal: "Discover top-performing wallets, inspect public trader portfolios, and prepare safe copy-portfolio proposals.",
+        tasks: [
+          { id: "social-profile-model", content: "Public trader profile model: wallet address, slug, display name, opt-in visibility, avatar/metadata" },
+          { id: "social-pnl-engine", content: "Deterministic P&L ranking metrics from portfolio snapshots, executions, and current valuation" },
+          { id: "social-leaderboard-api", content: "Ranked leaderboard with timeframe filters, P&L, return %, portfolio value, volatility/risk labels", endpoint: "GET /social/leaderboard" },
+          { id: "social-trader-api", content: "Public trader profile payload with holdings, allocation, portfolio chart, activity, and visibility checks", endpoint: "GET /social/traders/:slug" },
+          { id: "social-leaderboard-ui", content: "Leaderboard route/table with rank, P&L, return %, value, timeframe controls, and profile links" },
+          { id: "social-profile-ui", content: "Trader wallet/profile page with holdings, amounts, allocation, portfolio chart, and performance context" },
+          { id: "social-copy-agent", content: "Agent tool/artifact for \"copy this portfolio\" that produces a reviewable rebalance/basket proposal only", endpoint: "POST /social/copy-portfolio/prepare" }
+        ]
+      },
+      {
+        id: "15-trading-calendar", title: "15 · Trading Calendar", priority: "P0",
+        goal: "Turn portfolio history into daily P&L memory, significant events, and performance drilldowns.",
+        tasks: [
+          { id: "calendar-data-model", content: "Daily performance/events model derived from snapshots, executions, vault events, and agent actions" },
+          { id: "calendar-pnl-engine", content: "Calculate daily P&L, return %, realized/unrealized movement, best/worst contributors, and cumulative value" },
+          { id: "calendar-api", content: "Personal trading calendar with month/range filters and day summaries", endpoint: "GET /portfolio/:wallet/calendar" },
+          { id: "calendar-day-api", content: "Day drilldown with trades, holdings impact, deposits/withdrawals, notable events, and market context", endpoint: "GET /portfolio/:wallet/calendar/:date" },
+          { id: "calendar-ui", content: "Calendar grid with green/red intensity, event markers, filters, and responsive day drawer" },
+          { id: "calendar-agent", content: "Agent summaries for daily/weekly patterns, biggest wins/losses, drawdowns, and social profile context" }
+        ]
+      },
+      {
+        id: "16-vault-ui", title: "16 · Vault UI", priority: "P0",
+        goal: "Surface locked positions as part of net worth and prepare lock/unlock transactions safely.",
+        tasks: [
+          { id: "ui-vault-load", content: "Load vault positions from useVaultStore" },
+          { id: "ui-vault-list", content: "Active locks, value, unlock date, time remaining" },
+          { id: "ui-lock-flow", content: "Lock amount/date review → prepare transaction → wallet sign" },
+          { id: "ui-unlock-flow", content: "Unlock eligibility display and prepare-unlock flow" },
+          { id: "ui-vault-safety", content: "Premature unlock, failed transaction, and stale index handling" }
+        ]
+      },
+      {
+        id: "17-demo-polish", title: "17 · Demo Polish", priority: "P1",
+        goal: "Make the MVP demo coherent, responsive, and resilient across the full product story.",
+        tasks: [
+          { id: "polish-responsive", content: "Desktop and mobile layouts for dashboard, stock, agent, review flows" },
+          { id: "polish-loading", content: "Skeletons and optimistic pending states where appropriate" },
+          { id: "polish-copy", content: "Clear finance-safe copy for scores, quotes, risks, and agent actions" },
+          { id: "polish-demo", content: "Run the core demo script end to end against real API responses" },
+          { id: "polish-build", content: "Lint/build pass and fix frontend regressions" },
+          { id: "polish-launch-video", content: "Create and validate the revised 25-second landscape launch film with editable source and MP4" },
+          { id: "polish-launch-music", content: "Generate and review ElevenLabs music for the approved landscape film" }
+        ]
+      },
+      {
+        id: "18-agent-ta", title: "18 · Agent Technical Analysis", priority: "P0",
+        goal: "Give the agent a deterministic TA brief (regime, levels, setup, multi-timeframe, summary) so analyze-this-stock is one tool result.",
+        tasks: [
+          { id: "ta-indicators", content: "MACD, ATR, Bollinger, SMA200; extend daily OHLCV lookback to ~1Y" },
+          { id: "ta-structure", content: "Swing S/R, trend regime, setup class, weekly resample, optional 1H" },
+          { id: "ta-brief", content: "TechnicalBrief types + deterministic summary on StockAnalysis", endpoint: "GET /stocks/:assetId/analysis" },
+          { id: "ta-agent", content: "Composite analyzeStock payload + TA playbook in agent prompt" },
+          { id: "ta-ui", content: "Richer analysis artifact + stock-detail TA section from the same payload" },
+          { id: "ta-tests", content: "Indicator fixtures, brief snapshots, agent artifact + app coverage" }
+        ]
+      },
+      {
+        id: "19-limit-orders", title: "19 · Jupiter Limit Orders", priority: "P0",
+        goal: "Jupiter Trigger V1 limit orders with deterministic TA price zones, agent proposals, and auto-refreshing market quotes.",
+        tasks: [
+          { id: "lo-zones", content: "Deterministic limitZones on TechnicalBrief from swing S/R / Bollinger" },
+          { id: "lo-trigger", content: "Trigger V1 client + USD→making/taking conversion" },
+          { id: "lo-api", content: "Propose/prepare/confirm/list/cancel + limit_orders table", endpoint: "POST /execution/limit-order" },
+          { id: "lo-agent", content: "proposeLimitOrder / getLimitOrders tools + artifacts" },
+          { id: "lo-ui", content: "Stock ticket Limit tab, review modal, open-order cancel, agent handoff" },
+          { id: "lo-quote-refresh", content: "Auto-regenerate market quotes on expiry (ticket + review + agent)" }
+        ]
+      },
+      {
+        id: "20-bitget-market", title: "20 · Bitget Live Market Context", priority: "P0",
+        goal: "Add live Bitget Reality venue evidence to Oren's existing portfolio-aware research agent without changing Solana portfolio or Jupiter execution truth.",
+        tasks: [
+          { id: "bg-service", content: "Official V3 Reality stock-info, ticker, candles/history, and states" },
+          { id: "bg-normalize", content: "Canonical ticker → rToken resolution and normalized quote/OHLC types" },
+          { id: "bg-resilience", content: "Parallel calls, bounded timeout, in-flight dedupe, fresh/stale cache" },
+          { id: "bg-agent", content: "getBitgetMarketContext tool, grounded prompt policy, history restore", endpoint: "POST /agent/message(/stream)" },
+          { id: "bg-ui", content: "Tool trace label and compact Bitget Reality source artifact" },
+          { id: "bg-tests", content: "Mapper/service/tool tests, real Bitget NVDA smoke, API/app builds" }
+        ]
+      },
+      {
+        id: "21-volume-analytics", title: "21 · Volume Analytics + Dune", priority: "P0",
+        goal: "Aggregate only verified stock volume routed through Oren without putting analytics or Dune on the transaction path.",
+        tasks: [
+          { id: "vol-schema", content: "trade_fills, durable execution jobs, attribution, migration" },
+          { id: "vol-submit", content: "Exact execution IDs + submitted response; no RPC/Dune in confirm", endpoint: "POST /execution/confirm" },
+          { id: "vol-worker", content: "Finalized receipt parser, retries, idempotency, health signal" },
+          { id: "vol-limit", content: "Background Trigger fill discovery; open/cancelled count zero" },
+          { id: "vol-api", content: "Public overview, stock, feature, per-stock, and status APIs", endpoint: "GET /analytics/volume…" },
+          { id: "vol-ui", content: "Keep Oren volume details on Dune; omit volume displays from app" },
+          { id: "vol-dune", content: "Tracking account + public signature/mint uploads + saved dashboard" }
+        ]
+      }
+    ];
+
+    const ENDPOINTS = [
+      ["GET /predictions/markets",false],
+      ["GET /predictions/markets/:marketId",false],
+      ["POST /predictions/creation/propose",false],
+      ["POST /predictions/creation/prepare",false],
+      ["POST /predictions/creation/confirm",false],
+      ["POST /predictions/trades/propose",false],
+      ["POST /predictions/trades/prepare",false],
+      ["POST /predictions/trades/confirm",false],
+      ["GET /predictions/positions/:wallet",false],
+      ["GET /predictions/created/:wallet",false],
+      ["GET /portfolio/:wallet", true],
+      ["GET /portfolio/:wallet/history", true],
+      ["GET /portfolio/:wallet/activity", true],
+      ["GET /stocks", true],
+      ["GET /stocks/search", true],
+      ["GET /stocks/:assetId", true],
+      ["GET /stocks/:assetId/chart", true],
+      ["GET /markets/trending", true],
+      ["POST /execution/quote", true],
+      ["POST /execution/prepare", true],
+      ["POST /execution/confirm", true],
+      ["POST /execution/basket", true],
+      ["POST /execution/basket/prepare", true],
+      ["POST /execution/limit-order", true],
+      ["POST /execution/limit-order/prepare", true],
+      ["POST /execution/limit-order/confirm", true],
+      ["GET /execution/limit-orders/:wallet", true],
+      ["POST /execution/limit-order/prepare-cancel", true],
+      ["POST /execution/limit-order/confirm-cancel", true],
+      ["GET /stocks/:assetId/analysis", true],
+      ["GET /markets/opportunities", true],
+      ["GET /signals/:assetId", true],
+      ["GET /stocks/:assetId/news", true],
+      ["POST /agent/message", true],
+      ["POST /agent/message/stream", true],
+      ["GET /agent/threads/:threadId/messages", true],
+      ["GET /vaults/:wallet", true],
+      ["POST /vaults/prepare-lock", true],
+      ["POST /vaults/prepare-unlock", true],
+      ["POST /vaults/confirm-lock", true],
+      ["POST /vaults/confirm-unlock", true],
+      ["GET /social/leaderboard", true],
+      ["GET /social/traders/:slug", true],
+      ["POST /social/copy-portfolio/prepare", true],
+      ["GET /portfolio/:wallet/calendar", true],
+      ["GET /portfolio/:wallet/calendar/:date", true],
+      ["GET /analytics/volume", true],
+      ["GET /analytics/volume/stocks", true],
+      ["GET /analytics/volume/features", true],
+      ["GET /stocks/:assetId/volume", true],
+      ["GET /execution/:executionId/status", true]
+    ];
+
+    function phaseStats(phase) {
+      const total = phase.tasks.length;
+      const done = phase.tasks.filter((t) => TASK_STATUS[t.id] === "completed").length;
+      const pct = total ? Math.round((done / total) * 100) : 0;
+      const status =
+        done === total ? "completed" :
+        done > 0 || phase.tasks.some((t) => TASK_STATUS[t.id] === "in_progress") ? "in_progress" :
+        "pending";
+      return { total, done, pct, status };
+    }
+
+    const cards = document.getElementById("phase-cards");
+    let allDone = 0, allTotal = 0;
+    for (const phase of PHASES) {
+      const s = phaseStats(phase);
+      allDone += s.done; allTotal += s.total;
+      const el = document.createElement("div");
+      el.className = "card" + (phase.id === ACTIVE ? " active" : "");
+      const barClass = s.pct === 0 ? "empty" : s.pct === 100 ? "" : "partial";
+      el.innerHTML = `
+        <div style="display:flex;justify-content:space-between;gap:8px;align-items:center">
+          <h3>${phase.title}</h3>
+          <span class="badge ${phase.priority.toLowerCase()}">${phase.priority}</span>
+        </div>
+        <div class="small">${phase.goal}</div>
+        <div class="bar ${barClass}"><span style="width:${s.pct}%"></span></div>
+        <div class="small">${s.done}/${s.total} · <span class="badge ${s.status}">${s.status}</span></div>
+      `;
+      cards.appendChild(el);
+    }
+
+    document.getElementById("tasks-done").textContent = `${allDone}/${allTotal}`;
+    document.getElementById("active-phase").textContent = ACTIVE;
+    document.getElementById("notes").textContent = NOTES;
+
+    const phasesRoot = document.getElementById("phases");
+    for (const phase of PHASES) {
+      const s = phaseStats(phase);
+      const block = document.createElement("div");
+      block.style.marginBottom = "18px";
+      const rows = phase.tasks.map((t) => {
+        const st = TASK_STATUS[t.id] || "pending";
+        return `<tr>
+          <td><code>${t.id}</code></td>
+          <td>${t.content}${t.endpoint ? `<div class="small"><code>${t.endpoint}</code></div>` : ""}</td>
+          <td><span class="badge ${st}">${st}</span></td>
+        </tr>`;
+      }).join("");
+      block.innerHTML = `
+        <h3 style="margin:0 0 8px;font-size:1rem">
+          ${phase.title}
+          <span class="badge ${phase.priority.toLowerCase()}">${phase.priority}</span>
+          <span class="badge ${s.status}">${s.status}</span>
+          ${phase.id === ACTIVE ? '<span class="badge" style="color:var(--accent)">active</span>' : ""}
+        </h3>
+        <table>
+          <thead><tr><th>ID</th><th>Task</th><th>Status</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      `;
+      phasesRoot.appendChild(block);
+    }
+
+    document.getElementById("endpoints").innerHTML = ENDPOINTS.map(([ep, ok]) =>
+      `<tr><td><code>${ep}</code></td><td class="${ok ? "yes" : "no"}">${ok ? "yes" : "no"}</td></tr>`
+    ).join("");
+  </script>
+</body>
+</html>
