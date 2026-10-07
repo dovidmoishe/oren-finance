@@ -25,6 +25,10 @@ export interface AppEnv {
   PANTA_API_BASE_URL?: string;
   PANTA_API_KEY?: string;
   PANTA_REQUEST_TIMEOUT_MS?: number;
+  PANTA_CREATION_ENABLED?: boolean;
+  PANTA_CREATION_RPC_URL?: string;
+  /** Audited deployment/instruction contract, never inferred from an API key. */
+  PANTA_CREATION_MANIFEST_JSON?: string;
   VAULT_PROGRAM_ID: string;
   /** When false, vault prepare/confirm routes return 503. Defaults to false until the program is deployed. */
   VAULT_PROGRAM_LIVE: boolean;
@@ -105,6 +109,24 @@ export function validateEnv(env: EnvSource = process.env): AppEnv {
   const pantaEnabled = readBool(env, 'PANTA_ENABLED', false);
   const pantaBaseUrl = readEnv(env, 'PANTA_API_BASE_URL')?.replace(/\/+$/, '');
   const pantaKey = readEnv(env, 'PANTA_API_KEY');
+  const creationEnabled = readBool(env, 'PANTA_CREATION_ENABLED', false);
+  const creationRpc = readEnv(env, 'PANTA_CREATION_RPC_URL');
+  if (creationEnabled && !pantaEnabled)
+    throw new Error('PANTA_ENABLED is required for creation publication');
+  if (creationRpc) {
+    try {
+      const url = new URL(creationRpc);
+      if (
+        !['https:', 'http:'].includes(url.protocol) ||
+        url.username ||
+        url.password ||
+        url.hash
+      )
+        throw new Error();
+    } catch {
+      throw new Error('Invalid PANTA_CREATION_RPC_URL');
+    }
+  }
   if (pantaEnabled && (!pantaBaseUrl || !pantaKey)) {
     throw new Error(
       'PANTA_API_BASE_URL and PANTA_API_KEY are required when PANTA_ENABLED is true',
@@ -129,6 +151,9 @@ export function validateEnv(env: EnvSource = process.env): AppEnv {
   }
 
   return {
+    PANTA_CREATION_ENABLED: creationEnabled,
+    PANTA_CREATION_RPC_URL: creationRpc,
+    PANTA_CREATION_MANIFEST_JSON: readEnv(env, 'PANTA_CREATION_MANIFEST_JSON'),
     PANTA_ENABLED: pantaEnabled,
     PANTA_API_BASE_URL: pantaBaseUrl,
     PANTA_API_KEY: pantaKey,

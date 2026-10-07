@@ -197,9 +197,7 @@ export const traderProfiles = pgTable(
       .notNull(),
   },
   (table) => [
-    uniqueIndex('trader_profiles_wallet_address_idx').on(
-      table.walletAddress,
-    ),
+    uniqueIndex('trader_profiles_wallet_address_idx').on(table.walletAddress),
     uniqueIndex('trader_profiles_slug_idx').on(table.slug),
     index('trader_profiles_is_public_idx').on(table.isPublic),
   ],
@@ -256,7 +254,10 @@ export const tradeFills = pgTable(
     ticker: text('ticker').notNull(),
     tokenMint: text('token_mint').notNull(),
     side: tradeSideEnum('side').notNull(),
-    stockAmount: numeric('stock_amount', { precision: 40, scale: 18 }).notNull(),
+    stockAmount: numeric('stock_amount', {
+      precision: 40,
+      scale: 18,
+    }).notNull(),
     usdNotional: numeric('usd_notional', { precision: 28, scale: 8 }).notNull(),
     executionPriceUsd: numeric('execution_price_usd', {
       precision: 28,
@@ -455,6 +456,62 @@ export const cachedNews = pgTable(
 export const agentThreadsRelations = relations(agentThreads, ({ many }) => ({
   messages: many(agentMessages),
 }));
+
+export const predictionCreationDrafts = pgTable(
+  'prediction_creation_drafts',
+  {
+    id: uuid('id').primaryKey(),
+    wallet: text('wallet').notNull(),
+    version: integer('version').notNull(),
+    data: jsonb('data').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [index('prediction_creation_wallet_idx').on(table.wallet)],
+);
+
+export const predictionCreationVersions = pgTable(
+  'prediction_creation_versions',
+  {
+    id: uuid('id').primaryKey(),
+    draftId: uuid('draft_id')
+      .notNull()
+      .references(() => predictionCreationDrafts.id),
+    version: integer('version').notNull(),
+    data: jsonb('data').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    uniqueIndex('prediction_creation_version_idx').on(
+      table.draftId,
+      table.version,
+    ),
+  ],
+);
+
+export const predictionCreationAttempts = pgTable(
+  'prediction_creation_attempts',
+  {
+    id: uuid('id').primaryKey(),
+    draftId: uuid('draft_id')
+      .notNull()
+      .references(() => predictionCreationDrafts.id),
+    data: jsonb('data').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [index('prediction_creation_attempt_draft_idx').on(table.draftId)],
+);
 
 export const agentMessagesRelations = relations(agentMessages, ({ one }) => ({
   thread: one(agentThreads, {

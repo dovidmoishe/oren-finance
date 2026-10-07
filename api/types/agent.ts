@@ -48,6 +48,8 @@ export interface AgentMessage {
 }
 
 export interface AgentChatRequest {
+  /** Server-only credential: supplied by header, never placed in model input/history. */
+  creationSessionToken?: string;
   walletAddress: string;
   threadId?: string;
   message: string;
@@ -94,12 +96,26 @@ export interface AgentPortfolioContext {
 }
 
 export interface AgentPageContext {
+  timezone?: string;
   marketId?: string;
   page: AgentPage;
   assetId?: string;
 }
 
 export type AgentArtifact =
+  | {
+      type: 'prediction_creation';
+      data: import('./prediction-creation').PredictionCreationDraft;
+    }
+  | {
+      type: 'prediction_creation_auth';
+      data: {
+        walletVerificationRequired: boolean;
+        intent?: string;
+        draftId?: string;
+        timezone: string;
+      };
+    }
   | { type: 'prediction_markets'; data: PredictionResults }
   | { type: 'prediction_market'; data: PredictionMarket }
   | { type: 'prediction_research'; data: PredictionResearch }

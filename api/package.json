@@ -26,7 +26,8 @@
     "db:studio": "drizzle-kit studio",
     "test:panta:live": "node scripts/panta-live-smoke.mjs",
     "test:predictions:live": "node scripts/predictions-live-smoke.mjs",
-    "test:predictions:research-live": "node scripts/predictions-live-smoke.mjs --research"
+    "test:predictions:research-live": "node scripts/predictions-live-smoke.mjs --research",
+    "test:panta:creation-access": "node scripts/panta-creation-smoke.mjs"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",
@@ -44,7 +45,8 @@
     "openai": "^7.15.0",
     "postgres": "^3.4.9",
     "reflect-metadata": "^0.2.2",
-    "rxjs": "^7.8.1"
+    "rxjs": "^7.8.1",
+    "sharp": "0.35.4"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.2.0",

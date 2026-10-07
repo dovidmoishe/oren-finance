@@ -46,6 +46,12 @@ describe('AgentToolRegistry', () => {
   let registry: AgentToolRegistry;
   const predictions = { search: jest.fn(), detail: jest.fn() };
   const research = { research: jest.fn() };
+  const creation = {
+    propose: jest.fn(),
+    get: jest.fn(),
+    reviseFromIntent: jest.fn(),
+  };
+  const sessions = { require: jest.fn() };
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -61,6 +67,8 @@ describe('AgentToolRegistry', () => {
       calendar as never,
       predictions as never,
       research as never,
+      creation as never,
+      sessions as never,
     );
   });
 
@@ -446,5 +454,35 @@ describe('AgentToolRegistry', () => {
     await expect(registry.dispatch('notReal', {})).rejects.toBeInstanceOf(
       BadRequestException,
     );
+  });
+  it('requires wallet proof before creation research and binds the verified runtime wallet', async () => {
+    sessions.require.mockImplementationOnce(() => {
+      throw new Error('Unauthorized');
+    });
+    const blocked = await registry.dispatch(
+      'proposePredictionMarket',
+      { intent: 'GDP event', wallet: 'model-wallet' },
+      { walletAddress: 'chat-wallet', timezone: 'Africa/Lagos' },
+    );
+    expect(blocked.artifact?.type).toBe('prediction_creation_auth');
+    expect(creation.propose).not.toHaveBeenCalled();
+    sessions.require.mockReturnValueOnce('chat-wallet');
+    creation.propose.mockResolvedValueOnce({ id: 'owned-draft' });
+    const result = await registry.dispatch(
+      'proposePredictionMarket',
+      { intent: 'GDP event', wallet: 'model-wallet' },
+      {
+        walletAddress: 'chat-wallet',
+        timezone: 'Africa/Lagos',
+        creationSessionToken: 'session',
+      },
+    );
+    expect(sessions.require).toHaveBeenLastCalledWith('session', 'chat-wallet');
+    expect(creation.propose).toHaveBeenCalledWith(
+      'chat-wallet',
+      { intent: 'GDP event', timezone: 'Africa/Lagos' },
+      undefined,
+    );
+    expect(result.artifact?.type).toBe('prediction_creation');
   });
 });

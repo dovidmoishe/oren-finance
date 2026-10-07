@@ -13,6 +13,8 @@ import { SocialService } from '../../social/social.service';
 import { VaultService } from '../../vault/vault.service';
 import { PredictionsService } from '../../predictions/predictions.service';
 import { PredictionResearchService } from '../../predictions/prediction-research.service';
+import { PredictionCreationService } from '../../predictions/creation/creation.service';
+import { CreationSessionService } from '../../predictions/creation/creation-session.service';
 
 export interface AgentToolResult {
   output: unknown;
@@ -41,6 +43,8 @@ export class AgentToolRegistry {
     private readonly calendar: PortfolioCalendarService,
     private readonly predictions: PredictionsService,
     private readonly predictionResearch: PredictionResearchService,
+    private readonly predictionCreation: PredictionCreationService,
+    private readonly creationSessions: CreationSessionService,
   ) {}
 
   getSchemas(): ToolDefinition[] {
@@ -50,11 +54,70 @@ export class AgentToolRegistry {
   async dispatch(
     name: string,
     args: unknown,
-    context?: { walletAddress: string; signal?: AbortSignal },
+    context?: {
+      walletAddress: string;
+      signal?: AbortSignal;
+      creationSessionToken?: string;
+      timezone?: string;
+    },
   ): Promise<AgentToolResult> {
     const input = asRecord(args);
 
     switch (name) {
+      case 'proposePredictionMarket':
+      case 'getPredictionCreationDraft':
+      case 'revisePredictionCreationDraft': {
+        if (!context?.walletAddress)
+          throw new BadRequestException('Connected chat wallet required');
+        let wallet: string;
+        try {
+          wallet = this.creationSessions.require(
+            context.creationSessionToken,
+            context.walletAddress,
+          );
+        } catch {
+          const output = {
+            walletVerificationRequired: true,
+            intent:
+              name === 'proposePredictionMarket'
+                ? required(input, 'intent')
+                : undefined,
+            draftId: optionalString(input, 'draftId'),
+            timezone: context.timezone ?? 'UTC',
+          };
+          return {
+            output,
+            artifact: { type: 'prediction_creation_auth', data: output },
+          };
+        }
+        let output: import('../../../types/prediction-creation').PredictionCreationDraft;
+        if (name === 'proposePredictionMarket')
+          output = await this.predictionCreation.propose(
+            wallet,
+            {
+              intent: required(input, 'intent'),
+              timezone: context.timezone ?? 'UTC',
+            },
+            context.signal,
+          );
+        else if (name === 'getPredictionCreationDraft')
+          output = await this.predictionCreation.get(
+            wallet,
+            required(input, 'draftId'),
+          );
+        else
+          output = await this.predictionCreation.reviseFromIntent(
+            wallet,
+            required(input, 'draftId'),
+            requiredNumber(input, 'version'),
+            required(input, 'changes'),
+            context.signal,
+          );
+        return {
+          output,
+          artifact: { type: 'prediction_creation', data: output },
+        };
+      }
       case 'searchPredictionMarkets': {
         const useHoldings = input.relevantToHoldings === true;
         if (useHoldings && !context?.walletAddress)
@@ -452,6 +515,49 @@ const nullableNumberSchema = { type: ['number', 'null'] };
 const nullableBooleanSchema = { type: ['boolean', 'null'] };
 
 const TOOL_SCHEMAS: ToolDefinition[] = [
+  {
+    type: 'function',
+    name: 'proposePredictionMarket',
+    description:
+      'Research an explicitly requested investing-market idea and persist an editable creation proposal. Requires verified active chat wallet. Never approves, quotes, signs or publishes.',
+    strict: true,
+    parameters: {
+      type: 'object',
+      additionalProperties: false,
+      properties: { intent: { type: 'string' } },
+      required: ['intent'],
+    },
+  },
+  {
+    type: 'function',
+    name: 'getPredictionCreationDraft',
+    description:
+      'Restore an owned creation proposal and pending publication status.',
+    strict: true,
+    parameters: {
+      type: 'object',
+      additionalProperties: false,
+      properties: { draftId: { type: 'string' } },
+      required: ['draftId'],
+    },
+  },
+  {
+    type: 'function',
+    name: 'revisePredictionCreationDraft',
+    description:
+      'Research a requested change and save a new proposal version. Invalidates old quotes and approval. Never publishes.',
+    strict: true,
+    parameters: {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        draftId: { type: 'string' },
+        version: { type: 'number' },
+        changes: { type: 'string' },
+      },
+      required: ['draftId', 'version', 'changes'],
+    },
+  },
   tool(
     'searchPredictionMarkets',
     'Find investing prediction markets from Panta. Read-only local bounded catalog search; do not infer probabilities, rules or executable depth. Holdings use the connected chat wallet.',

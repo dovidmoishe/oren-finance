@@ -244,6 +244,8 @@ export class AgentService {
             const result = await this.tools.dispatch(toolName, args, {
               walletAddress,
               signal,
+              creationSessionToken: body.creationSessionToken,
+              timezone: body.context?.timezone,
             });
             await this.repository.insertMessage({
               threadId: thread.id,
@@ -523,6 +525,29 @@ function artifactFromToolOutput(
   toolName: string,
   data: unknown,
 ): AgentArtifact | undefined {
+  if (
+    [
+      'proposePredictionMarket',
+      'getPredictionCreationDraft',
+      'revisePredictionCreationDraft',
+    ].includes(toolName ?? '')
+  ) {
+    return isRecord(data) && data.walletVerificationRequired === true
+      ? {
+          type: 'prediction_creation_auth',
+          data: data as Extract<
+            AgentArtifact,
+            { type: 'prediction_creation_auth' }
+          >['data'],
+        }
+      : {
+          type: 'prediction_creation',
+          data: data as Extract<
+            AgentArtifact,
+            { type: 'prediction_creation' }
+          >['data'],
+        };
+  }
   switch (toolName) {
     case 'getPortfolio':
       return { type: 'portfolio', data: data as never };

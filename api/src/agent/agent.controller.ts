@@ -3,6 +3,7 @@ import {
   Body,
   Controller,
   Get,
+  Headers,
   Param,
   Post,
   Query,
@@ -15,6 +16,7 @@ import {
   IsString,
   Matches,
   MinLength,
+  MaxLength,
   ValidateNested,
 } from 'class-validator';
 import type { Request, Response } from 'express';
@@ -25,6 +27,7 @@ import type {
 } from '../../types/api';
 import type { AgentPage } from '../../types/agent';
 import { AgentService } from './agent.service';
+import { CreationSessionService } from '../predictions/creation/creation-session.service';
 
 const AGENT_PAGES: AgentPage[] = [
   'predictions',
@@ -38,6 +41,7 @@ const AGENT_PAGES: AgentPage[] = [
 ];
 
 class AgentPageContextDto {
+  @IsOptional() @IsString() @MaxLength(100) timezone?: string;
   @IsOptional()
   @IsString()
   @Matches(/^[1-9A-HJ-NP-Za-km-z]{32,44}$/)
@@ -79,11 +83,18 @@ class AgentHistoryQueryDto {
 
 @Controller('agent')
 export class AgentController {
-  constructor(private readonly agent: AgentService) {}
+  constructor(
+    private readonly agent: AgentService,
+    private readonly creationSessions: CreationSessionService,
+  ) {}
 
   @Post('message')
-  message(@Body() body: AgentMessageDto): Promise<PostAgentMessageResponse> {
-    return this.agent.message(body);
+  async message(
+    @Body() body: AgentMessageDto,
+    @Headers('x-oren-creation-session') token?: string,
+  ): Promise<PostAgentMessageResponse> {
+    await this.guardCreationHistory(body.threadId, body.walletAddress, token);
+    return this.agent.message({ ...body, creationSessionToken: token });
   }
 
   @Post('message/stream')
@@ -91,7 +102,9 @@ export class AgentController {
     @Body() body: AgentMessageDto,
     @Req() request: Request,
     @Res() response: Response,
+    @Headers('x-oren-creation-session') token?: string,
   ): Promise<void> {
+    await this.guardCreationHistory(body.threadId, body.walletAddress, token);
     response.status(200);
     response.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
     response.setHeader('Cache-Control', 'no-cache, no-transform');
@@ -112,7 +125,7 @@ export class AgentController {
 
     try {
       for await (const event of this.agent.streamMessage(
-        body,
+        { ...body, creationSessionToken: token },
         abortController.signal,
       )) {
         if (response.writableEnded || response.destroyed) break;
@@ -127,10 +140,39 @@ export class AgentController {
   }
 
   @Get('threads/:threadId/messages')
-  getThreadMessages(
+  async getThreadMessages(
     @Param('threadId') threadId: string,
     @Query() query: AgentHistoryQueryDto,
+    @Headers('x-oren-creation-session') token?: string,
   ): Promise<GetAgentThreadMessagesResponse> {
-    return this.agent.getThreadMessages(threadId, query.walletAddress);
+    const history = await this.agent.getThreadMessages(
+      threadId,
+      query.walletAddress,
+    );
+    if (
+      history.messages.some((message) =>
+        message.artifacts?.some(
+          (artifact) => artifact.type === 'prediction_creation',
+        ),
+      )
+    )
+      this.creationSessions.require(token, query.walletAddress);
+    return history;
+  }
+  private async guardCreationHistory(
+    threadId: string | undefined,
+    wallet: string,
+    token?: string,
+  ) {
+    if (!threadId) return;
+    const history = await this.agent.getThreadMessages(threadId, wallet);
+    if (
+      history.messages.some((message) =>
+        message.artifacts?.some(
+          (artifact) => artifact.type === 'prediction_creation',
+        ),
+      )
+    )
+      this.creationSessions.require(token, wallet);
   }
 }
