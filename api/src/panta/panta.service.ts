@@ -57,8 +57,21 @@ export class PantaService {
       )
         throw invalidPantaPayload();
       const source = pantaSource();
+      const items: PantaMarket[] = [];
+      for (const item of body.items) {
+        try {
+          items.push(mapPantaMarket(item, source));
+        } catch {
+          // An unusable record must not hide valid peers or become a fabricated title.
+        }
+      }
+      const skipped = body.items.length - items.length;
       return {
-        items: body.items.map((item: unknown) => mapPantaMarket(item, source)),
+        items,
+        scanned: body.items.length,
+        warnings: skipped
+          ? [`${skipped} records omitted: missing market identity or title.`]
+          : [],
         nextCursor: body.nextCursor ?? null,
         source,
       };

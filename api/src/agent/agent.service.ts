@@ -1,4 +1,9 @@
-import { BadRequestException, Inject, Injectable, Logger } from '@nestjs/common';
+import {
+  BadRequestException,
+  Inject,
+  Injectable,
+  Logger,
+} from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import type {
   AgentArtifact,
@@ -15,7 +20,7 @@ import { APP_ENV } from '../config/constants';
 import type { AppEnv } from '../config/env.schema';
 import { buildInstructions, portfolioToContext } from './agent-context';
 import { AgentRepository } from './agent.repository';
-import { OPENAI_CLIENT, type OpenAIClient } from './openai.provider';
+import { OPENAI_CLIENT, type OpenAIClient } from '../openai/openai.provider';
 import { PortfolioService } from '../portfolio/portfolio.service';
 import { AgentToolRegistry } from './tools/agent-tool.registry';
 
@@ -40,8 +45,12 @@ export class AgentService {
 
   async message(body: AgentChatRequest): Promise<AgentChatResponse> {
     const events: AgentStreamEvent[] = [];
-    let completed: Extract<AgentStreamEvent, { type: 'turn_completed' }> | null = null;
-    let failed: Extract<AgentStreamEvent, { type: 'turn_failed' }> | null = null;
+    let completed: Extract<
+      AgentStreamEvent,
+      { type: 'turn_completed' }
+    > | null = null;
+    let failed: Extract<AgentStreamEvent, { type: 'turn_failed' }> | null =
+      null;
 
     for await (const event of this.streamMessage(body)) {
       if (event.type !== 'assistant_delta') events.push(event);
@@ -152,13 +161,18 @@ export class AgentService {
             isRecord(event.response)
           ) {
             completedResponse = event.response;
-          } else if (event.type === 'response.failed' || event.type === 'error') {
+          } else if (
+            event.type === 'response.failed' ||
+            event.type === 'error'
+          ) {
             throw new AgentUnavailableError(extractStreamError(event));
           }
         }
 
         if (!completedResponse) {
-          throw new AgentUnavailableError('The model stream ended unexpectedly');
+          throw new AgentUnavailableError(
+            'The model stream ended unexpectedly',
+          );
         }
 
         const output = Array.isArray(completedResponse.output)
@@ -227,7 +241,10 @@ export class AgentService {
 
           try {
             const args = parseArguments(call.arguments);
-            const result = await this.tools.dispatch(toolName, args);
+            const result = await this.tools.dispatch(toolName, args, {
+              walletAddress,
+              signal,
+            });
             await this.repository.insertMessage({
               threadId: thread.id,
               role: 'tool',
@@ -249,7 +266,8 @@ export class AgentService {
             };
             input.push(functionOutput(call, result.output));
           } catch (error) {
-            const message = error instanceof Error ? error.message : String(error);
+            const message =
+              error instanceof Error ? error.message : String(error);
             await this.repository.insertMessage({
               threadId: thread.id,
               role: 'tool',
@@ -309,7 +327,10 @@ export class AgentService {
         sequence: sequence++,
         timestamp: timestamp(),
         error: {
-          code: error instanceof BadRequestException ? 'bad_request' : 'agent_error',
+          code:
+            error instanceof BadRequestException
+              ? 'bad_request'
+              : 'agent_error',
           message,
           retryable: !(error instanceof BadRequestException),
         },
@@ -323,7 +344,10 @@ export class AgentService {
   ): Promise<AgentThreadMessagesResponse> {
     const wallet = assertNonEmpty(walletAddress, 'walletAddress');
     const thread = await this.loadThread(threadId, wallet);
-    const messages = await this.repository.listMessages(thread.id, HISTORY_LIMIT);
+    const messages = await this.repository.listMessages(
+      thread.id,
+      HISTORY_LIMIT,
+    );
     return { thread, messages: toDisplayHistory(messages) };
   }
 
@@ -331,12 +355,17 @@ export class AgentService {
     const thread = await this.repository.getThread(id);
     if (!thread) throw new BadRequestException('threadId not found');
     if (thread.walletAddress !== walletAddress) {
-      throw new BadRequestException('threadId does not belong to walletAddress');
+      throw new BadRequestException(
+        'threadId does not belong to walletAddress',
+      );
     }
     return thread;
   }
 
-  private saveAssistantMessage(threadId: string, content: string): Promise<AgentMessage> {
+  private saveAssistantMessage(
+    threadId: string,
+    content: string,
+  ): Promise<AgentMessage> {
     return this.repository.insertMessage({
       threadId,
       role: 'assistant',
@@ -376,11 +405,15 @@ function findUnansweredUser(
 
 function messagesToInput(messages: AgentMessage[]): ResponseInput {
   return messages
-    .filter((message) => message.role === 'user' || message.role === 'assistant')
+    .filter(
+      (message) => message.role === 'user' || message.role === 'assistant',
+    )
     .map((message) => ({ role: message.role, content: message.content }));
 }
 
-function isFunctionCall(item: ResponseOutputItem): item is ResponseOutputItem & {
+function isFunctionCall(
+  item: ResponseOutputItem,
+): item is ResponseOutputItem & {
   name: string;
   call_id: string;
   arguments?: string;
@@ -425,7 +458,8 @@ function extractAssistantText(
 
 function missingStreamedSuffix(fullText: string, streamedText: string): string {
   if (!fullText || fullText === streamedText) return '';
-  if (fullText.startsWith(streamedText)) return fullText.slice(streamedText.length);
+  if (fullText.startsWith(streamedText))
+    return fullText.slice(streamedText.length);
   return streamedText ? '' : fullText;
 }
 
@@ -439,7 +473,9 @@ function toDisplayMessage(
     role: message.role === 'assistant' ? 'assistant' : 'user',
     content: message.content,
     createdAt: message.createdAt,
-    activities: activities?.length ? activities.map((item) => ({ ...item })) : undefined,
+    activities: activities?.length
+      ? activities.map((item) => ({ ...item }))
+      : undefined,
     artifacts: artifacts?.length ? artifacts : undefined,
   };
 }
@@ -488,23 +524,46 @@ function artifactFromToolOutput(
   data: unknown,
 ): AgentArtifact | undefined {
   switch (toolName) {
-    case 'getPortfolio': return { type: 'portfolio', data: data as never };
-    case 'getTradingCalendar': return { type: 'trading_calendar', data: data as never };
-    case 'getTradingCalendarDay': return { type: 'trading_calendar_day', data: data as never };
-    case 'getStock': return { type: 'stock', data: data as never };
-    case 'getBitgetMarketContext': return { type: 'bitget_market', data: data as never };
-    case 'analyzeStock': return { type: 'analysis', data: data as never };
-    case 'findOpportunities': return { type: 'opportunities', data: data as never };
-    case 'getSwapQuote': return { type: 'quote', data: data as never };
-    case 'proposeLimitOrder': return { type: 'limit_order', data: data as never };
-    case 'getLimitOrders': return { type: 'limit_orders', data: data as never };
-    case 'createBasket': return { type: 'basket', data: data as never };
-    case 'prepareSwap': return { type: 'prepared_swap', data: data as never };
-    case 'prepareBasketPurchase': return { type: 'prepared_basket', data: data as never };
-    case 'prepareLock': return { type: 'prepared_lock', data: data as never };
-    case 'prepareUnlock': return { type: 'prepared_unlock', data: data as never };
-    case 'getVaults': return { type: 'vaults', data: data as never };
-    default: return undefined;
+    case 'getPortfolio':
+      return { type: 'portfolio', data: data as never };
+    case 'getTradingCalendar':
+      return { type: 'trading_calendar', data: data as never };
+    case 'getTradingCalendarDay':
+      return { type: 'trading_calendar_day', data: data as never };
+    case 'getStock':
+      return { type: 'stock', data: data as never };
+    case 'searchPredictionMarkets':
+      return { type: 'prediction_markets', data: data as never };
+    case 'getPredictionMarket':
+      return { type: 'prediction_market', data: data as never };
+    case 'researchPredictionMarket':
+      return { type: 'prediction_research', data: data as never };
+    case 'getBitgetMarketContext':
+      return { type: 'bitget_market', data: data as never };
+    case 'analyzeStock':
+      return { type: 'analysis', data: data as never };
+    case 'findOpportunities':
+      return { type: 'opportunities', data: data as never };
+    case 'getSwapQuote':
+      return { type: 'quote', data: data as never };
+    case 'proposeLimitOrder':
+      return { type: 'limit_order', data: data as never };
+    case 'getLimitOrders':
+      return { type: 'limit_orders', data: data as never };
+    case 'createBasket':
+      return { type: 'basket', data: data as never };
+    case 'prepareSwap':
+      return { type: 'prepared_swap', data: data as never };
+    case 'prepareBasketPurchase':
+      return { type: 'prepared_basket', data: data as never };
+    case 'prepareLock':
+      return { type: 'prepared_lock', data: data as never };
+    case 'prepareUnlock':
+      return { type: 'prepared_unlock', data: data as never };
+    case 'getVaults':
+      return { type: 'vaults', data: data as never };
+    default:
+      return undefined;
   }
 }
 

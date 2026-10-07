@@ -44,6 +44,8 @@ describe('AgentToolRegistry', () => {
   };
 
   let registry: AgentToolRegistry;
+  const predictions = { search: jest.fn(), detail: jest.fn() };
+  const research = { research: jest.fn() };
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -57,7 +59,54 @@ describe('AgentToolRegistry', () => {
       vault as never,
       social as never,
       calendar as never,
+      predictions as never,
+      research as never,
     );
+  });
+
+  it('uses the server chat wallet and strips financial data from research context', async () => {
+    portfolio.getPortfolio.mockResolvedValue({
+      positions: [
+        {
+          assetId: 'nvda',
+          ticker: 'NVDA',
+          allocationPercent: 20,
+          balance: 'secret-balance',
+        },
+      ],
+    });
+    research.research.mockResolvedValue({ status: 'researched' });
+    const signal = new AbortController().signal;
+    const result = await registry.dispatch(
+      'researchPredictionMarket',
+      { marketId: 'event', wallet: 'spoofed' },
+      { walletAddress: 'active-chat', signal },
+    );
+    expect(portfolio.getPortfolio).toHaveBeenCalledWith('active-chat');
+    expect(research.research).toHaveBeenCalledWith(
+      'event',
+      [{ assetId: 'nvda', ticker: 'NVDA', allocationPct: 20, kind: 'direct' }],
+      signal,
+    );
+    expect(result.artifact?.type).toBe('prediction_research');
+  });
+
+  it('does not run paid research when browsing and handles empty holdings truthfully', async () => {
+    predictions.search.mockResolvedValue({ items: [] });
+    await registry.dispatch('searchPredictionMarkets', {});
+    expect(research.research).not.toHaveBeenCalled();
+    portfolio.getPortfolio.mockResolvedValue({ positions: [] });
+    predictions.search.mockClear();
+    const result = await registry.dispatch(
+      'searchPredictionMarkets',
+      { relevantToHoldings: true },
+      { walletAddress: 'active-chat' },
+    );
+    expect(predictions.search).not.toHaveBeenCalled();
+    expect(result.artifact?.type).toBe('prediction_markets');
+    await expect(
+      registry.dispatch('researchPredictionMarket', { marketId: 'event' }),
+    ).rejects.toThrow('Connected chat context required');
   });
 
   it('publishes OpenAI-compatible strict function schemas', () => {

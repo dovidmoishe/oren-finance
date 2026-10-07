@@ -10,12 +10,15 @@ import { VaultModule } from '../vault/vault.module';
 import { AgentController } from './agent.controller';
 import { AgentRepository } from './agent.repository';
 import { AgentService } from './agent.service';
-import { openAiClientProvider } from './openai.provider';
+import { OpenAiModule } from '../openai/openai.module';
+import { PredictionsModule } from '../predictions/predictions.module';
 import { AgentToolRegistry } from './tools/agent-tool.registry';
 
 @Module({
   imports: [
     BitgetModule,
+    OpenAiModule,
+    PredictionsModule,
     PortfolioModule,
     MarketModule,
     NewsModule,
@@ -25,12 +28,7 @@ import { AgentToolRegistry } from './tools/agent-tool.registry';
     SocialModule,
   ],
   controllers: [AgentController],
-  providers: [
-    openAiClientProvider,
-    AgentRepository,
-    AgentToolRegistry,
-    AgentService,
-  ],
+  providers: [AgentRepository, AgentToolRegistry, AgentService],
   exports: [AgentService, AgentToolRegistry],
 })
 export class AgentModule {}

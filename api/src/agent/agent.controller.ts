@@ -13,6 +13,7 @@ import {
   IsIn,
   IsOptional,
   IsString,
+  Matches,
   MinLength,
   ValidateNested,
 } from 'class-validator';
@@ -26,6 +27,7 @@ import type { AgentPage } from '../../types/agent';
 import { AgentService } from './agent.service';
 
 const AGENT_PAGES: AgentPage[] = [
+  'predictions',
   'dashboard',
   'calendar',
   'leaderboard',
@@ -36,6 +38,10 @@ const AGENT_PAGES: AgentPage[] = [
 ];
 
 class AgentPageContextDto {
+  @IsOptional()
+  @IsString()
+  @Matches(/^[1-9A-HJ-NP-Za-km-z]{32,44}$/)
+  marketId?: string;
   @IsIn(AGENT_PAGES)
   page!: AgentPage;
 

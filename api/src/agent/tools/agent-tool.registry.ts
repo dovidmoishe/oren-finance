@@ -11,6 +11,8 @@ import { PortfolioCalendarService } from '../../portfolio/portfolio-calendar.ser
 import { PortfolioService } from '../../portfolio/portfolio.service';
 import { SocialService } from '../../social/social.service';
 import { VaultService } from '../../vault/vault.service';
+import { PredictionsService } from '../../predictions/predictions.service';
+import { PredictionResearchService } from '../../predictions/prediction-research.service';
 
 export interface AgentToolResult {
   output: unknown;
@@ -37,26 +39,104 @@ export class AgentToolRegistry {
     private readonly vault: VaultService,
     private readonly social: SocialService,
     private readonly calendar: PortfolioCalendarService,
+    private readonly predictions: PredictionsService,
+    private readonly predictionResearch: PredictionResearchService,
   ) {}
 
   getSchemas(): ToolDefinition[] {
     return TOOL_SCHEMAS;
   }
 
-  async dispatch(name: string, args: unknown): Promise<AgentToolResult> {
+  async dispatch(
+    name: string,
+    args: unknown,
+    context?: { walletAddress: string; signal?: AbortSignal },
+  ): Promise<AgentToolResult> {
     const input = asRecord(args);
 
     switch (name) {
-      case 'getPortfolio':
-        {
-          const portfolio = await this.portfolio.getPortfolio(
-            required(input, 'wallet'),
+      case 'searchPredictionMarkets': {
+        const useHoldings = input.relevantToHoldings === true;
+        if (useHoldings && !context?.walletAddress)
+          throw new BadRequestException(
+            'Connected wallet required for holdings relevance',
           );
+        const holdings = useHoldings
+          ? await this.portfolio.getPortfolio(context!.walletAddress)
+          : undefined;
+        const asset = optionalString(input, 'assetIdOrTicker');
+        const stock = asset ? await this.getStockByInput(asset) : undefined;
+        if (useHoldings && !stock && !holdings?.positions.length) {
+          const output = {
+            items: [],
+            page: 1,
+            hasMore: false,
+            coverage: {
+              scanned: 0,
+              complete: false,
+              warnings: ['No equity holdings available for personalization.'],
+            },
+          };
           return {
-            output: portfolio,
-            artifact: { type: 'portfolio', data: portfolio },
+            output,
+            artifact: { type: 'prediction_markets', data: output },
           };
         }
+        const output = await this.predictions.search({
+          q: optionalString(input, 'query'),
+          category: optionalString(input, 'category') as
+            'finance' | 'crypto' | 'world' | undefined,
+          phase: optionalString(input, 'phase') as
+            'primary' | 'secondary' | 'resolved' | 'cancelled' | undefined,
+          page: optionalNumber(input, 'page'),
+          assetIds: stock
+            ? [stock.id]
+            : holdings?.positions.map((p) => p.assetId),
+        });
+        return {
+          output,
+          artifact: { type: 'prediction_markets', data: output },
+        };
+      }
+      case 'getPredictionMarket': {
+        const output = await this.predictions.detail(
+          required(input, 'marketId'),
+        );
+        return {
+          output,
+          artifact: { type: 'prediction_market', data: output },
+        };
+      }
+      case 'researchPredictionMarket': {
+        if (!context?.walletAddress)
+          throw new BadRequestException('Connected chat context required');
+        const portfolio = await this.portfolio
+          .getPortfolio(context.walletAddress)
+          .catch(() => undefined);
+        const output = await this.predictionResearch.research(
+          required(input, 'marketId'),
+          portfolio?.positions.map((p) => ({
+            assetId: p.assetId,
+            ticker: p.ticker,
+            allocationPct: p.allocationPercent,
+            kind: 'direct' as const,
+          })) ?? [],
+          context.signal,
+        );
+        return {
+          output,
+          artifact: { type: 'prediction_research', data: output },
+        };
+      }
+      case 'getPortfolio': {
+        const portfolio = await this.portfolio.getPortfolio(
+          required(input, 'wallet'),
+        );
+        return {
+          output: portfolio,
+          artifact: { type: 'portfolio', data: portfolio },
+        };
+      }
 
       case 'getPortfolioActivity':
         return {
@@ -64,12 +144,15 @@ export class AgentToolRegistry {
         };
 
       case 'getTradingCalendar': {
-        const calendar = await this.calendar.getCalendar(required(input, 'wallet'), {
-          month: optionalString(input, 'month'),
-          start: optionalString(input, 'start'),
-          end: optionalString(input, 'end'),
-          timeZone: optionalString(input, 'timeZone'),
-        });
+        const calendar = await this.calendar.getCalendar(
+          required(input, 'wallet'),
+          {
+            month: optionalString(input, 'month'),
+            start: optionalString(input, 'start'),
+            end: optionalString(input, 'end'),
+            timeZone: optionalString(input, 'timeZone'),
+          },
+        );
         return {
           output: calendar,
           artifact: { type: 'trading_calendar', data: calendar },
@@ -254,16 +337,13 @@ export class AgentToolRegistry {
         };
       }
 
-      case 'getVaults':
-        {
-          const vaults = await this.vault.listVaults(
-            required(input, 'wallet'),
-          );
-          return {
-            output: vaults,
-            artifact: { type: 'vaults', data: vaults },
-          };
-        }
+      case 'getVaults': {
+        const vaults = await this.vault.listVaults(required(input, 'wallet'));
+        return {
+          output: vaults,
+          artifact: { type: 'vaults', data: vaults },
+        };
+      }
 
       case 'prepareLock': {
         const prepared = await this.vault.prepareLock({
@@ -373,6 +453,34 @@ const nullableBooleanSchema = { type: ['boolean', 'null'] };
 
 const TOOL_SCHEMAS: ToolDefinition[] = [
   tool(
+    'searchPredictionMarkets',
+    'Find investing prediction markets from Panta. Read-only local bounded catalog search; do not infer probabilities, rules or executable depth. Holdings use the connected chat wallet.',
+    {
+      query: nullableStringSchema,
+      assetIdOrTicker: nullableStringSchema,
+      category: {
+        type: ['string', 'null'],
+        enum: ['finance', 'crypto', 'world', null],
+      },
+      phase: {
+        type: ['string', 'null'],
+        enum: ['primary', 'secondary', 'resolved', 'cancelled', null],
+      },
+      page: nullableNumberSchema,
+      relevantToHoldings: nullableBooleanSchema,
+    },
+  ),
+  tool(
+    'getPredictionMarket',
+    'Read actual Panta market metadata. Missing fields are unavailable.',
+    { marketId: stringSchema },
+  ),
+  tool(
+    'researchPredictionMarket',
+    'On explicit user request, research ONE prediction event with live web citations, counterarguments and uncertainty. Paid read-only research, never a trade or settlement decision.',
+    { marketId: stringSchema },
+  ),
+  tool(
     'getPortfolio',
     'Get the latest portfolio for the connected wallet. Use the attached snapshot for conversational advice; call this before trade sizing or quotes when balances may have changed.',
     {
@@ -416,17 +524,13 @@ const TOOL_SCHEMAS: ToolDefinition[] = [
       },
     },
   ),
-  tool(
-    'getStockChart',
-    'Get normalized stock chart candles.',
-    {
-      assetIdOrTicker: stringSchema,
-      range: {
-        type: ['string', 'null'],
-        enum: ['1D', '1W', '1M', '3M', '1Y', 'ALL', null],
-      },
+  tool('getStockChart', 'Get normalized stock chart candles.', {
+    assetIdOrTicker: stringSchema,
+    range: {
+      type: ['string', 'null'],
+      enum: ['1D', '1W', '1M', '3M', '1Y', 'ALL', null],
     },
-  ),
+  }),
   tool('getStockNews', 'Get recent news for a canonical stock.', {
     assetIdOrTicker: stringSchema,
   }),
@@ -440,30 +544,22 @@ const TOOL_SCHEMAS: ToolDefinition[] = [
   tool('searchStocks', 'Search canonical stocks by ticker or company name.', {
     query: stringSchema,
   }),
-  tool(
-    'findOpportunities',
-    'Find ranked Oren opportunities.',
-    {
-      minScore: nullableNumberSchema,
-      limit: nullableNumberSchema,
-    },
-  ),
+  tool('findOpportunities', 'Find ranked Oren opportunities.', {
+    minScore: nullableNumberSchema,
+    limit: nullableNumberSchema,
+  }),
   tool('getSignals', 'Get deterministic quantitative signals for a stock.', {
     assetIdOrTicker: stringSchema,
   }),
-  tool(
-    'getSwapQuote',
-    'Get a Jupiter quote for buying or selling a stock.',
-    {
-      side: { type: 'string', enum: ['buy', 'sell'] },
-      ticker: nullableStringSchema,
-      assetId: nullableStringSchema,
-      amountUsd: nullableNumberSchema,
-      amount: nullableNumberSchema,
-      preferredMint: nullableStringSchema,
-      slippageBps: nullableNumberSchema,
-    },
-  ),
+  tool('getSwapQuote', 'Get a Jupiter quote for buying or selling a stock.', {
+    side: { type: 'string', enum: ['buy', 'sell'] },
+    ticker: nullableStringSchema,
+    assetId: nullableStringSchema,
+    amountUsd: nullableNumberSchema,
+    amount: nullableNumberSchema,
+    preferredMint: nullableStringSchema,
+    slippageBps: nullableNumberSchema,
+  }),
   tool(
     'proposeLimitOrder',
     'Propose a Jupiter Trigger V1 limit order at a USD price. If limitPriceUsd is omitted, uses the deterministic TA limit zone from analyzeStock. Returns a reviewable proposal — never prepares or signs.',
@@ -488,29 +584,25 @@ const TOOL_SCHEMAS: ToolDefinition[] = [
       includeHistory: nullableBooleanSchema,
     },
   ),
-  tool(
-    'createBasket',
-    'Planned basket creation tool.',
-    {
-      amountUsd: numberSchema,
-      prompt: stringSchema,
-      wallet: nullableStringSchema,
-      candidates: {
-        type: ['array', 'null'],
-        items: {
-          type: 'object',
-          properties: {
-            assetId: stringSchema,
-            ticker: stringSchema,
-            name: nullableStringSchema,
-            opportunityScore: numberSchema,
-          },
-          required: ['assetId', 'ticker', 'name', 'opportunityScore'],
-          additionalProperties: false,
+  tool('createBasket', 'Planned basket creation tool.', {
+    amountUsd: numberSchema,
+    prompt: stringSchema,
+    wallet: nullableStringSchema,
+    candidates: {
+      type: ['array', 'null'],
+      items: {
+        type: 'object',
+        properties: {
+          assetId: stringSchema,
+          ticker: stringSchema,
+          name: nullableStringSchema,
+          opportunityScore: numberSchema,
         },
+        required: ['assetId', 'ticker', 'name', 'opportunityScore'],
+        additionalProperties: false,
       },
     },
-  ),
+  }),
   tool('getVaults', 'List indexed Oren timelock vault positions.', {
     wallet: stringSchema,
   }),

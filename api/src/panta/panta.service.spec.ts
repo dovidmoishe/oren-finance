@@ -37,6 +37,18 @@ describe('Panta read provider', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it('preserves valid catalog peers while reporting unusable records', async () => {
+    fetchMock.mockResolvedValue(
+      response({ items: [item, { ...item, title: '' }, null] }),
+    );
+    const result = await service.listMarkets();
+    expect(result.items).toHaveLength(1);
+    expect(result.scanned).toBe(3);
+    expect(result.warnings).toEqual([
+      '2 records omitted: missing market identity or title.',
+    ]);
+  });
+
   it('encodes documented filters and cursor, caches and deduplicates reads', async () => {
     fetchMock.mockResolvedValue(
       response({ items: [item], nextCursor: 'next' }),

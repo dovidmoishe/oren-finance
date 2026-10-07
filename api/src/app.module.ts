@@ -1,3 +1,4 @@
+import { PredictionsModule } from './predictions/predictions.module';
 import { Module } from '@nestjs/common';
 import { AlchemyModule } from './alchemy/alchemy.module';
 import { AnalyticsModule } from './analytics/analytics.module';
@@ -24,6 +25,7 @@ import { VaultModule } from './vault/vault.module';
     CommonModule,
     BitgetModule,
     PantaModule,
+    PredictionsModule,
     TokensModule,
     AlchemyModule,
     AnalyticsModule,

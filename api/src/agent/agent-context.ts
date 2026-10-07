@@ -5,7 +5,9 @@ import type {
 import type { Portfolio } from '../../types/portfolio';
 import { OREN_AGENT_PROMPT } from './agent.prompt';
 
-export function portfolioToContext(portfolio: Portfolio): AgentPortfolioContext {
+export function portfolioToContext(
+  portfolio: Portfolio,
+): AgentPortfolioContext {
   return {
     totalValueUsd: portfolio.totalValueUsd,
     availableValueUsd: portfolio.availableValueUsd,
@@ -42,12 +44,15 @@ export function buildInstructions(
   }
 
   if (context) {
+    const event = context.marketId
+      ? ` The user is viewing prediction market ${context.marketId}.`
+      : '';
     const asset =
       context.page === 'stock' && context.assetId
         ? ` The user is viewing stock asset ${context.assetId}.`
         : '';
     sections.push(
-      `Interface context: the user is currently on the ${context.page} page.${asset} Use this only to make the response more relevant; do not claim you inspected page data without a tool call.`,
+      `Interface context: the user is currently on the ${context.page} page.${asset}${event} Use this only to make the response more relevant; do not claim you inspected page data without a tool call.`,
     );
   }
 

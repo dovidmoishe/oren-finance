@@ -1,3 +1,8 @@
+import type {
+  PredictionMarket,
+  PredictionResults,
+  PredictionResearch,
+} from './predictions';
 import type { ActivityFeed } from './activity';
 import type {
   TradingCalendarDayResponse,
@@ -57,6 +62,7 @@ export interface AgentChatResponse {
 }
 
 export type AgentPage =
+  | 'predictions'
   | 'dashboard'
   | 'calendar'
   | 'leaderboard'
@@ -88,11 +94,15 @@ export interface AgentPortfolioContext {
 }
 
 export interface AgentPageContext {
+  marketId?: string;
   page: AgentPage;
   assetId?: string;
 }
 
 export type AgentArtifact =
+  | { type: 'prediction_markets'; data: PredictionResults }
+  | { type: 'prediction_market'; data: PredictionMarket }
+  | { type: 'prediction_research'; data: PredictionResearch }
   | { type: 'portfolio'; data: Portfolio }
   | { type: 'stock'; data: Equity }
   | { type: 'bitget_market'; data: BitgetMarketContext }

@@ -56,6 +56,9 @@ export interface PantaMarketQuery {
 
 export interface PantaMarketPage {
   items: PantaMarket[];
+  /** Includes unusable records so bounded discovery reports actual coverage. */
+  scanned?: number;
+  warnings?: string[];
   nextCursor: string | null;
   source: PantaSource;
 }

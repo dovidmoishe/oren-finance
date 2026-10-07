@@ -1,8 +1,16 @@
-import type { AgentMessage, AgentThread } from '../../types/agent';
+import type {
+  AgentMessage,
+  AgentThread,
+  AgentStreamEvent,
+} from '../../types/agent';
 import { AgentService } from './agent.service';
 
-function responseStream(response: Record<string, unknown>, deltas: string[] = []) {
+function responseStream(
+  response: Record<string, unknown>,
+  deltas: string[] = [],
+) {
   return (async function* () {
+    await Promise.resolve();
     for (const delta of deltas) {
       yield { type: 'response.output_text.delta', delta };
     }
@@ -122,7 +130,7 @@ describe('AgentService', () => {
       },
     });
 
-    const streamed = [];
+    const streamed: AgentStreamEvent[] = [];
     for await (const event of service.streamMessage({
       walletAddress: 'wallet-1',
       message: 'Analyze NVDA',
@@ -135,13 +143,19 @@ describe('AgentService', () => {
     expect(portfolioService.getPortfolio).toHaveBeenCalledWith('wallet-1');
     expect(openai.responses.create).toHaveBeenCalledWith(
       expect.objectContaining({
-        instructions: expect.stringContaining('Top holdings: NVDA 20.0%'),
+        instructions: expect.stringContaining(
+          'Top holdings: NVDA 20.0%',
+        ) as unknown,
       }),
       expect.any(Object),
     );
-    expect(tools.dispatch).toHaveBeenCalledWith('analyzeStock', {
-      assetIdOrTicker: 'NVDA',
-    });
+    expect(tools.dispatch).toHaveBeenCalledWith(
+      'analyzeStock',
+      {
+        assetIdOrTicker: 'NVDA',
+      },
+      expect.objectContaining({ walletAddress: 'wallet-1' }),
+    );
     expect(streamed.map((event) => event.type)).toEqual([
       'turn_started',
       'tool_started',
@@ -227,7 +241,10 @@ describe('AgentService', () => {
         }),
       )
       .mockResolvedValueOnce(
-        responseStream({ output_text: 'I could not load that stock.', output: [] }),
+        responseStream({
+          output_text: 'I could not load that stock.',
+          output: [],
+        }),
       );
     tools.dispatch.mockRejectedValue(new Error('Unknown stock'));
 
@@ -322,5 +339,39 @@ describe('AgentService', () => {
 
     expect(openai.responses.create).toHaveBeenCalledTimes(5);
     expect(result.message.content).toContain('tool limit');
+  });
+
+  it('restores prediction citations, timestamps and warnings without regeneration', async () => {
+    const brief = {
+      generatedAt: '2026-10-07T10:00:00Z',
+      sources: [{ url: 'https://sec.gov/report', publishedAt: null }],
+      warnings: ['Rules unavailable'],
+    };
+    repository.listMessages.mockResolvedValue([
+      {
+        id: 'u',
+        role: 'user',
+        content: 'Research event',
+        createdAt: new Date(),
+      },
+      {
+        id: 't',
+        role: 'tool',
+        toolName: 'researchPredictionMarket',
+        content: JSON.stringify(brief),
+        createdAt: new Date(),
+      },
+      {
+        id: 'a',
+        role: 'assistant',
+        content: 'Cited brief',
+        createdAt: new Date(),
+      },
+    ]);
+    const result = await service.getThreadMessages('thread-1', 'wallet-1');
+    expect(result.messages[1].artifacts).toEqual([
+      { type: 'prediction_research', data: brief },
+    ]);
+    expect(openai.responses.create).not.toHaveBeenCalled();
   });
 });
