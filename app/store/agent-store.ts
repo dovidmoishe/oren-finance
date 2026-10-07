@@ -16,6 +16,9 @@ const MAX_RECENTS = 12;
 let activeController: AbortController | undefined;
 
 interface AgentState {
+  pendingPrompt?: string;
+  prefillPrompt: (prompt: string) => void;
+  consumePrompt: () => void;
   walletAddress?: string;
   threadId?: string;
   messages: AgentDisplayMessage[];
@@ -42,6 +45,8 @@ interface AgentState {
 }
 
 export const useAgentStore = create<AgentState>((set, get) => ({
+  prefillPrompt: (pendingPrompt) => set({pendingPrompt,panelOpen:true}),
+  consumePrompt: () => set({pendingPrompt:undefined}),
   messages: [],
   recentThreads: [],
   panelOpen: false,

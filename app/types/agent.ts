@@ -1,3 +1,4 @@
+import type { PredictionMarket, PredictionResults, PredictionResearch } from './predictions';
 import type {
   BasketResponse,
   ExecutionPreparedTransaction,
@@ -15,7 +16,7 @@ import type { CopyPortfolioProposal } from './social';
 import type { TradingCalendarDayResponse, TradingCalendarResponse } from './calendar';
 import type { BitgetMarketContext } from './bitget';
 
-export type AgentPage = 'dashboard' | 'calendar' | 'leaderboard' | 'markets' | 'stock' | 'vault' | 'activity';
+export type AgentPage = 'predictions' | 'dashboard' | 'calendar' | 'leaderboard' | 'markets' | 'stock' | 'vault' | 'activity';
 export type AgentArtifactDensity = 'inline' | 'chips' | 'rail';
 export type AgentRole = 'user' | 'assistant';
 export type AgentToolStatus = 'running' | 'completed' | 'failed';
@@ -42,6 +43,7 @@ export interface AgentPortfolioContext {
 }
 
 export interface AgentPageContext {
+  marketId?: string;
   page: AgentPage;
   assetId?: string;
 }
@@ -60,6 +62,9 @@ export interface AgentVaultSummary {
 }
 
 export type AgentArtifact =
+  | {type: 'prediction_markets'; data: PredictionResults}
+  | {type: 'prediction_market'; data: PredictionMarket}
+  | {type: 'prediction_research'; data: PredictionResearch}
   | { type: 'portfolio'; data: PortfolioSummary }
   | { type: 'stock'; data: StockDetail }
   | { type: 'bitget_market'; data: BitgetMarketContext }

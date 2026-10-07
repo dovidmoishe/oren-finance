@@ -10,6 +10,7 @@ import {
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
 import Link from "next/link";
+import { Suspense } from "react";
 import { usePathname } from "next/navigation";
 import { AgentPanel } from "@/components/agent/agent-panel";
 import { OrenLogo } from "@/components/brand/oren-logo";
@@ -22,6 +23,7 @@ const navItems = [
   { href: "/app/calendar", label: "Calendar", icon: Calendar03Icon },
   { href: "/app/leaderboard", label: "Leaderboard", icon: RankingIcon },
   { href: "/app/markets", label: "Market", icon: MarketAnalysisIcon },
+  { href: "/app/predictions", label: "Predictions", icon: MarketAnalysisIcon },
   { href: "/app/vault", label: "Vault", icon: SafeIcon },
   { href: "/app/activity", label: "Activity", icon: Activity01Icon },
 ];
@@ -78,7 +80,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <main className={cn("agent-shell-main min-w-0 px-4 py-8 sm:px-6", reserveSidecarGutter && "2xl:pr-[456px]")}>
         {children}
       </main>
-      <AgentPanel />
+      <Suspense fallback={null}><AgentPanel /></Suspense>
       {!agentOpen ? (
         <div className="pointer-events-none fixed inset-x-0 bottom-5 z-[100] px-4 sm:px-6">
           <div className="mx-auto flex max-w-[1540px] justify-end">

@@ -8,7 +8,7 @@ import {
 import { HugeiconsIcon, type IconSvgElement } from '@hugeicons/react';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { useWalletModal } from '@solana/wallet-adapter-react-ui';
-import { usePathname } from 'next/navigation';
+import { usePathname, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAgentStore, usePortfolioStore, useStockStore } from '@/store';
 import type { BasketResponse, LimitOrderProposal, QuoteResponse } from '@/types';
@@ -81,6 +81,13 @@ export function AgentPanel() {
   const stop = useAgentStore((state) => state.stop);
   const retry = useAgentStore((state) => state.retry);
   const [composer, setComposer] = useState('');
+  const consumePrompt = useAgentStore(s=>s.consumePrompt);
+  useEffect(()=>{
+    const apply=(state:{pendingPrompt?:string})=>{if(state.pendingPrompt){setComposer(state.pendingPrompt);consumePrompt();}};
+    const unsubscribe=useAgentStore.subscribe(apply);
+    const frame=requestAnimationFrame(()=>apply(useAgentStore.getState()));
+    return()=>{cancelAnimationFrame(frame);unsubscribe();};
+  },[consumePrompt]);
   const [showHistory, setShowHistory] = useState(false);
   const [reviewQuote, setReviewQuote] = useState<QuoteResponse>();
   const [reviewBasket, setReviewBasket] = useState<BasketResponse>();
@@ -92,7 +99,8 @@ export function AgentPanel() {
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const reviewOriginRef = useRef<HTMLElement | null>(null);
   const shouldFollowRef = useRef(true);
-  const context = useMemo(() => pageContext(pathname), [pathname]);
+  const search = useSearchParams().toString();
+  const context = useMemo(() => pageContext(pathname,search), [pathname,search]);
   const prompts = useMemo(
     () => promptSuggestions(context, selectedStock?.ticker),
     [context, selectedStock?.ticker],

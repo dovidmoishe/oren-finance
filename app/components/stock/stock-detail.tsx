@@ -5,6 +5,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { MarketChart, type MarketChartMode, type MarketChartRange } from "@/components/charts";
+import { StockEvents } from "@/components/predictions/stock-events";
 import { TechnicalBriefPanel } from "@/components/stock/technical-brief-panel";
 import { StockTradeTicket } from "@/components/trading";
 import {
@@ -272,6 +273,8 @@ export function StockDetail({ assetId }: { assetId: string }) {
         <ScorePanel riskLabel={analysis?.riskLabel} score={score} />
         <MarketSnapshot stock={stock} />
       </div>
+
+      <StockEvents assetId={stock.assetId} />
 
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1.15fr)_minmax(340px,0.85fr)]">
         <Card>
