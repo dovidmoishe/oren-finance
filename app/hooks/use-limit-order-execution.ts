@@ -8,7 +8,7 @@ import type { LimitOrderProposal } from '@/types';
 import type { TradeFlowStatus } from './use-quote-execution';
 import { usePortfolioRefresh } from './use-portfolio-refresh';
 export function useLimitOrderExecution(onConfirmed?: () => Promise<void> | void) {
-  const { address, getAccessToken } = useOrenAuth();
+  const { address, getAccessToken, authorizeTrade } = useOrenAuth();
   const refreshPortfolio = usePortfolioRefresh();
   const [flowStatus, setFlowStatus] = useState<TradeFlowStatus>('idle');
   const [error, setError] = useState<string>();
@@ -20,12 +20,14 @@ export function useLimitOrderExecution(onConfirmed?: () => Promise<void> | void)
     const sessionCurrent = walletSessionIsCurrent();
     const attempt = ++generation.current;
     const current = () => sessionCurrent() && attempt === generation.current;
-    busy.current = true; setError(undefined);
+    busy.current = true; setError(undefined); let submissionStarted = false;
     try {
       setFlowStatus('signing');
       const token = await getAccessToken();
       if (!current()) return;
-      const result = await approveServerTrade(approvalId, token, address);
+      const authorizationSignature = await authorizeTrade(approvalId, token);
+      if (!current()) return;
+      submissionStarted = true; const result = await approveServerTrade(approvalId, token, address, authorizationSignature);
       if (!current()) return;
       if (result.wallet !== address || result.referenceId !== referenceId) throw new Error('Approval does not match this order.');
       if (result.status === 'failed') throw new Error('Order failed. Review a fresh proposal.');
@@ -47,13 +49,13 @@ export function useLimitOrderExecution(onConfirmed?: () => Promise<void> | void)
       }
     } catch (error) {
       if (current()) {
-        const rejected = error instanceof ApiError && ([400, 401, 403, 404].includes(error.status) || (error.details as { code?: string })?.code === 'PRIVY_SIGNING_FAILED');
+        const rejected = !submissionStarted || error instanceof ApiError && ([400, 401, 403, 404].includes(error.status) || (error.details as { code?: string })?.code === 'PRIVY_SIGNING_FAILED');
         if (rejected) forgetApproval(approvalId);
-        setError(rejected ? error.message : 'Order status is uncertain. Check the pending trade notice before retrying.');
+        setError(rejected ? (error instanceof Error ? error.message : 'Unable to authorize this trade.') : 'Order status is uncertain. Check the pending trade notice before retrying.');
         setFlowStatus(rejected ? 'failed' : 'submitted');
       }
     } finally { busy.current = false; }
-  }, [address, getAccessToken, onConfirmed, refreshPortfolio]);
+  }, [address, getAccessToken, authorizeTrade, onConfirmed, refreshPortfolio]);
   const executeLimitOrder = useCallback((proposal: LimitOrderProposal, approvalId: string) => execute(approvalId, proposal.id), [execute]);
   const cancelLimitOrder = useCallback((orderKey: string, approvalId: string) => execute(approvalId, orderKey), [execute]);
   const resetFeedback = useCallback(() => { generation.current++; setFlowStatus('idle'); setError(undefined); setConfirmation(undefined); }, []);

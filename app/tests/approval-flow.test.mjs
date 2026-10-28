@@ -10,6 +10,7 @@ class ApiError extends Error {
 function fixture() {
   const slots = []; let cursor = 0, revision = 0, approvals = 0;
   let token = async () => 'jwt';
+  let authorize = async () => 'request-signature';
   let submit = async () => ({ wallet: 'wallet', referenceId: 'quote', executionId: 'execution', status: 'submitted', signature: 'signature' });
   const timers = [];
   const react = {
@@ -20,9 +21,9 @@ function fixture() {
   const exports = {};
   vm.runInNewContext(ts.transpileModule(readFileSync(new URL('../hooks/use-quote-execution.ts', import.meta.url), 'utf8'), {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
-  }).outputText, { exports, window: { setTimeout: fn => { timers.push(fn); } }, require(id) {
+  }).outputText, { exports, Error, window: { setTimeout: fn => { timers.push(fn); } }, require(id) {
     if (id === 'react') return react;
-    if (id === '@/components/auth/auth-context') return { useOrenAuth: () => ({ address: 'wallet', getAccessToken: () => token() }) };
+    if (id === '@/components/auth/auth-context') return { useOrenAuth: () => ({ address: 'wallet', getAccessToken: () => token(), authorizeTrade: (...args) => authorize(...args) }) };
     if (id === '@/services/wallet-session') return { walletSessionIsCurrent: () => { const captured = revision; return () => revision === captured; } };
     if (id === '@/services/api-client') return { ApiError };
     if (id === '@/services/approval-service') return { approveServerTrade: (...args) => { approvals++; return submit(...args); }, getServerApproval: async () => ({ status: 'confirmed' }), forgetApproval() {} };
@@ -30,7 +31,7 @@ function fixture() {
     throw new Error(`Unexpected import ${id}`);
   } });
   const render = () => { cursor = 0; return exports.useQuoteExecution(); };
-  return { render, changeSession() { revision++; }, setToken(fn) { token = fn; }, setSubmit(fn) { submit = fn; }, count: () => approvals, timers };
+  return { render, changeSession() { revision++; }, setToken(fn) { token = fn; }, setAuthorize(fn) { authorize = fn; }, setSubmit(fn) { submit = fn; }, count: () => approvals, timers };
 }
 function deferred() { let resolve, reject; const promise = new Promise((yes, no) => { resolve = yes; reject = no; }); return { promise, resolve, reject }; }
 
@@ -40,10 +41,10 @@ test('explicit confirmation submits only the reviewed approval and suppresses do
   const hook = f.render();
   assert.equal(f.count(), 0);
   const first = hook.executeQuote({ id: 'quote' }, 'approval-id');
-  await Promise.resolve();
+  await new Promise(resolve => setImmediate(resolve));
   await hook.executeQuote({ id: 'quote' }, 'approval-id');
   assert.equal(f.count(), 1);
-  assert.deepEqual(args, ['approval-id', 'jwt', 'wallet']);
+  assert.deepEqual(args, ['approval-id', 'jwt', 'wallet', 'request-signature']);
   pending.resolve({ wallet: 'wallet', referenceId: 'quote', executionId: 'execution', signature: 'signature', status: 'submitted' });
   await first;
   assert.equal(f.render().flowStatus, 'submitted');
@@ -80,8 +81,24 @@ test('an unclassified server outage remains uncertain and does not repeat submis
 test('a late response cannot populate the next wallet session', async () => {
   const f = fixture(), pending = deferred(); f.setSubmit(() => pending.promise);
   const action = f.render().executeQuote({ id: 'quote' }, 'approval-id');
-  await Promise.resolve(); f.changeSession();
+  await new Promise(resolve => setImmediate(resolve)); f.changeSession();
   pending.resolve({ wallet: 'wallet', referenceId: 'quote', signature: 'old', status: 'submitted' });
   await action;
   assert.equal(f.render().confirmation, undefined);
+});
+test('account changes during request authorization prevent submission', async () => {
+  const f = fixture(), pending = deferred();
+  f.setAuthorize(() => pending.promise);
+  const action = f.render().executeQuote({ id: 'quote' }, 'approval-id');
+  await new Promise(resolve => setImmediate(resolve));
+  f.changeSession(); pending.resolve('previous-account-authorization'); await action;
+  assert.equal(f.count(), 0);
+});
+test('a refused request authorization is a definite failure without posting an approval', async () => {
+  const f = fixture();
+  f.setAuthorize(async () => { throw new Error('Authorization cancelled'); });
+  await f.render().executeQuote({ id: 'quote' }, 'approval-id');
+  assert.equal(f.count(), 0);
+  assert.equal(f.render().flowStatus, 'failed');
+  assert.equal(f.render().error, 'Authorization cancelled');
 });

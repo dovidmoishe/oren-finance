@@ -44,11 +44,12 @@ function session(createWallet) {
     exports, URL, window: { location: { href: 'https://oren.finance/app' }, localStorage: { getItem: () => null } },
     require(id) {
       if (id === 'react') return react;
-      if (id === '@privy-io/react-auth') return { usePrivy: () => sdk, useLogin: ({ onComplete }) => { loginComplete = onComplete; return { login() {} }; } };
+      if (id === '@privy-io/react-auth') return { useAuthorizationSignature: () => ({ generateAuthorizationSignature: async () => ({ signature: 'request-signature' }) }), usePrivy: () => sdk, useLogin: ({ onComplete }) => { loginComplete = onComplete; return { login() {} }; } };
       if (id === '@privy-io/react-auth/solana') return { useWallets: () => walletSdk, useCreateWallet: () => ({ createWallet }), useSignMessage: () => ({}), useSignTransaction: () => ({}) };
       if (id === 'next/navigation') return { usePathname: () => '/app' };
       if (id === '@/store') return Object.fromEntries(['useAgentStore','useExecutionStore','usePortfolioStore','useSocialStore','useVaultStore','useWalletStore'].map(k => [k, store]));
-      if (id === '@/services/wallet-session') return { invalidateWalletSession() {} };
+      if (id === '@/services/wallet-session') return { invalidateWalletSession() {}, walletSessionIsCurrent: () => () => true };
+      if (id === '@/services/approval-service') return { getApprovalAuthorizationRequest: async () => ({}) };
       if (id === '@/services/privy-signer') return { createPrivySigner: () => ({}) };
       if (id === '@/services/wallet-selection') return { resolveEmbeddedSolanaAccount, resolveSolanaWallet };
       if (id === './auth-context') return { AuthContext: { Provider: 'auth' } };
