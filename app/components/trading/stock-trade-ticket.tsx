@@ -439,8 +439,8 @@ export function StockTradeTicket({ stock, limitZones, onConfirmed }: StockTradeT
   const outputEstimate = activeQuote ? `${formatNumber(activeQuote.outputAmount, 6)} ${activeQuote.outputSymbol}` : formattedOutput;
 
   return (
-    <>
-      <Card className="overflow-hidden p-4">
+    <div className="flex h-full min-h-0 flex-col">
+      <Card className="flex h-full min-h-0 flex-col overflow-hidden p-4">
         <OrderControls
           side={side}
           onSideChange={handleSideChange}
@@ -543,113 +543,115 @@ export function StockTradeTicket({ stock, limitZones, onConfirmed }: StockTradeT
             ) : null}
         </div>
 
-        <div className="mt-5 space-y-3">
-          {orderMode === "market" ? (
-            <>
-              <RouteRow label="Route" value={routeValue} />
-              <RouteRow label="Minimum received" value={minimumReceivedValue} />
-              <RouteRow label="Rate" value={activeQuote ? `1 ${activeQuote.outputSymbol} ~ ${formatCurrency(activeQuote.estimatedPriceUsd)}` : stock.priceUsd ? formatCurrency(stock.priceUsd) : "Unavailable"} />
-              <RouteRow label="Network fee" value={activeQuote?.networkFeeUsd ? formatCurrency(activeQuote.networkFeeUsd, 4) : "Estimated by wallet"} />
-            </>
-          ) : (
-            <>
-              <RouteRow label="Order type" value="Jupiter Trigger limit" />
-              <RouteRow
-                label="Limit price"
-                value={limitPriceIsValid ? formatCurrency(parsedLimitPrice) : "Enter a price"}
-              />
-              <RouteRow
-                label="If filled"
-                value={
-                  amountIsValid && limitPriceIsValid
-                    ? side === "buy"
-                      ? `${formatNumber(limitEstimatedReceive, 6)} ${stock.ticker}`
-                      : formatCurrency(limitEstimatedReceive)
-                    : "—"
-                }
-              />
-            </>
-          )}
-        </div>
-
-        {blockingError || displayedError || limitError ? (
-          <div className="mt-3 flex gap-2 rounded-[16px] border border-red-200 bg-red-50 p-3 text-xs leading-5 text-red-900">
-            <HugeiconsIcon className="mt-0.5 shrink-0" color="currentColor" icon={AlertCircleIcon} size={14} strokeWidth={1.8} />
-            <span>
-              {liveRouteUnavailable && orderMode === "market"
-                ? `No live Jupiter route is available for ${stock.ticker} at this amount. Try a smaller amount or another stock with deeper liquidity.`
-                : (limitError ?? executionError ?? blockingError)}
-            </span>
+        <div className="mt-auto flex flex-col pt-5">
+          <div className="space-y-3">
+            {orderMode === "market" ? (
+              <>
+                <RouteRow label="Route" value={routeValue} />
+                <RouteRow label="Minimum received" value={minimumReceivedValue} />
+                <RouteRow label="Rate" value={activeQuote ? `1 ${activeQuote.outputSymbol} ~ ${formatCurrency(activeQuote.estimatedPriceUsd)}` : stock.priceUsd ? formatCurrency(stock.priceUsd) : "Unavailable"} />
+                <RouteRow label="Network fee" value={activeQuote?.networkFeeUsd ? formatCurrency(activeQuote.networkFeeUsd, 4) : "Estimated by wallet"} />
+              </>
+            ) : (
+              <>
+                <RouteRow label="Order type" value="Jupiter Trigger limit" />
+                <RouteRow
+                  label="Limit price"
+                  value={limitPriceIsValid ? formatCurrency(parsedLimitPrice) : "Enter a price"}
+                />
+                <RouteRow
+                  label="If filled"
+                  value={
+                    amountIsValid && limitPriceIsValid
+                      ? side === "buy"
+                        ? `${formatNumber(limitEstimatedReceive, 6)} ${stock.ticker}`
+                        : formatCurrency(limitEstimatedReceive)
+                      : "—"
+                  }
+                />
+              </>
+            )}
           </div>
-        ) : null}
 
-        {openOrders.length ? (
-          <div className="mt-4 space-y-2 rounded-[18px] border border-border p-3">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted">
-              Open limit orders
-            </p>
-            {openOrders.map((order) => (
-              <div className="flex items-center justify-between gap-3 text-xs" key={order.orderKey}>
-                <div>
-                  <p className="font-semibold capitalize">
-                    {order.side} @ {formatCurrency(order.limitPriceUsd)}
-                  </p>
-                  <p className="text-muted">{formatCurrency(order.amountUsd ?? 0)}</p>
+          {blockingError || displayedError || limitError ? (
+            <div className="mt-3 flex gap-2 rounded-[16px] border border-red-200 bg-red-50 p-3 text-xs leading-5 text-red-900">
+              <HugeiconsIcon className="mt-0.5 shrink-0" color="currentColor" icon={AlertCircleIcon} size={14} strokeWidth={1.8} />
+              <span>
+                {liveRouteUnavailable && orderMode === "market"
+                  ? `No live Jupiter route is available for ${stock.ticker} at this amount. Try a smaller amount or another stock with deeper liquidity.`
+                  : (limitError ?? executionError ?? blockingError)}
+              </span>
+            </div>
+          ) : null}
+
+          {openOrders.length ? (
+            <div className="mt-4 space-y-2 rounded-[18px] border border-border p-3">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted">
+                Open limit orders
+              </p>
+              {openOrders.map((order) => (
+                <div className="flex items-center justify-between gap-3 text-xs" key={order.orderKey}>
+                  <div>
+                    <p className="font-semibold capitalize">
+                      {order.side} @ {formatCurrency(order.limitPriceUsd)}
+                    </p>
+                    <p className="text-muted">{formatCurrency(order.amountUsd ?? 0)}</p>
+                  </div>
+                  <Button
+                    disabled={limitFlowStatus === "preparing" || limitFlowStatus === "signing"}
+                    onClick={() => void cancelLimitOrder(order.orderKey)}
+                    size="sm"
+                    variant="secondary"
+                  >
+                    Cancel
+                  </Button>
                 </div>
-                <Button
-                  disabled={limitFlowStatus === "preparing" || limitFlowStatus === "signing"}
-                  onClick={() => void cancelLimitOrder(order.orderKey)}
-                  size="sm"
-                  variant="secondary"
-                >
-                  Cancel
-                </Button>
-              </div>
-            ))}
-          </div>
-        ) : null}
+              ))}
+            </div>
+          ) : null}
 
-        <Button
-          className="mt-4 h-10 w-full rounded-[16px]"
-          disabled={
-            connected
-              ? Boolean(blockingError) ||
-                isLoading ||
-                isRefreshingQuote ||
-                limitBusy ||
-                (orderMode === "limit" && !limitPriceIsValid)
-              : false
-          }
-          onClick={() => {
-            if (orderMode === "limit") {
-              void handleProposeLimit();
-              return;
+          <Button
+            className="mt-4 h-10 w-full rounded-[16px]"
+            disabled={
+              connected
+                ? Boolean(blockingError) ||
+                  isLoading ||
+                  isRefreshingQuote ||
+                  limitBusy ||
+                  (orderMode === "limit" && !limitPriceIsValid)
+                : false
             }
-            if (activeQuote && !isRefreshingQuote) {
-              setReviewOpen(true);
-              return;
-            }
-            void handleQuote();
-          }}
-          variant="primary"
-        >
-          {isLoading || isRefreshingQuote || limitBusy ? (
-            <>
-              <HugeiconsIcon className="animate-spin" color="currentColor" icon={Loading03Icon} size={16} strokeWidth={1.8} />
-              {limitBusy ? "Building limit order" : isRefreshingQuote ? "Updating quote…" : "Loading quote"}
-            </>
-          ) : !connected ? (
-            <>
-              <HugeiconsIcon color="currentColor" icon={Wallet02Icon} size={16} strokeWidth={1.8} />
-              {ctaLabel}
-            </>
-          ) : (
-            <>
-              <HugeiconsIcon color="currentColor" icon={CoinsSwapIcon} size={16} strokeWidth={1.8} />
-              {ctaLabel}
-            </>
-          )}
-        </Button>
+            onClick={() => {
+              if (orderMode === "limit") {
+                void handleProposeLimit();
+                return;
+              }
+              if (activeQuote && !isRefreshingQuote) {
+                setReviewOpen(true);
+                return;
+              }
+              void handleQuote();
+            }}
+            variant="primary"
+          >
+            {isLoading || isRefreshingQuote || limitBusy ? (
+              <>
+                <HugeiconsIcon className="animate-spin" color="currentColor" icon={Loading03Icon} size={16} strokeWidth={1.8} />
+                {limitBusy ? "Building limit order" : isRefreshingQuote ? "Updating quote…" : "Loading quote"}
+              </>
+            ) : !connected ? (
+              <>
+                <HugeiconsIcon color="currentColor" icon={Wallet02Icon} size={16} strokeWidth={1.8} />
+                {ctaLabel}
+              </>
+            ) : (
+              <>
+                <HugeiconsIcon color="currentColor" icon={CoinsSwapIcon} size={16} strokeWidth={1.8} />
+                {ctaLabel}
+              </>
+            )}
+          </Button>
+        </div>
       </Card>
 
       <QuoteReviewModal
@@ -678,6 +680,6 @@ export function StockTradeTicket({ stock, limitZones, onConfirmed }: StockTradeT
         proposal={limitProposal}
         status={limitFlowStatus === "idle" ? "quoted" : limitFlowStatus}
       />
-    </>
+    </div>
   );
 }

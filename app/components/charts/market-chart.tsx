@@ -241,8 +241,8 @@ export function MarketChart({
   }, [candleSeriesData, effectiveMode, error, hasData, lineSeriesData, loading]);
 
   return (
-    <section className={cn("rounded-[24px] border border-border bg-panel shadow-[0_18px_60px_rgba(23,23,23,0.025)]", compact ? "p-4" : "p-[var(--app-card-padding,1.5rem)]", className)}>
-      <div className="flex flex-wrap items-start justify-between gap-4">
+    <section className={cn("flex flex-col rounded-[24px] border border-border bg-panel shadow-[0_18px_60px_rgba(23,23,23,0.025)]", compact ? "p-4" : "p-[var(--app-card-padding,1.5rem)]", className)}>
+      <div className="flex shrink-0 flex-wrap items-start justify-between gap-4">
         <div>
           <p className={cn("font-display font-semibold tracking-normal", compact ? "text-4xl" : "text-6xl")}>{formatCurrency(value)}</p>
           <div className={cn("mt-1 flex items-center gap-3", compact ? "text-xs" : "text-sm")}>
@@ -254,7 +254,7 @@ export function MarketChart({
         </div>
       </div>
 
-      <div className={cn("relative", compact ? "mt-4 h-[260px] sm:h-[320px]" : "mt-[var(--app-chart-gap,2rem)] h-[var(--app-chart-height,430px)] min-h-[var(--app-chart-min-height,340px)]")}>
+      <div className={cn("relative", compact ? "mt-4 min-h-[260px] flex-1 sm:min-h-[320px]" : "mt-[var(--app-chart-gap,2rem)] h-[var(--app-chart-height,430px)] min-h-[var(--app-chart-min-height,340px)]")}>
         {loading ? (
           <div className="flex h-full items-center justify-center">
             <LoadingState label="Loading chart" />
@@ -282,7 +282,7 @@ export function MarketChart({
         )}
       </div>
 
-      <div className={cn("flex flex-wrap items-center justify-between gap-3", compact ? "mt-4" : "mt-6")}>
+      <div className={cn("flex shrink-0 flex-wrap items-center justify-between gap-3", compact ? "mt-4" : "mt-6")}>
         <Tabs ariaLabel="Chart range" items={ranges} onValueChange={onRangeChange} value={activeRange} />
         <div className="flex items-center gap-2 rounded-full bg-panel-subtle p-1">
           <Button

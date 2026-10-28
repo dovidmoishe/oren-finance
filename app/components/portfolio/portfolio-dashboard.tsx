@@ -360,16 +360,6 @@ export function PortfolioDashboard() {
         to preview locks and unlock eligibility. The onchain program is not live yet, so signing stays disabled.
       </p>
 
-      <div className="rounded-[24px] border border-border bg-panel p-4">
-        <p className="text-sm text-muted">Total portfolio</p>
-        <div className="mt-2 flex flex-wrap items-end justify-between gap-4">
-          <p className="font-display text-5xl font-semibold tracking-normal">{formatCurrency(portfolio?.totalValueUsd)}</p>
-          <p className={cn("text-sm font-semibold", positiveChange ? "text-positive" : "text-negative")}>
-            {positiveChange ? "Gained" : "Lost"} {formatCurrency(Math.abs(portfolio?.changeUsd ?? 0))} {formatPercent(portfolio?.changePct)}
-          </p>
-        </div>
-      </div>
-
       <div className="grid gap-4 ">
         <Card className="overflow-hidden">
           <CardHeader>
