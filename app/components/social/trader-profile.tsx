@@ -68,7 +68,7 @@ function PositionLogo({ position }: { position: PortfolioPosition }) {
 
 function DetailMetric({ label, value, detail, className }: { label: string; value: string; detail: string; className: string }) {
   return (
-    <section className={cn("rounded-[24px] p-6 text-foreground shadow-[0_18px_60px_rgba(23,23,23,0.05)]", className)}>
+    <section className={cn("rounded-[24px] p-4 text-foreground shadow-[0_18px_60px_rgba(23,23,23,0.05)]", className)}>
       <p className="text-base font-semibold">{label}</p>
       <p className="mt-1 text-xs text-foreground/65">{detail}</p>
       <p className="mt-7 font-display text-3xl font-semibold tracking-normal">{value}</p>
@@ -197,7 +197,7 @@ export function TraderProfile({ slug }: { slug: string }) {
     return (
       <div className="mx-auto max-w-[1540px] space-y-5 pb-20">
         <Skeleton className="h-32" />
-        <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
           <Skeleton className="h-[520px]" />
           <Skeleton className="h-[520px]" />
         </div>
@@ -223,7 +223,7 @@ export function TraderProfile({ slug }: { slug: string }) {
         Back to leaderboard
       </Link>
 
-      <section className="flex flex-wrap items-end justify-between gap-5 rounded-[24px] border border-border bg-panel p-6 shadow-[0_18px_60px_rgba(23,23,23,0.04)]">
+      <section className="flex flex-wrap items-end justify-between gap-4 rounded-[24px] border border-border bg-panel p-4 shadow-[0_18px_60px_rgba(23,23,23,0.04)]">
         <div className="flex min-w-0 items-center gap-4">
           <TraderAvatar avatarUrl={trader.profile.avatarUrl} name={trader.profile.displayName} />
           <div className="min-w-0">
@@ -241,7 +241,7 @@ export function TraderProfile({ slug }: { slug: string }) {
         <DetailMetric className="bg-accent-lavender" detail="Oren-observed P&L dollars" label="Net Change" value={formatCurrency(trader.stats.pnlUsd)} />
       </div>
 
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
         <MarketChart
           activeRange={chartRange}
           changePct={trader.stats.pnlPct}
@@ -279,7 +279,7 @@ export function TraderProfile({ slug }: { slug: string }) {
         </Card>
       </div>
 
-      <div className="grid gap-5">
+      <div className="grid gap-4">
         <Card className="overflow-hidden">
           <CardHeader>
             <h2 className="font-display text-xl font-semibold">Holdings</h2>
@@ -319,7 +319,7 @@ export function TraderProfile({ slug }: { slug: string }) {
               </Table>
             </div>
           ) : (
-            <div className="p-5">
+            <div className="p-4">
               <EmptyState description="Supported tokenized equities will appear here after Oren observes them." title="No holdings yet" />
             </div>
           )}

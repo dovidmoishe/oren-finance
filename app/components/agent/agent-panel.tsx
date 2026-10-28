@@ -245,7 +245,7 @@ export function AgentPanel() {
       <div
         aria-hidden
         className={cn(
-          'fixed inset-0 top-[72px] z-30 bg-black/20 backdrop-blur-[2px] transition-opacity',
+          'fixed inset-0 top-[var(--app-nav-height,4.5rem)] z-30 bg-black/20 backdrop-blur-[2px] transition-opacity',
           panelOpen && !expanded ? 'opacity-100 2xl:hidden' : 'pointer-events-none opacity-0',
         )}
         onClick={handleBackdropClick}
@@ -254,7 +254,7 @@ export function AgentPanel() {
       <div
         aria-hidden
         className={cn(
-          'fixed inset-0 top-[72px] z-30 hidden bg-black/20 backdrop-blur-[2px] transition-opacity lg:block',
+          'fixed inset-0 top-[var(--app-nav-height,4.5rem)] z-30 hidden bg-black/20 backdrop-blur-[2px] transition-opacity lg:block',
           panelOpen && expanded ? 'opacity-100' : 'pointer-events-none opacity-0',
         )}
         onClick={handleBackdropClick}
@@ -267,8 +267,8 @@ export function AgentPanel() {
         className={cn(
           't-panel-slide fixed z-40 flex min-h-0 flex-col overflow-hidden border border-border bg-panel shadow-[0_28px_90px_rgba(23,23,23,0.18)]',
           expanded
-            ? 't-agent-expanded inset-x-2 bottom-2 top-[80px] rounded-[28px] lg:inset-x-4 lg:bottom-4 lg:top-[88px]'
-            : 'inset-x-2 bottom-2 top-[80px] rounded-[28px] sm:inset-x-auto sm:bottom-4 sm:right-4 sm:top-[88px] sm:w-[420px] 2xl:right-5',
+            ? 't-agent-expanded inset-x-2 bottom-2 top-[calc(var(--app-nav-height,4.5rem)+0.5rem)] rounded-[28px] lg:inset-x-4 lg:bottom-4 lg:top-[calc(var(--app-nav-height,4.5rem)+1rem)]'
+            : 'inset-x-2 bottom-2 top-[calc(var(--app-nav-height,4.5rem)+0.5rem)] rounded-[28px] sm:inset-x-auto sm:bottom-4 sm:right-4 sm:top-[calc(var(--app-nav-height,4.5rem)+1rem)] sm:w-[380px] 2xl:right-5',
           !expanded && hasReviewOpen ? 'opacity-40' : '',
         )}
         data-expanded={expanded && panelOpen && hydrated}
@@ -276,7 +276,7 @@ export function AgentPanel() {
         inert={!panelOpen}
         ref={panelRef}
       >
-        <header className="flex shrink-0 items-center justify-between gap-3 border-b border-border px-4 py-3.5">
+        <header className="flex shrink-0 items-center justify-between gap-3 border-b border-border px-4 py-3">
           <div className="flex min-w-0 items-center gap-3">
             <div className="grid h-10 w-10 shrink-0 place-items-center overflow-visible rounded-[15px] bg-foreground">
               <OrenLogo size={30} state={logoState} />

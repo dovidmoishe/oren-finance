@@ -156,7 +156,7 @@ function StockRow({ stock }: { stock: StockSummary }) {
 
   return (
     <Link
-      className="grid min-w-[700px] grid-cols-[minmax(240px,1.5fr)_140px_120px_220px_150px] items-center border-t border-border px-4 py-4 text-sm transition-colors hover:bg-panel-subtle"
+      className="grid min-w-[700px] grid-cols-[minmax(240px,1.5fr)_140px_120px_220px_150px] items-center border-t border-border px-4 py-3 text-sm transition-colors hover:bg-panel-subtle"
       href={`/app/stocks/${stock.assetId}`}
       prefetch={false}
     >
@@ -182,7 +182,7 @@ function TableSkeleton({ count = 10 }: { count?: number }) {
     <>
       {Array.from({ length: count }).map((_, index) => (
         <div
-          className="grid min-w-[700px] grid-cols-[minmax(240px,1.5fr)_140px_120px_220px_150px] items-center gap-4 border-t border-border px-4 py-4"
+          className="grid min-w-[700px] grid-cols-[minmax(240px,1.5fr)_140px_120px_220px_150px] items-center gap-4 border-t border-border px-4 py-3"
           key={index}
         >
           <div className="flex items-center gap-3">
@@ -274,7 +274,7 @@ export function MarketsOverview() {
   ];
 
   return (
-    <div className="mx-auto max-w-[1540px] space-y-7 pb-20">
+    <div className="mx-auto max-w-[1540px] space-y-5 pb-20">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="text-sm text-muted">Explore</p>
@@ -297,7 +297,7 @@ export function MarketsOverview() {
 
       <div className="grid gap-4 md:grid-cols-3">
         {featured.map((item) => (
-          <section className={cn("rounded-[24px] p-6 text-foreground shadow-[0_18px_60px_rgba(23,23,23,0.05)]", item.className)} key={item.title}>
+          <section className={cn("rounded-[24px] p-4 text-foreground shadow-[0_18px_60px_rgba(23,23,23,0.05)]", item.className)} key={item.title}>
             <p className="text-base font-semibold">{item.title}</p>
             <p className="mt-1 text-xs text-foreground/65">{item.detail}</p>
             {item.stock ? (

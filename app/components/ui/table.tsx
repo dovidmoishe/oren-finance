@@ -18,9 +18,9 @@ export function TableRow({ className, ...props }: HTMLAttributes<HTMLTableRowEle
 }
 
 export function TableHead({ className, ...props }: HTMLAttributes<HTMLTableCellElement>) {
-  return <th className={cn("px-5 py-4 font-semibold", className)} {...props} />;
+  return <th className={cn("oren-table-cell font-semibold", className)} {...props} />;
 }
 
 export function TableCell({ className, ...props }: HTMLAttributes<HTMLTableCellElement>) {
-  return <td className={cn("px-5 py-4", className)} {...props} />;
+  return <td className={cn("oren-table-cell", className)} {...props} />;
 }

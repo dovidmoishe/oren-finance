@@ -155,7 +155,7 @@ export function TradingCalendar() {
   if (isLoading && !calendar) return <CalendarSkeleton />;
 
   return (
-    <div className="space-y-7">
+    <div className="space-y-5">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="text-sm text-muted">Trading Calendar</p>
@@ -178,7 +178,7 @@ export function TradingCalendar() {
         <Metric detail={timeZone} label="Calendar Timezone" value={monthLabel(month)} />
       </div>
 
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_380px]">
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_380px]">
         <Card className="overflow-hidden">
           <CardHeader className="flex flex-row items-center justify-between gap-4">
             <div>
@@ -203,7 +203,7 @@ export function TradingCalendar() {
               {(calendar?.days ?? []).map((day) => (
                 <button
                   className={cn(
-                    "min-h-28 rounded-[18px] border p-2 text-left transition hover:border-border-strong focus-visible:outline focus-visible:outline-2 focus-visible:outline-focus",
+                    "min-h-24 rounded-[18px] border p-2 text-left transition hover:border-border-strong focus-visible:outline focus-visible:outline-2 focus-visible:outline-focus",
                     selectedDate === day.date ? "border-foreground" : "border-border",
                     dayClass(day, maxMove),
                   )}

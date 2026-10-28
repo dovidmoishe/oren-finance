@@ -64,7 +64,7 @@ function MetricTile({
   return (
     <section
       className={cn(
-        "rounded-[24px] border border-border p-5 shadow-[0_18px_60px_rgba(23,23,23,0.04)]",
+        "rounded-[24px] border border-border p-4 shadow-[0_18px_60px_rgba(23,23,23,0.04)]",
         className,
       )}
     >
@@ -183,7 +183,7 @@ export function VaultDashboard() {
 
   if (!connected) {
     return (
-      <div className="space-y-5 px-4 py-6 sm:px-6">
+      <div className="space-y-4 px-4 py-4 sm:px-6">
         <header>
           <p className="text-sm font-semibold uppercase tracking-[0.12em] text-muted">Vault</p>
           <h1 className="mt-1 font-display text-4xl font-semibold tracking-normal">Locked positions</h1>
@@ -197,7 +197,7 @@ export function VaultDashboard() {
   }
 
   return (
-    <div className="space-y-5 px-4 py-6 sm:px-6">
+    <div className="space-y-4 px-4 py-4 sm:px-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <header>
           <p className="text-sm font-semibold uppercase tracking-[0.12em] text-muted">Vault</p>
@@ -316,7 +316,7 @@ export function VaultDashboard() {
         </Card>
       ) : null}
 
-      <div className="grid gap-5 xl:grid-cols-[360px_minmax(0,1fr)]">
+      <div className="grid gap-4 xl:grid-cols-[360px_minmax(0,1fr)]">
         <Card>
           <CardHeader>
             <h2 className="font-display text-lg font-semibold">Lock ticket</h2>
@@ -418,11 +418,11 @@ export function VaultDashboard() {
           </CardHeader>
           <div className="overflow-x-auto">
             {isLoading && positions.length === 0 ? (
-              <div className="p-6">
+              <div className="p-4">
                 <Skeleton className="h-40" />
               </div>
             ) : positions.length === 0 ? (
-              <div className="p-6">
+              <div className="p-4">
                 <EmptyState
                   description={
                     programLive

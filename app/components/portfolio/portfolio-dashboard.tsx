@@ -149,7 +149,7 @@ function PortfolioSkeleton() {
           <Skeleton className="h-44" key={index} />
         ))}
       </div>
-      <div className="grid gap-5 xl:grid-cols-[1fr_360px]">
+      <div className="grid gap-4 xl:grid-cols-[1fr_360px]">
         <Skeleton className="h-80" />
         <Skeleton className="h-80" />
       </div>
@@ -291,7 +291,7 @@ export function PortfolioDashboard() {
   const positiveChange = (portfolio?.changeUsd ?? 0) >= 0;
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-5">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="text-sm text-muted">Dashboard</p>
@@ -360,7 +360,7 @@ export function PortfolioDashboard() {
         to preview locks and unlock eligibility. The onchain program is not live yet, so signing stays disabled.
       </p>
 
-      <div className="rounded-[24px] border border-border bg-panel p-5">
+      <div className="rounded-[24px] border border-border bg-panel p-4">
         <p className="text-sm text-muted">Total portfolio</p>
         <div className="mt-2 flex flex-wrap items-end justify-between gap-4">
           <p className="font-display text-5xl font-semibold tracking-normal">{formatCurrency(portfolio?.totalValueUsd)}</p>
@@ -370,7 +370,7 @@ export function PortfolioDashboard() {
         </div>
       </div>
 
-      <div className="grid gap-5 ">
+      <div className="grid gap-4 ">
         <Card className="overflow-hidden">
           <CardHeader>
             <h2 className="font-display text-lg font-semibold">Positions</h2>
@@ -415,7 +415,7 @@ export function PortfolioDashboard() {
                 </TableBody>
               </Table>
             ) : (
-              <div className="p-5">
+              <div className="p-4">
                 <EmptyState
                   description="When this wallet holds supported tokenized equities, they will appear here."
                   title="No positions yet"
