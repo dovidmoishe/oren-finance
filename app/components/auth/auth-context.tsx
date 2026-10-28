@@ -19,14 +19,13 @@ export interface OrenAuth {
   signOut: () => Promise<void>;
   selectWallet: (address: string) => void;
   createWallet: () => Promise<void>;
-  linkWallet: () => void;
   getAccessToken: () => Promise<string | null>;
 }
 
 export const AuthContext = createContext<OrenAuth>({
   configured: false, ready: true, authenticated: false, wallets: [], busy: false,
   walletPreparing: false, depositOpen: false, openDeposit() {}, closeDeposit() {},
-  open() {}, async signOut() {}, selectWallet() {}, async createWallet() {}, linkWallet() {},
+  open() {}, async signOut() {}, selectWallet() {}, async createWallet() {},
   async getAccessToken() { return null; },
 });
 export const useOrenAuth = () => useContext(AuthContext);

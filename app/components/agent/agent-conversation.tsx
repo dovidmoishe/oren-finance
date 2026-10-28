@@ -320,6 +320,7 @@ export function AgentComposer({
   onSubmit: () => void;
   onStop: () => void;
 }) {
+  const auth = useOrenAuth();
   return (
     <footer className="shrink-0 border-t border-border bg-panel/95 p-3 backdrop-blur">
       <div className="rounded-[20px] border border-border-strong bg-panel-subtle p-2 focus-within:border-foreground">
@@ -334,7 +335,7 @@ export function AgentComposer({
               onSubmit();
             }
           }}
-          placeholder={connected ? 'Ask about your portfolio or the market…' : 'Connect your wallet to ask Oren'}
+          placeholder={connected ? 'Ask about your portfolio or the market…' : auth.authenticated ? 'Preparing your wallet…' : 'Sign in to ask Oren'}
           ref={composerRef}
           rows={1}
           value={composer}

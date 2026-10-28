@@ -97,7 +97,7 @@ function PublishProfilePanel({ onPublished }: { onPublished: () => void }) {
 
   const handlePublish = async () => {
     if (!walletAddress || !connected) {
-      setError("Connect your wallet first.");
+      setError("Sign in and wait for your wallet to be ready before publishing.");
       return;
     }
     if (!signMessage) {

@@ -8,7 +8,7 @@ import {
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useWallet } from "@solana/wallet-adapter-react";
-import { useWalletModal } from "@solana/wallet-adapter-react-ui";
+import { useOrenAuth } from "@/components/auth/auth-context";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { useQuoteExecution } from "@/hooks/use-quote-execution";
 import { useQuoteRefresh } from "@/hooks/use-quote-refresh";
@@ -90,7 +90,8 @@ function isNoRouteError(message?: string) {
 export function StockTradeTicket({ stock, limitZones, onConfirmed }: StockTradeTicketProps) {
   const limitFieldsId = useId();
   const { publicKey, connected } = useWallet();
-  const { setVisible } = useWalletModal();
+  const auth = useOrenAuth();
+  const { authenticated, error: walletError, open: openSignIn } = auth;
   const wallet = publicKey?.toBase58();
   const portfolio = usePortfolioStore((state) => state.portfolio);
   const loadPortfolio = usePortfolioStore((state) => state.loadPortfolio);
@@ -247,7 +248,10 @@ export function StockTradeTicket({ stock, limitZones, onConfirmed }: StockTradeT
       setLocalError(undefined);
 
       if (!connected || !wallet) {
-        if (openReview) setVisible(true);
+        if (openReview) {
+          if (authenticated) setLocalError(walletError || "Your wallet is still being prepared. Please wait.");
+          else openSignIn();
+        }
         return;
       }
 
@@ -284,7 +288,9 @@ export function StockTradeTicket({ stock, limitZones, onConfirmed }: StockTradeT
       quoteTrade,
       setFlowStatus,
       setLocalError,
-      setVisible,
+      authenticated,
+      walletError,
+      openSignIn,
       side,
       stock.assetId,
       stock.ticker,
@@ -376,7 +382,8 @@ export function StockTradeTicket({ stock, limitZones, onConfirmed }: StockTradeT
   const handleProposeLimit = async () => {
     setLocalError(undefined);
     if (!connected || !wallet) {
-      setVisible(true);
+      if (auth.authenticated) setLocalError(auth.error || "Your wallet is still being prepared. Please wait.");
+      else auth.open();
       return;
     }
     if (blockingError) {
@@ -410,8 +417,12 @@ export function StockTradeTicket({ stock, limitZones, onConfirmed }: StockTradeT
     }
   };
 
-  const ctaLabel = !connected
-    ? "Connect wallet"
+  const ctaLabel = !auth.ready
+    ? "Restoring account…"
+    : !connected || !wallet
+      ? auth.authenticated
+        ? auth.error ? "Retry wallet setup" : "Preparing wallet…"
+        : auth.configured ? "Sign in" : "Sign in unavailable"
     : orderMode === "limit"
       ? "Review limit order"
       : isRefreshingQuote
@@ -434,7 +445,7 @@ export function StockTradeTicket({ stock, limitZones, onConfirmed }: StockTradeT
     side === "buy"
       ? typeof cashBalance === "number"
         ? formatCurrency(cashBalance)
-        : "Connect to load"
+        : auth.authenticated ? "Loading balance…" : "Sign in to load"
       : `${formatNumber(stockBalance, 6)} ${stock.ticker}`;
   const outputEstimate = activeQuote ? `${formatNumber(activeQuote.outputAmount, 6)} ${activeQuote.outputSymbol}` : formattedOutput;
 
@@ -609,15 +620,20 @@ export function StockTradeTicket({ stock, limitZones, onConfirmed }: StockTradeT
           <Button
             className="mt-3 h-9 w-full rounded-[14px]"
             disabled={
-              connected
+              !auth.ready || !auth.configured || (auth.authenticated && (!connected || !wallet) && !auth.error) || (connected
                 ? Boolean(blockingError) ||
                   isLoading ||
                   isRefreshingQuote ||
                   limitBusy ||
                   (orderMode === "limit" && !limitPriceIsValid)
-                : false
+                : false)
             }
             onClick={() => {
+              if (!connected || !wallet) {
+                if (auth.authenticated) void auth.createWallet();
+                else auth.open();
+                return;
+              }
               if (orderMode === "limit") {
                 void handleProposeLimit();
                 return;
