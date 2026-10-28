@@ -32,43 +32,15 @@ const rangeMap: Record<MarketChartRange, ChartRange> = {
   "1Y": "1Y",
 };
 
-function normalizeLogoUrl(url: string) {
-  if (url.startsWith("ipfs://")) return `https://ipfs.io/ipfs/${url.slice(7)}`;
-  if (url.startsWith("//")) return `https:${url}`;
-  return url;
-}
-
-function StockLogo({ stock }: { stock: StockDetailType }) {
-  const [failed, setFailed] = useState(false);
-
-  if (stock.logoUrl && !failed) {
-    return (
-      // eslint-disable-next-line @next/next/no-img-element
-      <img
-        alt={`${stock.name} logo`}
-        className="h-12 w-12 rounded-full border border-border bg-panel object-contain p-1"
-        onError={() => setFailed(true)}
-        src={normalizeLogoUrl(stock.logoUrl)}
-      />
-    );
-  }
-
-  return (
-    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-foreground font-mono text-sm font-semibold text-white">
-      {stock.ticker.slice(0, 2)}
-    </div>
-  );
-}
-
 function DetailSkeleton() {
   return (
-    <div className="mx-auto max-w-[1540px] space-y-5 pb-20">
-      <Skeleton className="h-24" />
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
-        <Skeleton className="h-[520px]" />
-        <Skeleton className="h-[520px]" />
+    <div className="mx-auto max-w-[1360px] space-y-4 pb-12">
+      <Skeleton className="h-8 w-48" />
+      <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
+        <Skeleton className="h-[400px]" />
+        <Skeleton className="h-[400px]" />
       </div>
-      <div className="grid gap-5 lg:grid-cols-2">
+      <div className="grid gap-4 lg:grid-cols-2">
         <Skeleton className="h-72" />
         <Skeleton className="h-72" />
       </div>
@@ -78,7 +50,7 @@ function DetailSkeleton() {
 
 function Signal({ label, value, suffix = "" }: { label: string; value?: number; suffix?: string }) {
   return (
-    <div className="rounded-[18px] border border-border bg-background p-4">
+    <div className="rounded-2xl border border-border bg-background p-3">
       <p className="text-xs text-muted">{label}</p>
       <p className="mt-1 font-mono text-sm font-medium">
         {typeof value === "number" ? `${formatNumber(value, 2)}${suffix}` : "—"}
@@ -105,19 +77,19 @@ function ScorePanel({ score, riskLabel }: { score: number; riskLabel?: string })
 
   return (
     <Card>
-      <CardHeader>
+      <CardHeader style={{ padding: "12px 16px" }}>
         <p className="text-xs uppercase tracking-[0.12em] text-muted">Oren intelligence</p>
-        <h2 className="mt-1 font-display text-xl font-semibold">Opportunity score</h2>
+        <h2 className="mt-1 font-display text-base font-semibold">Opportunity score</h2>
       </CardHeader>
-      <CardContent>
+      <CardContent style={{ padding: 16 }}>
         <div className="flex items-center gap-5">
           <div
-            className="grid h-28 w-28 shrink-0 place-items-center rounded-full p-2"
+            className="grid h-20 w-20 shrink-0 place-items-center rounded-full p-2"
             style={{ background: `conic-gradient(#ffe500 ${normalized}%, #f1f1ed 0)` }}
           >
             <div className="grid h-full w-full place-items-center rounded-full bg-panel">
               <div className="text-center">
-                <p className="font-display text-3xl font-semibold">{Math.round(normalized)}</p>
+                <p className="font-display text-2xl font-semibold">{Math.round(normalized)}</p>
                 <p className="text-[10px] uppercase text-muted">out of 100</p>
               </div>
             </div>
@@ -138,10 +110,10 @@ function ScorePanel({ score, riskLabel }: { score: number; riskLabel?: string })
 function MarketSnapshot({ stock }: { stock: StockDetailType }) {
   return (
     <Card>
-      <CardHeader>
-        <h2 className="font-display text-lg font-semibold">Market snapshot</h2>
+      <CardHeader style={{ padding: "12px 16px" }}>
+        <h2 className="font-display text-base font-semibold">Market snapshot</h2>
       </CardHeader>
-      <CardContent className="space-y-3 text-sm">
+      <CardContent className="space-y-2 text-xs" style={{ padding: 16 }}>
         <div className="flex justify-between gap-4"><span className="text-muted">Liquidity</span><span className="font-mono">{formatCurrency(stock.liquidityUsd, 0)}</span></div>
         <div className="flex justify-between gap-4"><span className="text-muted">Tradable routes</span><span className="font-mono">{stock.variants.filter((variant) => variant.tradable).length}</span></div>
       </CardContent>
@@ -188,7 +160,6 @@ export function StockDetail({ assetId }: { assetId: string }) {
     );
   }
 
-  const positive = (stock.change24hPct ?? 0) >= 0;
   const score = analysis?.opportunityScore ?? 0;
 
   const handleRangeChange = (nextRange: MarketChartRange) => {
@@ -199,54 +170,24 @@ export function StockDetail({ assetId }: { assetId: string }) {
   const handleTradeConfirmed = () => loadStock(assetId, rangeMap[range]);
 
   return (
-    <div className="mx-auto max-w-[1540px] space-y-5 pb-20">
-      <Link className="inline-flex items-center gap-2 text-sm text-muted hover:text-foreground" href="/app">
-        <HugeiconsIcon color="currentColor" icon={ArrowLeft01Icon} size={16} strokeWidth={1.8} />
-        Back to stocks
-      </Link>
-
-      <section className="flex flex-wrap items-end justify-between gap-5 rounded-[24px] border border-border bg-panel p-6 shadow-[0_18px_60px_rgba(23,23,23,0.04)]">
-        <div className="flex min-w-0 items-center gap-4">
-          <StockLogo stock={stock} />
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2">
-              <h1 className="truncate font-display text-3xl font-semibold">{stock.name}</h1>
-              <span className="rounded-[10px] bg-panel-subtle px-2 py-1 font-mono text-xs text-muted">
-                ${stock.ticker}
-              </span>
-            </div>
-            <p className="mt-1 text-sm text-muted">
-              {[stock.sector, stock.category].filter(Boolean).join(" · ") || "Tokenized equity"}
-            </p>
-          </div>
+    <div className="mx-auto max-w-[1360px] space-y-4 pb-12">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-3">
+          <Link className="inline-flex shrink-0 items-center gap-1.5 text-xs text-muted hover:text-foreground" href="/app/markets">
+            <HugeiconsIcon color="currentColor" icon={ArrowLeft01Icon} size={14} strokeWidth={1.8} />
+            Stocks
+          </Link>
+          <span aria-hidden className="text-border-strong">/</span>
+          <h1 className="truncate font-display text-base font-semibold">{stock.name} <span className="ml-1 font-mono text-xs font-normal text-muted">${stock.ticker}</span></h1>
         </div>
-        <div className="flex items-center gap-6">
-          <div className="text-right">
-            <p className="font-display text-3xl font-semibold">{formatCurrency(stock.priceUsd)}</p>
-            <p className={cn("mt-1 font-mono text-sm", positive ? "text-positive" : "text-negative")}>
-              {positive ? "▲" : "▼"} {formatPercent(Math.abs(stock.change24hPct ?? 0), false)} today
-            </p>
-          </div>
-          <Button
-            aria-label="Refresh stock"
-            disabled={isLoading}
-            onClick={() => void loadStock(assetId, rangeMap[range])}
-            size="icon"
-            variant="ghost"
-          >
-            <HugeiconsIcon
-              className={cn(isLoading && "animate-spin")}
-              color="currentColor"
-              icon={RefreshCwIcon}
-              size={17}
-              strokeWidth={1.8}
-            />
-          </Button>
-        </div>
-      </section>
+        <Button aria-label="Refresh stock" className="h-8 w-8" disabled={isLoading} onClick={() => void loadStock(assetId, rangeMap[range])} size="icon" variant="ghost">
+          <HugeiconsIcon className={cn(isLoading && "animate-spin")} color="currentColor" icon={RefreshCwIcon} size={15} strokeWidth={1.8} />
+        </Button>
+      </div>
 
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
+      <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
         <MarketChart
+          compact
           activeRange={range}
           candleData={chart}
           changePct={stock.change24hPct}
@@ -268,20 +209,20 @@ export function StockDetail({ assetId }: { assetId: string }) {
         />
       </div>
 
-      <div className="grid gap-5 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
         <ScorePanel riskLabel={analysis?.riskLabel} score={score} />
         <MarketSnapshot stock={stock} />
       </div>
 
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1.15fr)_minmax(340px,0.85fr)]">
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(340px,0.85fr)]">
         <Card>
-          <CardHeader>
-            <h2 className="font-display text-xl font-semibold">Signals &amp; rationale</h2>
+          <CardHeader style={{ padding: "12px 16px" }}>
+            <h2 className="font-display text-base font-semibold">Signals &amp; rationale</h2>
             <p className="mt-1 text-sm text-muted">
               {analysis?.summary ?? "Transparent factors behind Oren’s current score."}
             </p>
           </CardHeader>
-          <CardContent className="space-y-5">
+          <CardContent className="space-y-4" style={{ padding: 16 }}>
             {analysis ? (
               <>
                 {analysis.technicalBrief ? (
@@ -317,8 +258,8 @@ export function StockDetail({ assetId }: { assetId: string }) {
         </Card>
 
         <Card>
-          <CardHeader>
-            <h2 className="font-display text-xl font-semibold">Latest news</h2>
+          <CardHeader style={{ padding: "12px 16px" }}>
+            <h2 className="font-display text-base font-semibold">Latest news</h2>
             <p className="mt-1 text-sm text-muted">Relevant coverage for {stock.ticker}.</p>
           </CardHeader>
           <CardContent className="p-0">
@@ -338,7 +279,7 @@ export function StockDetail({ assetId }: { assetId: string }) {
 
                   return item.url ? (
                     <a
-                      className="block border-t border-border px-6 py-5 first:border-t-0 hover:bg-panel-subtle"
+                      className="block border-t border-border px-4 py-3 first:border-t-0 hover:bg-panel-subtle"
                       href={item.url}
                       key={item.id}
                       rel="noreferrer"
@@ -347,7 +288,7 @@ export function StockDetail({ assetId }: { assetId: string }) {
                       {content}
                     </a>
                   ) : (
-                    <article className="border-t border-border px-6 py-5 first:border-t-0" key={item.id}>
+                    <article className="border-t border-border px-4 py-3 first:border-t-0" key={item.id}>
                       {content}
                     </article>
                   );

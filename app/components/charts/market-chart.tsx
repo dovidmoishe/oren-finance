@@ -55,6 +55,7 @@ interface MarketChartProps {
   error?: string;
   emptyDescription?: string;
   className?: string;
+  compact?: boolean;
 }
 
 function toTime(timestamp: string): UTCTimestamp {
@@ -117,6 +118,7 @@ export function MarketChart({
   error,
   emptyDescription = "Portfolio snapshots will appear here after the API records history for this wallet.",
   className,
+  compact = false,
 }: MarketChartProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
@@ -239,11 +241,11 @@ export function MarketChart({
   }, [candleSeriesData, effectiveMode, error, hasData, lineSeriesData, loading]);
 
   return (
-    <section className={cn("rounded-[24px] border border-border bg-panel p-6 shadow-[0_18px_60px_rgba(23,23,23,0.025)]", className)}>
+    <section className={cn("rounded-[24px] border border-border bg-panel shadow-[0_18px_60px_rgba(23,23,23,0.025)]", compact ? "p-4" : "p-6", className)}>
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <p className="font-display text-6xl font-semibold tracking-normal">{formatCurrency(value)}</p>
-          <div className="mt-1 flex items-center gap-3 text-sm">
+          <p className={cn("font-display font-semibold tracking-normal", compact ? "text-4xl" : "text-6xl")}>{formatCurrency(value)}</p>
+          <div className={cn("mt-1 flex items-center gap-3", compact ? "text-xs" : "text-sm")}>
             <span className={cn((changePct ?? 0) < 0 ? "text-negative" : "text-positive")}>
               {(changePct ?? 0) < 0 ? "▼" : "▲"} {formatPercent(changePct)}
             </span>
@@ -252,7 +254,7 @@ export function MarketChart({
         </div>
       </div>
 
-      <div className="relative mt-8 h-[430px] min-h-[340px]">
+      <div className={cn("relative", compact ? "mt-4 h-[260px] sm:h-[320px]" : "mt-8 h-[430px] min-h-[340px]")}>
         {loading ? (
           <div className="flex h-full items-center justify-center">
             <LoadingState label="Loading chart" />
@@ -280,7 +282,7 @@ export function MarketChart({
         )}
       </div>
 
-      <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
+      <div className={cn("flex flex-wrap items-center justify-between gap-3", compact ? "mt-4" : "mt-6")}>
         <Tabs ariaLabel="Chart range" items={ranges} onValueChange={onRangeChange} value={activeRange} />
         <div className="flex items-center gap-2 rounded-full bg-panel-subtle p-1">
           <Button

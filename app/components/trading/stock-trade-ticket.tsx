@@ -51,11 +51,11 @@ function TokenBadge({
     <div className="flex min-w-0 items-center gap-2">
       {logoUrl ? (
         // eslint-disable-next-line @next/next/no-img-element
-        <img alt={`${name} logo`} className="h-8 w-8 rounded-full border border-border bg-white object-contain p-1" src={logoUrl} />
+        <img alt={`${name} logo`} className="h-7 w-7 rounded-full border border-border bg-white object-contain p-1" src={logoUrl} />
       ) : (
         <div
           className={cn(
-            "grid h-8 w-8 shrink-0 place-items-center rounded-full text-xs font-semibold",
+            "grid h-7 w-7 shrink-0 place-items-center rounded-full text-xs font-semibold",
             tone === "cash" ? "bg-accent-yellow text-foreground" : "bg-accent-pink text-foreground",
           )}
         >
@@ -63,7 +63,7 @@ function TokenBadge({
         </div>
       )}
       <div className="min-w-0">
-        <p className="truncate font-display text-lg font-semibold">{symbol}</p>
+        <p className="truncate font-display text-base font-semibold">{symbol}</p>
         <p className="truncate text-xs text-muted">{name}</p>
       </div>
     </div>
@@ -72,7 +72,7 @@ function TokenBadge({
 
 function RouteRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-center justify-between gap-4 text-sm">
+    <div className="flex items-center justify-between gap-4 text-xs">
       <span className="text-muted">{label}</span>
       <span className="text-right font-mono text-xs font-medium">{value}</span>
     </div>
@@ -447,23 +447,23 @@ export function StockTradeTicket({ stock, limitZones, onConfirmed }: StockTradeT
         />
 
         <div className="relative space-y-3">
-          <div className="rounded-[24px] border border-border bg-panel-subtle p-5">
+          <div className="rounded-[20px] border border-border bg-panel-subtle p-4">
             <div className="flex items-center justify-between text-xs uppercase tracking-[0.12em] text-muted">
               <span>{side === "buy" ? "Pay" : "Sell"}</span>
               <span>{inputBalance}</span>
             </div>
-            <div className="mt-4 flex items-center justify-between gap-4">
+            <div className="mt-3 flex items-center justify-between gap-4">
               <TokenBadge logoUrl={side === "buy" ? "/usdc.svg" : logoUrl} name={inputName} symbol={inputSymbol} tone={side === "buy" ? "cash" : "stock"} />
               <input
                 aria-label={`${side === "buy" ? "USDC" : stock.ticker} amount`}
-                className="min-w-0 flex-1 bg-transparent text-right font-display text-4xl font-semibold outline-none placeholder:text-muted-2"
+                className="min-w-0 flex-1 bg-transparent text-right font-display text-3xl font-semibold outline-none placeholder:text-muted-2"
                 inputMode="decimal"
                 onChange={(event) => handleAmountChange(event.target.value)}
                 placeholder="0"
                 value={amount}
               />
             </div>
-            <div className="mt-4 flex items-center justify-between text-xs text-muted">
+            <div className="mt-3 flex items-center justify-between text-xs text-muted">
               <button
                 className="rounded-full bg-panel px-3 py-1 font-semibold text-foreground shadow-sm disabled:cursor-not-allowed disabled:opacity-40"
                 disabled={side !== "sell" || stockBalance <= 0}
@@ -476,18 +476,18 @@ export function StockTradeTicket({ stock, limitZones, onConfirmed }: StockTradeT
             </div>
           </div>
 
-          <button aria-label={`Switch to ${side === "buy" ? "sell" : "buy"}`} className="absolute left-1/2 top-[calc(50%-19px)] z-10 grid h-12 w-12 -translate-x-1/2 place-items-center rounded-full border-4 border-background bg-panel shadow-sm hover:bg-panel-subtle focus-visible:outline-2 focus-visible:outline-offset-2" onClick={() => handleSideChange(side === "buy" ? "sell" : "buy")} type="button">
+          <button aria-label={`Switch to ${side === "buy" ? "sell" : "buy"}`} className="absolute left-1/2 top-[calc(50%-19px)] z-10 grid h-10 w-10 -translate-x-1/2 place-items-center rounded-full border-4 border-background bg-panel shadow-sm hover:bg-panel-subtle focus-visible:outline-2 focus-visible:outline-offset-2" onClick={() => handleSideChange(side === "buy" ? "sell" : "buy")} type="button">
             <svg aria-hidden width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M8 19V5m-4 4 4-4 4 4M16 5v14m-4-4 4 4 4-4" /></svg>
           </button>
 
-          <div className="rounded-[24px] border border-border bg-panel-subtle p-5">
+          <div className="rounded-[20px] border border-border bg-panel-subtle p-4">
             <div className="flex items-center justify-between text-xs uppercase tracking-[0.12em] text-muted">
               <span>{side === "buy" ? "Buy" : "Receive"}</span>
               <span>{outputEstimate}</span>
             </div>
-            <div className="mt-4 flex items-center justify-between gap-4">
+            <div className="mt-3 flex items-center justify-between gap-4">
               <TokenBadge logoUrl={side === "buy" ? logoUrl : "/usdc.svg"} name={outputName} symbol={outputSymbol} tone={side === "buy" ? "stock" : "cash"} />
-              <p className="min-w-0 flex-1 truncate text-right font-display text-4xl font-semibold">
+              <p className="min-w-0 flex-1 truncate text-right font-display text-3xl font-semibold">
                 {orderMode === "limit"
                   ? amountIsValid && limitPriceIsValid
                     ? formatNumber(limitEstimatedReceive, side === "buy" ? 4 : 2)
@@ -573,7 +573,7 @@ export function StockTradeTicket({ stock, limitZones, onConfirmed }: StockTradeT
         </div>
 
         {blockingError || displayedError || limitError ? (
-          <div className="mt-4 flex gap-2 rounded-[16px] border border-red-200 bg-red-50 p-3 text-xs leading-5 text-red-900">
+          <div className="mt-3 flex gap-2 rounded-[16px] border border-red-200 bg-red-50 p-3 text-xs leading-5 text-red-900">
             <HugeiconsIcon className="mt-0.5 shrink-0" color="currentColor" icon={AlertCircleIcon} size={14} strokeWidth={1.8} />
             <span>
               {liveRouteUnavailable && orderMode === "market"
@@ -610,7 +610,7 @@ export function StockTradeTicket({ stock, limitZones, onConfirmed }: StockTradeT
         ) : null}
 
         <Button
-          className="mt-5 h-12 w-full rounded-[16px]"
+          className="mt-4 h-10 w-full rounded-[16px]"
           disabled={
             connected
               ? Boolean(blockingError) ||
