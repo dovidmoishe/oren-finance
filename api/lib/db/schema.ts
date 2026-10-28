@@ -1,4 +1,5 @@
-import { relations } from 'drizzle-orm';
+import { relations, sql } from 'drizzle-orm';
+
 import {
   index,
   integer,
@@ -12,6 +13,41 @@ import {
   uuid,
   uniqueIndex,
 } from 'drizzle-orm/pg-core';
+
+/** Durable approval state only; chain confirmations remain the financial ledger. */
+export const tradeApprovals = pgTable(
+  'trade_approvals',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    userId: text('user_id').notNull(),
+    wallet: text('wallet').notNull(),
+    walletId: text('wallet_id').notNull(),
+    kind: text('kind').notNull(),
+    referenceId: text('reference_id').notNull(),
+    executionId: uuid('execution_id').notNull(),
+    transaction: text('transaction').notNull(),
+    signedTransaction: text('signed_transaction'),
+    signature: text('signature'),
+    status: text('status').notNull().default('prepared'),
+    details: jsonb('details').$type<Record<string, unknown>>().notNull(),
+    feeLamports: text('fee_lamports').notNull(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    uniqueIndex('trade_approval_reference').on(
+      table.userId,
+      table.wallet,
+      table.kind,
+      table.referenceId,
+    ),
+    uniqueIndex('trade_approval_wallet_inflight')
+      .on(table.wallet)
+      .where(sql`${table.status} IN ('signing', 'signed')`),
+  ],
+);
 
 /**
  * Postgres is Oren's application memory — not the financial ledger.
@@ -197,9 +233,7 @@ export const traderProfiles = pgTable(
       .notNull(),
   },
   (table) => [
-    uniqueIndex('trader_profiles_wallet_address_idx').on(
-      table.walletAddress,
-    ),
+    uniqueIndex('trader_profiles_wallet_address_idx').on(table.walletAddress),
     uniqueIndex('trader_profiles_slug_idx').on(table.slug),
     index('trader_profiles_is_public_idx').on(table.isPublic),
   ],
@@ -256,7 +290,10 @@ export const tradeFills = pgTable(
     ticker: text('ticker').notNull(),
     tokenMint: text('token_mint').notNull(),
     side: tradeSideEnum('side').notNull(),
-    stockAmount: numeric('stock_amount', { precision: 40, scale: 18 }).notNull(),
+    stockAmount: numeric('stock_amount', {
+      precision: 40,
+      scale: 18,
+    }).notNull(),
     usdNotional: numeric('usd_notional', { precision: 28, scale: 8 }).notNull(),
     executionPriceUsd: numeric('execution_price_usd', {
       precision: 28,

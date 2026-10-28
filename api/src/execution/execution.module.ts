@@ -1,4 +1,10 @@
 import { Module } from '@nestjs/common';
+import { AuthModule } from '../auth/auth.module';
+import { AlchemyModule } from '../alchemy/alchemy.module';
+import { ApprovalController } from './approval.controller';
+import { ApprovalService } from './approval.service';
+import { ApprovalRepository } from './approval.repository';
+import { ApprovalRpc } from './approval-rpc.service';
 import { IntelligenceModule } from '../intelligence/intelligence.module';
 import { AnalyticsModule } from '../analytics/analytics.module';
 import { PortfolioModule } from '../portfolio/portfolio.module';
@@ -17,9 +23,19 @@ import { VariantSelector } from './variant-selector';
 import { LimitOrderFillPoller } from './limit-order-fill.poller';
 
 @Module({
-  imports: [TokensModule, PortfolioModule, IntelligenceModule, AnalyticsModule],
-  controllers: [ExecutionController],
+  imports: [
+    AuthModule,
+    AlchemyModule,
+    TokensModule,
+    PortfolioModule,
+    IntelligenceModule,
+    AnalyticsModule,
+  ],
+  controllers: [ExecutionController, ApprovalController],
   providers: [
+    ApprovalService,
+    ApprovalRepository,
+    ApprovalRpc,
     BasketCache,
     LimitOrderCache,
     JupiterClient,

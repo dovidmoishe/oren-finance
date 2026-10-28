@@ -6,9 +6,12 @@ jest.mock('@privy-io/node', () => ({ PrivyClient: jest.fn() }));
 describe('funding ownership boundary', () => {
   const requireWallet = jest.fn();
   const snapshot = jest.fn();
-  const controller = new FundingController({ requireWallet }, {
-    snapshot,
-  } as unknown as FundingService);
+  const controller = new FundingController(
+    { requireWallet, requireSigner: jest.fn(), signTransaction: jest.fn() },
+    {
+      snapshot,
+    } as unknown as FundingService,
+  );
   beforeEach(() => {
     requireWallet.mockReset();
     snapshot.mockReset();
