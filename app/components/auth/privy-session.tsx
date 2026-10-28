@@ -140,6 +140,8 @@ export function PrivySession({ children }: { children: React.ReactNode }) {
       wallet: active, getAddress: () => useWalletStore.getState().address,
       signTransaction, signMessage,
     }),
+    async sendTransaction() { throw new Error("Review and confirm this trade in Oren before submission."); },
+    signTransaction: undefined,
     signAllTransactions: undefined, signIn: undefined,
   };
 

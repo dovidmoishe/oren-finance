@@ -1,190 +1,61 @@
 'use client';
-
-import { useConnection, useWallet } from '@solana/wallet-adapter-react';
-import { useWalletModal } from '@solana/wallet-adapter-react-ui';
-import { VersionedTransaction } from '@solana/web3.js';
-import { useCallback, useEffect, useState } from 'react';
-import { confirmExecution, getExecutionTrackingStatus } from '@/services';
-import { useExecutionStore } from '@/store';
-import type { QuoteResponse } from '@/types';
+import { useCallback, useRef, useState } from 'react';
+import { useOrenAuth } from '@/components/auth/auth-context';
+import { approveServerTrade, getServerApproval, forgetApproval } from '@/services/approval-service';
+import { ApiError } from '@/services/api-client';
+import { walletSessionIsCurrent } from '@/services/wallet-session';
+import type { ExecutionStatus, QuoteResponse } from '@/types';
 import { usePortfolioRefresh } from './use-portfolio-refresh';
-
-export type TradeFlowStatus =
-  | 'idle'
-  | 'quoted'
-  | 'preparing'
-  | 'signing'
-  | 'confirming'
-  | 'submitted'
-  | 'confirmed'
-  | 'failed';
-
-export function decodeBase64Transaction(transaction: string) {
-  const binary = atob(transaction);
-  const bytes = new Uint8Array(binary.length);
-  for (let index = 0; index < binary.length; index += 1) {
-    bytes[index] = binary.charCodeAt(index);
-  }
-  return VersionedTransaction.deserialize(bytes);
-}
-
+export type TradeFlowStatus = 'idle' | 'quoted' | 'preparing' | 'signing' | 'confirming' | 'submitted' | 'confirmed' | 'failed';
 export function useQuoteExecution(onConfirmed?: () => Promise<void> | void) {
-  const { connection } = useConnection();
-  const { connected, publicKey, sendTransaction } = useWallet();
-  const { setVisible } = useWalletModal();
+  const { address, getAccessToken } = useOrenAuth();
   const refreshPortfolio = usePortfolioRefresh();
-  const prepareTrade = useExecutionStore((state) => state.prepareTrade);
-  const confirmTrade = useExecutionStore((state) => state.confirmTrade);
-  const confirmation = useExecutionStore((state) => state.status);
-  const storeError = useExecutionStore((state) => state.error);
   const [flowStatus, setFlowStatus] = useState<TradeFlowStatus>('idle');
-  const [localError, setLocalError] = useState<string>();
-
-  useEffect(() => {
-    const wallet = publicKey?.toBase58();
-    if (!wallet) return;
-    for (const pending of readPendingConfirmations().filter((item) => item.wallet === wallet)) {
-      void confirmExecution(pending)
-        .then(() => removePendingConfirmation(pending.signature))
-        .catch(() => undefined);
-    }
-  }, [publicKey]);
-
-  const executeQuote = useCallback(
-    async (quote?: QuoteResponse) => {
-      const wallet = publicKey?.toBase58();
-      setLocalError(undefined);
-      if (!connected || !wallet) {
-        setVisible(true);
-        return;
-      }
-
-      // Always prefer the freshest store quote (auto-refresh may have replaced it).
-      const liveQuote = useExecutionStore.getState().quote ?? quote;
-      if (!liveQuote) {
-        setLocalError('Request a fresh quote before signing.');
-        setFlowStatus('failed');
-        return;
-      }
-      if (new Date(liveQuote.expiresAt).getTime() <= Date.now()) {
-        setLocalError('This quote expired. Waiting for a fresh quote before signing.');
-        setFlowStatus('failed');
-        return;
-      }
-
-      let broadcastSignature: string | undefined;
-      try {
-        setFlowStatus('preparing');
-        await prepareTrade({ quoteId: liveQuote.id, wallet });
-        const prepared = useExecutionStore.getState().prepared;
-        if (!prepared) {
-          throw new Error(useExecutionStore.getState().error ?? 'Unable to prepare transaction');
-        }
-
-        setFlowStatus('signing');
-        const signature = await sendTransaction(
-          decodeBase64Transaction(prepared.transaction),
-          connection,
-        );
-        broadcastSignature = signature;
-        const pending = {
-          executionId: prepared.executionId,
-          quoteId: prepared.quoteId,
-          wallet,
-          signature,
-        };
-        savePendingConfirmation(pending);
-
-        setFlowStatus('confirming');
-        await confirmTrade(wallet, prepared.executionId, prepared.quoteId, signature);
-        if (!useExecutionStore.getState().status) {
-          throw new Error(useExecutionStore.getState().error ?? 'Unable to confirm transaction');
-        }
-        removePendingConfirmation(signature);
-        setFlowStatus('submitted');
-        void waitForVerification(prepared.executionId).then(async (verified) => {
-          if (!verified) return;
-          setFlowStatus('confirmed');
-          await Promise.all([refreshPortfolio(), onConfirmed?.()]);
-        });
-      } catch (error) {
-        if (broadcastSignature) {
-          setLocalError('Submitted on-chain. Oren is syncing the verified fill in the background.');
-          setFlowStatus('submitted');
-          return;
-        }
-        setLocalError(error instanceof Error ? error.message : 'Transaction failed');
-        setFlowStatus('failed');
-      }
-    },
-    [
-      connected,
-      confirmTrade,
-      connection,
-      onConfirmed,
-      prepareTrade,
-      publicKey,
-      refreshPortfolio,
-      sendTransaction,
-      setVisible,
-    ],
-  );
-
-  const resetFeedback = useCallback(() => {
-    setFlowStatus('idle');
-    setLocalError(undefined);
-  }, []);
-
-  return {
-    confirmation,
-    error: localError ?? storeError,
-    executeQuote,
-    flowStatus,
-    resetFeedback,
-    setError: setLocalError,
-    setFlowStatus,
-  };
-}
-
-const PENDING_CONFIRMATIONS_KEY = 'oren.pending-confirmations.v1';
-type PendingConfirmation = {
-  executionId: string;
-  quoteId: string;
-  wallet: string;
-  signature: string;
-};
-
-function readPendingConfirmations(): PendingConfirmation[] {
-  if (typeof window === 'undefined') return [];
-  try {
-    const value = JSON.parse(window.localStorage.getItem(PENDING_CONFIRMATIONS_KEY) ?? '[]');
-    return Array.isArray(value) ? value : [];
-  } catch {
-    return [];
-  }
-}
-
-function savePendingConfirmation(item: PendingConfirmation) {
-  const items = readPendingConfirmations().filter((current) => current.signature !== item.signature);
-  window.localStorage.setItem(PENDING_CONFIRMATIONS_KEY, JSON.stringify([...items, item]));
-}
-
-function removePendingConfirmation(signature: string) {
-  if (typeof window === 'undefined') return;
-  const items = readPendingConfirmations().filter((item) => item.signature !== signature);
-  window.localStorage.setItem(PENDING_CONFIRMATIONS_KEY, JSON.stringify(items));
-}
-
-async function waitForVerification(executionId: string): Promise<boolean> {
-  for (let attempt = 0; attempt < 20; attempt += 1) {
-    await new Promise((resolve) => window.setTimeout(resolve, 3_000));
+  const [error, setError] = useState<string>();
+  const [confirmation, setConfirmation] = useState<ExecutionStatus>();
+  const busy = useRef(false);
+  const generation = useRef(0);
+  const executeQuote = useCallback(async (quote: QuoteResponse | undefined, approvalId: string) => {
+    if (!address || !quote || busy.current) return;
+    const sessionCurrent = walletSessionIsCurrent();
+    const attempt = ++generation.current;
+    const current = () => sessionCurrent() && attempt === generation.current;
+    busy.current = true; setError(undefined);
     try {
-      const result = await getExecutionTrackingStatus(executionId);
-      if (result.status === 'confirmed') return true;
-      if (result.status === 'failed') return false;
-    } catch {
-      // Background verification is best-effort from the user's perspective.
-    }
-  }
-  return false;
+      setFlowStatus('signing');
+      const token = await getAccessToken();
+      if (!current()) return;
+      const result = await approveServerTrade(approvalId, token, address);
+      if (!current()) return;
+      if (result.wallet !== address || result.referenceId !== quote.id) throw new Error('Approval does not match the reviewed trade.');
+      if (result.status === 'failed') throw new Error('This transaction failed. Request a fresh quote.');
+      if (result.signature) setConfirmation({ executionId: result.executionId, quoteId: quote.id, wallet: address, signature: result.signature, status: 'submitted', trackingStatus: 'pending' });
+      setFlowStatus('submitted');
+      if (result.message) setError(result.message);
+      void (async () => {
+        for (let i = 0; i < 30 && current(); i++) {
+          await new Promise(resolve => window.setTimeout(resolve, 2000));
+          if (!current()) return;
+          try {
+            const state = await getServerApproval(approvalId, await getAccessToken());
+            if (!current()) return;
+            if (state.status === 'failed') { forgetApproval(approvalId); setError('The transaction failed on-chain.'); setFlowStatus('failed'); return; }
+            if (state.status === 'confirmed') {
+              forgetApproval(approvalId);
+              setError(undefined); setFlowStatus('confirmed');
+              await Promise.all([refreshPortfolio(), onConfirmed?.()]); return;
+            }
+          } catch { /* Never repeat a trade because its status response was lost. */ }
+        }
+      })();
+    } catch (error) {
+      if (current()) {
+        const rejected = error instanceof ApiError && [400, 401, 403, 404].includes(error.status);
+        setError(rejected ? error.message : 'Trade status is uncertain. Use the pending trade notice to check before retrying.');
+        setFlowStatus(rejected ? 'failed' : 'submitted');
+      }
+    } finally { busy.current = false; }
+  }, [address, getAccessToken, onConfirmed, refreshPortfolio]);
+  const resetFeedback = useCallback(() => { generation.current++; setFlowStatus('idle'); setError(undefined); setConfirmation(undefined); }, []);
+  return { confirmation, error, executeQuote, flowStatus, resetFeedback, setError, setFlowStatus };
 }

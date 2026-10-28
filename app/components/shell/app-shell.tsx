@@ -14,6 +14,7 @@ import { usePathname } from "next/navigation";
 import { AgentPanel } from "@/components/agent/agent-panel";
 import { OrenLogo } from "@/components/brand/oren-logo";
 import { AccountMenu } from "./account-menu";
+import { PendingApprovalNotice } from "@/components/trading/pending-approval-notice";
 import { DepositModal } from "@/components/portfolio/deposit-dashboard";
 import { Button, cn } from "@/components/ui";
 import { useAgentStore } from "@/store";
@@ -77,6 +78,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
       </header>
       <main className={cn("agent-shell-main min-w-0 px-4 py-5 sm:px-6", reserveSidecarGutter && "2xl:pr-[416px]")}>
+        <PendingApprovalNotice />
         {children}
       </main>
       <AgentPanel />

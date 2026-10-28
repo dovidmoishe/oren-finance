@@ -70,7 +70,7 @@ function session(createWallet) {
 }
 const settle = () => new Promise(resolve => setImmediate(resolve));
 
-test('an already loaded owned wallet stays available while SDK discovery refreshes', () => {
+test('an already loaded owned wallet stays available while SDK discovery refreshes', async () => {
   const app = session(async () => { throw new Error('must not recreate an existing wallet'); });
   const address = '11111111111111111111111111111111';
   app.sdk.user.linkedAccounts = [{ type: 'wallet', chainType: 'solana', address }];
@@ -83,6 +83,8 @@ test('an already loaded owned wallet stays available while SDK discovery refresh
   assert.equal(auth.ready, true);
   assert.equal(app.wallet().connected, true);
   assert.equal(app.wallet().connecting, false);
+  assert.equal(app.wallet().signTransaction, undefined);
+  await assert.rejects(app.wallet().sendTransaction(), /Review and confirm/);
   assert.equal(app.resetCount(), loadedResets);
   app.sdk.user = { id: 'bob', linkedAccounts: [] };
   assert.equal(app.render().address, undefined);
