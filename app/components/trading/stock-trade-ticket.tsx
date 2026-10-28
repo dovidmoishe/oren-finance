@@ -2,7 +2,6 @@
 
 import {
   AlertCircleIcon,
-  ArrowDown01Icon,
   CoinsSwapIcon,
   Loading03Icon,
   Wallet02Icon,
@@ -10,7 +9,7 @@ import {
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { useWalletModal } from "@solana/wallet-adapter-react-ui";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { useQuoteExecution } from "@/hooks/use-quote-execution";
 import { useQuoteRefresh } from "@/hooks/use-quote-refresh";
 import { useLimitOrderExecution } from "@/hooks/use-limit-order-execution";
@@ -20,6 +19,7 @@ import { useExecutionStore, usePortfolioStore } from "@/store";
 import type { LimitOrderProposal, LimitOrderRecord, LimitZone, StockDetail, TradeSide } from "@/types";
 import { QuoteReviewModal } from "./quote-review-modal";
 import { LimitOrderReviewModal } from "./limit-order-review-modal";
+import { LimitOrderToggle, OrderControls } from "./order-controls";
 
 type OrderMode = "market" | "limit";
 
@@ -88,6 +88,7 @@ function isNoRouteError(message?: string) {
 }
 
 export function StockTradeTicket({ stock, limitZones, onConfirmed }: StockTradeTicketProps) {
+  const limitFieldsId = useId();
   const { publicKey, connected } = useWallet();
   const { setVisible } = useWalletModal();
   const wallet = publicKey?.toBase58();
@@ -440,81 +441,10 @@ export function StockTradeTicket({ stock, limitZones, onConfirmed }: StockTradeT
   return (
     <>
       <Card className="overflow-hidden p-4">
-        <div className="mb-3 flex justify-center">
-          <div className="inline-flex rounded-[16px] bg-panel-subtle p-1 text-sm font-semibold">
-            {([
-              ["market", "Market"],
-              ["limit", "Limit"],
-            ] as const).map(([value, label]) => (
-              <button
-                aria-pressed={orderMode === value}
-                className={cn(
-                  "h-9 min-w-20 rounded-[12px] px-4 transition-colors",
-                  orderMode === value ? "bg-panel text-foreground shadow-sm" : "text-muted hover:text-foreground",
-                )}
-                key={value}
-                onClick={() => handleModeChange(value)}
-                type="button"
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="mb-4 flex justify-center">
-          <div className="inline-flex rounded-[16px] bg-panel-subtle p-1 text-sm font-semibold">
-            {(["buy", "sell"] as TradeSide[]).map((item) => (
-              <button
-                aria-pressed={side === item}
-                className={cn(
-                  "h-9 min-w-20 rounded-[12px] px-4 capitalize transition-colors",
-                  side === item ? "bg-panel text-foreground shadow-sm" : "text-muted hover:text-foreground",
-                )}
-                key={item}
-                onClick={() => handleSideChange(item)}
-                type="button"
-              >
-                {item}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {orderMode === "limit" ? (
-          <div className="mb-3 space-y-2">
-            <div className="rounded-[18px] border border-border bg-panel-subtle px-4 py-3">
-              <div className="flex items-center justify-between text-xs uppercase tracking-[0.12em] text-muted">
-                <span>Limit price (USD)</span>
-                {stock.priceUsd ? <span>Mkt {formatCurrency(stock.priceUsd)}</span> : null}
-              </div>
-              <input
-                aria-label="Limit price in USD"
-                className="mt-2 w-full bg-transparent font-display text-3xl font-semibold outline-none placeholder:text-muted-2"
-                inputMode="decimal"
-                onChange={(event) => setLimitPrice(event.target.value)}
-                placeholder="0.00"
-                value={limitPrice}
-              />
-            </div>
-            {limitZones?.length ? (
-              <div className="flex flex-wrap gap-2">
-                {limitZones
-                  .filter((zone) => zone.side === side)
-                  .map((zone) => (
-                    <button
-                      className="rounded-full bg-panel px-3 py-1.5 text-xs font-semibold shadow-sm ring-1 ring-border"
-                      key={`${zone.side}-${zone.preferredUsd}`}
-                      onClick={() => setLimitPrice(String(zone.preferredUsd))}
-                      type="button"
-                    >
-                      TA {formatCurrency(zone.preferredUsd)}
-                    </button>
-                  ))}
-              </div>
-            ) : null}
-          </div>
-        ) : null}
+        <OrderControls
+          side={side}
+          onSideChange={handleSideChange}
+        />
 
         <div className="relative space-y-3">
           <div className="rounded-[24px] border border-border bg-panel-subtle p-5">
@@ -546,9 +476,9 @@ export function StockTradeTicket({ stock, limitZones, onConfirmed }: StockTradeT
             </div>
           </div>
 
-          <div className="absolute left-1/2 top-[calc(50%-19px)] z-10 grid h-12 w-12 -translate-x-1/2 place-items-center rounded-full border-4 border-background bg-panel shadow-sm">
-            <HugeiconsIcon color="currentColor" icon={ArrowDown01Icon} size={20} strokeWidth={2} />
-          </div>
+          <button aria-label={`Switch to ${side === "buy" ? "sell" : "buy"}`} className="absolute left-1/2 top-[calc(50%-19px)] z-10 grid h-12 w-12 -translate-x-1/2 place-items-center rounded-full border-4 border-background bg-panel shadow-sm hover:bg-panel-subtle focus-visible:outline-2 focus-visible:outline-offset-2" onClick={() => handleSideChange(side === "buy" ? "sell" : "buy")} type="button">
+            <svg aria-hidden width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M8 19V5m-4 4 4-4 4 4M16 5v14m-4-4 4 4 4-4" /></svg>
+          </button>
 
           <div className="rounded-[24px] border border-border bg-panel-subtle p-5">
             <div className="flex items-center justify-between text-xs uppercase tracking-[0.12em] text-muted">
@@ -573,6 +503,44 @@ export function StockTradeTicket({ stock, limitZones, onConfirmed }: StockTradeT
               {side === "buy" ? `~ ${formatCurrency(parsedAmount || 0)}` : `~ ${formatNumber(parsedAmount || 0, 6)} ${stock.ticker}`}
             </p>
           </div>
+        </div>
+
+        <LimitOrderToggle
+          limit={orderMode === "limit"}
+          limitFieldsId={limitFieldsId}
+          onLimitChange={(enabled) => handleModeChange(enabled ? "limit" : "market")}
+        />
+        <div className="mb-3 space-y-2" hidden={orderMode !== "limit"} id={limitFieldsId}>
+            <div className="rounded-[18px] border border-border bg-panel-subtle px-4 py-3">
+              <div className="flex items-center justify-between text-xs uppercase tracking-[0.12em] text-muted">
+                <span>Limit price (USD)</span>
+                {stock.priceUsd ? <span>Mkt {formatCurrency(stock.priceUsd)}</span> : null}
+              </div>
+              <input
+                aria-label="Limit price in USD"
+                className="mt-2 w-full bg-transparent font-display text-3xl font-semibold outline-none placeholder:text-muted-2"
+                inputMode="decimal"
+                onChange={(event) => setLimitPrice(event.target.value)}
+                placeholder="0.00"
+                value={limitPrice}
+              />
+            </div>
+            {limitZones?.length ? (
+              <div className="flex flex-wrap gap-2">
+                {limitZones
+                  .filter((zone) => zone.side === side)
+                  .map((zone) => (
+                    <button
+                      className="rounded-full bg-panel px-3 py-1.5 text-xs font-semibold shadow-sm ring-1 ring-border"
+                      key={`${zone.side}-${zone.preferredUsd}`}
+                      onClick={() => setLimitPrice(String(zone.preferredUsd))}
+                      type="button"
+                    >
+                      TA {formatCurrency(zone.preferredUsd)}
+                    </button>
+                  ))}
+              </div>
+            ) : null}
         </div>
 
         <div className="mt-5 space-y-3">

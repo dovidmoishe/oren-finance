@@ -50,19 +50,26 @@ function DepositAddress({ wallet, getAccessToken }: { wallet: string; getAccessT
     return () => { cancelled = true; };
   }, [wallet]);
   return <>
-    <p className="text-sm leading-6 text-muted">Send USDC or SOL to your Oren wallet using the Solana network.</p>
+    <p className="text-sm leading-6 text-muted">Deposit USDC on Solana to fund your stock purchases.</p>
     <div className="mx-auto my-5 flex h-56 w-56 items-center justify-center rounded-2xl border border-border bg-white">
       {/* eslint-disable-next-line @next/next/no-img-element */}
       {qr ? <img alt="Your Solana deposit address QR code" className="h-52 w-52" height={208} width={208} src={qr} /> : <span className="text-sm text-muted">Preparing QR code…</span>}
     </div>
-    <p className="text-xs font-semibold text-muted">Solana receiving address</p>
-    <code className="mt-2 block select-all break-all rounded-xl border border-border bg-background p-3 text-xs leading-5">{wallet}</code>
-    <Button className="mt-3 w-full" onClick={async () => {
+    <p className="text-xs font-semibold text-muted">USDC deposit address · Solana</p>
+    <div className="mt-2 flex items-center gap-3 rounded-xl border border-border bg-background p-3">
+    <code className="min-w-0 flex-1 select-all break-all text-xs leading-5">{wallet}</code>
+    <Button aria-label={copied ? "Address copied" : "Copy address"} className="h-9 w-9 shrink-0" size="icon" variant="ghost" onClick={async () => {
       try { await navigator.clipboard.writeText(wallet); setCopied(true); setCopyError(false); }
       catch { setCopyError(true); }
-    }}>{copied ? "Address copied" : "Copy address"}</Button>
+    }}>
+      <svg aria-hidden width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+        {copied ? <path d="m5 12 4 4L19 6" /> : <><rect x="8" y="8" width="12" height="12" rx="2" /><path d="M16 8V4H4v12h4" /></>}
+      </svg>
+    </Button>
+    </div>
+    <span aria-live="polite" className="sr-only">{copied ? "Address copied" : ""}</span>
     {copyError && <p className="mt-2 text-xs text-muted" role="status">Select and copy the address above.</p>}
-    <p className="mt-4 text-xs leading-5 text-muted">Solana only. Send native USDC, and keep some SOL for network fees. Transfers on other networks may be lost.</p>
+    <p className="mt-4 text-xs leading-5 text-muted">Send native USDC on Solana only. A small SOL balance is needed for network fees. Transfers on other networks may be lost.</p>
     {received && <p className="mt-4 text-sm font-medium text-emerald-700" role="status">Funds received.</p>}
   </>;
 }
