@@ -4,7 +4,7 @@ import vm from 'node:vm';
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import ts from 'typescript';
-import { resolveSolanaWallet } from '../services/wallet-selection.ts';
+import { resolveEmbeddedSolanaAccount, resolveSolanaWallet } from '../services/wallet-selection.ts';
 
 const require = createRequire(import.meta.url);
 function deferred() {
@@ -50,7 +50,7 @@ function session(createWallet) {
       if (id === '@/store') return Object.fromEntries(['useAgentStore','useExecutionStore','usePortfolioStore','useSocialStore','useVaultStore','useWalletStore'].map(k => [k, store]));
       if (id === '@/services/wallet-session') return { invalidateWalletSession() {} };
       if (id === '@/services/privy-signer') return { createPrivySigner: () => ({}) };
-      if (id === '@/services/wallet-selection') return { resolveSolanaWallet };
+      if (id === '@/services/wallet-selection') return { resolveEmbeddedSolanaAccount, resolveSolanaWallet };
       if (id === './auth-context') return { AuthContext: { Provider: 'auth' } };
       if (id === './email-login') return { EmailLogin: 'email-login' };
       if (id === '@solana/wallet-adapter-react') return { WalletContext: { Provider: 'wallet' } };
@@ -73,7 +73,7 @@ const settle = () => new Promise(resolve => setImmediate(resolve));
 test('an already loaded owned wallet stays available while SDK discovery refreshes', async () => {
   const app = session(async () => { throw new Error('must not recreate an existing wallet'); });
   const address = '11111111111111111111111111111111';
-  app.sdk.user.linkedAccounts = [{ type: 'wallet', chainType: 'solana', address }];
+  app.sdk.user.linkedAccounts = [{ type: 'wallet', chainType: 'solana', walletClientType: 'privy', address }];
   app.walletSdk.wallets = [{ address, standardWallet: { name: 'Privy' } }];
   assert.equal(app.render().address, address);
   const loadedResets = app.resetCount();
@@ -95,13 +95,13 @@ test('a trade connect request during Privy wallet restoration never links anothe
   let links = 0, creations = 0;
   const app = session(async () => { creations++; });
   app.sdk.linkWallet = () => { links++; };
-  app.sdk.user.linkedAccounts = [{ type: 'wallet', chainType: 'solana', address: '11111111111111111111111111111111' }];
+  app.sdk.user.linkedAccounts = [{ type: 'wallet', chainType: 'solana', walletClientType: 'privy', address: '11111111111111111111111111111111' }];
   app.walletSdk.ready = false;
   app.render(); app.requestConnection();
   const auth = app.render();
   assert.equal(links, 0);
   assert.equal(creations, 0);
-  assert.equal(auth.depositOpen, true);
+  assert.equal(auth.depositOpen, false);
   assert.equal(app.isLoginOpen(), false);
   app.walletSdk.ready = true;
   app.walletSdk.wallets = [{ address: '11111111111111111111111111111111', standardWallet: { name: 'Privy' } }];
@@ -149,14 +149,56 @@ test('failed automatic setup stops retrying until an explicit recovery request',
   await auth.createWallet(); assert.equal(calls, 2);
 });
 
-test('existing Solana wallets and unrestored sessions do not create another wallet', () => {
+test('existing embedded wallets and unrestored sessions do not create another wallet', () => {
   let calls = 0;
   const app = session(async () => { calls++; });
-  app.sdk.user.linkedAccounts = [{ type: 'wallet', chainType: 'solana', address: 'existing' }];
+  app.sdk.user.linkedAccounts = [{ type: 'wallet', chainType: 'solana', walletClientType: 'privy', address: '11111111111111111111111111111111' }];
   app.render(); assert.equal(calls, 0);
-  app.sdk.user = { id: 'bob', linkedAccounts: [] }; app.walletSdk.ready = false;
+  app.sdk.user = { id: 'bob', linkedAccounts: [] }; app.walletSdk.ready = false; app.sdk.ready = false;
   app.render(); assert.equal(calls, 0);
-  app.walletSdk.ready = true; app.render(); assert.equal(calls, 1);
+  app.sdk.ready = true; app.render(); assert.equal(calls, 1);
+});
+
+test('server trading restores the authenticated embedded address without browser wallet discovery', () => {
+  let creations = 0;
+  const app = session(async () => { creations++; });
+  const address = '11111111111111111111111111111111';
+  app.sdk.user.linkedAccounts = [{ type: 'wallet', chainType: 'solana', walletClientType: 'privy', address }];
+  app.walletSdk.ready = false;
+  const restored = app.render();
+  assert.equal(restored.ready, true);
+  assert.equal(restored.address, address);
+  assert.equal(restored.walletPreparing, false);
+  assert.equal(app.wallet().publicKey.toBase58(), address);
+  assert.equal(app.wallet().connected, true);
+  const resetCount = app.resetCount();
+  app.walletSdk.ready = true;
+  app.walletSdk.wallets = [{ address, standardWallet: { name: 'Privy' } }];
+  assert.equal(app.render().address, address);
+  assert.equal(app.resetCount(), resetCount);
+  assert.equal(creations, 0);
+  app.sdk.user = { id: 'bob', linkedAccounts: [] }; app.sdk.ready = false;
+  assert.equal(app.render().address, undefined);
+  assert.equal(app.wallet().connected, false);
+});
+
+test('signed-out sessions are ready without browser discovery and ignore stale wallet objects', () => {
+  const app = session(async () => { throw new Error('must not create while signed out'); });
+  app.sdk.authenticated = false; app.sdk.user = null; app.walletSdk.ready = false;
+  app.walletSdk.wallets = [{ address: '11111111111111111111111111111111', standardWallet: { name: 'Privy' } }];
+  const auth = app.render();
+  assert.equal(auth.ready, true);
+  assert.equal(auth.address, undefined);
+  assert.equal(auth.authenticated, false);
+});
+
+test('an external wallet cannot block automatic embedded setup or become the server trade account', () => {
+  let creations = 0;
+  const app = session(async () => { creations++; });
+  app.sdk.user.linkedAccounts = [{ type: 'wallet', chainType: 'solana', walletClientType: 'phantom', address: '11111111111111111111111111111111' }];
+  app.walletSdk.ready = false;
+  assert.equal(app.render().address, undefined);
+  assert.equal(creations, 1);
 });
 
 test('late setup failure from a previous user cannot overwrite the next account', async () => {
