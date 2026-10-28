@@ -3,7 +3,6 @@
 import {
   ChartCandlestickIcon,
   ChartLineData01Icon,
-  FocusIcon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
@@ -303,15 +302,6 @@ export function MarketChart({
             variant={effectiveMode === "candles" ? "secondary" : "ghost"}
           >
             <HugeiconsIcon color="currentColor" icon={ChartCandlestickIcon} size={16} strokeWidth={1.8} />
-          </Button>
-          <Button
-            aria-label="Fit chart"
-            onClick={() => chartRef.current?.timeScale().fitContent()}
-            size="icon"
-            title="Fit chart"
-            variant="ghost"
-          >
-            <HugeiconsIcon color="currentColor" icon={FocusIcon} size={16} strokeWidth={1.8} />
           </Button>
         </div>
       </div>
