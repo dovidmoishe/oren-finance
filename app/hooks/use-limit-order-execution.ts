@@ -47,7 +47,8 @@ export function useLimitOrderExecution(onConfirmed?: () => Promise<void> | void)
       }
     } catch (error) {
       if (current()) {
-        const rejected = error instanceof ApiError && [400, 401, 403, 404].includes(error.status);
+        const rejected = error instanceof ApiError && ([400, 401, 403, 404].includes(error.status) || (error.details as { code?: string })?.code === 'PRIVY_SIGNING_FAILED');
+        if (rejected) forgetApproval(approvalId);
         setError(rejected ? error.message : 'Order status is uncertain. Check the pending trade notice before retrying.');
         setFlowStatus(rejected ? 'failed' : 'submitted');
       }
