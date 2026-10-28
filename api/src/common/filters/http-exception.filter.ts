@@ -21,6 +21,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
     let status = HttpStatus.INTERNAL_SERVER_ERROR;
     let message = 'Internal server error';
     let error = 'InternalServerError';
+    let approvalFailure: { code: string; submissionState: string } | undefined;
 
     if (exception instanceof ProviderError) {
       status = exception.statusCode;
@@ -34,22 +35,40 @@ export class HttpExceptionFilter implements ExceptionFilter {
       } else if (typeof body === 'object' && body !== null) {
         const record = body as Record<string, unknown>;
         message = Array.isArray(record.message)
-          ? record.message.join(', ')
-          : String(record.message ?? exception.message);
-        error = String(record.error ?? exception.name);
+          ? record.message
+              .filter((item): item is string => typeof item === 'string')
+              .join(', ')
+          : typeof record.message === 'string'
+            ? record.message
+            : exception.message;
+        error =
+          typeof record.error === 'string' ? record.error : exception.name;
+        if (
+          record.code === 'PRIVY_SIGNING_FAILED' &&
+          record.submissionState === 'not_submitted'
+        ) {
+          approvalFailure = {
+            code: 'PRIVY_SIGNING_FAILED',
+            submissionState: 'not_submitted',
+          };
+        }
       }
     } else if (exception instanceof Error) {
       message = exception.message;
       this.logger.error(exception.message, exception.stack);
     }
 
-    if (!(exception instanceof HttpException) && !(exception instanceof ProviderError)) {
+    if (
+      !(exception instanceof HttpException) &&
+      !(exception instanceof ProviderError)
+    ) {
       this.logger.error(
         exception instanceof Error ? exception.stack : String(exception),
       );
     }
 
     response.status(status).json({
+      ...approvalFailure,
       statusCode: status,
       message,
       error,

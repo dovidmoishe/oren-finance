@@ -1,5 +1,6 @@
 import {
   ForbiddenException,
+  Logger,
   ServiceUnavailableException,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -7,6 +8,7 @@ import { PrivyClient } from '@privy-io/node';
 
 /** Verifies both the session and the wallet's current association with that user. */
 export class PrivyWalletAuth {
+  private readonly logger = new Logger(PrivyWalletAuth.name);
   private readonly client?: PrivyClient;
 
   constructor(appId?: string, appSecret?: string) {
@@ -115,11 +117,31 @@ export class PrivyWalletAuth {
           request_expiry: expiresAt.getTime(),
         });
       return result.signed_transaction;
-    } catch {
+    } catch (error) {
       // SDK errors may contain request data; never propagate user JWTs or credentials.
-      throw new ServiceUnavailableException(
-        'Privy could not authorize this trade. Sign in again and retry.',
+      const failure = error as {
+        name?: unknown;
+        status?: unknown;
+        headers?: { get?: (name: string) => string | null };
+        error?: { code?: unknown };
+      };
+      const status =
+        typeof failure?.status === 'number' ? failure.status : 'unknown';
+      const safe = (value: unknown) =>
+        typeof value === 'string' && /^[a-zA-Z0-9_.:-]{1,100}$/.test(value)
+          ? value
+          : 'unknown';
+      const code = safe(failure?.error?.code);
+      const requestId = safe(failure?.headers?.get?.('x-request-id'));
+      this.logger.warn(
+        `Privy sign-only request failed: approval=${safe(approvalId)} status=${status} code=${code} requestId=${requestId} type=${safe(failure?.name)}`,
       );
+      throw new ServiceUnavailableException({
+        message:
+          'Privy could not authorize this trade. No transaction was submitted. Sign in again and review a fresh quote.',
+        code: 'PRIVY_SIGNING_FAILED',
+        submissionState: 'not_submitted',
+      });
     }
   }
 }
