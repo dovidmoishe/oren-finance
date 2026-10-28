@@ -3,6 +3,7 @@
 import { ArrowLeft01Icon, ArrowRight01Icon, RefreshCwIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useEffect, useMemo, useState } from "react";
+import { useOrenAuth } from "@/components/auth/auth-context";
 import {
   Button,
   Card,
@@ -100,6 +101,7 @@ function CalendarSkeleton() {
 }
 
 export function TradingCalendar() {
+  const auth = useOrenAuth();
   const wallet = useWalletStore((state) => state.address);
   const connected = useWalletStore((state) => state.connected);
   const calendar = usePortfolioStore((state) => state.calendar);
@@ -145,8 +147,8 @@ export function TradingCalendar() {
           <h1 className="font-display text-4xl font-semibold tracking-normal">Calendar</h1>
         </div>
         <EmptyState
-          description="Connect a Solana wallet to view Oren-observed daily P&L, trades, vault events, and agent activity."
-          title="Connect wallet to open your trading memory"
+          description={auth.authenticated ? auth.error || "Your calendar will be ready when your wallet is available." : "Sign in to view your daily P&L, trades, vault events, and agent activity."}
+          title={!auth.ready ? "Restoring your account…" : auth.authenticated ? "Preparing your wallet…" : "Sign in to view your trading calendar"}
         />
       </div>
     );

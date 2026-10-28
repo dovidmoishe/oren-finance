@@ -15,7 +15,7 @@ function deferred() {
 // Execute the real session component with a minimal hook scheduler and controllable SDK.
 function session(createWallet) {
   const slots = [], effects = [];
-  let cursor = 0, loginComplete;
+  let cursor = 0, loginComplete, modal, walletContext;
   const sdk = { ready: true, authenticated: true, user: { id: 'alice', linkedAccounts: [] }, logout: async () => {}, linkWallet() {}, getAccessToken: async () => 'token' };
   const walletSdk = { ready: true, wallets: [] };
   const effect = (fn, deps) => {
@@ -33,7 +33,8 @@ function session(createWallet) {
     useRef(initial) { const i = cursor++; return slots[i] ??= { current: initial }; },
     useCallback(fn) { return fn; }, useEffect: effect, useLayoutEffect: effect,
   };
-  const state = { reset() {}, resetAll() {}, clearCopy() {}, initialize() {}, setWalletState() {} };
+  let resets = 0;
+  const state = { reset() {}, resetAll() { resets++; }, clearCopy() {}, initialize() {}, setWalletState() {} };
   const store = { getState: () => state };
   const exports = {};
   const code = ts.transpileModule(readFileSync(new URL('../components/auth/privy-session.tsx', import.meta.url), 'utf8'), {
@@ -57,10 +58,68 @@ function session(createWallet) {
       return require(id);
     },
   });
-  function render() { cursor = 0; const result = exports.PrivySession({ children: null }).props.value; while (effects.length) effects.shift()(); return result; }
-  return { sdk, walletSdk, render, completeLogin: data => loginComplete(data) };
+  function render() {
+    cursor = 0;
+    const tree = exports.PrivySession({ children: null });
+    walletContext = tree.props.children.props.value;
+    modal = tree.props.children.props.children.props.value;
+    while (effects.length) effects.shift()();
+    return tree.props.value;
+  }
+  return { sdk, walletSdk, render, wallet: () => walletContext, resetCount: () => resets, requestConnection: () => modal.setVisible(true), isLoginOpen: () => modal.visible, completeLogin: data => loginComplete(data) };
 }
 const settle = () => new Promise(resolve => setImmediate(resolve));
+
+test('an already loaded owned wallet stays available while SDK discovery refreshes', () => {
+  const app = session(async () => { throw new Error('must not recreate an existing wallet'); });
+  const address = '11111111111111111111111111111111';
+  app.sdk.user.linkedAccounts = [{ type: 'wallet', chainType: 'solana', address }];
+  app.walletSdk.wallets = [{ address, standardWallet: { name: 'Privy' } }];
+  assert.equal(app.render().address, address);
+  const loadedResets = app.resetCount();
+  app.walletSdk.ready = false;
+  const auth = app.render();
+  assert.equal(auth.address, address);
+  assert.equal(auth.ready, true);
+  assert.equal(app.wallet().connected, true);
+  assert.equal(app.wallet().connecting, false);
+  assert.equal(app.resetCount(), loadedResets);
+  app.sdk.user = { id: 'bob', linkedAccounts: [] };
+  assert.equal(app.render().address, undefined);
+  assert.equal(app.wallet().connected, false);
+});
+
+test('a trade connect request during Privy wallet restoration never links another wallet', () => {
+  let links = 0, creations = 0;
+  const app = session(async () => { creations++; });
+  app.sdk.linkWallet = () => { links++; };
+  app.sdk.user.linkedAccounts = [{ type: 'wallet', chainType: 'solana', address: '11111111111111111111111111111111' }];
+  app.walletSdk.ready = false;
+  app.render(); app.requestConnection();
+  const auth = app.render();
+  assert.equal(links, 0);
+  assert.equal(creations, 0);
+  assert.equal(auth.depositOpen, true);
+  assert.equal(app.isLoginOpen(), false);
+  app.walletSdk.ready = true;
+  app.walletSdk.wallets = [{ address: '11111111111111111111111111111111', standardWallet: { name: 'Privy' } }];
+  const restored = app.render();
+  assert.equal(restored.address, '11111111111111111111111111111111');
+  app.requestConnection();
+  assert.equal(links, 0);
+  assert.equal(creations, 0);
+});
+
+test('a signed-out trade connect request opens sign-in without linking a wallet', () => {
+  let links = 0;
+  const app = session(async () => {});
+  app.sdk.linkWallet = () => { links++; };
+  app.sdk.user = null; app.sdk.authenticated = false;
+  app.render(); app.requestConnection();
+  assert.equal(app.render().authenticated, false);
+  assert.equal(app.isLoginOpen(), true);
+  assert.equal(links, 0);
+});
 
 test('email sign-in automatically creates one wallet despite rerenders and simultaneous retry', async () => {
   const pending = deferred(); let calls = 0;

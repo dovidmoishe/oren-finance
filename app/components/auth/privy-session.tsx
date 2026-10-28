@@ -34,10 +34,10 @@ function clearWalletData() {
 }
 
 export function PrivySession({ children }: { children: React.ReactNode }) {
-  const { ready, authenticated, user, logout, linkWallet, getAccessToken } = usePrivy();
+  const { ready, authenticated, user, logout, getAccessToken } = usePrivy();
   const pathname = usePathname();
   const [depositOpen, setDepositOpen] = useState(false);
-  const { login } = useLogin({ onComplete: ({ isNewUser, wasAlreadyAuthenticated }) => {
+  useLogin({ onComplete: ({ isNewUser, wasAlreadyAuthenticated }) => {
     if (isNewUser && !wasAlreadyAuthenticated) setDepositOpen(true);
   } });
   const { ready: walletsReady, wallets } = useWallets();
@@ -57,7 +57,9 @@ export function PrivySession({ children }: { children: React.ReactNode }) {
   const currentUser = useRef<string | undefined>(undefined);
   const hasLinkedWallet = user?.linkedAccounts.some((account) => account.type === "wallet" && account.chainType === "solana");
   const { linked, active: availableWallet } = resolveSolanaWallet(wallets, user, selection);
-  const active = ready && walletsReady && authenticated && !signingOut
+  // SDK discovery can refresh while an owned signer is already available.
+  // Keep that signer usable instead of clearing the session on a readiness flicker.
+  const active = ready && authenticated && !signingOut
     ? availableWallet
     : undefined;
   const address = active?.address;
@@ -105,7 +107,7 @@ export function PrivySession({ children }: { children: React.ReactNode }) {
 
   useLayoutEffect(() => {
     useWalletStore.getState().setWalletState({
-      address, connected: Boolean(address), connecting: !ready || !walletsReady,
+      address, connected: Boolean(address), connecting: !ready || (!walletsReady && !address),
       adapterName,
     });
   }, [identity, address, ready, walletsReady, adapterName]);
@@ -131,7 +133,7 @@ export function PrivySession({ children }: { children: React.ReactNode }) {
   const walletContext: WalletContextState = {
     autoConnect: false, wallets: [], wallet: null,
     publicKey,
-    connected: Boolean(address), connecting: !ready || !walletsReady,
+    connected: Boolean(address), connecting: !ready || (!walletsReady && !address),
     disconnecting: signingOut, select() {},
     async connect() { open(); }, disconnect: signOut,
     ...createPrivySigner({
@@ -143,7 +145,7 @@ export function PrivySession({ children }: { children: React.ReactNode }) {
 
   return (
     <AuthContext.Provider value={{
-      configured: true, ready: ready && walletsReady, authenticated: authenticated && !signingOut,
+      configured: true, ready: ready && (walletsReady || Boolean(address)), authenticated: authenticated && !signingOut,
       address, busy: busy || (setup?.userId === user?.id && setup?.pending) || false,
       error: error || (setup && setup.userId === user?.id ? setup.error : undefined), open, signOut, getAccessToken,
       email: user?.email?.address,
@@ -160,20 +162,23 @@ export function PrivySession({ children }: { children: React.ReactNode }) {
         }
       },
       createWallet: setupWallet,
-      linkWallet() { linkWallet({ walletChainType: "solana-only" }); },
     }}>
       <WalletContext.Provider value={walletContext}>
         <WalletModalContext.Provider value={{ visible, setVisible: (next) => {
-          if (next && authenticated) linkWallet({ walletChainType: "solana-only" });
-          else setVisible(next);
+          if (next && authenticated) {
+            // A trade's legacy connect request is wallet recovery, never account linking.
+            if (!address) {
+              setDepositOpen(true);
+              void setupWallet();
+            }
+            return;
+          }
+          setVisible(next);
         } }}>
           {children}
           <dialog ref={dialog} aria-label="Sign in to Oren" className="m-auto w-[calc(100%-2rem)] max-w-md rounded-2xl border border-border bg-panel p-6 text-foreground shadow-xl backdrop:bg-black/30" onCancel={() => setVisible(false)} onClose={() => setVisible(false)}>
             <button aria-label="Close sign in" className="mb-4 ml-auto block text-sm text-muted" onClick={() => setVisible(false)} type="button">Close</button>
             {visible && <EmailLogin onComplete={() => setVisible(false)} />}
-            <div className="mt-5 border-t border-border pt-5">
-              <button className="w-full rounded-xl border border-border px-4 py-3 text-sm font-medium" type="button" onClick={() => { setVisible(false); login({ loginMethods: ["wallet"], walletChainType: "solana-only" }); }}>Continue with a wallet</button>
-            </div>
           </dialog>
         </WalletModalContext.Provider>
       </WalletContext.Provider>

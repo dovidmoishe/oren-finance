@@ -106,7 +106,7 @@ export function VaultReviewModal({
 
           <Button className="h-12 w-full rounded-[16px]" disabled variant="primary">
             <HugeiconsIcon color="currentColor" icon={programLive ? Wallet02Icon : Clock01Icon} size={16} strokeWidth={1.8} />
-            {programLive ? "Sign in wallet" : "Signing unavailable"}
+            {programLive ? "Review and sign" : "Signing unavailable"}
           </Button>
 
           {!programLive ? (

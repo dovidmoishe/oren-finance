@@ -56,5 +56,7 @@ for (const [name, env, expectedHttp, expectedWs] of [
     assert.equal(mainnet.rpc.url, endpoint);
     assert.equal(mainnet.rpcSubscriptions.url, expectedWs);
     assert.equal(config.embeddedWallets.showWalletUIs, true);
+    assert.deepEqual(Array.from(config.loginMethods), ['email']);
+    assert.equal(config.externalWallets, undefined);
   });
 }

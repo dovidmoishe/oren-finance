@@ -9,6 +9,7 @@ import {
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useEffect, useMemo, useState } from "react";
+import { useOrenAuth } from "@/components/auth/auth-context";
 import {
   Button,
   Card,
@@ -76,6 +77,7 @@ function MetricTile({
 }
 
 export function VaultDashboard() {
+  const auth = useOrenAuth();
   const wallet = useWalletStore((state) => state.address);
   const connected = useWalletStore((state) => state.connected);
 
@@ -125,7 +127,7 @@ export function VaultDashboard() {
     selected && Number.isFinite(parsedAmount) ? parsedAmount * selected.priceUsd : undefined;
 
   function validateLock() {
-    if (!connected || !wallet) return "Connect a wallet to preview a lock.";
+    if (!connected || !wallet) return auth.authenticated ? "Your wallet is being prepared." : "Sign in to preview a lock.";
     if (!selected) return "No available portfolio positions to lock.";
     if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
       return "Enter an amount greater than zero.";
@@ -189,8 +191,8 @@ export function VaultDashboard() {
           <h1 className="mt-1 font-display text-4xl font-semibold tracking-normal">Locked positions</h1>
         </header>
         <EmptyState
-          title="Connect a wallet"
-          description="Connect a Solana wallet to preview timelocked positions and the lock review flow."
+          title={!auth.ready ? "Restoring your account…" : auth.authenticated ? "Preparing your wallet…" : "Sign in to view your vault"}
+          description={auth.authenticated ? auth.error || "Your locked positions will appear when your wallet is available." : "Sign in to preview timelocked positions and review a lock."}
         />
       </div>
     );
