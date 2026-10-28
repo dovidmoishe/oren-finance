@@ -4,7 +4,7 @@ import { ArrowDown01Icon, ArrowUp01Icon, Search01Icon } from "@hugeicons/core-fr
 import { HugeiconsIcon } from "@hugeicons/react";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Skeleton, cn, formatCurrency, formatPercent } from "@/components/ui";
+import { Button, Skeleton, cn, formatCurrency, formatPercent } from "@/components/ui";
 import { getStockChart } from "@/services";
 import { useMarketStore } from "@/store";
 import type { MarketCandle, StockSummary } from "@/types";
@@ -205,6 +205,8 @@ export function MarketsOverview() {
   const opportunities = useMarketStore((state) => state.opportunities);
   const searchResults = useMarketStore((state) => state.searchResults);
   const isLoading = useMarketStore((state) => state.isLoading);
+  const isLoadingMore = useMarketStore((state) => state.isLoadingMore);
+  const loadMoreError = useMarketStore((state) => state.loadMoreError);
   const isSearching = useMarketStore((state) => state.isSearching);
   const hasMore = useMarketStore((state) => state.hasMore);
   const error = useMarketStore((state) => state.error);
@@ -231,7 +233,7 @@ export function MarketsOverview() {
 
   useEffect(() => {
     const target = loadMoreRef.current;
-    if (!target || !hasMore || query.trim()) return;
+    if (!target || !hasMore || isLoading || isLoadingMore || loadMoreError || query.trim()) return;
 
     const observer = new IntersectionObserver(
       ([entry]) => {
@@ -243,7 +245,7 @@ export function MarketsOverview() {
     );
     observer.observe(target);
     return () => observer.disconnect();
-  }, [hasMore, loadNextStocks, query]);
+  }, [hasMore, isLoading, isLoadingMore, loadMoreError, loadNextStocks, query, stocks.length]);
 
   const searching = Boolean(query.trim());
   const rows = useMemo(
@@ -331,7 +333,14 @@ export function MarketsOverview() {
         {rows.length && !searching ? (
           <div aria-live="polite" ref={loadMoreRef}>
             {hasMore ? (
-              <TableSkeleton count={10} />
+              <>
+                {isLoadingMore ? <TableSkeleton count={4} /> : (
+                  <div className="border-t border-border px-4 py-5 text-center">
+                    {loadMoreError && <p className="mb-3 text-sm text-muted" role="alert">Couldn’t load more stocks. Please try again.</p>}
+                    <Button disabled={isLoading} onClick={() => void loadNextStocks()} size="sm" variant="secondary">{loadMoreError ? "Retry loading stocks" : "Load more stocks"}</Button>
+                  </div>
+                )}
+              </>
             ) : (
               <div className="border-t border-border px-4 py-4 text-center text-xs text-muted">
                 All {rows.length} stocks loaded

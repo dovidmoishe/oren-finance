@@ -14,7 +14,7 @@ export function AccountMenu() {
   const initial = (auth.email?.[0] || "U").toUpperCase();
   const close = () => menu.current?.hidePopover();
   return <>
-    <button aria-label="Open account menu" className="grid h-11 w-11 place-items-center rounded-full bg-[#6860f5] text-base font-semibold text-white shadow-sm outline-offset-4 focus-visible:outline-2" popoverTarget={id} type="button">
+    <button aria-label="Open account menu" className="grid h-11 w-11 place-items-center rounded-full bg-[#6860f5] text-base font-semibold text-white outline-offset-4 focus-visible:outline-2" popoverTarget={id} type="button">
       {initial}
     </button>
     <div className="oren-account-menu w-[min(320px,calc(100vw-2rem))] overflow-hidden rounded-3xl border border-border bg-panel p-0 text-foreground shadow-xl" id={id} popover="auto" ref={menu}>

@@ -41,7 +41,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen bg-background text-foreground">
       <header className="sticky top-0 z-30 border-b border-border bg-background/95 backdrop-blur">
-        <div className="mx-auto grid min-h-[72px] max-w-[1540px] grid-cols-[auto_1fr_auto] items-center gap-4 px-4 sm:px-6">
+        <div className="mx-auto grid min-h-[72px] max-w-[1540px] grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-4 px-4 sm:px-6">
           <Link className="flex items-center gap-2" href="/app">
             <OrenLogo className="h-8 w-8" size={32} />
             <span className="font-display text-lg font-semibold">Oren</span>
@@ -71,13 +71,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               );
             })}
           </nav>
-          <div className="flex items-center gap-2 justify-self-end">
+          <div aria-label="Your account" className="flex items-center gap-2 justify-self-end">
+            <AccountMenu />
           </div>
         </div>
       </header>
-      <aside aria-label="Your account" className="fixed bottom-5 left-4 z-40 rounded-full border border-border bg-panel p-1.5 shadow-sm sm:left-6">
-        <AccountMenu />
-      </aside>
       <main className={cn("agent-shell-main min-w-0 px-4 py-8 sm:px-6", reserveSidecarGutter && "2xl:pr-[456px]")}>
         {children}
       </main>
