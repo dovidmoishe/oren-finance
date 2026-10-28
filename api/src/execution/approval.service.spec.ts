@@ -20,6 +20,11 @@ function fixture(status = 'prepared') {
     createdAt: new Date(),
   } as ApprovalRow;
   const auth = {
+    signingRequest: jest.fn().mockReturnValue({
+      version: 1,
+      method: 'POST',
+      body: { transaction: 'unsigned' },
+    }),
     requireWallet: jest.fn().mockResolvedValue('user'),
     requireSigner: jest.fn().mockResolvedValue({
       userId: 'user',
@@ -98,12 +103,33 @@ function fixture(status = 'prepared') {
   };
 }
 describe('server trade approvals', () => {
+  it('requires request authorization before signing and returns only the stored canonical request for authorization', async () => {
+    const f = fixture();
+    await expect(f.service.approve('Bearer token', 'approval')).rejects.toThrow(
+      'Authorize this trade',
+    );
+    expect(f.auth.signTransaction).not.toHaveBeenCalled();
+    expect(f.rpc.inspect).not.toHaveBeenCalled();
+    await f.service.authorizationRequest('Bearer token', 'approval');
+    expect(f.auth.signingRequest).toHaveBeenCalledWith(
+      'privy-wallet',
+      'unsigned',
+      'approval',
+      f.row().expiresAt,
+    );
+    f.set({ expiresAt: new Date(0) });
+    f.auth.signingRequest.mockClear();
+    await expect(
+      f.service.authorizationRequest('Bearer token', 'approval'),
+    ).rejects.toThrow('expired');
+    expect(f.auth.signingRequest).not.toHaveBeenCalled();
+  });
   it('does not submit when expiry recovery wins the atomic signed-state transition', async () => {
     const f = fixture();
     f.approvals.patch.mockResolvedValueOnce(undefined as never);
-    await expect(f.service.approve('Bearer token', 'approval')).rejects.toThrow(
-      'expired before submission',
-    );
+    await expect(
+      f.service.approve('Bearer token', 'approval', 'request-signature'),
+    ).rejects.toThrow('expired before submission');
     expect(f.approvals.patch).toHaveBeenCalledWith(
       'approval',
       expect.objectContaining({ status: 'signed' }),
@@ -146,7 +172,7 @@ describe('server trade approvals', () => {
       token: 'jwt',
     });
     await expect(
-      f.service.approve('Bearer token', 'approval'),
+      f.service.approve('Bearer token', 'approval', 'request-signature'),
     ).rejects.toMatchObject({ status: 403 });
     expect(f.auth.signTransaction).not.toHaveBeenCalled();
   });
@@ -154,20 +180,20 @@ describe('server trade approvals', () => {
     const f = fixture();
     f.set({ expiresAt: new Date(0) });
     await expect(
-      f.service.approve('Bearer token', 'approval'),
+      f.service.approve('Bearer token', 'approval', 'request-signature'),
     ).rejects.toMatchObject({ status: 400 });
     f.set({ expiresAt: new Date(Date.now() + 60000) });
     f.rpc.inspect.mockRejectedValueOnce(new Error('simulation failed'));
-    await expect(f.service.approve('Bearer token', 'approval')).rejects.toThrow(
-      'simulation failed',
-    );
+    await expect(
+      f.service.approve('Bearer token', 'approval', 'request-signature'),
+    ).rejects.toThrow('simulation failed');
     expect(f.auth.signTransaction).not.toHaveBeenCalled();
   });
   it('claims once and never signs twice on concurrent approvals', async () => {
     const f = fixture();
     const outcomes = await Promise.allSettled([
-      f.service.approve('Bearer token', 'approval'),
-      f.service.approve('Bearer token', 'approval'),
+      f.service.approve('Bearer token', 'approval', 'request-signature'),
+      f.service.approve('Bearer token', 'approval', 'request-signature'),
     ]);
     expect(outcomes.filter((o) => o.status === 'fulfilled')).toHaveLength(1);
     expect(f.auth.signTransaction).toHaveBeenCalledTimes(1);
@@ -183,22 +209,30 @@ describe('server trade approvals', () => {
     f.rpc.validateSigned.mockImplementation(() => {
       throw new Error('message changed');
     });
-    await expect(f.service.approve('Bearer token', 'approval')).rejects.toThrow(
-      'message changed',
-    );
+    await expect(
+      f.service.approve('Bearer token', 'approval', 'request-signature'),
+    ).rejects.toThrow('message changed');
     expect(f.rpc.broadcast).not.toHaveBeenCalled();
     expect(f.row().status).toBe('failed');
   });
   it('preserves signed bytes after an uncertain send and retries only the same transaction', async () => {
     const f = fixture();
     f.rpc.broadcast.mockRejectedValueOnce(new Error('network timeout'));
-    const pending = await f.service.approve('Bearer token', 'approval');
+    const pending = await f.service.approve(
+      'Bearer token',
+      'approval',
+      'request-signature',
+    );
     expect(pending.status).toBe('signed');
-    const sent = await f.service.approve('Bearer token', 'approval');
+    const sent = await f.service.approve(
+      'Bearer token',
+      'approval',
+      'request-signature',
+    );
     expect(sent.status).toBe('submitted');
     expect(f.auth.signTransaction).toHaveBeenCalledTimes(1);
     expect(f.rpc.broadcast.mock.calls).toEqual([['signed'], ['signed']]);
-    await f.service.approve('Bearer token', 'approval');
+    await f.service.approve('Bearer token', 'approval', 'request-signature');
     expect(f.rpc.broadcast).toHaveBeenCalledTimes(2);
   });
   it('retains the wallet lock while a signed transaction can still land', async () => {

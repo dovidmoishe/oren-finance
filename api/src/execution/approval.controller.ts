@@ -8,7 +8,15 @@ import {
   ParseUUIDPipe,
   Post,
 } from '@nestjs/common';
-import { Equals, IsIn, IsString, MaxLength, MinLength } from 'class-validator';
+import {
+  Equals,
+  IsIn,
+  IsOptional,
+  IsString,
+  Matches,
+  MaxLength,
+  MinLength,
+} from 'class-validator';
 import { ApprovalService, type ApprovalKind } from './approval.service';
 class PrepareApprovalDto {
   @IsIn(['swap', 'limit', 'cancel']) kind!: ApprovalKind;
@@ -17,6 +25,12 @@ class PrepareApprovalDto {
 }
 class ConfirmApprovalDto {
   @Equals(true) approved!: true;
+  @IsOptional()
+  @IsString()
+  @MinLength(40)
+  @MaxLength(256)
+  @Matches(/^[A-Za-z0-9+/]+={0,2}$/)
+  authorizationSignature?: string;
 }
 @Controller('execution/approvals')
 export class ApprovalController {
@@ -36,7 +50,14 @@ export class ApprovalController {
   ) {
     if (body.approved !== true)
       throw new BadRequestException('Explicit approval is required');
-    return this.approvals.approve(auth, id);
+    return this.approvals.approve(auth, id, body.authorizationSignature);
+  }
+  @Get(':id/authorization')
+  authorizationRequest(
+    @Headers('authorization') auth: string | undefined,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.approvals.authorizationRequest(auth, id);
   }
   @Get('pending/:wallet')
   pending(
