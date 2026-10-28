@@ -1,4 +1,5 @@
 import { PrivyWalletAuth } from './privy-wallet-auth';
+import { Logger } from '@nestjs/common';
 
 const verify = jest.fn();
 const getUser = jest.fn();
@@ -91,6 +92,9 @@ describe('PrivyWalletAuth', () => {
     ).rejects.toMatchObject({ status: 403 });
   });
   it('authorizes sign-only with the current user JWT and approval idempotency key', async () => {
+    const warning = jest
+      .spyOn(Logger.prototype, 'warn')
+      .mockImplementation(() => {});
     signTransaction.mockResolvedValue({ signed_transaction: 'signed' });
     const expiry = new Date(Date.now() + 60000);
     await expect(
@@ -120,5 +124,47 @@ describe('PrivyWalletAuth', () => {
         expiry,
       ),
     ).rejects.toThrow('Privy could not authorize');
+    expect(warning.mock.calls.flat().join(' ')).not.toContain(
+      'secret-sdk-request-with-token',
+    );
+    warning.mockRestore();
+  });
+  it('returns a definite pre-submission failure and logs only safe provider metadata', async () => {
+    const warning = jest
+      .spyOn(Logger.prototype, 'warn')
+      .mockImplementation(() => {});
+    signTransaction.mockRejectedValue({
+      status: 403,
+      error: { code: 'authorization_denied', message: 'private-request-token' },
+      headers: new Headers({
+        'x-request-id': 'request-123',
+        authorization: 'private-request-token',
+      }),
+    });
+    try {
+      await auth.signTransaction(
+        'wallet-id',
+        'user-secret-token',
+        'unsigned',
+        'approval-id',
+        new Date(Date.now() + 60000),
+      );
+      throw new Error('Expected refusal');
+    } catch (error) {
+      expect((error as { getResponse(): unknown }).getResponse()).toEqual(
+        expect.objectContaining({
+          code: 'PRIVY_SIGNING_FAILED',
+          submissionState: 'not_submitted',
+        }),
+      );
+      expect(warning.mock.calls.flat().join(' ')).toContain(
+        'status=403 code=authorization_denied requestId=request-123',
+      );
+      expect(warning.mock.calls.flat().join(' ')).not.toMatch(
+        /private-request-token|user-secret-token/,
+      );
+    } finally {
+      warning.mockRestore();
+    }
   });
 });
