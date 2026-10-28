@@ -21,6 +21,7 @@ import type {
   QuoteResponse,
 } from '@/types';
 import { Button, cn } from '@/components/ui';
+import { useOrenAuth } from '@/components/auth/auth-context';
 import { AgentArtifacts } from './agent-artifacts';
 import { toolLabel } from './agent-utils';
 
@@ -159,6 +160,7 @@ export function EmptyConversation({
 }
 
 export function DisconnectedState({ onConnect }: { onConnect: () => void }) {
+  const auth = useOrenAuth();
   return (
     <div className="flex h-full flex-col justify-center rounded-[24px] bg-accent-pink-soft p-6">
       <div className="grid h-12 w-12 place-items-center rounded-[18px] bg-white">
@@ -166,12 +168,12 @@ export function DisconnectedState({ onConnect }: { onConnect: () => void }) {
       </div>
       <h3 className="mt-5 font-display text-2xl font-semibold">Your portfolio, in context.</h3>
       <p className="mt-2 text-sm leading-6 text-muted">
-        Connect your Solana wallet to restore private conversations and let Oren reason from your real positions.
+        {auth.authenticated ? auth.error || 'Preparing your wallet. Your conversations will be ready shortly.' : 'Sign in to restore your private conversations and explore your portfolio with Oren.'}
       </p>
-      <Button className="mt-6 h-11 rounded-[15px]" onClick={onConnect} variant="primary">
+      {(!auth.authenticated || auth.error) && <Button className="mt-6 h-11 rounded-[15px]" onClick={auth.authenticated ? () => void auth.createWallet() : onConnect} variant="primary">
         <Icon icon={Wallet02Icon} size={16} />
-        Connect wallet
-      </Button>
+        {auth.authenticated ? 'Retry wallet setup' : 'Sign in'}
+      </Button>}
     </div>
   );
 }

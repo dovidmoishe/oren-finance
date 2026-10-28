@@ -1,5 +1,39 @@
 @import "tailwindcss";
 
+/* Native top-layer surfaces retain Escape, outside-click and focus behavior. */
+.oren-account-menu {
+  inset: auto auto 5rem 1rem;
+  margin: 0;
+  transform-origin: bottom left;
+  transition: opacity 150ms ease, transform 150ms cubic-bezier(0.22, 1, 0.36, 1), display 150ms allow-discrete, overlay 150ms allow-discrete;
+  opacity: 0;
+  transform: scale(.97);
+}
+.oren-account-menu:popover-open {
+  opacity: 1;
+  transform: scale(1);
+  transition-duration: 250ms;
+}
+.oren-deposit-modal {
+  opacity: 0;
+  transform: scale(.96);
+  transition: opacity 150ms ease, transform 150ms cubic-bezier(0.22, 1, 0.36, 1), display 150ms allow-discrete, overlay 150ms allow-discrete;
+}
+.oren-deposit-modal[open] {
+  opacity: 1;
+  transform: scale(1);
+  transition-duration: 250ms;
+}
+.oren-deposit-modal::backdrop { background: rgb(0 0 0 / .24); backdrop-filter: blur(8px); }
+@starting-style {
+  .oren-account-menu:popover-open { opacity: 0; transform: scale(.97); }
+  .oren-deposit-modal[open] { opacity: 0; transform: scale(.96); }
+}
+@media (min-width: 640px) { .oren-account-menu { left: 1.5rem; } }
+@media (prefers-reduced-motion: reduce) {
+  .oren-account-menu, .oren-deposit-modal { transition: none; transform: none; }
+}
+
 :root {
   --background: #ffffff;
   --foreground: #171717;

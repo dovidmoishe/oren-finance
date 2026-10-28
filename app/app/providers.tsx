@@ -1,47 +1,35 @@
 "use client";
 
-import { WalletAdapterNetwork } from "@solana/wallet-adapter-base";
-import {
-  ConnectionProvider,
-  WalletProvider,
-  useWallet,
-} from "@solana/wallet-adapter-react";
-import { WalletModalProvider } from "@solana/wallet-adapter-react-ui";
-import { PhantomWalletAdapter, SolflareWalletAdapter } from "@solana/wallet-adapter-wallets";
+import { PrivyProvider } from "@privy-io/react-auth";
+import { toSolanaWalletConnectors } from "@privy-io/react-auth/solana";
+import { ConnectionProvider, WalletProvider } from "@solana/wallet-adapter-react";
+import { WalletModalContext } from "@solana/wallet-adapter-react-ui";
 import { clusterApiUrl } from "@solana/web3.js";
-import { useEffect, useMemo } from "react";
-import { useWalletStore } from "@/store";
+import { PrivySession } from "@/components/auth/privy-session";
 
-function WalletBridge() {
-  const { publicKey, connected, connecting, disconnecting, wallet } = useWallet();
-  const setWalletState = useWalletStore((state) => state.setWalletState);
-
-  useEffect(() => {
-    setWalletState({
-      address: publicKey?.toBase58(),
-      connected,
-      connecting,
-      disconnecting,
-      adapterName: wallet?.adapter.name,
-    });
-  }, [connected, connecting, disconnecting, publicKey, setWalletState, wallet?.adapter.name]);
-
-  return null;
-}
+const connectors = toSolanaWalletConnectors({ shouldAutoConnect: false });
 
 export function AppProviders({ children }: { children: React.ReactNode }) {
-  const endpoint =
-    process.env.NEXT_PUBLIC_SOLANA_RPC_URL ?? clusterApiUrl(WalletAdapterNetwork.Mainnet);
-  const wallets = useMemo(() => [new PhantomWalletAdapter(), new SolflareWalletAdapter()], []);
-
+  const appId = process.env.NEXT_PUBLIC_PRIVY_APP_ID?.trim();
+  const endpoint = process.env.NEXT_PUBLIC_SOLANA_RPC_URL?.trim() || clusterApiUrl("mainnet-beta");
   return (
     <ConnectionProvider endpoint={endpoint}>
-      <WalletProvider wallets={wallets} autoConnect>
-        <WalletModalProvider>
-          <WalletBridge />
-          {children}
-        </WalletModalProvider>
-      </WalletProvider>
+      {appId ? (
+        <PrivyProvider appId={appId} config={{
+          loginMethods: ["email", "wallet"],
+          appearance: { theme: "light", accentColor: "#171717", walletChainType: "solana-only" },
+          embeddedWallets: { solana: { createOnLogin: "off" }, showWalletUIs: true },
+          externalWallets: { solana: { connectors } },
+        }}>
+          <PrivySession>{children}</PrivySession>
+        </PrivyProvider>
+      ) : (
+        <WalletProvider wallets={[]} autoConnect={false}>
+          <WalletModalContext.Provider value={{ visible: false, setVisible() {} }}>
+            {children}
+          </WalletModalContext.Provider>
+        </WalletProvider>
+      )}
     </ConnectionProvider>
   );
 }

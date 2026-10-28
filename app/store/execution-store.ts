@@ -1,6 +1,7 @@
 "use client";
 
 import { create } from "zustand";
+import { sessionSetter } from "@/services/wallet-session";
 import { confirmExecution, createBasket, getExecutionQuote, prepareBasket, prepareExecution } from "@/services";
 import type {
   BasketIntent,
@@ -51,10 +52,11 @@ export const useExecutionStore = create<ExecutionState>((set, get) => ({
   isLoading: false,
   isRefreshingQuote: false,
   async quoteTrade(intent) {
-    set({ isLoading: true, error: undefined, prepared: undefined, status: undefined });
+    const update = sessionSetter(set);
+    update({ isLoading: true, error: undefined, prepared: undefined, status: undefined });
     try {
       const quote = await getExecutionQuote(intent);
-      set({
+      update({
         quote,
         lastQuoteIntent: intent,
         isLoading: false,
@@ -62,7 +64,7 @@ export const useExecutionStore = create<ExecutionState>((set, get) => ({
       });
       return quote;
     } catch (error) {
-      set({
+      update({
         error: error instanceof Error ? error.message : "Unable to get quote",
         isLoading: false,
         isRefreshingQuote: false,
@@ -71,12 +73,13 @@ export const useExecutionStore = create<ExecutionState>((set, get) => ({
     }
   },
   async refreshQuote() {
+    const update = sessionSetter(set);
     const intent = get().lastQuoteIntent;
     if (!intent) return undefined;
-    set({ isRefreshingQuote: true, error: undefined });
+    update({ isRefreshingQuote: true, error: undefined });
     try {
       const quote = await getExecutionQuote(intent);
-      set({
+      update({
         quote,
         lastQuoteIntent: intent,
         prepared: undefined,
@@ -86,7 +89,7 @@ export const useExecutionStore = create<ExecutionState>((set, get) => ({
       });
       return quote;
     } catch (error) {
-      set({
+      update({
         error: error instanceof Error ? error.message : "Unable to refresh quote",
         isRefreshingQuote: false,
       });
@@ -94,39 +97,43 @@ export const useExecutionStore = create<ExecutionState>((set, get) => ({
     }
   },
   async prepareTrade(request) {
-    set({ isLoading: true, error: undefined });
+    const update = sessionSetter(set);
+    update({ isLoading: true, error: undefined });
     try {
       const prepared = await prepareExecution(request);
-      set({ prepared, isLoading: false });
+      update({ prepared, isLoading: false });
     } catch (error) {
-      set({ error: error instanceof Error ? error.message : "Unable to prepare trade", isLoading: false });
+      update({ error: error instanceof Error ? error.message : "Unable to prepare trade", isLoading: false });
     }
   },
   async confirmTrade(wallet, executionId, quoteId, signature) {
-    set({ isLoading: true, error: undefined });
+    const update = sessionSetter(set);
+    update({ isLoading: true, error: undefined });
     try {
       const status = await confirmExecution({ wallet, executionId, quoteId, signature });
-      set({ status, isLoading: false });
+      update({ status, isLoading: false });
     } catch (error) {
-      set({ error: error instanceof Error ? error.message : "Unable to confirm trade", isLoading: false });
+      update({ error: error instanceof Error ? error.message : "Unable to confirm trade", isLoading: false });
     }
   },
   async buildBasket(intent) {
-    set({ isLoading: true, error: undefined, preparedBasket: undefined });
+    const update = sessionSetter(set);
+    update({ isLoading: true, error: undefined, preparedBasket: undefined });
     try {
       const basket = await createBasket(intent);
-      set({ basket, isLoading: false });
+      update({ basket, isLoading: false });
     } catch (error) {
-      set({ error: error instanceof Error ? error.message : "Unable to create basket", isLoading: false });
+      update({ error: error instanceof Error ? error.message : "Unable to create basket", isLoading: false });
     }
   },
   async prepareBasketTrades(intent) {
-    set({ isLoading: true, error: undefined });
+    const update = sessionSetter(set);
+    update({ isLoading: true, error: undefined });
     try {
       const preparedBasket = await prepareBasket(intent);
-      set({ preparedBasket, isLoading: false });
+      update({ preparedBasket, isLoading: false });
     } catch (error) {
-      set({ error: error instanceof Error ? error.message : "Unable to prepare basket", isLoading: false });
+      update({ error: error instanceof Error ? error.message : "Unable to prepare basket", isLoading: false });
     }
   },
   seedQuote(quote, intent) {

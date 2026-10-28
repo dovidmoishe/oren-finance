@@ -1,6 +1,7 @@
 "use client";
 
 import { create } from "zustand";
+import { sessionSetter } from "@/services/wallet-session";
 import { getLeaderboard, getTraderProfile, prepareCopyPortfolio } from "@/services";
 import type {
   CopyPortfolioProposal,
@@ -47,13 +48,14 @@ export const useSocialStore = create<SocialState>((set, get) => ({
     }
   },
   async prepareCopy(input) {
-    set({ isCopying: true, copyError: undefined, copyProposal: undefined });
+    const update = sessionSetter(set);
+    update({ isCopying: true, copyError: undefined, copyProposal: undefined });
     try {
       const copyProposal = await prepareCopyPortfolio(input);
-      set({ copyProposal, isCopying: false });
+      update({ copyProposal, isCopying: false });
       return copyProposal;
     } catch (error) {
-      set({ copyError: error instanceof Error ? error.message : "Unable to prepare copy proposal", isCopying: false });
+      update({ copyError: error instanceof Error ? error.message : "Unable to prepare copy proposal", isCopying: false });
       return undefined;
     }
   },
