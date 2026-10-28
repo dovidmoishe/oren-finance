@@ -15,7 +15,7 @@ interface RouteErrorPageProps {
 export function RouteErrorPage({
   reset,
   title = "We lost the trail for a moment.",
-  description = "Oren couldn’t finish loading this page. Your portfolio and wallet are untouched—try the route again or head back to the dashboard.",
+  description = "Oren couldn’t finish loading this page. If you were submitting a trade, check your wallet activity before trying again.",
 }: RouteErrorPageProps) {
   return (
     <main className="min-h-screen bg-[#faf9f5] p-3 text-foreground sm:p-5">
@@ -46,7 +46,7 @@ export function RouteErrorPage({
             </div>
           </div>
 
-          <p className="text-xs leading-5 text-[#8d857b]">Oren proposes. Your wallet approves. Nothing moved while this page was unavailable.</p>
+          <p className="text-xs leading-5 text-[#8d857b]">Oren proposes. Your wallet approves. A page error does not tell us whether a transaction was submitted.</p>
         </div>
 
         <div className="relative min-h-[42vh] overflow-hidden border-t border-black/8 lg:min-h-0 lg:border-l lg:border-t-0">
