@@ -1,6 +1,6 @@
 "use client";
 
-import { useLogin, usePrivy } from "@privy-io/react-auth";
+import { useAuthorizationSignature, useLogin, usePrivy } from "@privy-io/react-auth";
 import { usePathname } from "next/navigation";
 import { useCreateWallet, useSignMessage, useWallets } from "@privy-io/react-auth/solana";
 import { WalletContext, type WalletContextState } from "@solana/wallet-adapter-react";
@@ -8,7 +8,8 @@ import { WalletModalContext } from "@solana/wallet-adapter-react-ui";
 import { PublicKey } from "@solana/web3.js";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useAgentStore, useExecutionStore, usePortfolioStore, useSocialStore, useVaultStore, useWalletStore } from "@/store";
-import { invalidateWalletSession } from "@/services/wallet-session";
+import { invalidateWalletSession, walletSessionIsCurrent } from "@/services/wallet-session";
+import { getApprovalAuthorizationRequest } from "@/services/approval-service";
 import { createPrivySigner } from "@/services/privy-signer";
 import { resolveEmbeddedSolanaAccount, resolveSolanaWallet, type WalletSelection } from "@/services/wallet-selection";
 import { AuthContext } from "./auth-context";
@@ -35,6 +36,7 @@ function clearWalletData() {
 
 export function PrivySession({ children }: { children: React.ReactNode }) {
   const { ready, authenticated, user, logout, getAccessToken } = usePrivy();
+  const { generateAuthorizationSignature } = useAuthorizationSignature();
   const pathname = usePathname();
   const [depositOpen, setDepositOpen] = useState(false);
   useLogin({ onComplete: ({ isNewUser, wasAlreadyAuthenticated }) => {
@@ -150,6 +152,15 @@ export function PrivySession({ children }: { children: React.ReactNode }) {
       configured: true, ready, authenticated: authenticated && !signingOut,
       address, busy: busy || (setup?.userId === user?.id && setup?.pending) || false,
       error: error || (setup && setup.userId === user?.id ? setup.error : undefined), open, signOut, getAccessToken,
+      async authorizeTrade(id, token) {
+        const current = walletSessionIsCurrent();
+        if (!ready || !authenticated || !address) throw new Error('Sign in before approving a trade.');
+        const request = await getApprovalAuthorizationRequest(id, token);
+        if (!current()) throw new Error('Your account changed. Review the trade again.');
+        const { signature } = await generateAuthorizationSignature(request);
+        if (!current()) throw new Error('Your account changed. Review the trade again.');
+        return signature;
+      },
       email: user?.email?.address,
       walletPreparing: authenticated && !address && !error && !(setup?.userId === user?.id && setup?.error) && !signingOut,
       depositOpen, openDeposit: () => setDepositOpen(true), closeDeposit: () => setDepositOpen(false),

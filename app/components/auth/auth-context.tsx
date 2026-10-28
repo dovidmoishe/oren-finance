@@ -20,6 +20,7 @@ export interface OrenAuth {
   selectWallet: (address: string) => void;
   createWallet: () => Promise<void>;
   getAccessToken: () => Promise<string | null>;
+  authorizeTrade: (id: string, token: string | null) => Promise<string>;
 }
 
 export const AuthContext = createContext<OrenAuth>({
@@ -27,5 +28,6 @@ export const AuthContext = createContext<OrenAuth>({
   walletPreparing: false, depositOpen: false, openDeposit() {}, closeDeposit() {},
   open() {}, async signOut() {}, selectWallet() {}, async createWallet() {},
   async getAccessToken() { return null; },
+  async authorizeTrade() { throw new Error('Sign in before approving a trade.'); },
 });
 export const useOrenAuth = () => useContext(AuthContext);

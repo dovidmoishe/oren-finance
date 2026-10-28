@@ -32,14 +32,21 @@ export function pendingApprovals(): { id: string; wallet: string }[] {
 export function forgetApproval(id: string) {
   try { window.localStorage.setItem(PENDING_KEY, JSON.stringify(pendingApprovals().filter(item => item.id !== id))); window.dispatchEvent(new Event('oren-approvals')); } catch { /* Server retains the durable state. */ }
 }
-export function approveServerTrade(id: string, token: string | null, wallet: string) {
+export function approveServerTrade(id: string, token: string | null, wallet: string, authorizationSignature?: string) {
   const authHeaders = headers(token);
   try {
     const previous = pendingApprovals().filter(item => item.id !== id);
     window.localStorage.setItem(PENDING_KEY, JSON.stringify([...previous.slice(-49), { id, wallet }]));
     window.dispatchEvent(new Event('oren-approvals'));
   } catch { /* Server remains the source of truth for approval state. */ }
-  return apiRequest<TradeApproval>(`/execution/approvals/${encodeURIComponent(id)}/approve`, { method: 'POST', body: { approved: true }, headers: authHeaders });
+  return apiRequest<TradeApproval>(`/execution/approvals/${encodeURIComponent(id)}/approve`, { method: 'POST', body: { approved: true, authorizationSignature }, headers: authHeaders });
+}
+export interface ApprovalAuthorizationRequest {
+  version: 1; method: 'POST'; url: string; body: Record<string, unknown>;
+  headers: { 'privy-app-id': string; 'privy-idempotency-key': string; 'privy-request-expiry': string };
+}
+export function getApprovalAuthorizationRequest(id: string, token: string | null) {
+  return apiRequest<ApprovalAuthorizationRequest>(`/execution/approvals/${encodeURIComponent(id)}/authorization`, { headers: headers(token) });
 }
 export function getServerApproval(id: string, token: string | null) {
   return apiRequest<TradeApproval>(`/execution/approvals/${encodeURIComponent(id)}`, { headers: headers(token) });
