@@ -29,8 +29,8 @@ function DetailSkeleton() {
     <div className="mx-auto max-w-[1360px] space-y-4 pb-12">
       <Skeleton className="h-8 w-48" />
       <div className="grid items-stretch gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
-        <Skeleton className="h-[400px]" />
-        <Skeleton className="h-[400px]" />
+        <Skeleton className="h-[320px]" />
+        <Skeleton className="h-[320px]" />
       </div>
       <Skeleton className="h-72 rounded-[20px]" />
     </div>
