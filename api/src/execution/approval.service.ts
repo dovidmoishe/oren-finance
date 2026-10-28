@@ -126,10 +126,27 @@ export class ApprovalService {
     return { row, owner };
   }
 
-  async approve(authorization: string | undefined, id: string) {
+  async authorizationRequest(authorization: string | undefined, id: string) {
+    const { row } = await this.owned(authorization, id);
+    if (row.status !== 'prepared' || row.expiresAt.getTime() <= Date.now())
+      throw new BadRequestException(
+        'Approval expired or already processed. Review a fresh quote.',
+      );
+    return this.auth.signingRequest(
+      row.walletId,
+      row.transaction,
+      row.id,
+      row.expiresAt,
+    );
+  }
+
+  async approve(
+    authorization: string | undefined,
+    id: string,
+    authorizationSignature?: string,
+  ) {
     const owned = await this.owned(authorization, id);
     let row = owned.row;
-    const owner = owned.owner;
     if (row.status === 'submitted') {
       await this.track(row);
       return this.view(row);
@@ -144,6 +161,10 @@ export class ApprovalService {
         'This approval cannot be used again. Request a fresh quote.',
       );
     if (row.status === 'prepared') {
+      if (!authorizationSignature)
+        throw new BadRequestException(
+          'Authorize this trade in Oren before confirming.',
+        );
       if (row.expiresAt.getTime() <= Date.now())
         throw new BadRequestException(
           'Approval expired. Review a fresh quote.',
@@ -163,7 +184,7 @@ export class ApprovalService {
       try {
         const signed = await this.auth.signTransaction(
           row.walletId,
-          owner.token,
+          authorizationSignature,
           row.transaction,
           row.id,
           row.expiresAt,

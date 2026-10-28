@@ -11,7 +11,10 @@ export class PrivyWalletAuth {
   private readonly logger = new Logger(PrivyWalletAuth.name);
   private readonly client?: PrivyClient;
 
-  constructor(appId?: string, appSecret?: string) {
+  constructor(
+    private readonly appId?: string,
+    appSecret?: string,
+  ) {
     if (appId && appSecret) this.client = new PrivyClient({ appId, appSecret });
   }
 
@@ -97,9 +100,34 @@ export class PrivyWalletAuth {
     };
   }
 
+  signingRequest(
+    walletId: string,
+    transaction: string,
+    approvalId: string,
+    expiresAt: Date,
+  ) {
+    if (!this.appId)
+      throw new ServiceUnavailableException('Authentication is not configured');
+    return {
+      version: 1 as const,
+      method: 'POST' as const,
+      url: `https://api.privy.io/v1/wallets/${encodeURIComponent(walletId)}/rpc`,
+      body: {
+        method: 'signTransaction',
+        chain_type: 'solana',
+        params: { transaction, encoding: 'base64' },
+      },
+      headers: {
+        'privy-app-id': this.appId,
+        'privy-idempotency-key': approvalId,
+        'privy-request-expiry': String(expiresAt.getTime()),
+      },
+    };
+  }
+
   async signTransaction(
     walletId: string,
-    token: string,
+    authorizationSignature: string,
     transaction: string,
     approvalId: string,
     expiresAt: Date,
@@ -112,7 +140,7 @@ export class PrivyWalletAuth {
         .solana()
         .signTransaction(walletId, {
           transaction,
-          authorization_context: { user_jwts: [token] },
+          authorization_context: { signatures: [authorizationSignature] },
           idempotency_key: approvalId,
           request_expiry: expiresAt.getTime(),
         });

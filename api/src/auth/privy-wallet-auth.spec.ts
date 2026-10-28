@@ -91,7 +91,7 @@ describe('PrivyWalletAuth', () => {
       auth.requireSigner('Bearer token', 'owned'),
     ).rejects.toMatchObject({ status: 403 });
   });
-  it('authorizes sign-only with the current user JWT and approval idempotency key', async () => {
+  it('authorizes sign-only with the exact request signature and approval idempotency key', async () => {
     const warning = jest
       .spyOn(Logger.prototype, 'warn')
       .mockImplementation(() => {});
@@ -108,7 +108,7 @@ describe('PrivyWalletAuth', () => {
     ).resolves.toBe('signed');
     expect(signTransaction).toHaveBeenCalledWith('wallet-id', {
       transaction: 'unsigned',
-      authorization_context: { user_jwts: ['token'] },
+      authorization_context: { signatures: ['token'] },
       idempotency_key: 'approval-id',
       request_expiry: expiry.getTime(),
     });
