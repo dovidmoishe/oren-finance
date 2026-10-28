@@ -1,6 +1,7 @@
 "use client";
 
 import { create } from "zustand";
+import { sessionSetter } from "@/services/wallet-session";
 import {
   getPortfolio,
   getPortfolioActivity,
@@ -41,46 +42,51 @@ export const usePortfolioStore = create<PortfolioState>((set) => ({
   isLoading: false,
   isCalendarLoading: false,
   async loadPortfolio(wallet) {
-    set({ wallet, isLoading: true, error: undefined });
+    const update = sessionSetter(set);
+    update({ wallet, isLoading: true, error: undefined });
     try {
       const portfolio = await getPortfolio(wallet);
-      set({ portfolio, isLoading: false });
+      update({ portfolio, isLoading: false });
     } catch (error) {
-      set({ error: error instanceof Error ? error.message : "Unable to load portfolio", isLoading: false });
+      update({ error: error instanceof Error ? error.message : "Unable to load portfolio", isLoading: false });
     }
   },
   async loadHistory(wallet, range) {
+    const update = sessionSetter(set);
     try {
       const history = await getPortfolioHistory(wallet, range);
-      set({ history });
+      update({ history });
     } catch (error) {
-      set({ error: error instanceof Error ? error.message : "Unable to load portfolio history" });
+      update({ error: error instanceof Error ? error.message : "Unable to load portfolio history" });
     }
   },
   async loadActivity(wallet) {
+    const update = sessionSetter(set);
     try {
       const activity = await getPortfolioActivity(wallet);
-      set({ activity });
+      update({ activity });
     } catch (error) {
-      set({ error: error instanceof Error ? error.message : "Unable to load portfolio activity" });
+      update({ error: error instanceof Error ? error.message : "Unable to load portfolio activity" });
     }
   },
   async loadCalendar(wallet, input) {
-    set({ wallet, isCalendarLoading: true, error: undefined });
+    const update = sessionSetter(set);
+    update({ wallet, isCalendarLoading: true, error: undefined });
     try {
       const calendar = await getTradingCalendar(wallet, input);
-      set({ calendar, isCalendarLoading: false });
+      update({ calendar, isCalendarLoading: false });
     } catch (error) {
-      set({ error: error instanceof Error ? error.message : "Unable to load trading calendar", isCalendarLoading: false });
+      update({ error: error instanceof Error ? error.message : "Unable to load trading calendar", isCalendarLoading: false });
     }
   },
   async loadCalendarDay(wallet, date, input) {
-    set({ isCalendarLoading: true, error: undefined });
+    const update = sessionSetter(set);
+    update({ isCalendarLoading: true, error: undefined });
     try {
       const calendarDay = await getTradingCalendarDay(wallet, date, input);
-      set({ calendarDay, isCalendarLoading: false });
+      update({ calendarDay, isCalendarLoading: false });
     } catch (error) {
-      set({ error: error instanceof Error ? error.message : "Unable to load calendar day", isCalendarLoading: false });
+      update({ error: error instanceof Error ? error.message : "Unable to load calendar day", isCalendarLoading: false });
     }
   },
   reset() {

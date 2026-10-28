@@ -1,6 +1,6 @@
 "use client";
 
-import { RefreshCwIcon, Wallet02Icon } from "@hugeicons/core-free-icons";
+import { RefreshCwIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
@@ -27,6 +27,7 @@ import {
   formatRelativeTime,
 } from "@/components/ui";
 import { usePortfolioRefresh } from "@/hooks/use-portfolio-refresh";
+import { useOrenAuth } from "@/components/auth/auth-context";
 import { usePortfolioStore, useWalletStore } from "@/store";
 import type { PortfolioActivityItem, PortfolioPosition, PortfolioRange } from "@/types";
 
@@ -212,6 +213,7 @@ function ReturnPanel({
 }
 
 export function PortfolioDashboard() {
+  const auth = useOrenAuth();
   const wallet = useWalletStore((state) => state.address);
   const connected = useWalletStore((state) => state.connected);
   const portfolio = usePortfolioStore((state) => state.portfolio);
@@ -271,13 +273,12 @@ export function PortfolioDashboard() {
         </div>
         <EmptyState
           action={
-            <div className="inline-flex items-center gap-2 rounded-[12px] bg-foreground px-4 py-2 text-sm font-semibold text-white">
-              <HugeiconsIcon color="currentColor" icon={Wallet02Icon} size={16} strokeWidth={1.8} />
-              Connect from the header
-            </div>
+            !auth.ready ? null : auth.authenticated
+              ? auth.error && <Button disabled={auth.busy} onClick={() => void auth.createWallet()}>Retry wallet setup</Button>
+              : <Button onClick={auth.open}>Sign in</Button>
           }
-          description="Connect a Solana wallet to load balances, locked positions, activity, and Oren portfolio history."
-          title="Connect wallet to open your dashboard"
+          description={!auth.ready ? "Restoring your session and wallet." : auth.authenticated ? auth.error || "Your account is signed in. Your portfolio will appear as soon as your wallet is ready." : "Sign in to see your balances, positions, and activity."}
+          title={!auth.ready ? "Restoring your account…" : auth.authenticated ? auth.error ? "Wallet setup needs a retry" : "Preparing your wallet…" : "Sign in to your dashboard"}
         />
       </div>
     );

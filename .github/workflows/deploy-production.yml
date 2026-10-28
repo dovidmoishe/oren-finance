@@ -63,6 +63,8 @@ jobs:
           file: ./app/Dockerfile
           build-args: |
             NEXT_PUBLIC_OREN_API_URL=${{ vars.PUBLIC_API_ORIGIN || 'https://api.oren.finance' }}/api
+            NEXT_PUBLIC_PRIVY_APP_ID=${{ vars.PRIVY_APP_ID }}
+            NEXT_PUBLIC_SOLANA_RPC_URL=${{ vars.PUBLIC_SOLANA_RPC_URL }}
           push: true
           tags: ghcr.io/${{ github.repository_owner }}/oren-app:${{ steps.release.outputs.image_tag }}
           cache-from: type=gha,scope=oren-app

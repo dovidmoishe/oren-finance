@@ -23,6 +23,9 @@ DEPLOYMENT.md
 *id_ed25519*
 *id_rsa*
 
+oren-launch/
+panta-motion/
+
 # Logs & OS
 logs/
 *.log
