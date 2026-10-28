@@ -9,6 +9,8 @@ const SIGNING_STATUSES: TradeFlowStatus[] = [
   'preparing',
   'signing',
   'confirming',
+  'submitted',
+  'confirmed',
 ];
 
 function isQuoteExpired(quote?: QuoteResponse) {

@@ -19,6 +19,7 @@ import { useExecutionStore, usePortfolioStore } from "@/store";
 import type { LimitOrderProposal, LimitOrderRecord, LimitZone, StockDetail, TradeSide } from "@/types";
 import { QuoteReviewModal } from "./quote-review-modal";
 import { LimitOrderReviewModal } from "./limit-order-review-modal";
+import { CancelOrderReviewModal } from "./cancel-order-review-modal";
 import { LimitOrderToggle, OrderControls } from "./order-controls";
 
 type OrderMode = "market" | "limit";
@@ -158,6 +159,7 @@ export function StockTradeTicket({ stock, limitZones, onConfirmed }: StockTradeT
   const [reviewOpen, setReviewOpen] = useState(false);
   const [limitProposal, setLimitProposal] = useState<LimitOrderProposal>();
   const [limitReviewOpen, setLimitReviewOpen] = useState(false);
+  const [cancelReviewKey, setCancelReviewKey] = useState<string>();
   const [limitBusy, setLimitBusy] = useState(false);
   const autoQuoteKeyRef = useRef<string | undefined>(undefined);
   const tradableRoutes = stock.variants.filter((variant) => variant.tradable).length;
@@ -375,8 +377,8 @@ export function StockTradeTicket({ stock, limitZones, onConfirmed }: StockTradeT
     await requestQuote({ openReview: true });
   };
 
-  const handlePrepareSignConfirm = async () => {
-    await executeQuote();
+  const handlePrepareSignConfirm = async (approvalId: string) => {
+    await executeQuote(activeQuote, approvalId);
   };
 
   const handleProposeLimit = async () => {
@@ -606,7 +608,7 @@ export function StockTradeTicket({ stock, limitZones, onConfirmed }: StockTradeT
                   </div>
                   <Button
                     disabled={limitFlowStatus === "preparing" || limitFlowStatus === "signing"}
-                    onClick={() => void cancelLimitOrder(order.orderKey)}
+                    onClick={() => { resetLimitFeedback(); setCancelReviewKey(order.orderKey); }}
                     size="sm"
                     variant="secondary"
                   >
@@ -670,7 +672,10 @@ export function StockTradeTicket({ stock, limitZones, onConfirmed }: StockTradeT
         confirmation={confirmation}
         error={executionError}
         isRefreshingQuote={isRefreshingQuote}
-        onClose={() => setReviewOpen(false)}
+        onClose={() => {
+          setReviewOpen(false);
+          if (flowStatus === 'confirmed') { resetTrade(); resetFeedback(); autoQuoteKeyRef.current = undefined; }
+        }}
         onRefreshQuote={() => void refreshQuote()}
         onSign={handlePrepareSignConfirm}
         open={reviewOpen}
@@ -684,14 +689,16 @@ export function StockTradeTicket({ stock, limitZones, onConfirmed }: StockTradeT
         confirmation={limitConfirmation}
         error={limitError}
         onClose={() => setLimitReviewOpen(false)}
-        onSign={async () => {
+        onSign={async (approvalId) => {
           if (!limitProposal) return;
-          await executeLimitOrder(limitProposal);
+          await executeLimitOrder(limitProposal, approvalId);
         }}
         open={limitReviewOpen}
         proposal={limitProposal}
         status={limitFlowStatus === "idle" ? "quoted" : limitFlowStatus}
       />
+      {cancelReviewKey ? <CancelOrderReviewModal orderKey={cancelReviewKey} status={limitFlowStatus} error={limitError}
+        onClose={() => setCancelReviewKey(undefined)} onConfirm={id => cancelLimitOrder(cancelReviewKey, id)} /> : null}
     </div>
   );
 }

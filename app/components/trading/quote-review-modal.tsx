@@ -11,6 +11,7 @@ import {
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Button, Modal, Toast, cn, formatCurrency, formatNumber } from "@/components/ui";
 import type { ExecutionStatus, QuoteResponse } from "@/types";
+import { useApprovalReview } from "@/hooks/use-approval-review";
 
 type TradeFlowStatus = "idle" | "quoted" | "preparing" | "signing" | "confirming" | "submitted" | "confirmed" | "failed";
 
@@ -25,7 +26,7 @@ interface QuoteReviewModalProps {
   refreshFailed?: boolean;
   onRefreshQuote?: () => void;
   onClose: () => void;
-  onSign: () => Promise<void>;
+  onSign: (approvalId: string) => Promise<void>;
 }
 
 function formatExpiryLabel(secondsLeft: number, refreshing: boolean) {
@@ -55,24 +56,27 @@ function Step({ active, done, label }: { active?: boolean; done?: boolean; label
 
 export function QuoteReviewModal({
   open,
-  quote,
+  quote: requestedQuote,
   status,
   confirmation,
   error,
-  secondsLeft = 0,
+  secondsLeft: quoteSecondsLeft,
   isRefreshingQuote = false,
   refreshFailed = false,
   onRefreshQuote,
   onClose,
   onSign,
 }: QuoteReviewModalProps) {
+  const review = useApprovalReview('swap', requestedQuote?.id, open);
+  const quote = review.approval?.details.quote ?? requestedQuote;
+  const secondsLeft = quoteSecondsLeft ?? review.secondsLeft;
   const expired = Boolean(quote && secondsLeft <= 0);
   const isBusy = status === "preparing" || status === "signing" || status === "confirming";
   const signed = status === "confirming" || status === "submitted" || status === "confirmed";
   const confirmed = status === "confirmed";
   const submitted = status === "submitted";
   const waitingOnRefresh = expired || isRefreshingQuote;
-  const signDisabled = !quote || waitingOnRefresh || isBusy || submitted || confirmed || refreshFailed;
+  const signDisabled = !quote || !review.approval || review.approval.status !== 'prepared' || review.expired || waitingOnRefresh || isBusy || submitted || confirmed || refreshFailed;
   const minimumReceived = quote
     ? quote.outputAmount * (1 - quote.slippageBps / 10_000)
     : 0;
@@ -101,7 +105,7 @@ export function QuoteReviewModal({
             </div>
             <div className="mt-5 grid grid-cols-3 gap-2">
               <Step done label="Quote" />
-              <Step active={status === "preparing" || status === "signing"} done={signed || confirmed} label="Sign" />
+              <Step active={status === "preparing" || status === "signing"} done={signed || confirmed} label="Approve" />
               <Step active={status === "confirming" || status === "submitted"} done={confirmed} label="Verify" />
             </div>
           </div>
@@ -113,7 +117,7 @@ export function QuoteReviewModal({
             <Row label="Estimated price" value={formatCurrency(quote.estimatedPriceUsd)} />
             <Row label="Price impact" value={`${formatNumber(quote.priceImpactPercent, 2)}%`} />
             <Row label="Slippage" value={`${formatNumber(quote.slippageBps / 100, 2)}%`} />
-            <Row label="Network fee" value={quote.networkFeeUsd ? formatCurrency(quote.networkFeeUsd, 4) : "Estimated by wallet"} />
+            <Row label="Estimated network fee" value={review.approval ? `${Number(review.approval.feeLamports) / 1e9} SOL` : "Preparing…"} />
             <Row label="Quote expiry" value={formatExpiryLabel(secondsLeft, isRefreshingQuote)} />
           </div>
 
@@ -126,13 +130,16 @@ export function QuoteReviewModal({
           ) : null}
 
           {error ? <Toast title="Trade error" description={error} tone="error" /> : null}
+          {review.error ? <Toast title="Unable to prepare trade" description={review.error} tone="error" /> : null}
+          {review.error ? <Button onClick={() => void review.prepare()} disabled={isBusy} variant="secondary">Retry preparation</Button> : null}
+          {review.expired && !signed ? <Toast title="Approval expired" description="Request a fresh quote before confirming." tone="info" /> : null}
 
           {confirmation ? (
             <div className="rounded-[18px] border border-green-200 bg-green-50 p-4 text-sm text-green-900">
               <div className="flex items-start gap-3">
                 <HugeiconsIcon className="mt-0.5 shrink-0" color="currentColor" icon={CheckmarkCircle01Icon} size={16} strokeWidth={1.8} />
                 <div>
-                  <p className="font-semibold">Transaction submitted</p>
+                  <p className="font-semibold">Tracking transaction</p>
                   <p className="mt-1 text-xs opacity-75">Oren is verifying the fill without holding up your trade.</p>
                   <p className="mt-1 break-all text-xs opacity-75">{confirmation.signature}</p>
                 </div>
@@ -146,11 +153,11 @@ export function QuoteReviewModal({
               Retry quote refresh
             </Button>
           ) : (
-            <Button className="h-12 w-full rounded-[16px]" disabled={signDisabled} onClick={() => void onSign()} variant="primary">
+            <Button className="h-12 w-full rounded-[16px]" disabled={signDisabled} onClick={() => review.approval && void onSign(review.approval.id)} variant="primary">
               {isBusy ? (
                 <>
                   <HugeiconsIcon className="animate-spin" color="currentColor" icon={Clock01Icon} size={16} strokeWidth={1.8} />
-                  {status === "preparing" ? "Preparing" : status === "signing" ? "Awaiting wallet" : "Confirming"}
+                  {status === "preparing" ? "Preparing" : status === "signing" ? "Approving trade…" : "Confirming"}
                 </>
               ) : status === "submitted" ? (
                 <>
@@ -170,7 +177,7 @@ export function QuoteReviewModal({
               ) : (
                 <>
                   <HugeiconsIcon color="currentColor" icon={Wallet02Icon} size={16} strokeWidth={1.8} />
-                  Prepare and sign
+                  {review.loading ? "Preparing trade…" : quote.side === "buy" ? "Confirm buy" : "Confirm sell"}
                 </>
               )}
             </Button>

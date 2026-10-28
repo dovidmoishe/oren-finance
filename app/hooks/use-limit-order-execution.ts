@@ -1,139 +1,60 @@
 'use client';
-
-import { useConnection, useWallet } from '@solana/wallet-adapter-react';
-import { useWalletModal } from '@solana/wallet-adapter-react-ui';
-import { useCallback, useState } from 'react';
-import {
-  confirmCancelLimitOrder,
-  confirmLimitOrder,
-  prepareCancelLimitOrder,
-  prepareLimitOrder,
-} from '@/services';
+import { useCallback, useRef, useState } from 'react';
+import { useOrenAuth } from '@/components/auth/auth-context';
+import { approveServerTrade, getServerApproval, forgetApproval } from '@/services/approval-service';
+import { ApiError } from '@/services/api-client';
+import { walletSessionIsCurrent } from '@/services/wallet-session';
 import type { LimitOrderProposal } from '@/types';
-import {
-  decodeBase64Transaction,
-  type TradeFlowStatus,
-} from './use-quote-execution';
+import type { TradeFlowStatus } from './use-quote-execution';
 import { usePortfolioRefresh } from './use-portfolio-refresh';
-
-export function useLimitOrderExecution(
-  onConfirmed?: () => Promise<void> | void,
-) {
-  const { connection } = useConnection();
-  const { connected, publicKey, sendTransaction } = useWallet();
-  const { setVisible } = useWalletModal();
+export function useLimitOrderExecution(onConfirmed?: () => Promise<void> | void) {
+  const { address, getAccessToken } = useOrenAuth();
   const refreshPortfolio = usePortfolioRefresh();
   const [flowStatus, setFlowStatus] = useState<TradeFlowStatus>('idle');
   const [error, setError] = useState<string>();
-  const [confirmation, setConfirmation] = useState<{
-    signature: string;
-    orderKey?: string;
-  }>();
-
-  const executeLimitOrder = useCallback(
-    async (proposal: LimitOrderProposal) => {
-      const wallet = publicKey?.toBase58();
-      setError(undefined);
-      setConfirmation(undefined);
-      if (!connected || !wallet) {
-        setVisible(true);
-        return;
+  const [confirmation, setConfirmation] = useState<{ signature: string; orderKey?: string }>();
+  const busy = useRef(false);
+  const generation = useRef(0);
+  const execute = useCallback(async (approvalId: string, referenceId: string) => {
+    if (!address || busy.current) return;
+    const sessionCurrent = walletSessionIsCurrent();
+    const attempt = ++generation.current;
+    const current = () => sessionCurrent() && attempt === generation.current;
+    busy.current = true; setError(undefined);
+    try {
+      setFlowStatus('signing');
+      const token = await getAccessToken();
+      if (!current()) return;
+      const result = await approveServerTrade(approvalId, token, address);
+      if (!current()) return;
+      if (result.wallet !== address || result.referenceId !== referenceId) throw new Error('Approval does not match this order.');
+      if (result.status === 'failed') throw new Error('Order failed. Review a fresh proposal.');
+      if (result.signature) setConfirmation({ signature: result.signature, orderKey: result.details.orderKey });
+      setFlowStatus('submitted'); setError(result.message);
+      for (let i = 0; i < 30 && current(); i++) {
+        await new Promise(resolve => window.setTimeout(resolve, 2000));
+        if (!current()) return;
+        try {
+          const state = await getServerApproval(approvalId, await getAccessToken());
+          if (!current()) return;
+          if (state.status === 'failed') { forgetApproval(approvalId); setError('The order transaction failed on-chain.'); setFlowStatus('failed'); return; }
+          if (state.status === 'confirmed') {
+            forgetApproval(approvalId);
+            setFlowStatus('confirmed'); setError(undefined);
+            await Promise.all([refreshPortfolio(), onConfirmed?.()]); return;
+          }
+        } catch { /* Remain submitted when confirmation is unavailable. */ }
       }
-
-      try {
-        setFlowStatus('preparing');
-        const prepared = await prepareLimitOrder({
-          proposalId: proposal.id,
-          wallet,
-        });
-
-        setFlowStatus('signing');
-        const signature = await sendTransaction(
-          decodeBase64Transaction(prepared.transaction),
-          connection,
-        );
-
-        setFlowStatus('confirming');
-        const confirmed = await confirmLimitOrder({
-          proposalId: proposal.id,
-          wallet,
-          signature,
-          orderKey: prepared.orderKey,
-        });
-
-        setConfirmation({
-          signature: confirmed.signature,
-          orderKey: confirmed.orderKey,
-        });
-        setFlowStatus('confirmed');
-        await Promise.all([refreshPortfolio(), onConfirmed?.()]);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Limit order failed');
-        setFlowStatus('failed');
+    } catch (error) {
+      if (current()) {
+        const rejected = error instanceof ApiError && [400, 401, 403, 404].includes(error.status);
+        setError(rejected ? error.message : 'Order status is uncertain. Check the pending trade notice before retrying.');
+        setFlowStatus(rejected ? 'failed' : 'submitted');
       }
-    },
-    [
-      connected,
-      connection,
-      onConfirmed,
-      publicKey,
-      refreshPortfolio,
-      sendTransaction,
-      setVisible,
-    ],
-  );
-
-  const cancelLimitOrder = useCallback(
-    async (orderKey: string) => {
-      const wallet = publicKey?.toBase58();
-      setError(undefined);
-      if (!connected || !wallet) {
-        setVisible(true);
-        return;
-      }
-
-      try {
-        setFlowStatus('preparing');
-        const prepared = await prepareCancelLimitOrder({ orderKey, wallet });
-        setFlowStatus('signing');
-        const signature = await sendTransaction(
-          decodeBase64Transaction(prepared.transaction),
-          connection,
-        );
-        setFlowStatus('confirming');
-        await confirmCancelLimitOrder({ orderKey, wallet, signature });
-        setFlowStatus('confirmed');
-        await Promise.all([refreshPortfolio(), onConfirmed?.()]);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Cancel failed');
-        setFlowStatus('failed');
-      }
-    },
-    [
-      connected,
-      connection,
-      onConfirmed,
-      publicKey,
-      refreshPortfolio,
-      sendTransaction,
-      setVisible,
-    ],
-  );
-
-  const resetFeedback = useCallback(() => {
-    setFlowStatus('idle');
-    setError(undefined);
-    setConfirmation(undefined);
-  }, []);
-
-  return {
-    confirmation,
-    error,
-    executeLimitOrder,
-    cancelLimitOrder,
-    flowStatus,
-    resetFeedback,
-    setError,
-    setFlowStatus,
-  };
+    } finally { busy.current = false; }
+  }, [address, getAccessToken, onConfirmed, refreshPortfolio]);
+  const executeLimitOrder = useCallback((proposal: LimitOrderProposal, approvalId: string) => execute(approvalId, proposal.id), [execute]);
+  const cancelLimitOrder = useCallback((orderKey: string, approvalId: string) => execute(approvalId, orderKey), [execute]);
+  const resetFeedback = useCallback(() => { generation.current++; setFlowStatus('idle'); setError(undefined); setConfirmation(undefined); }, []);
+  return { confirmation, error, executeLimitOrder, cancelLimitOrder, flowStatus, resetFeedback, setError, setFlowStatus };
 }

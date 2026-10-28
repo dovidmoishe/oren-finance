@@ -11,6 +11,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { Button, Modal, Toast, cn, formatCurrency, formatNumber } from "@/components/ui";
 import type { LimitOrderProposal } from "@/types";
 import type { TradeFlowStatus } from "@/hooks/use-quote-execution";
+import { useApprovalReview } from "@/hooks/use-approval-review";
 
 interface LimitOrderReviewModalProps {
   open: boolean;
@@ -19,7 +20,7 @@ interface LimitOrderReviewModalProps {
   confirmation?: { signature: string; orderKey?: string };
   error?: string;
   onClose: () => void;
-  onSign: () => Promise<void>;
+  onSign: (approvalId: string) => Promise<void>;
 }
 
 function Row({ label, value }: { label: string; value: string }) {
@@ -42,17 +43,19 @@ function Step({ active, done, label }: { active?: boolean; done?: boolean; label
 
 export function LimitOrderReviewModal({
   open,
-  proposal,
+  proposal: requestedProposal,
   status,
   confirmation,
   error,
   onClose,
   onSign,
 }: LimitOrderReviewModalProps) {
+  const review = useApprovalReview('limit', requestedProposal?.id, open);
+  const proposal = review.approval?.details.proposal ?? requestedProposal;
   const isBusy = status === "preparing" || status === "signing" || status === "confirming";
   const signed = status === "confirming" || status === "confirmed";
   const confirmed = status === "confirmed";
-  const signDisabled = !proposal || isBusy || confirmed;
+  const signDisabled = !proposal || !review.approval || review.approval.status !== 'prepared' || review.expired || isBusy || confirmed || status === 'submitted';
   const expiresLabel = proposal
     ? new Date(proposal.expiredAt * 1000).toLocaleDateString()
     : "—";
@@ -77,7 +80,7 @@ export function LimitOrderReviewModal({
             </div>
             <div className="mt-5 grid grid-cols-3 gap-2">
               <Step done label="Propose" />
-              <Step active={status === "preparing" || status === "signing"} done={signed || confirmed} label="Sign" />
+              <Step active={status === "preparing" || status === "signing"} done={signed || confirmed} label="Approve" />
               <Step active={status === "confirming"} done={confirmed} label="Open" />
             </div>
           </div>
@@ -121,11 +124,14 @@ export function LimitOrderReviewModal({
             </div>
           ) : null}
 
-          <Button className="h-12 w-full rounded-[16px]" disabled={signDisabled} onClick={() => void onSign()} variant="primary">
+          {review.error ? <Toast title="Unable to prepare order" description={review.error} tone="error" /> : null}
+          {review.expired ? <Toast title="Review expired" description="Close this review and request a fresh limit order proposal." tone="info" /> : null}
+          <p className="text-xs text-muted">Estimated network fee: {review.approval ? `${Number(review.approval.feeLamports) / 1e9} SOL` : 'Preparing…'}</p>
+          <Button className="h-12 w-full rounded-[16px]" disabled={signDisabled} onClick={() => review.approval && void onSign(review.approval.id)} variant="primary">
             {isBusy ? (
               <>
                 <HugeiconsIcon className="animate-spin" color="currentColor" icon={Clock01Icon} size={16} strokeWidth={1.8} />
-                {status === "preparing" ? "Preparing" : status === "signing" ? "Awaiting wallet" : "Confirming"}
+                {status === "preparing" ? "Preparing" : status === "signing" ? "Approving order…" : "Confirming"}
               </>
             ) : confirmed ? (
               <>
@@ -135,7 +141,7 @@ export function LimitOrderReviewModal({
             ) : (
               <>
                 <HugeiconsIcon color="currentColor" icon={Wallet02Icon} size={16} strokeWidth={1.8} />
-                Prepare and sign
+                {review.loading ? 'Preparing order…' : status === 'submitted' ? 'Submitted · confirming' : 'Confirm limit order'}
               </>
             )}
           </Button>

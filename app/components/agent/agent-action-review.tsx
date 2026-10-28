@@ -1,19 +1,11 @@
 'use client';
 
-import {
-  CheckmarkCircle01Icon,
-  Loading03Icon,
-  PauseCircleIcon,
-  Wallet02Icon,
-} from '@hugeicons/core-free-icons';
-import { HugeiconsIcon } from '@hugeicons/react';
-import { useConnection, useWallet } from '@solana/wallet-adapter-react';
-import { useWalletModal } from '@solana/wallet-adapter-react-ui';
-import { useEffect, useRef, useState } from 'react';
-import { decodeBase64Transaction, useQuoteExecution } from '@/hooks/use-quote-execution';
+import { useEffect, useState } from 'react';
+import { useQuoteExecution } from '@/hooks/use-quote-execution';
+import { useOrenAuth } from '@/components/auth/auth-context';
+import { walletSessionIsCurrent } from '@/services/wallet-session';
 import { useQuoteRefresh } from '@/hooks/use-quote-refresh';
 import { useLimitOrderExecution } from '@/hooks/use-limit-order-execution';
-import { usePortfolioRefresh } from '@/hooks/use-portfolio-refresh';
 import { useExecutionStore } from '@/store';
 import type {
   BasketExecutionProgress,
@@ -78,7 +70,7 @@ export function AgentActionReview({
         confirmation={limitConfirmation}
         error={limitError}
         onClose={onClose}
-        onSign={() => executeLimitOrder(limitOrder)}
+        onSign={(approvalId) => executeLimitOrder(limitOrder, approvalId)}
         open
         proposal={limitOrder}
         status={limitFlowStatus === 'idle' ? 'quoted' : limitFlowStatus}
@@ -95,7 +87,7 @@ export function AgentActionReview({
         isRefreshingQuote={isRefreshingQuote}
         onClose={onClose}
         onRefreshQuote={() => void refreshQuote()}
-        onSign={() => executeQuote()}
+        onSign={(approvalId) => executeQuote(liveQuote, approvalId)}
         open
         quote={liveQuote}
         refreshFailed={refreshFailed}
@@ -108,175 +100,45 @@ export function AgentActionReview({
   return basket ? <BasketExecutionReview basket={basket} onClose={onClose} /> : null;
 }
 
-function BasketExecutionReview({
-  basket,
-  onClose,
-}: {
-  basket: BasketResponse;
-  onClose: () => void;
-}) {
-  const { connection } = useConnection();
-  const { connected, publicKey, sendTransaction } = useWallet();
-  const { setVisible } = useWalletModal();
-  const prepareBasketTrades = useExecutionStore((state) => state.prepareBasketTrades);
-  const confirmTrade = useExecutionStore((state) => state.confirmTrade);
-  const resetTrade = useExecutionStore((state) => state.resetTrade);
-  const refreshPortfolio = usePortfolioRefresh();
+function BasketExecutionReview({ basket, onClose }: { basket: BasketResponse; onClose: () => void }) {
+  const auth = useOrenAuth();
   const [progress, setProgress] = useState<BasketExecutionProgress>();
-  const [busy, setBusy] = useState(false);
-  const [complete, setComplete] = useState(false);
   const [nextLeg, setNextLeg] = useState(0);
-  const [error, setError] = useState<string>();
-  const stopRequested = useRef(false);
-
-  const run = async () => {
-    const wallet = publicKey?.toBase58();
-    if (!connected || !wallet) {
-      setVisible(true);
-      return;
-    }
-    setBusy(true);
-    setError(undefined);
-    stopRequested.current = false;
-
+  const [preparing, setPreparing] = useState(false);
+  const [preparationError, setPreparationError] = useState<string>();
+  const prepareBasketTrades = useExecutionStore(state => state.prepareBasketTrades);
+  const { confirmation, error, executeQuote, flowStatus, resetFeedback } = useQuoteExecution(() => {
+    setProgress(current => current ? { ...current, legs: current.legs.map((leg, i) => i === nextLeg ? { ...leg, status: 'confirmed' } : leg) } : current);
+    setNextLeg(index => index + 1);
+  });
+  useEffect(() => { resetFeedback(); }, [nextLeg, resetFeedback]);
+  const leg = progress?.legs[nextLeg];
+  async function prepare() {
+    if (!auth.address || preparing) return;
+    setPreparing(true); setPreparationError(undefined);
+    const current = walletSessionIsCurrent();
     try {
-      let current = progress;
-      if (!current) {
-        await prepareBasketTrades({ basketId: basket.id, wallet });
-        current = useExecutionStore.getState().preparedBasket?.progress;
-        if (!current) {
-          throw new Error(
-            useExecutionStore.getState().error ?? 'Unable to prepare basket transactions',
-          );
-        }
-        setProgress(current);
-      }
-
-      for (let index = nextLeg; index < current.legs.length; index += 1) {
-        if (stopRequested.current) {
-          setNextLeg(index);
-          break;
-        }
-        const leg = current.legs[index];
-        const prepared =
-          leg.preparedTransaction ??
-          useExecutionStore.getState().preparedBasket?.transactions[index];
-        if (!prepared) {
-          current = updateLeg(current, index, 'failed', 'Prepared transaction is missing');
-          setProgress(current);
-          setNextLeg(index + 1);
-          break;
-        }
-        if (new Date(prepared.expiresAt).getTime() <= Date.now()) {
-          current = updateLeg(current, index, 'failed', 'This basket quote expired');
-          setProgress(current);
-          setNextLeg(index + 1);
-          setError('A basket quote expired. Build a fresh basket before continuing.');
-          break;
-        }
-
-        current = updateLeg(current, index, 'awaiting_signature');
-        setProgress(current);
-        try {
-          const signature = await sendTransaction(
-            decodeBase64Transaction(prepared.transaction),
-            connection,
-          );
-          current = updateLeg(current, index, 'submitted');
-          setProgress(current);
-          resetTrade();
-          await confirmTrade(wallet, prepared.executionId, prepared.quoteId, signature);
-          const confirmed = useExecutionStore.getState().status;
-          if (!confirmed || confirmed.quoteId !== prepared.quoteId) {
-            throw new Error(
-              useExecutionStore.getState().error ?? `Unable to confirm ${leg.ticker}`,
-            );
-          }
-          current = updateLeg(current, index, 'submitted');
-          setProgress(current);
-          setNextLeg(index + 1);
-          void refreshPortfolio();
-        } catch (legError) {
-          const message = legError instanceof Error ? legError.message : 'Transaction failed';
-          current = updateLeg(current, index, 'failed', message);
-          setProgress(current);
-          setNextLeg(index + 1);
-          setError(`${leg.ticker} was not completed. You can continue with the remaining legs.`);
-          break;
-        }
-      }
-
-      if (current.legs.every((leg) => leg.status === 'confirmed')) setComplete(true);
-    } catch (runError) {
-      setError(runError instanceof Error ? runError.message : 'Unable to execute basket');
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <Modal open onClose={busy ? () => undefined : onClose} side="right" title="Review basket">
-      <div className="space-y-4">
-        <BasketReview basket={basket} progress={progress} />
-        {error ? <Toast title="Basket paused" description={error} tone="error" /> : null}
-        <div className="rounded-[18px] border border-border bg-panel-subtle p-4 text-xs leading-5 text-muted">
-          Each stock is a separate wallet approval. Oren stops after a rejection or failure; completed legs are never repeated automatically.
-        </div>
-        <div className="flex gap-2">
-          {busy ? (
-            <Button
-              className="h-12 flex-1 rounded-[16px]"
-              onClick={() => {
-                stopRequested.current = true;
-              }}
-              variant="secondary"
-            >
-              <HugeiconsIcon icon={PauseCircleIcon} size={16} strokeWidth={1.8} />
-              Stop after current
-            </Button>
-          ) : null}
-          <Button
-            className="h-12 flex-1 rounded-[16px]"
-            disabled={busy || complete}
-            onClick={() => void run()}
-            variant="primary"
-          >
-            <HugeiconsIcon
-              className={busy ? 'animate-spin' : undefined}
-              icon={
-                complete
-                  ? CheckmarkCircle01Icon
-                  : busy
-                    ? Loading03Icon
-                    : Wallet02Icon
-              }
-              size={16}
-              strokeWidth={1.8}
-            />
-            {complete
-              ? 'Basket complete'
-              : busy
-                ? 'Executing basket'
-                : progress
-                  ? 'Continue remaining'
-                  : 'Prepare and begin'}
-          </Button>
-        </div>
-      </div>
-    </Modal>
-  );
-}
-
-function updateLeg(
-  progress: BasketExecutionProgress,
-  index: number,
-  status: BasketExecutionProgress['legs'][number]['status'],
-  error?: string,
-): BasketExecutionProgress {
-  return {
-    ...progress,
-    legs: progress.legs.map((leg, legIndex) =>
-      legIndex === index ? { ...leg, status, error } : leg,
-    ),
-  };
+      await prepareBasketTrades({ basketId: basket.id, wallet: auth.address });
+      if (!current()) return;
+      const prepared = useExecutionStore.getState().preparedBasket;
+      if (!prepared) throw new Error(useExecutionStore.getState().error || 'Unable to prepare basket');
+      setProgress(prepared.progress);
+    } catch (error) {
+      if (current()) setPreparationError(error instanceof Error ? error.message : 'Unable to prepare basket');
+    } finally { setPreparing(false); }
+  }
+  if (leg?.quote) return <QuoteReviewModal open quote={leg.quote} status={flowStatus} confirmation={confirmation} error={error}
+    onClose={onClose} onSign={id => executeQuote(leg.quote, id)} />;
+  return <Modal open title="Review basket" onClose={onClose}>
+    <BasketReview basket={basket} progress={progress} />
+    <p className="my-4 text-sm text-muted">Review and confirm each stock separately. Completed trades are not repeated.</p>
+    {preparationError ? <Toast title="Basket preparation" description={preparationError} tone="error" /> : null}
+    {leg && !leg.quote ? <>
+      <Toast title={`${leg.ticker} unavailable`} description={leg.error || 'This stock could not be prepared. No trade was submitted.'} tone="error" />
+      <Button onClick={() => setNextLeg(index => index + 1)}>Skip this stock</Button>
+    </> : null}
+    <Button disabled={preparing || Boolean(progress) || !auth.address} onClick={() => void prepare()}>
+      {progress ? leg ? 'Review paused' : 'Basket review complete' : preparing ? 'Preparing…' : 'Review first stock'}
+    </Button>
+  </Modal>;
 }
