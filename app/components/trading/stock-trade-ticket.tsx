@@ -10,7 +10,7 @@ import {
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { useWalletModal } from "@solana/wallet-adapter-react-ui";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { useQuoteExecution } from "@/hooks/use-quote-execution";
 import { useQuoteRefresh } from "@/hooks/use-quote-refresh";
 import { useLimitOrderExecution } from "@/hooks/use-limit-order-execution";
@@ -20,6 +20,7 @@ import { useExecutionStore, usePortfolioStore } from "@/store";
 import type { LimitOrderProposal, LimitOrderRecord, LimitZone, StockDetail, TradeSide } from "@/types";
 import { QuoteReviewModal } from "./quote-review-modal";
 import { LimitOrderReviewModal } from "./limit-order-review-modal";
+import { OrderControls } from "./order-controls";
 
 type OrderMode = "market" | "limit";
 
@@ -88,6 +89,7 @@ function isNoRouteError(message?: string) {
 }
 
 export function StockTradeTicket({ stock, limitZones, onConfirmed }: StockTradeTicketProps) {
+  const limitFieldsId = useId();
   const { publicKey, connected } = useWallet();
   const { setVisible } = useWalletModal();
   const wallet = publicKey?.toBase58();
@@ -440,49 +442,15 @@ export function StockTradeTicket({ stock, limitZones, onConfirmed }: StockTradeT
   return (
     <>
       <Card className="overflow-hidden p-4">
-        <div className="mb-3 flex justify-center">
-          <div className="inline-flex rounded-[16px] bg-panel-subtle p-1 text-sm font-semibold">
-            {([
-              ["market", "Market"],
-              ["limit", "Limit"],
-            ] as const).map(([value, label]) => (
-              <button
-                aria-pressed={orderMode === value}
-                className={cn(
-                  "h-9 min-w-20 rounded-[12px] px-4 transition-colors",
-                  orderMode === value ? "bg-panel text-foreground shadow-sm" : "text-muted hover:text-foreground",
-                )}
-                key={value}
-                onClick={() => handleModeChange(value)}
-                type="button"
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-        </div>
+        <OrderControls
+          side={side}
+          limit={orderMode === "limit"}
+          limitFieldsId={limitFieldsId}
+          onSideChange={handleSideChange}
+          onLimitChange={(enabled) => handleModeChange(enabled ? "limit" : "market")}
+        />
 
-        <div className="mb-4 flex justify-center">
-          <div className="inline-flex rounded-[16px] bg-panel-subtle p-1 text-sm font-semibold">
-            {(["buy", "sell"] as TradeSide[]).map((item) => (
-              <button
-                aria-pressed={side === item}
-                className={cn(
-                  "h-9 min-w-20 rounded-[12px] px-4 capitalize transition-colors",
-                  side === item ? "bg-panel text-foreground shadow-sm" : "text-muted hover:text-foreground",
-                )}
-                key={item}
-                onClick={() => handleSideChange(item)}
-                type="button"
-              >
-                {item}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {orderMode === "limit" ? (
-          <div className="mb-3 space-y-2">
+        <div className="mb-3 space-y-2" hidden={orderMode !== "limit"} id={limitFieldsId}>
             <div className="rounded-[18px] border border-border bg-panel-subtle px-4 py-3">
               <div className="flex items-center justify-between text-xs uppercase tracking-[0.12em] text-muted">
                 <span>Limit price (USD)</span>
@@ -513,8 +481,7 @@ export function StockTradeTicket({ stock, limitZones, onConfirmed }: StockTradeT
                   ))}
               </div>
             ) : null}
-          </div>
-        ) : null}
+        </div>
 
         <div className="relative space-y-3">
           <div className="rounded-[24px] border border-border bg-panel-subtle p-5">
