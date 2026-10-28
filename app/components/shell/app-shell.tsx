@@ -21,9 +21,9 @@ import { useAgentStore } from "@/store";
 
 const navItems = [
   { href: "/app", label: "Dashboard", icon: Home01Icon },
+  { href: "/app/markets", label: "Market", icon: MarketAnalysisIcon },
   { href: "/app/calendar", label: "Calendar", icon: Calendar03Icon },
   { href: "/app/leaderboard", label: "Leaderboard", icon: RankingIcon },
-  { href: "/app/markets", label: "Market", icon: MarketAnalysisIcon },
   { href: "/app/vault", label: "Vault", icon: SafeIcon },
   { href: "/app/activity", label: "Activity", icon: Activity01Icon },
 ];
