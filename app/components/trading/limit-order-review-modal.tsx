@@ -4,11 +4,10 @@ import {
   AlertCircleIcon,
   CheckmarkCircle01Icon,
   Clock01Icon,
-  Route01Icon,
   Wallet02Icon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { Button, Modal, Toast, cn, formatCurrency, formatNumber } from "@/components/ui";
+import { Button, Modal, Toast, formatCurrency, formatNumber } from "@/components/ui";
 import type { LimitOrderProposal } from "@/types";
 import type { TradeFlowStatus } from "@/hooks/use-quote-execution";
 import { useApprovalReview } from "@/hooks/use-approval-review";
@@ -32,15 +31,6 @@ function Row({ label, value }: { label: string; value: string }) {
   );
 }
 
-function Step({ active, done, label }: { active?: boolean; done?: boolean; label: string }) {
-  return (
-    <div className={cn("flex items-center gap-2 rounded-[14px] border px-3 py-2 text-xs", active || done ? "border-foreground bg-foreground text-white" : "border-border bg-panel-subtle text-muted")}>
-      <HugeiconsIcon color="currentColor" icon={done ? CheckmarkCircle01Icon : active ? Clock01Icon : Route01Icon} size={14} strokeWidth={1.8} />
-      {label}
-    </div>
-  );
-}
-
 export function LimitOrderReviewModal({
   open,
   proposal: requestedProposal,
@@ -53,7 +43,6 @@ export function LimitOrderReviewModal({
   const review = useApprovalReview('limit', requestedProposal?.id, open);
   const proposal = review.approval?.details.proposal ?? requestedProposal;
   const isBusy = status === "preparing" || status === "signing" || status === "confirming";
-  const signed = status === "confirming" || status === "confirmed";
   const confirmed = status === "confirmed";
   const signDisabled = !proposal || !review.approval || review.approval.status !== 'prepared' || review.expired || isBusy || confirmed || status === 'submitted';
   const expiresLabel = proposal
@@ -61,30 +50,11 @@ export function LimitOrderReviewModal({
     : "—";
 
   return (
-    <Modal open={open} onClose={onClose} side="right" title="Review limit order">
+    <Modal open={open} onClose={onClose} side="right" title={proposal ? `Review ${proposal.side} limit · ${proposal.ticker}` : "Review limit order"}>
       {!proposal ? (
         <Toast title="No limit order loaded" description="Propose a limit order first." tone="error" />
       ) : (
         <div className="space-y-5">
-          <div className="rounded-[24px] border border-border bg-panel-subtle p-4">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <p className="text-xs uppercase tracking-[0.12em] text-muted">
-                  {proposal.side === "buy" ? "Buy limit" : "Sell limit"}
-                </p>
-                <h3 className="mt-1 font-display text-2xl font-semibold">{proposal.ticker}</h3>
-              </div>
-              <div className="rounded-full bg-accent-lavender px-3 py-1 text-xs font-semibold">
-                {proposal.provider}
-              </div>
-            </div>
-            <div className="mt-5 grid grid-cols-3 gap-2">
-              <Step done label="Propose" />
-              <Step active={status === "preparing" || status === "signing"} done={signed || confirmed} label="Approve" />
-              <Step active={status === "confirming"} done={confirmed} label="Open" />
-            </div>
-          </div>
-
           <div className="space-y-3 rounded-[24px] border border-border p-4">
             <Row label="Limit price" value={formatCurrency(proposal.limitPriceUsd)} />
             <Row label="You lock" value={`${formatNumber(proposal.makingAmount, 6)} ${proposal.inputSymbol}`} />

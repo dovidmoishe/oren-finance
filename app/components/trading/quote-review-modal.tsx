@@ -5,11 +5,10 @@ import {
   CheckmarkCircle01Icon,
   Clock01Icon,
   Loading03Icon,
-  Route01Icon,
   Wallet02Icon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { Button, Modal, Toast, cn, formatCurrency, formatNumber } from "@/components/ui";
+import { Button, Modal, Toast, formatCurrency, formatNumber } from "@/components/ui";
 import type { ExecutionStatus, QuoteResponse } from "@/types";
 import { useApprovalReview } from "@/hooks/use-approval-review";
 
@@ -41,15 +40,6 @@ function Row({ label, value }: { label: string; value: string }) {
     <div className="flex items-center justify-between gap-4 text-sm">
       <span className="text-muted">{label}</span>
       <span className="text-right font-mono font-medium">{value}</span>
-    </div>
-  );
-}
-
-function Step({ active, done, label }: { active?: boolean; done?: boolean; label: string }) {
-  return (
-    <div className={cn("flex items-center gap-2 rounded-[14px] border px-3 py-2 text-xs", active || done ? "border-foreground bg-foreground text-white" : "border-border bg-panel-subtle text-muted")}>
-      <HugeiconsIcon color="currentColor" icon={done ? CheckmarkCircle01Icon : active ? Clock01Icon : Route01Icon} size={14} strokeWidth={1.8} />
-      {label}
     </div>
   );
 }
@@ -86,30 +76,11 @@ export function QuoteReviewModal({
   ].filter((warning): warning is string => Boolean(warning));
 
   return (
-    <Modal open={open} onClose={onClose} side="right" title="Review trade">
+    <Modal open={open} onClose={onClose} side="right" title={quote ? `Review ${quote.side} · ${quote.ticker}` : "Review trade"}>
       {!quote ? (
         <Toast title="No quote loaded" description="Request a fresh quote from the trade ticket." tone="error" />
       ) : (
         <div className="space-y-5">
-          <div className="rounded-[24px] border border-border bg-panel-subtle p-4">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <p className="text-xs uppercase tracking-[0.12em] text-muted">
-                  {quote.side === "buy" ? "Buying" : "Selling"}
-                </p>
-                <h3 className="mt-1 font-display text-2xl font-semibold">{quote.ticker}</h3>
-              </div>
-              <div className="rounded-full bg-accent-yellow px-3 py-1 text-xs font-semibold">
-                {quote.provider}
-              </div>
-            </div>
-            <div className="mt-5 grid grid-cols-3 gap-2">
-              <Step done label="Quote" />
-              <Step active={status === "preparing" || status === "signing"} done={signed || confirmed} label="Approve" />
-              <Step active={status === "confirming" || status === "submitted"} done={confirmed} label="Verify" />
-            </div>
-          </div>
-
           <div className="space-y-3 rounded-[24px] border border-border p-4">
             <Row label="You pay" value={`${formatNumber(quote.inputAmount, 6)} ${quote.inputSymbol}`} />
             <Row label="You receive" value={`${formatNumber(quote.outputAmount, 6)} ${quote.outputSymbol}`} />
