@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, inArray } from 'drizzle-orm';
 import { DRIZZLE } from '../config/constants';
 import type { Database } from '../database/database.provider';
 import { executionJobs, executions } from '../database/schema';
@@ -42,8 +42,7 @@ export class ExecutionRepository {
         tokenMint: input.tokenMint,
         inputAsset: input.inputAsset,
         outputAsset: input.outputAsset,
-        amount:
-          input.amount !== undefined ? String(input.amount) : undefined,
+        amount: input.amount !== undefined ? String(input.amount) : undefined,
         amountUsd:
           input.amountUsd !== undefined ? String(input.amountUsd) : undefined,
         provider: input.provider,
@@ -72,6 +71,7 @@ export class ExecutionRepository {
           and(
             eq(executions.id, input.executionId),
             eq(executions.walletAddress, input.walletAddress),
+            inArray(executions.status, ['awaiting_signature', 'submitted']),
           ),
         )
         .returning();
