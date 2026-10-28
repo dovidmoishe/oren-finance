@@ -2,12 +2,9 @@
 
 import type { TradeSide } from "@/types";
 
-export function OrderControls({ side, limit, limitFieldsId, onSideChange, onLimitChange }: {
+export function OrderControls({ side, onSideChange }: {
   side: TradeSide;
-  limit: boolean;
-  limitFieldsId: string;
   onSideChange: (side: TradeSide) => void;
-  onLimitChange: (limit: boolean) => void;
 }) {
   return <div className="mb-4 flex items-center justify-between gap-4">
     <div aria-label="Trade direction" className="inline-flex min-w-0 flex-1 rounded-2xl bg-panel-subtle p-1 text-sm font-semibold" role="group">
@@ -17,10 +14,17 @@ export function OrderControls({ side, limit, limitFieldsId, onSideChange, onLimi
         key={value} onClick={() => onSideChange(value)} type="button"
       >{value}</button>)}
     </div>
-    <label className="flex shrink-0 cursor-pointer items-center gap-2 text-xs font-medium">
+  </div>;
+}
+
+export function LimitOrderToggle({ limit, limitFieldsId, onLimitChange }: {
+  limit: boolean;
+  limitFieldsId: string;
+  onLimitChange: (limit: boolean) => void;
+}) {
+  return <label className="mt-5 mb-3 flex cursor-pointer items-center justify-between gap-3 text-sm font-medium">
       <span>Limit order</span>
       <input aria-controls={limitFieldsId} checked={limit} className="oren-limit-input sr-only" onChange={(event) => onLimitChange(event.target.checked)} role="switch" type="checkbox" />
       <span aria-hidden className="oren-limit-switch"><span className="oren-limit-thumb" /></span>
-    </label>
-  </div>;
+    </label>;
 }
