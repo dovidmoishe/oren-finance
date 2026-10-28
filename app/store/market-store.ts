@@ -15,6 +15,7 @@ interface MarketState {
   hasMore: boolean;
   nextPage: number;
   error?: string;
+  loadMoreError?: string;
   loadMarkets: () => Promise<void>;
   loadNextStocks: () => Promise<void>;
   search: (query: string) => Promise<void>;
@@ -72,7 +73,7 @@ export const useMarketStore = create<MarketState>((set, get) => ({
     const { hasMore, isLoading, isLoadingMore, nextPage, stocks } = get();
     if (!hasMore || isLoading || isLoadingMore) return;
 
-    set({ isLoadingMore: true, error: undefined });
+    set({ isLoadingMore: true, loadMoreError: undefined });
     try {
       const stockPage = await getStocks(nextPage, STOCKS_PAGE_SIZE);
       set({
@@ -83,7 +84,7 @@ export const useMarketStore = create<MarketState>((set, get) => ({
       });
     } catch (error) {
       set({
-        error: error instanceof Error ? error.message : "Unable to load more stocks",
+        loadMoreError: error instanceof Error ? error.message : "Unable to load more stocks",
         isLoadingMore: false,
       });
     }
