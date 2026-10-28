@@ -75,7 +75,7 @@ function MetricBand({
   className: string;
 }) {
   return (
-    <section className={cn("rounded-[24px] p-6 text-foreground shadow-[0_18px_60px_rgba(23,23,23,0.05)]", className)}>
+    <section className={cn("rounded-[24px] p-4 text-foreground shadow-[0_18px_60px_rgba(23,23,23,0.05)]", className)}>
       <p className="text-base font-semibold">{label}</p>
       <p className="mt-1 text-xs text-foreground/65">{detail}</p>
       <p className="mt-7 font-display text-3xl font-semibold tracking-normal">{value}</p>
@@ -191,7 +191,7 @@ export function Leaderboard() {
   const skeletonRows = useMemo(() => Array.from({ length: 8 }), []);
 
   return (
-    <div className="mx-auto max-w-[1540px] space-y-7 pb-20">
+    <div className="mx-auto max-w-[1540px] space-y-5 pb-20">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="text-sm text-muted">Social trading</p>
@@ -211,7 +211,7 @@ export function Leaderboard() {
 
       {error ? <ErrorState description={error} onRetry={() => void loadLeaderboard(timeframe)} /> : null}
 
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
         <Card className="overflow-hidden">
           <CardHeader className="flex flex-row items-center justify-between gap-4">
             <div>
@@ -243,7 +243,7 @@ export function Leaderboard() {
           </div>
 
           {!isLoading && rows.length === 0 ? (
-            <div className="p-5">
+            <div className="p-4">
               <EmptyState
                 description="Published trader profiles appear here after Oren has at least one portfolio snapshot to rank."
                 title="No public traders yet"

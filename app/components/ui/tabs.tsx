@@ -20,7 +20,7 @@ export function Tabs<T extends string>({ items, value, onValueChange, ariaLabel 
         <button
           aria-selected={item === value}
           className={cn(
-            "h-8 min-w-11 rounded-[9px] px-3 font-semibold transition-colors",
+            "oren-tab min-w-10 rounded-[9px] px-2.5 font-semibold transition-colors",
             item === value ? "bg-panel text-foreground shadow-sm" : "hover:text-foreground",
           )}
           key={item}

@@ -22,7 +22,7 @@ export function DepositModal() {
       previousFocus?.focus();
     };
   }, [auth.depositOpen]);
-  return <dialog aria-labelledby="deposit-title" className="oren-deposit-modal m-auto max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-md overflow-y-auto rounded-3xl border border-border bg-panel p-6 text-foreground shadow-2xl sm:p-8" onCancel={auth.closeDeposit} onClick={(event) => {
+  return <dialog aria-labelledby="deposit-title" className="oren-deposit-modal m-auto max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-md overflow-y-auto rounded-3xl border border-border bg-panel p-5 text-foreground shadow-2xl sm:p-6" onCancel={auth.closeDeposit} onClick={(event) => {
     if (event.target !== event.currentTarget) return;
     const rect = event.currentTarget.getBoundingClientRect();
     if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) auth.closeDeposit();
@@ -51,9 +51,9 @@ function DepositAddress({ wallet, getAccessToken }: { wallet: string; getAccessT
   }, [wallet]);
   return <>
     <p className="text-sm leading-6 text-muted">Deposit USDC on Solana to fund your stock purchases.</p>
-    <div className="mx-auto my-5 flex h-56 w-56 items-center justify-center rounded-2xl border border-border bg-white">
+    <div className="mx-auto my-4 flex h-48 w-48 items-center justify-center rounded-2xl border border-border bg-white">
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      {qr ? <img alt="Your Solana deposit address QR code" className="h-52 w-52" height={208} width={208} src={qr} /> : <span className="text-sm text-muted">Preparing QR code…</span>}
+      {qr ? <img alt="Your Solana deposit address QR code" className="h-44 w-44" height={176} width={176} src={qr} /> : <span className="text-sm text-muted">Preparing QR code…</span>}
     </div>
     <p className="text-xs font-semibold text-muted">USDC deposit address · Solana</p>
     <div className="mt-2 flex items-center gap-3 rounded-xl border border-border bg-background p-3">

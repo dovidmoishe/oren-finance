@@ -41,12 +41,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen bg-background text-foreground">
       <header className="sticky top-0 z-30 border-b border-border bg-background/95 backdrop-blur">
-        <div className="mx-auto grid min-h-[72px] max-w-[1540px] grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-4 px-4 sm:px-6">
+        <div className="mx-auto grid min-h-[var(--app-nav-height,4.5rem)] max-w-[1540px] grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-4 px-4 sm:px-6">
           <Link className="flex items-center gap-2" href="/app">
-            <OrenLogo className="h-8 w-8" size={32} />
+            <OrenLogo className="h-7 w-7" size={28} />
             <span className="font-display text-lg font-semibold">Oren</span>
           </Link>
-          <nav className="flex items-stretch justify-center gap-3 overflow-x-auto sm:gap-8">
+          <nav className="oren-app-nav flex items-stretch justify-start gap-3 overflow-x-auto md:justify-center sm:gap-8">
             {navItems.map((item) => {
               const active =
                 item.href === "/app"
@@ -58,7 +58,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               return (
                 <Link
                   className={cn(
-                    "relative inline-flex min-h-[72px] shrink-0 items-center gap-1.5 px-1 text-sm font-semibold text-muted transition-colors",
+                    "relative inline-flex min-h-[var(--app-nav-height,4.5rem)] shrink-0 items-center gap-1.5 px-1 text-sm font-semibold text-muted transition-colors",
                     active ? "text-foreground" : "hover:text-foreground",
                   )}
                   href={item.href}
@@ -76,7 +76,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </div>
         </div>
       </header>
-      <main className={cn("agent-shell-main min-w-0 px-4 py-8 sm:px-6", reserveSidecarGutter && "2xl:pr-[456px]")}>
+      <main className={cn("agent-shell-main min-w-0 px-4 py-5 sm:px-6", reserveSidecarGutter && "2xl:pr-[416px]")}>
         {children}
       </main>
       <AgentPanel />
@@ -86,7 +86,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <div className="mx-auto flex max-w-[1540px] justify-end">
             <Button
               aria-label="Open Oren"
-              className="pointer-events-auto h-14 w-14 overflow-visible rounded-[20px] bg-foreground text-white shadow-[0_18px_50px_rgba(23,23,23,0.24)] transition-[background-color,transform] hover:scale-[1.04] hover:bg-black/85"
+              className="pointer-events-auto h-12 w-12 overflow-visible rounded-[20px] bg-foreground text-white shadow-[0_18px_50px_rgba(23,23,23,0.24)] transition-[background-color,transform] hover:scale-[1.04] hover:bg-black/85"
               id="oren-agent-launcher"
               onClick={() => setPanelOpen(true)}
               size="icon"

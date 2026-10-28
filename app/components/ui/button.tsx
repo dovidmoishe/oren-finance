@@ -48,10 +48,10 @@ const sheenClasses: Record<ButtonVariant, string> = {
 };
 
 const sizeClasses: Record<ButtonSize, string> = {
-  sm: "min-h-8 px-3 text-xs",
-  md: "min-h-10 px-4 text-sm",
-  lg: "min-h-14 px-8 text-base",
-  icon: "h-10 w-10 p-0",
+  sm: "oren-btn-sm px-3 text-xs",
+  md: "oren-btn-md px-4 text-sm",
+  lg: "oren-btn-lg px-8 text-base",
+  icon: "oren-btn-icon",
 };
 
 function getButtonClasses(variant: ButtonVariant, size: ButtonSize, className?: string) {
