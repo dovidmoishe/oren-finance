@@ -20,7 +20,11 @@ export class AlchemyClient {
     return this.rpcUrl.replace(/\/[^/]+$/, '/***');
   }
 
-  async call<T>(method: string, params: unknown[]): Promise<T> {
+  async call<T>(
+    method: string,
+    params: unknown[],
+    signal?: AbortSignal,
+  ): Promise<T> {
     let response: Response;
     try {
       response = await fetch(this.rpcUrl, {
@@ -32,7 +36,9 @@ export class AlchemyClient {
           method,
           params,
         }),
-        signal: AbortSignal.timeout(30_000),
+        signal: signal
+          ? AbortSignal.any([signal, AbortSignal.timeout(30_000)])
+          : AbortSignal.timeout(30_000),
       });
     } catch (err) {
       throw new AlchemyUnavailableError('Alchemy network error', err);

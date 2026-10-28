@@ -1,6 +1,7 @@
 'use client';
 
 import { create } from 'zustand';
+import { sessionSetter, walletSessionIsCurrent } from "@/services/wallet-session";
 import { getAgentThreadMessages, streamAgentMessage } from '@/services';
 import type {
   AgentDisplayMessage,
@@ -51,6 +52,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
   isSending: false,
 
   async initialize(walletAddress) {
+    const update = sessionSetter(set);
     if (get().walletAddress === walletAddress && get().hydrated) return;
     activeController?.abort();
     activeController = undefined;
@@ -62,7 +64,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
     if (!panelPreference) writePanelPreference(walletAddress, panelOpen);
 
     if (!walletAddress) {
-      set({
+      update({
         walletAddress: undefined,
         threadId: undefined,
         messages: [],
@@ -71,6 +73,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
         expanded: false,
         hydrated: true,
         isLoadingHistory: false,
+        lastRequest: undefined,
         isSending: false,
         error: undefined,
       });
@@ -78,7 +81,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
     }
 
     const recentThreads = readRecents()[walletAddress] ?? [];
-    set({
+    update({
       walletAddress,
       threadId: undefined,
       messages: [],
@@ -86,6 +89,8 @@ export const useAgentStore = create<AgentState>((set, get) => ({
       panelOpen,
       expanded: false,
       hydrated: true,
+      isLoadingHistory: false,
+      lastRequest: undefined,
       isSending: false,
       error: undefined,
     });
@@ -107,25 +112,31 @@ export const useAgentStore = create<AgentState>((set, get) => ({
   },
 
   async loadThread(threadId) {
+    const update = sessionSetter(set);
+    const isCurrent = walletSessionIsCurrent();
     const walletAddress = get().walletAddress;
     if (!walletAddress || get().isSending) return;
-    set({ isLoadingHistory: true, error: undefined });
+    update({ isLoadingHistory: true, error: undefined });
     try {
       const response = await getAgentThreadMessages(threadId, walletAddress);
-      set({
+      if (!isCurrent()) return;
+      update({
         threadId,
         messages: response.messages,
         isLoadingHistory: false,
       });
-      touchRecent(set, walletAddress, threadId);
+      touchRecent(update, walletAddress, threadId);
     } catch (error) {
+      if (!isCurrent()) return;
       const message = error instanceof Error ? error.message : 'Unable to load this conversation';
-      removeRecent(set, walletAddress, threadId);
-      set({ threadId: undefined, messages: [], isLoadingHistory: false, error: message });
+      removeRecent(update, walletAddress, threadId);
+      update({ threadId: undefined, messages: [], isLoadingHistory: false, error: message });
     }
   },
 
   async sendMessage(message, walletAddress, context) {
+    const update = sessionSetter(set);
+    const isCurrent = walletSessionIsCurrent();
     const content = message.trim();
     if (!content || get().isSending) return;
     const request: AgentRequest = {
@@ -140,7 +151,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
     const controller = new AbortController();
     activeController = controller;
 
-    set((state) => ({
+    update((state) => ({
       messages: [
         ...state.messages.map((item) => ({ ...item, interrupted: false })),
         { id: optimisticUserId, role: 'user', content, createdAt: now },
@@ -162,12 +173,14 @@ export const useAgentStore = create<AgentState>((set, get) => ({
     try {
       await streamAgentMessage(
         request,
-        (event) => applyStreamEvent(set, get, event, optimisticUserId, streamingAssistantId, content),
+        (event) => {
+          if (isCurrent()) applyStreamEvent(update, get, event, optimisticUserId, streamingAssistantId, content);
+        },
         controller.signal,
       );
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') {
-        set((state) => ({
+        update((state) => ({
           isSending: false,
           messages: state.messages
             .filter((item) => item.id !== streamingAssistantId || item.content)
@@ -179,7 +192,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
         }));
       } else {
         const errorMessage = error instanceof Error ? error.message : 'Unable to reach Oren';
-        set((state) => ({
+        update((state) => ({
           isSending: false,
           error: errorMessage,
           messages: state.messages.map((item) =>
@@ -199,9 +212,10 @@ export const useAgentStore = create<AgentState>((set, get) => ({
   },
 
   async retry() {
+    const update = sessionSetter(set);
     const request = get().lastRequest;
     if (!request || get().isSending) return;
-    set((state) => {
+    update((state) => {
       const unansweredIndex = state.messages.findLastIndex(
         (item) => item.role === 'user' && item.content === request.message,
       );

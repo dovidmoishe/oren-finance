@@ -1,6 +1,7 @@
 "use client";
 
 import { create } from "zustand";
+import { sessionSetter } from "@/services/wallet-session";
 import {
   confirmVaultLock,
   confirmVaultUnlock,
@@ -44,34 +45,36 @@ export const useVaultStore = create<VaultState>((set, get) => ({
   programLive: false,
   isLoading: false,
   async loadVaults(wallet) {
-    set({ isLoading: true, error: undefined });
+    const update = sessionSetter(set);
+    update({ isLoading: true, error: undefined });
     try {
       const summary = await getVaults(wallet);
-      set({
+      update({
         summary,
         positions: summary.positions,
         programLive: summary.programLive,
         isLoading: false,
       });
     } catch (error) {
-      set({
+      update({
         error: error instanceof Error ? error.message : "Unable to load vaults",
         isLoading: false,
       });
     }
   },
   async prepareLock(intent) {
+    const update = sessionSetter(set);
     if (!get().programLive) {
-      set({ error: NOT_LIVE_MESSAGE });
+      update({ error: NOT_LIVE_MESSAGE });
       return undefined;
     }
-    set({ isLoading: true, error: undefined });
+    update({ isLoading: true, error: undefined });
     try {
       const prepared = await prepareVaultLock(intent);
-      set({ prepared, isLoading: false });
+      update({ prepared, isLoading: false });
       return prepared;
     } catch (error) {
-      set({
+      update({
         error: error instanceof Error ? error.message : "Unable to prepare lock",
         isLoading: false,
       });
@@ -79,17 +82,18 @@ export const useVaultStore = create<VaultState>((set, get) => ({
     }
   },
   async prepareUnlock(intent) {
+    const update = sessionSetter(set);
     if (!get().programLive) {
-      set({ error: NOT_LIVE_MESSAGE });
+      update({ error: NOT_LIVE_MESSAGE });
       return undefined;
     }
-    set({ isLoading: true, error: undefined });
+    update({ isLoading: true, error: undefined });
     try {
       const prepared = await prepareVaultUnlock(intent);
-      set({ prepared, isLoading: false });
+      update({ prepared, isLoading: false });
       return prepared;
     } catch (error) {
-      set({
+      update({
         error: error instanceof Error ? error.message : "Unable to prepare unlock",
         isLoading: false,
       });
@@ -97,17 +101,18 @@ export const useVaultStore = create<VaultState>((set, get) => ({
     }
   },
   async confirmLock(request) {
+    const update = sessionSetter(set);
     if (!get().programLive) {
-      set({ error: NOT_LIVE_MESSAGE });
+      update({ error: NOT_LIVE_MESSAGE });
       return undefined;
     }
-    set({ isLoading: true, error: undefined });
+    update({ isLoading: true, error: undefined });
     try {
       const confirmation = await confirmVaultLock(request);
-      set({ confirmation, isLoading: false, prepared: undefined });
+      update({ confirmation, isLoading: false, prepared: undefined });
       return confirmation;
     } catch (error) {
-      set({
+      update({
         error: error instanceof Error ? error.message : "Unable to confirm lock",
         isLoading: false,
       });
@@ -115,17 +120,18 @@ export const useVaultStore = create<VaultState>((set, get) => ({
     }
   },
   async confirmUnlock(request) {
+    const update = sessionSetter(set);
     if (!get().programLive) {
-      set({ error: NOT_LIVE_MESSAGE });
+      update({ error: NOT_LIVE_MESSAGE });
       return undefined;
     }
-    set({ isLoading: true, error: undefined });
+    update({ isLoading: true, error: undefined });
     try {
       const confirmation = await confirmVaultUnlock(request);
-      set({ confirmation, isLoading: false, prepared: undefined });
+      update({ confirmation, isLoading: false, prepared: undefined });
       return confirmation;
     } catch (error) {
-      set({
+      update({
         error: error instanceof Error ? error.message : "Unable to confirm unlock",
         isLoading: false,
       });

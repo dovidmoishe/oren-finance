@@ -13,7 +13,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { AgentPanel } from "@/components/agent/agent-panel";
 import { OrenLogo } from "@/components/brand/oren-logo";
-import { WalletButton } from "./wallet-button";
+import { AccountMenu } from "./account-menu";
+import { DepositModal } from "@/components/portfolio/deposit-dashboard";
 import { Button, cn } from "@/components/ui";
 import { useAgentStore } from "@/store";
 
@@ -71,14 +72,17 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             })}
           </nav>
           <div className="flex items-center gap-2 justify-self-end">
-            <WalletButton />
           </div>
         </div>
       </header>
+      <aside aria-label="Your account" className="fixed bottom-5 left-4 z-40 rounded-full border border-border bg-panel p-1.5 shadow-sm sm:left-6">
+        <AccountMenu />
+      </aside>
       <main className={cn("agent-shell-main min-w-0 px-4 py-8 sm:px-6", reserveSidecarGutter && "2xl:pr-[456px]")}>
         {children}
       </main>
       <AgentPanel />
+      <DepositModal />
       {!agentOpen ? (
         <div className="pointer-events-none fixed inset-x-0 bottom-5 z-[100] px-4 sm:px-6">
           <div className="mx-auto flex max-w-[1540px] justify-end">

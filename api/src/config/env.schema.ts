@@ -10,6 +10,9 @@ export interface AppEnv {
   TOKENS_API_KEY: string;
   ALCHEMY_API_KEY: string;
   SOLANA_NETWORK: SolanaNetwork;
+  PRIVY_APP_ID?: string;
+  PRIVY_APP_SECRET?: string;
+  ALCHEMY_SOLANA_WS_URL?: string;
   JUPITER_API_URL?: string;
   JUPITER_TRIGGER_API_URL?: string;
   JUPITER_TRACKING_ACCOUNT?: string;
@@ -26,18 +29,19 @@ export interface AppEnv {
   VAULT_PROGRAM_LIVE: boolean;
 }
 
-const REQUIRED = [
-  'POSTGRES_URL',
-  'TOKENS_API_KEY',
-  'ALCHEMY_API_KEY',
-] as const;
+const REQUIRED = ['POSTGRES_URL', 'TOKENS_API_KEY', 'ALCHEMY_API_KEY'] as const;
 
 type EnvSource = NodeJS.ProcessEnv | Record<string, unknown>;
 
 function readEnv(env: EnvSource, key: string): string | undefined {
   const raw = env[key];
   if (raw == null) return undefined;
-  const value = typeof raw === 'string' ? raw.trim() : String(raw).trim();
+  const value =
+    typeof raw === 'string'
+      ? raw.trim()
+      : typeof raw === 'number' || typeof raw === 'boolean'
+        ? String(raw)
+        : '';
   return value || undefined;
 }
 
@@ -58,7 +62,11 @@ function readBool(env: EnvSource, key: string, fallback: boolean): boolean {
   return fallback;
 }
 
-function readPositiveInt(env: EnvSource, key: string, fallback: number): number {
+function readPositiveInt(
+  env: EnvSource,
+  key: string,
+  fallback: number,
+): number {
   const raw = readEnv(env, key);
   const value = Number(raw ?? fallback);
   if (!Number.isInteger(value) || value <= 0) {
@@ -103,6 +111,9 @@ export function validateEnv(env: EnvSource = process.env): AppEnv {
     TOKENS_API_KEY: requireEnv(env, 'TOKENS_API_KEY'),
     ALCHEMY_API_KEY: requireEnv(env, 'ALCHEMY_API_KEY'),
     SOLANA_NETWORK: network,
+    PRIVY_APP_ID: readEnv(env, 'PRIVY_APP_ID'),
+    PRIVY_APP_SECRET: readEnv(env, 'PRIVY_APP_SECRET'),
+    ALCHEMY_SOLANA_WS_URL: readEnv(env, 'ALCHEMY_SOLANA_WS_URL'),
     JUPITER_API_URL:
       readEnv(env, 'JUPITER_API_URL')?.replace(/\/$/, '') ??
       'https://lite-api.jup.ag/swap/v1',
