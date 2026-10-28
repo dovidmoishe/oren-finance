@@ -3,6 +3,9 @@ import test from 'node:test';
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 import ts from 'typescript';
+class ApiError extends Error {
+  constructor(message, status, details) { super(message); this.status = status; this.details = details; }
+}
 
 function fixture() {
   const slots = []; let cursor = 0, revision = 0, approvals = 0;
@@ -21,7 +24,7 @@ function fixture() {
     if (id === 'react') return react;
     if (id === '@/components/auth/auth-context') return { useOrenAuth: () => ({ address: 'wallet', getAccessToken: () => token() }) };
     if (id === '@/services/wallet-session') return { walletSessionIsCurrent: () => { const captured = revision; return () => revision === captured; } };
-    if (id === '@/services/api-client') return { ApiError: class extends Error {} };
+    if (id === '@/services/api-client') return { ApiError };
     if (id === '@/services/approval-service') return { approveServerTrade: (...args) => { approvals++; return submit(...args); }, getServerApproval: async () => ({ status: 'confirmed' }), forgetApproval() {} };
     if (id === './use-portfolio-refresh') return { usePortfolioRefresh: () => async () => {} };
     throw new Error(`Unexpected import ${id}`);
@@ -53,6 +56,22 @@ test('sign-out while retrieving the access token prevents approval', async () =>
 });
 test('a lost submission response remains pending and never triggers an automatic retry', async () => {
   const f = fixture(); f.setSubmit(async () => { throw new Error('network timeout'); });
+  await f.render().executeQuote({ id: 'quote' }, 'approval-id');
+  assert.equal(f.render().flowStatus, 'submitted');
+  assert.match(f.render().error, /uncertain/);
+  assert.equal(f.count(), 1);
+});
+test('a definite Privy signing failure surfaces the server error instead of reporting an uncertain submission', async () => {
+  const f = fixture();
+  f.setSubmit(async () => { throw new ApiError('Privy could not authorize this trade. No transaction was submitted.', 503, { code: 'PRIVY_SIGNING_FAILED', submissionState: 'not_submitted' }); });
+  await f.render().executeQuote({ id: 'quote' }, 'approval-id');
+  assert.equal(f.render().flowStatus, 'failed');
+  assert.match(f.render().error, /No transaction was submitted/);
+  assert.equal(f.count(), 1);
+});
+test('an unclassified server outage remains uncertain and does not repeat submission', async () => {
+  const f = fixture();
+  f.setSubmit(async () => { throw new ApiError('Service unavailable', 503); });
   await f.render().executeQuote({ id: 'quote' }, 'approval-id');
   assert.equal(f.render().flowStatus, 'submitted');
   assert.match(f.render().error, /uncertain/);
