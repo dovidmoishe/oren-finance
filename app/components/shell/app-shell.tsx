@@ -9,15 +9,19 @@ import {
   SafeIcon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { AgentPanel } from "@/components/agent/agent-panel";
 import { OrenLogo } from "@/components/brand/oren-logo";
 import { AccountMenu } from "./account-menu";
 import { PendingApprovalNotice } from "@/components/trading/pending-approval-notice";
-import { DepositModal } from "@/components/portfolio/deposit-dashboard";
 import { Button, cn } from "@/components/ui";
 import { useAgentStore } from "@/store";
+
+// Neither is part of the first paint: the agent panel starts hidden until its
+// store hydrates, and the deposit dialog (with its QR encoder) opens on request.
+const AgentPanel = dynamic(() => import("@/components/agent/agent-panel").then((mod) => mod.AgentPanel), { ssr: false });
+const DepositModal = dynamic(() => import("@/components/portfolio/deposit-dashboard").then((mod) => mod.DepositModal), { ssr: false });
 
 const navItems = [
   { href: "/app", label: "Dashboard", icon: Home01Icon },
