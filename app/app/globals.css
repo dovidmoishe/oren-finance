@@ -624,35 +624,3 @@ select {
     transform: none !important;
   }
 }
-
-.wallet-adapter-modal-wrapper {
-  border-radius: 14px;
-  font-family: var(--font-neue-freigeist), system-ui, sans-serif;
-}
-
-.wallet-adapter-modal-button-close {
-  border-radius: 999px;
-}
-
-.wallet-adapter-button {
-  font-family: var(--font-neue-freigeist), system-ui, sans-serif;
-}
-
-.wallet-adapter-dropdown {
-  display: inline-flex;
-}
-
-.wallet-adapter-modal {
-  background: rgba(255, 255, 255, 0.64);
-  backdrop-filter: blur(18px);
-}
-
-.wallet-adapter-modal-container {
-  border-radius: 26px;
-}
-
-.wallet-adapter-modal-wrapper {
-  background: #ffffff;
-  border: 1px solid var(--border);
-  box-shadow: 0 28px 80px rgba(23, 23, 23, 0.16);
-}
