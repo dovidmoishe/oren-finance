@@ -23,28 +23,24 @@ export class ApprovalRpc {
   }
   async inspect(transaction: string, wallet: string) {
     const tx = this.decode(transaction, wallet);
-    const simulated = await this.rpc.call<{ value: { err: unknown } }>(
-      'simulateTransaction',
-      [
+    const [simulated, fee] = await Promise.all([
+      this.rpc.call<{ value: { err: unknown } }>('simulateTransaction', [
         transaction,
         {
           encoding: 'base64',
           sigVerify: false,
           commitment: 'confirmed',
         },
-      ],
-    );
+      ]),
+      this.rpc.call<{ value: number | null }>('getFeeForMessage', [
+        Buffer.from(tx.message.serialize()).toString('base64'),
+        { commitment: 'confirmed' },
+      ]),
+    ]);
     if (simulated.value.err)
       throw new BadRequestException(
         'This transaction could not be simulated. Check your USDC and SOL balances and request a fresh quote.',
       );
-    const fee = await this.rpc.call<{ value: number | null }>(
-      'getFeeForMessage',
-      [
-        Buffer.from(tx.message.serialize()).toString('base64'),
-        { commitment: 'confirmed' },
-      ],
-    );
     if (fee.value === null)
       throw new BadRequestException(
         'Transaction expired. Request a fresh quote.',

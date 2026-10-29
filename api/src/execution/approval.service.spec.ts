@@ -103,6 +103,19 @@ function fixture(status = 'prepared') {
   };
 }
 describe('server trade approvals', () => {
+  it('checks fresh wallet ownership for status without reloading the signing wallet', async () => {
+    const f = fixture('submitted');
+    f.set({ signature: 'signature' });
+    await f.service.status('Bearer token', 'approval');
+    expect(f.auth.requireWallet).toHaveBeenCalledWith('Bearer token', 'wallet');
+    expect(f.auth.requireSigner).not.toHaveBeenCalled();
+    f.rpc.status.mockClear();
+    f.auth.requireWallet.mockResolvedValueOnce('other-user');
+    await expect(
+      f.service.status('Bearer token', 'approval'),
+    ).rejects.toMatchObject({ status: 403 });
+    expect(f.rpc.status).not.toHaveBeenCalled();
+  });
   it('requires request authorization before signing and returns only the stored canonical request for authorization', async () => {
     const f = fixture();
     await expect(f.service.approve('Bearer token', 'approval')).rejects.toThrow(

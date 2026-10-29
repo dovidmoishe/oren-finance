@@ -34,6 +34,24 @@ vm.runInNewContext(ts.transpileModule(readFileSync(new URL('../src/execution/app
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, experimentalDecorators: true, esModuleInterop: true },
 }).outputText, { exports, Buffer, require(id) { return id === '../alchemy/alchemy.client' ? { AlchemyClient: class {} } : require(id); } });
 const rpc = new exports.ApprovalRpc({ call() { throw new Error('No network calls allowed'); } });
+test('simulation and fee estimation start together while simulation failures still reject the trade', async () => {
+  const owner = Keypair.generate();
+  const tx = new Transaction({ feePayer: owner.publicKey, recentBlockhash: Keypair.generate().publicKey.toBase58() }).add(SystemProgram.transfer({ fromPubkey: owner.publicKey, toPubkey: Keypair.generate().publicKey, lamports: 1 }));
+  const bytes = tx.serialize({ requireAllSignatures: false, verifySignatures: false }).toString('base64');
+  let resolveSimulation;
+  const simulation = new Promise(resolve => { resolveSimulation = resolve; });
+  const methods = [];
+  const service = new exports.ApprovalRpc({ call(method) {
+    methods.push(method);
+    if (method === 'simulateTransaction') return simulation;
+    if (method === 'getFeeForMessage') return Promise.resolve({ value: 5000 });
+    throw new Error('No other RPC calls allowed');
+  } });
+  const inspecting = service.inspect(bytes, owner.publicKey.toBase58());
+  assert.deepEqual(methods, ['simulateTransaction', 'getFeeForMessage']);
+  resolveSimulation({ value: { err: { InstructionError: [0, 'failure'] } } });
+  await assert.rejects(inspecting, /could not be simulated/);
+});
 test('does not treat a recent blockhash absent from the finalized bank as expired', async () => {
   const owner = Keypair.generate();
   const tx = new Transaction({ feePayer: owner.publicKey, recentBlockhash: Keypair.generate().publicKey.toBase58() }).add(SystemProgram.transfer({ fromPubkey: owner.publicKey, toPubkey: Keypair.generate().publicKey, lamports: 1 }));

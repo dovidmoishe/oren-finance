@@ -117,13 +117,25 @@ export class ApprovalService {
     );
   }
 
-  private async owned(authorization: string | undefined, id: string) {
+  private async owned(
+    authorization: string | undefined,
+    id: string,
+    signing = true,
+  ) {
     const row = await this.approvals.get(id);
     if (!row) throw new NotFoundException('Approval not found');
-    const owner = await this.auth.requireSigner(authorization, row.wallet);
-    if (owner.userId !== row.userId || owner.walletId !== row.walletId)
+    if (signing) {
+      const owner = await this.auth.requireSigner(authorization, row.wallet);
+      if (owner.userId !== row.userId || owner.walletId !== row.walletId)
+        throw new ForbiddenException(
+          'Approval does not belong to this account',
+        );
+    } else if (
+      (await this.auth.requireWallet(authorization, row.wallet)) !== row.userId
+    ) {
       throw new ForbiddenException('Approval does not belong to this account');
-    return { row, owner };
+    }
+    return { row };
   }
 
   async authorizationRequest(authorization: string | undefined, id: string) {
@@ -245,7 +257,7 @@ export class ApprovalService {
   }
 
   async status(authorization: string | undefined, id: string) {
-    let { row } = await this.owned(authorization, id);
+    let { row } = await this.owned(authorization, id, false);
     if (row.status === 'signing' && row.expiresAt.getTime() <= Date.now())
       row =
         (await this.approvals.patch(row.id, { status: 'failed' }, 'signing')) ??
