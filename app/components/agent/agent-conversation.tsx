@@ -65,7 +65,7 @@ export function AgentMessage({
           Oren is thinking
         </span>
       ) : null}
-      {message.artifacts?.length ? (
+      {!message.streaming && !message.interrupted && message.artifacts?.length ? (
         <AgentArtifacts
           artifacts={message.artifacts}
           density={artifactDensity}

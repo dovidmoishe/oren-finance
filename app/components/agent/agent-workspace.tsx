@@ -63,7 +63,7 @@ export function AgentArtifactRail({
         <p className="mt-0.5 text-xs text-muted">
           {artifacts.length
             ? `${artifacts.length} artifact${artifacts.length === 1 ? '' : 's'} from the latest response`
-            : 'Artifacts appear here as Oren works'}
+            : 'Artifacts appear here after Oren finishes responding'}
         </p>
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4">
@@ -179,7 +179,7 @@ export function AgentWorkspace({
 export function latestAssistantArtifacts(messages: AgentDisplayMessage[]): AgentArtifact[] {
   for (let index = messages.length - 1; index >= 0; index -= 1) {
     const message = messages[index];
-    if (message.role === 'assistant' && message.artifacts?.length) {
+    if (message.role === 'assistant' && !message.streaming && !message.interrupted && message.artifacts?.length) {
       return message.artifacts;
     }
   }
