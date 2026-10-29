@@ -78,11 +78,18 @@ describe('PrivyWalletAuth', () => {
       ],
     });
     getWallet.mockResolvedValue({ chain_type: 'solana', address: 'owned' });
+    getUser.mockClear();
     await expect(auth.requireSigner('Bearer token', 'owned')).resolves.toEqual({
       userId: 'did:privy:user',
       walletId: 'wallet-id',
       token: 'token',
     });
+    expect(getUser).toHaveBeenCalledTimes(1);
+    // A subsequent request must recheck current links, not use a cached owner.
+    getUser.mockResolvedValueOnce({ linked_accounts: [] });
+    await expect(
+      auth.requireSigner('Bearer token', 'owned'),
+    ).rejects.toMatchObject({ status: 403 });
     getWallet.mockResolvedValue({
       chain_type: 'solana',
       address: 'someone-else',

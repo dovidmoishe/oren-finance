@@ -18,10 +18,7 @@ export class PrivyWalletAuth {
     if (appId && appSecret) this.client = new PrivyClient({ appId, appSecret });
   }
 
-  async requireWallet(
-    authorization: string | undefined,
-    wallet: string,
-  ): Promise<string> {
+  private async verifiedUser(authorization: string | undefined) {
     if (!this.client)
       throw new ServiceUnavailableException('Authentication is not configured');
     const match = /^Bearer\s+(\S+)$/i.exec(authorization ?? '');
@@ -46,6 +43,14 @@ export class PrivyWalletAuth {
         'Unable to verify wallet ownership',
       );
     }
+    return { userId, user };
+  }
+
+  async requireWallet(
+    authorization: string | undefined,
+    wallet: string,
+  ): Promise<string> {
+    const { userId, user } = await this.verifiedUser(authorization);
     if (
       !user.linked_accounts.some(
         (account) =>
@@ -59,14 +64,7 @@ export class PrivyWalletAuth {
   }
 
   async requireSigner(authorization: string | undefined, wallet: string) {
-    const userId = await this.requireWallet(authorization, wallet);
-    const user = await this.client!.users()
-      ._get(userId)
-      .catch(() => {
-        throw new ServiceUnavailableException(
-          'Unable to verify wallet ownership',
-        );
-      });
+    const { userId, user } = await this.verifiedUser(authorization);
     const account = user.linked_accounts.find(
       (item) =>
         item.type === 'wallet' &&
