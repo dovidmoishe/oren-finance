@@ -5,23 +5,28 @@ import {
   ChartLineData01Icon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import {
-  CandlestickSeries,
-  ColorType,
-  CrosshairMode,
-  LineStyle,
-  LineSeries,
-  createChart,
-  type CandlestickData,
-  type IChartApi,
-  type ISeriesApi,
-  type LineData,
-  type MouseEventParams,
-  type Time,
-  type UTCTimestamp,
+import type {
+  CandlestickData,
+  IChartApi,
+  ISeriesApi,
+  LineData,
+  MouseEventParams,
+  Time,
+  UTCTimestamp,
 } from "lightweight-charts";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Button, EmptyState, LoadingState, Tabs, cn, formatCurrency, formatDate, formatPercent } from "@/components/ui";
+
+// lightweight-charts is only needed once there is data to draw, so it loads on
+// demand instead of with every page that shows a chart card.
+let chartLibrary: Promise<typeof import("lightweight-charts")> | undefined;
+function loadChartLibrary() {
+  chartLibrary ??= import("lightweight-charts").catch((cause: unknown) => {
+    chartLibrary = undefined;
+    throw cause;
+  });
+  return chartLibrary;
+}
 
 export type MarketChartMode = "line" | "candles";
 export type MarketChartRange = "24H" | "7D" | "30D" | "90D" | "1Y";
@@ -123,6 +128,7 @@ export function MarketChart({
   const chartRef = useRef<IChartApi | null>(null);
   const seriesRef = useRef<ISeriesApi<"Line" | "Candlestick", Time> | null>(null);
   const [tooltip, setTooltip] = useState<{ x: number; y: number; value: string; date: string } | null>(null);
+  const [libraryFailed, setLibraryFailed] = useState(false);
   const canUseCandles = candleData.length > 0;
   const effectiveMode = mode === "candles" && canUseCandles ? "candles" : "line";
   const formattedDate = dateLabel ?? formatDate(lineData.at(-1)?.timestamp ?? candleData.at(-1)?.timestamp);
@@ -136,106 +142,119 @@ export function MarketChart({
       return;
     }
 
-    const chart = createChart(container, {
-      autoSize: true,
-      layout: {
-        background: { color: "transparent", type: ColorType.Solid },
-        textColor: "#b7b7b0",
-        fontFamily: "var(--font-neue-freigeist)",
-      },
-      grid: {
-        horzLines: { color: "#eeeeea", style: LineStyle.Dotted },
-        vertLines: { color: "#f5f5f2", style: LineStyle.Dotted },
-      },
-      rightPriceScale: {
-        borderVisible: false,
-        entireTextOnly: true,
-        scaleMargins: { top: 0.08, bottom: 0.08 },
-      },
-      timeScale: {
-        borderVisible: false,
-        timeVisible: true,
-        secondsVisible: false,
-        rightOffset: 4,
-        barSpacing: 8,
-      },
-      crosshair: {
-        mode: CrosshairMode.Magnet,
-        vertLine: { color: "#d6d6d0", labelVisible: false, style: LineStyle.Solid },
-        horzLine: { color: "#c9c9c2", labelVisible: false, style: LineStyle.Dashed },
-      },
-      handleScale: true,
-      handleScroll: true,
+    let disposed = false;
+    let dispose: (() => void) | undefined;
+    void loadChartLibrary().then(({ CandlestickSeries, ColorType, CrosshairMode, LineSeries, LineStyle, createChart }) => {
+      if (disposed) return;
+      setLibraryFailed(false);
+      const chart = createChart(container, {
+        autoSize: true,
+        layout: {
+          background: { color: "transparent", type: ColorType.Solid },
+          textColor: "#b7b7b0",
+          fontFamily: "var(--font-neue-freigeist)",
+        },
+        grid: {
+          horzLines: { color: "#eeeeea", style: LineStyle.Dotted },
+          vertLines: { color: "#f5f5f2", style: LineStyle.Dotted },
+        },
+        rightPriceScale: {
+          borderVisible: false,
+          entireTextOnly: true,
+          scaleMargins: { top: 0.08, bottom: 0.08 },
+        },
+        timeScale: {
+          borderVisible: false,
+          timeVisible: true,
+          secondsVisible: false,
+          rightOffset: 4,
+          barSpacing: 8,
+        },
+        crosshair: {
+          mode: CrosshairMode.Magnet,
+          vertLine: { color: "#d6d6d0", labelVisible: false, style: LineStyle.Solid },
+          horzLine: { color: "#c9c9c2", labelVisible: false, style: LineStyle.Dashed },
+        },
+        handleScale: true,
+        handleScroll: true,
+      });
+
+      chartRef.current = chart;
+
+      if (effectiveMode === "candles") {
+        const series = chart.addSeries(CandlestickSeries, {
+          upColor: "#21c978",
+          downColor: "#ff4d4d",
+          borderUpColor: "#21c978",
+          borderDownColor: "#ff4d4d",
+          wickUpColor: "#21c978",
+          wickDownColor: "#ff4d4d",
+        });
+        series.setData(candleSeriesData);
+        seriesRef.current = series;
+      } else {
+        const series = chart.addSeries(LineSeries, {
+          color: "#65625d",
+          lineWidth: 2,
+          lastValueVisible: false,
+          priceLineVisible: true,
+          priceLineColor: "#c9c9c2",
+          priceLineStyle: LineStyle.Dashed,
+        });
+        series.setData(lineSeriesData);
+        seriesRef.current = series;
+      }
+
+      chart.timeScale().fitContent();
+
+      const handleCrosshairMove = (param: MouseEventParams<Time>) => {
+        if (!param.point || !seriesRef.current || !param.time || param.point.x < 0 || param.point.y < 0) {
+          setTooltip(null);
+          return;
+        }
+
+        const datum = param.seriesData.get(seriesRef.current);
+        if (!datum) {
+          setTooltip(null);
+          return;
+        }
+
+        const rawValue =
+          "value" in datum
+            ? datum.value
+            : "close" in datum
+              ? datum.close
+              : undefined;
+
+        if (typeof rawValue !== "number") {
+          setTooltip(null);
+          return;
+        }
+
+        const epochSeconds = typeof param.time === "number" ? param.time : undefined;
+        setTooltip({
+          x: param.point.x,
+          y: param.point.y,
+          value: formatCurrency(rawValue),
+          date: epochSeconds ? formatDate(new Date(epochSeconds * 1000).toISOString()) : "",
+        });
+      };
+
+      chart.subscribeCrosshairMove(handleCrosshairMove);
+
+      dispose = () => {
+        chart.unsubscribeCrosshairMove(handleCrosshairMove);
+        chart.remove();
+        chartRef.current = null;
+        seriesRef.current = null;
+      };
+    }).catch(() => {
+      if (!disposed) setLibraryFailed(true);
     });
 
-    chartRef.current = chart;
-
-    if (effectiveMode === "candles") {
-      const series = chart.addSeries(CandlestickSeries, {
-        upColor: "#21c978",
-        downColor: "#ff4d4d",
-        borderUpColor: "#21c978",
-        borderDownColor: "#ff4d4d",
-        wickUpColor: "#21c978",
-        wickDownColor: "#ff4d4d",
-      });
-      series.setData(candleSeriesData);
-      seriesRef.current = series;
-    } else {
-      const series = chart.addSeries(LineSeries, {
-        color: "#65625d",
-        lineWidth: 2,
-        lastValueVisible: false,
-        priceLineVisible: true,
-        priceLineColor: "#c9c9c2",
-        priceLineStyle: LineStyle.Dashed,
-      });
-      series.setData(lineSeriesData);
-      seriesRef.current = series;
-    }
-
-    chart.timeScale().fitContent();
-
-    const handleCrosshairMove = (param: MouseEventParams<Time>) => {
-      if (!param.point || !seriesRef.current || !param.time || param.point.x < 0 || param.point.y < 0) {
-        setTooltip(null);
-        return;
-      }
-
-      const datum = param.seriesData.get(seriesRef.current);
-      if (!datum) {
-        setTooltip(null);
-        return;
-      }
-
-      const rawValue =
-        "value" in datum
-          ? datum.value
-          : "close" in datum
-            ? datum.close
-            : undefined;
-
-      if (typeof rawValue !== "number") {
-        setTooltip(null);
-        return;
-      }
-
-      const epochSeconds = typeof param.time === "number" ? param.time : undefined;
-      setTooltip({
-        x: param.point.x,
-        y: param.point.y,
-        value: formatCurrency(rawValue),
-        date: epochSeconds ? formatDate(new Date(epochSeconds * 1000).toISOString()) : "",
-      });
-    };
-
-    chart.subscribeCrosshairMove(handleCrosshairMove);
-
     return () => {
-      chart.unsubscribeCrosshairMove(handleCrosshairMove);
-      chart.remove();
-      chartRef.current = null;
-      seriesRef.current = null;
+      disposed = true;
+      dispose?.();
     };
   }, [candleSeriesData, effectiveMode, error, hasData, lineSeriesData, loading]);
 
@@ -258,8 +277,8 @@ export function MarketChart({
           <div className="flex h-full items-center justify-center">
             <LoadingState label="Loading chart" />
           </div>
-        ) : error ? (
-          <EmptyState title="Chart unavailable" description={error} />
+        ) : error || libraryFailed ? (
+          <EmptyState title="Chart unavailable" description={error || "The chart could not be loaded. Refresh to try again."} />
         ) : !hasData ? (
           <EmptyState
             title="No chart history yet"

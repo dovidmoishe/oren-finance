@@ -1,14 +1,7 @@
 import Link from "next/link";
 import { OrenLogo } from "@/components/brand/oren-logo";
 import { ButtonLink } from "@/components/ui";
-
-function Arrow() {
-  return (
-    <svg aria-hidden className="transition-transform group-hover:translate-x-0.5" fill="none" height="16" viewBox="0 0 16 16" width="16">
-      <path d="M3 8h9M8.5 4.5 12 8l-3.5 3.5" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.35" />
-    </svg>
-  );
-}
+import { LaunchArrow } from "@/components/landing/launch-arrow";
 
 export default function Home() {
   return (
@@ -24,7 +17,7 @@ export default function Home() {
           <Link className="transition-colors hover:text-[#111110]" href="/app/markets">Markets</Link>
         </div>
         <ButtonLink className="h-10 rounded-full px-4 text-sm font-medium" href="/app" variant="primary">
-          Launch App <Arrow />
+          Launch App <LaunchArrow />
         </ButtonLink>
       </nav>
 
@@ -45,7 +38,7 @@ export default function Home() {
             Your intelligent investing agent for researching, building and managing tokenized stock portfolios.
           </p>
           <ButtonLink className="mt-7 h-12 rounded-full px-5 text-[15px] font-medium" href="/app" id="launch-oren-cta" variant="primary">
-            Launch Oren <Arrow />
+            Launch Oren <LaunchArrow />
           </ButtonLink>
         </div>
       </section>
