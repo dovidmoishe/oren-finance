@@ -14,17 +14,22 @@ import type {
   JupiterTriggerExecuteResponse,
   JupiterTriggerOrdersResponse,
 } from './jupiter-trigger.types';
+import type { RateLane } from '../../common/rate-limiter';
+import { JupiterGateway } from './jupiter-gateway';
 
 @Injectable()
 export class JupiterTriggerClient {
   private readonly logger = new Logger(JupiterTriggerClient.name);
   private readonly baseUrl: string;
 
-  constructor(@Inject(APP_ENV) env: AppEnv) {
+  constructor(
+    @Inject(APP_ENV) env: AppEnv,
+    private readonly gateway: JupiterGateway,
+  ) {
     this.baseUrl = (
       env.JUPITER_TRIGGER_API_URL ??
       deriveTriggerBase(env.JUPITER_API_URL) ??
-      'https://lite-api.jup.ag/trigger/v1'
+      'https://api.jup.ag/trigger/v1'
     ).replace(/\/$/, '');
   }
 
@@ -73,6 +78,8 @@ export class JupiterTriggerClient {
     page?: number;
     inputMint?: string;
     outputMint?: string;
+    /** 'background' for pollers so they cannot starve user requests. */
+    lane?: RateLane;
   }): Promise<JupiterTriggerOrdersResponse> {
     const url = new URL(`${this.baseUrl}/getTriggerOrders`);
     url.searchParams.set('user', params.user);
@@ -86,21 +93,24 @@ export class JupiterTriggerClient {
     if (params.outputMint) {
       url.searchParams.set('outputMint', params.outputMint);
     }
-    return this.request<JupiterTriggerOrdersResponse>(url.toString(), {
-      method: 'GET',
-    });
+    return this.request<JupiterTriggerOrdersResponse>(
+      url.toString(),
+      { method: 'GET' },
+      params.lane,
+    );
   }
 
-  private async request<T>(url: string, init: RequestInit): Promise<T> {
-    let response: Response;
-    try {
-      response = await fetch(url, {
-        ...init,
-        signal: AbortSignal.timeout(30_000),
-      });
-    } catch (err) {
-      throw new JupiterUnavailableError('Jupiter Trigger network error', err);
-    }
+  private async request<T>(
+    url: string,
+    init: RequestInit,
+    lane: RateLane = 'priority',
+  ): Promise<T> {
+    const response = await this.gateway.fetch(
+      url,
+      init,
+      'Jupiter Trigger',
+      lane,
+    );
 
     let payload: unknown;
     try {

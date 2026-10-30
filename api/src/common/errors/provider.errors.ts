@@ -1,3 +1,8 @@
+import type {
+  PriceMovedDetails,
+  PriceMovedTerms,
+} from '../../../types/execution';
+
 export class ProviderError extends Error {
   constructor(
     message: string,
@@ -59,6 +64,16 @@ export class JupiterBadRequestError extends ProviderError {
   }
 }
 
+export class JupiterRateLimitedError extends ProviderError {
+  constructor(
+    message = 'Jupiter is rate limiting Oren right now. Try again in a few seconds.',
+    cause?: unknown,
+  ) {
+    super(message, 'JUPITER_RATE_LIMITED', 429, cause);
+    this.name = 'JupiterRateLimitedError';
+  }
+}
+
 export class QuoteExpiredError extends ProviderError {
   constructor(
     message = 'Quote expired or not found. Refresh the quote or basket and try again.',
@@ -97,5 +112,28 @@ export class AgentUnavailableError extends ProviderError {
   constructor(message = 'Agent unavailable', cause?: unknown) {
     super(message, 'AGENT_UNAVAILABLE', 503, cause);
     this.name = 'AgentUnavailableError';
+  }
+}
+
+/**
+ * Neither venue can execute at or above the minimum the user reviewed.
+ * The user must look at a fresh quote; nothing was built or signed.
+ */
+export type { PriceMovedDetails, PriceMovedTerms };
+
+export class PriceMovedError extends ProviderError {
+  constructor(
+    message = 'The price moved since you reviewed this trade. Review the new quote before signing.',
+    cause?: unknown,
+    /** Serialised to clients as `priceMoved`. */
+    readonly details?: PriceMovedDetails,
+    /**
+     * Full (server-side) alternative quote, for the QuoteCache only.
+     * Never serialised.
+     */
+    readonly alternativeQuote?: unknown,
+  ) {
+    super(message, 'PRICE_MOVED', 409, cause);
+    this.name = 'PriceMovedError';
   }
 }

@@ -227,7 +227,9 @@ export class AgentService {
 
           try {
             const args = parseArguments(call.arguments);
-            const result = await this.tools.dispatch(toolName, args);
+            const result = await this.tools.dispatch(toolName, args, {
+              walletAddress,
+            });
             await this.repository.insertMessage({
               threadId: thread.id,
               role: 'tool',

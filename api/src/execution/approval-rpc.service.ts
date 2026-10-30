@@ -1,11 +1,19 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { VersionedTransaction } from '@solana/web3.js';
 import { createPublicKey, verify } from 'node:crypto';
 import bs58 from 'bs58';
 import { AlchemyClient } from '../alchemy/alchemy.client';
+import {
+  checkSimulatedBalances,
+  probeBalances,
+  type SimulatedAccount,
+  simulationAddresses,
+} from './swap-balance-guard';
+import type { SwapExpectation } from './swap-terms';
 
 @Injectable()
 export class ApprovalRpc {
+  private readonly logger = new Logger(ApprovalRpc.name);
   constructor(private readonly rpc: AlchemyClient) {}
   decode(transaction: string, wallet: string) {
     const tx = VersionedTransaction.deserialize(
@@ -21,15 +29,32 @@ export class ApprovalRpc {
     }
     return tx;
   }
-  async inspect(transaction: string, wallet: string) {
+  /**
+   * Simulate the exact bytes the user will sign. For swaps, `expectation`
+   * adds a venue-neutral balance check: the simulated output received must
+   * meet the reviewed minimum and SOL leaving the wallet must stay within
+   * the input + fee + rent allowance.
+   */
+  async inspect(
+    transaction: string,
+    wallet: string,
+    expectation?: SwapExpectation,
+  ) {
     const tx = this.decode(transaction, wallet);
+    const probe = expectation
+      ? await probeBalances(this.rpc, wallet, expectation)
+      : undefined;
+    const addresses = probe ? simulationAddresses(probe) : undefined;
     const [simulated, fee] = await Promise.all([
-      this.rpc.call<{ value: { err: unknown } }>('simulateTransaction', [
+      this.rpc.call<{
+        value: { err: unknown; accounts?: (SimulatedAccount | null)[] | null };
+      }>('simulateTransaction', [
         transaction,
         {
           encoding: 'base64',
           sigVerify: false,
           commitment: 'confirmed',
+          ...(addresses ? { accounts: { encoding: 'base64', addresses } } : {}),
         },
       ]),
       this.rpc.call<{ value: number | null }>('getFeeForMessage', [
@@ -45,8 +70,31 @@ export class ApprovalRpc {
       throw new BadRequestException(
         'Transaction expired. Request a fresh quote.',
       );
+    if (probe && expectation && addresses) {
+      const check = checkSimulatedBalances(
+        probe,
+        expectation,
+        addresses,
+        simulated.value.accounts ?? [],
+        BigInt(fee.value),
+      );
+      if (!check.ok) {
+        this.logger.warn(
+          `swap balance check failed for ${wallet}: ${check.reason}`,
+        );
+        throw new BadRequestException(
+          'This trade no longer matches the terms you reviewed. Review a fresh quote.',
+        );
+      }
+    }
     return String(fee.value);
   }
+
+  /** Current confirmed slot, for routes that carry a slot expiry. */
+  async currentSlot() {
+    return this.rpc.call<number>('getSlot', [{ commitment: 'confirmed' }]);
+  }
+
   validateSigned(unsigned: string, signed: string, wallet: string) {
     const original = this.decode(unsigned, wallet);
     const tx = this.decode(signed, wallet);

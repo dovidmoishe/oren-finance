@@ -1,3 +1,4 @@
+import { PriceMovedError } from '../../common/errors/provider.errors';
 import { BadRequestException } from '@nestjs/common';
 import { AgentToolRegistry } from './agent-tool.registry';
 
@@ -243,6 +244,54 @@ describe('AgentToolRegistry', () => {
         },
       },
     });
+  });
+
+  it('quotes swaps for the conversation wallet without leaking route payloads to the model', async () => {
+    const quote = { id: 'q-1', provider: 'jupiter', routePayload: { big: 1 } };
+    execution.getQuote.mockResolvedValue(quote);
+
+    const result = await registry.dispatch(
+      'getSwapQuote',
+      { side: 'buy', ticker: 'NVDA', amountUsd: 25 },
+      { walletAddress: 'wallet-1' },
+    );
+
+    expect(execution.getQuote).toHaveBeenCalledWith(
+      expect.objectContaining({
+        side: 'buy',
+        ticker: 'NVDA',
+        amountUsd: 25,
+        wallet: 'wallet-1',
+      }),
+    );
+    const { routePayload: _omit, ...publicQuote } = quote;
+    void _omit;
+    expect(result.output).toEqual(publicQuote);
+    // Artifacts are persisted with the conversation: no route payload there.
+    expect(result.artifact).toEqual({ type: 'quote', data: publicQuote });
+    expect(result.output).not.toHaveProperty('routePayload');
+  });
+
+  it('turns PRICE_MOVED on prepareSwap into a reviewable alternative quote, never executing it', async () => {
+    const alternative = { id: 'jup-alt', provider: 'jupiter' };
+    const details = { quoteId: 'q-1', alternative };
+    execution.prepare.mockRejectedValueOnce(
+      new PriceMovedError(undefined, undefined, details as never, {
+        id: 'jup-alt',
+        routePayload: { big: 1 },
+      }),
+    );
+    const result = await registry.dispatch(
+      'prepareSwap',
+      { quoteId: 'q-1', wallet: 'wallet-1' },
+      { walletAddress: 'wallet-1' },
+    );
+    expect(result.output).toMatchObject({
+      status: 'price_moved',
+      priceMoved: details,
+    });
+    expect(result.artifact).toEqual({ type: 'quote', data: alternative });
+    expect(execution.prepare).toHaveBeenCalledTimes(1);
   });
 
   it('dispatches basket tools and extracts artifacts', async () => {

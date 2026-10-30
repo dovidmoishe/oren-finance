@@ -25,6 +25,11 @@ export function getExecutionQuote(intent: TradeIntent) {
   });
 }
 
+/** Silent re-quote of the same intent; the API serves it on its background lane. */
+export function refreshExecutionQuote(intent: TradeIntent) {
+  return getExecutionQuote({ ...intent, autoRefresh: true });
+}
+
 export function prepareExecution(request: PrepareExecutionRequest) {
   return apiRequest<ExecutionPreparedTransaction>("/execution/prepare", {
     method: "POST",

@@ -1,5 +1,6 @@
 import { BadRequestException } from '@nestjs/common';
 import type { Quote } from '../../types/quote';
+import { PriceMovedError } from '../common/errors/provider.errors';
 import { BasketCache } from './basket-cache';
 import { ExecutionService } from './execution.service';
 
@@ -36,9 +37,9 @@ function makeQuote(ticker: string, amountUsd: number): Quote {
 }
 
 describe('ExecutionService basket support', () => {
-  const jupiter = {
-    validateQuote: jest.fn(),
-    prepareSwap: jest.fn(),
+  const router = {
+    quote: jest.fn(),
+    prepare: jest.fn(),
   };
   const selector = {
     selectAndQuote: jest.fn(),
@@ -46,6 +47,7 @@ describe('ExecutionService basket support', () => {
   const quoteCache = {
     set: jest.fn(),
     get: jest.fn(),
+    replace: jest.fn(),
     attachExecution: jest.fn(),
     getPendingExecution: jest.fn(),
     delete: jest.fn(),
@@ -93,7 +95,7 @@ describe('ExecutionService basket support', () => {
     jest.clearAllMocks();
     baskets = new BasketCache();
     service = new ExecutionService(
-      jupiter as never,
+      router as never,
       trigger as never,
       selector as never,
       quoteCache as never,
@@ -234,13 +236,16 @@ describe('ExecutionService basket support', () => {
     quoteCache.get
       .mockReturnValueOnce({ quote: nvdaQuote })
       .mockReturnValueOnce({ quote: msftQuote });
-    jupiter.prepareSwap
+    router.prepare
       .mockResolvedValueOnce({
-        quoteId: nvdaQuote.id,
-        wallet,
-        transaction: 'base64-nvda',
-        provider: 'jupiter',
-        expiresAt: nvdaQuote.expiresAt,
+        prepared: {
+          quoteId: nvdaQuote.id,
+          wallet,
+          transaction: 'base64-nvda',
+          provider: 'jupiter',
+          expiresAt: nvdaQuote.expiresAt,
+        },
+        quote: nvdaQuote,
       })
       .mockRejectedValueOnce(new Error('route vanished'));
     repository.insert.mockResolvedValue({ id: 'exec-1' });
@@ -255,5 +260,137 @@ describe('ExecutionService basket support', () => {
       'awaiting_signature',
       'failed',
     ]);
+  });
+
+  it('basket legs show the quote that will execute, without its route (H4)', async () => {
+    const basket = await service.createBasket({
+      amountUsd: 50,
+      prompt: 'one stock',
+      candidates: [
+        {
+          assetId: 'nvda',
+          ticker: 'NVDA',
+          name: 'NVIDIA',
+          opportunityScore: 90,
+          signals: { volatility30d: 4 } as never,
+        },
+      ],
+    });
+    const reviewed = makeQuote('NVDA', basket.allocations[0].amountUsd);
+    const executed = {
+      ...reviewed,
+      provider: 'jupiter-fallback',
+      outputAmount: 0.99,
+      routePayload: { inAmount: '2' },
+    };
+    const terms = { minOutRaw: '1', slippageBps: 50, provider: 'jupiter' };
+    selector.selectAndQuote.mockResolvedValueOnce({ quote: reviewed });
+    quoteCache.get.mockReturnValueOnce({ quote: reviewed, reviewed: terms });
+    router.prepare.mockResolvedValueOnce({
+      prepared: {
+        quoteId: reviewed.id,
+        wallet,
+        transaction: 'base64-nvda',
+        provider: 'jupiter',
+        expiresAt: reviewed.expiresAt,
+      },
+      quote: executed,
+    });
+    repository.insert.mockResolvedValue({ id: 'exec-1' });
+
+    const result = await service.prepareBasketPurchase({
+      basketId: basket.id,
+      wallet,
+    });
+
+    // The router is held to the terms reviewed when the quote was issued.
+    expect(router.prepare).toHaveBeenCalledWith(reviewed, wallet, terms);
+    expect(quoteCache.replace).toHaveBeenCalledWith(executed);
+    const leg = result.progress.legs[0] as unknown as {
+      quote: Record<string, unknown>;
+    };
+    expect(leg.quote).toMatchObject({
+      provider: 'jupiter-fallback',
+      outputAmount: 0.99,
+    });
+    expect(leg.quote).not.toHaveProperty('routePayload');
+    expect(repository.insert).toHaveBeenCalledWith(
+      expect.objectContaining({ provider: 'jupiter-fallback' }),
+    );
+  });
+
+  it('caches the Jupiter alternative from PRICE_MOVED and rethrows', async () => {
+    const reviewed = makeQuote('NVDA', 50);
+    const alternative = { ...makeQuote('NVDA', 50), id: 'jup-alt' };
+    quoteCache.get.mockReturnValueOnce({ quote: reviewed });
+    const err = new PriceMovedError(
+      undefined,
+      undefined,
+      { quoteId: reviewed.id } as never,
+      alternative,
+    );
+    router.prepare.mockRejectedValueOnce(err);
+    await expect(
+      service.prepareWithQuote({ quoteId: reviewed.id, wallet }),
+    ).rejects.toBe(err);
+    expect(quoteCache.set).toHaveBeenCalledWith(alternative);
+    expect(repository.insert).not.toHaveBeenCalled();
+  });
+
+  it('marks a basket leg PRICE_MOVED with its alternative for the user to review', async () => {
+    const basket = await service.createBasket({
+      amountUsd: 50,
+      prompt: 'one stock',
+      candidates: [
+        {
+          assetId: 'nvda',
+          ticker: 'NVDA',
+          name: 'NVIDIA',
+          opportunityScore: 90,
+          signals: { volatility30d: 4 } as never,
+        },
+        {
+          assetId: 'msft',
+          ticker: 'MSFT',
+          name: 'Microsoft',
+          opportunityScore: 60,
+          signals: { volatility30d: 2 } as never,
+        },
+      ],
+    });
+    const nvda = makeQuote('NVDA', basket.allocations[0].amountUsd);
+    const msft = makeQuote('MSFT', basket.allocations[1].amountUsd);
+    selector.selectAndQuote
+      .mockResolvedValueOnce({ quote: nvda })
+      .mockResolvedValueOnce({ quote: msft });
+    quoteCache.get
+      .mockReturnValueOnce({ quote: nvda })
+      .mockReturnValueOnce({ quote: msft });
+    const details = { quoteId: nvda.id, alternative: { id: 'jup-alt' } };
+    router.prepare
+      .mockRejectedValueOnce(
+        new PriceMovedError(undefined, undefined, details as never),
+      )
+      .mockResolvedValueOnce({
+        prepared: {
+          quoteId: msft.id,
+          wallet,
+          transaction: 'base64-msft',
+          provider: 'jupiter',
+          expiresAt: msft.expiresAt,
+        },
+        quote: msft,
+      });
+    repository.insert.mockResolvedValue({ id: 'exec-2' });
+
+    const result = await service.prepareBasketPurchase({
+      basketId: basket.id,
+      wallet,
+    });
+    expect(result.progress.legs[0]).toMatchObject({
+      status: 'failed',
+      priceMoved: details,
+    });
+    expect(result.progress.legs[1].status).toBe('awaiting_signature');
   });
 });

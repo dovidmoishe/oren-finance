@@ -35,6 +35,7 @@ import {
   ExecutionNotFoundError,
   InvalidWalletAddressError,
   JupiterBadRequestError,
+  PriceMovedError,
   TokensNotFoundError,
 } from '../common/errors/provider.errors';
 import { PortfolioService } from '../portfolio/portfolio.service';
@@ -42,7 +43,6 @@ import { TokensService } from '../tokens/tokens.service';
 import { IntelligenceService } from '../intelligence/intelligence.service';
 import { BasketCache } from './basket-cache';
 import { ExecutionRepository } from './execution.repository';
-import { JupiterService } from './jupiter/jupiter.service';
 import { JupiterTriggerClient } from './jupiter/jupiter-trigger.client';
 import {
   computeLimitOrderAmounts,
@@ -51,6 +51,8 @@ import {
 import { LimitOrderCache } from './limit-order-cache';
 import { LimitOrderRepository } from './limit-order.repository';
 import { QuoteCache } from './quote-cache';
+import { SwapRouter } from './swap-router';
+import { publicQuote, type SwapExpectation } from './swap-terms';
 import { VariantSelector } from './variant-selector';
 
 @Injectable()
@@ -58,7 +60,7 @@ export class ExecutionService {
   private readonly logger = new Logger(ExecutionService.name);
 
   constructor(
-    private readonly jupiter: JupiterService,
+    private readonly router: SwapRouter,
     private readonly trigger: JupiterTriggerClient,
     private readonly selector: VariantSelector,
     private readonly cache: QuoteCache,
@@ -219,18 +221,21 @@ export class ExecutionService {
           assetId: allocation.assetId,
           ticker: allocation.ticker,
           amountUsd: allocation.amountUsd,
+          wallet,
         });
-        const preparedTransaction = await this.prepare(
-          { quoteId: quote.id, wallet },
-          basket.featureSource ?? 'basket',
-        );
+        const { prepared: preparedTransaction, quote: executed } =
+          await this.prepareWithQuote(
+            { quoteId: quote.id, wallet },
+            basket.featureSource ?? 'basket',
+          );
         transactions.push(preparedTransaction);
         legs.push({
           assetId: allocation.assetId,
           ticker: allocation.ticker,
           status: 'awaiting_signature' as const,
-          quote,
-          variant: quote.variant,
+          // Show the quote that will actually execute, without its route.
+          quote: publicQuote(executed),
+          variant: executed.variant,
           preparedTransaction,
         });
       } catch (err) {
@@ -239,6 +244,8 @@ export class ExecutionService {
           ticker: allocation.ticker,
           status: 'failed' as const,
           error: err instanceof Error ? err.message : String(err),
+          // The user can review the Jupiter alternative for this leg.
+          priceMoved: err instanceof PriceMovedError ? err.details : undefined,
         });
       }
     }
@@ -263,16 +270,43 @@ export class ExecutionService {
     input: PostExecutionPrepareRequest,
     featureSource: ExecutionFeature = 'direct',
   ): Promise<PreparedTransaction> {
+    return (await this.prepareWithQuote(input, featureSource)).prepared;
+  }
+
+  /**
+   * Prepare a swap and return the exact quote that will execute alongside
+   * its transaction. Callers that show terms to the user (approvals, basket
+   * legs) must use this quote, never re-read the shared cache.
+   */
+  async prepareWithQuote(
+    input: PostExecutionPrepareRequest,
+    featureSource: ExecutionFeature = 'direct',
+  ): Promise<{
+    prepared: PreparedTransaction;
+    quote: Quote;
+    expectation?: SwapExpectation;
+  }> {
     const wallet = assertWallet(input.wallet);
     if (!input.quoteId?.trim()) {
       throw new BadRequestException('quoteId is required');
     }
 
     const entry = this.cache.get(input.quoteId);
-    const quote = entry.quote;
-    await this.jupiter.validateQuote(quote);
-
-    const prepared = await this.jupiter.prepareSwap(quote, wallet);
+    // The router may refresh a Titan route or fall back to the cached
+    // Jupiter quote, but never below the terms first reviewed for this id.
+    let routed: Awaited<ReturnType<SwapRouter['prepare']>>;
+    try {
+      routed = await this.router.prepare(entry.quote, wallet, entry.reviewed);
+    } catch (err) {
+      // Keep the Jupiter alternative server-side so the client can start a
+      // fresh review for it by id. It carries its own reviewed terms.
+      if (err instanceof PriceMovedError && err.alternativeQuote) {
+        this.cache.set(err.alternativeQuote as Quote);
+      }
+      throw err;
+    }
+    const { prepared, quote, expectation } = routed;
+    if (quote !== entry.quote) this.cache.replace(quote);
 
     const row = await this.repository.insert({
       walletAddress: wallet,
@@ -290,7 +324,11 @@ export class ExecutionService {
     });
 
     this.cache.attachExecution(quote.id, row.id, wallet);
-    return { ...prepared, executionId: row.id };
+    return {
+      prepared: { ...prepared, executionId: row.id },
+      quote,
+      expectation,
+    };
   }
 
   async confirm(input: {
@@ -833,7 +871,7 @@ export class ExecutionService {
           ? 0 // filled after quote from outAmount
           : req.amount;
 
-    const quote = await this.jupiter.getQuoteWithContext({
+    const quote = await this.router.quote({
       side: req.side,
       assetId,
       ticker,
@@ -847,6 +885,7 @@ export class ExecutionService {
       amountUi: req.amount,
       amountUsd,
       slippageBps: req.slippageBps ?? DEFAULT_SLIPPAGE_BPS,
+      wallet: req.wallet,
     });
 
     if (req.side === 'sell' && quote.amountUsd === 0) {
