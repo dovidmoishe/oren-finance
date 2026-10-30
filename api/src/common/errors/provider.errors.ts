@@ -59,6 +59,16 @@ export class JupiterBadRequestError extends ProviderError {
   }
 }
 
+export class JupiterRateLimitedError extends ProviderError {
+  constructor(
+    message = 'Jupiter is rate limiting Oren right now. Try again in a few seconds.',
+    cause?: unknown,
+  ) {
+    super(message, 'JUPITER_RATE_LIMITED', 429, cause);
+    this.name = 'JupiterRateLimitedError';
+  }
+}
+
 export class QuoteExpiredError extends ProviderError {
   constructor(
     message = 'Quote expired or not found. Refresh the quote or basket and try again.',

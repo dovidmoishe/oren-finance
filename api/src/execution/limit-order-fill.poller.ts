@@ -34,7 +34,12 @@ export class LimitOrderFillPoller implements OnModuleInit, OnModuleDestroy {
       const open = await this.orders.listAllOpen();
       const wallets = [...new Set(open.map((order) => order.walletAddress))];
       for (const wallet of wallets) {
-        const history = await this.trigger.getTriggerOrders({ user: wallet, orderStatus: 'history' });
+        const history = await this.trigger.getTriggerOrders({
+          user: wallet,
+          orderStatus: 'history',
+          // Never compete with user quotes/swaps for the shared Jupiter budget.
+          lane: 'background',
+        });
         for (const remote of history.orders ?? []) {
           const local = open.find((order) => order.orderKey === remote.orderKey);
           if (!local?.openSignature) continue;
