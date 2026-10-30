@@ -4,7 +4,6 @@ import { useAuthorizationSignature, useLogin, usePrivy } from "@privy-io/react-a
 import { usePathname } from "next/navigation";
 import { useCreateWallet, useSignMessage, useWallets } from "@privy-io/react-auth/solana";
 import { WalletContext, type WalletContextState } from "@solana/wallet-adapter-react";
-import { WalletModalContext } from "@solana/wallet-adapter-react-ui";
 import { PublicKey } from "@solana/web3.js";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useAgentStore, useExecutionStore, usePortfolioStore, useSocialStore, useVaultStore, useWalletStore } from "@/store";
@@ -14,6 +13,7 @@ import { createPrivySigner } from "@/services/privy-signer";
 import { resolveEmbeddedSolanaAccount, resolveSolanaWallet, type WalletSelection } from "@/services/wallet-selection";
 import { AuthContext } from "./auth-context";
 import { EmailLogin } from "./email-login";
+import { WalletModalContext } from "./wallet-modal-context";
 
 const SELECTION_KEY = "oren.active-wallet.v1";
 function readSelection(): WalletSelection | undefined {

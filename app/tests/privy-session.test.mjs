@@ -55,7 +55,7 @@ function session(createWallet) {
       if (id === './auth-context') return { AuthContext: { Provider: 'auth' } };
       if (id === './email-login') return { EmailLogin: 'email-login' };
       if (id === '@solana/wallet-adapter-react') return { WalletContext: { Provider: 'wallet' } };
-      if (id === '@solana/wallet-adapter-react-ui') return { WalletModalContext: { Provider: 'wallet-modal' } };
+      if (id === './wallet-modal-context') return { WalletModalContext: { Provider: 'wallet-modal' } };
       return require(id);
     },
   });
