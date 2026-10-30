@@ -2,6 +2,12 @@ import { DEFAULT_VAULT_PROGRAM_ID } from './constants';
 
 export type SolanaNetwork = 'mainnet' | 'devnet';
 
+/** Keyless api.jup.ag is limited to 0.5 rps; a free key gets 1 rps. */
+const JUPITER_KEYLESS_RPS = 0.5;
+const JUPITER_KEYED_RPS = 1;
+
+const DEFAULT_JUPITER_API_URL = 'https://api.jup.ag/swap/v1';
+
 export interface AppEnv {
   PORT: number;
   CORS_ORIGIN: string;
@@ -16,6 +22,10 @@ export interface AppEnv {
   JUPITER_API_URL?: string;
   JUPITER_TRIGGER_API_URL?: string;
   JUPITER_TRACKING_ACCOUNT?: string;
+  /** Optional Jupiter Developer Platform key, sent as `x-api-key`. */
+  JUPITER_API_KEY?: string;
+  /** Client-side Jupiter request budget (shared by quote, swap and trigger). */
+  JUPITER_MAX_RPS: number;
   DUNE_API_KEY?: string;
   DUNE_API_BASE_URL: string;
   DUNE_UPLOAD_NAMESPACE?: string;
@@ -75,6 +85,42 @@ function readPositiveInt(
   return value;
 }
 
+function readPositiveNumber(
+  env: EnvSource,
+  key: string,
+  fallback: number,
+): number {
+  const raw = readEnv(env, key);
+  const value = raw == null ? fallback : Number(raw);
+  if (!Number.isFinite(value) || value <= 0) {
+    throw new Error(`${key} must be a positive number, got "${raw}"`);
+  }
+  return value;
+}
+
+/**
+ * lite-api.jup.ag is being retired; api.jup.ag serves the same paths.
+ * Rewrite a stale explicit override instead of letting swaps break.
+ */
+export function migrateJupiterUrl(url: string | undefined): string | undefined {
+  if (!url) return undefined;
+  const trimmed = url.replace(/\/$/, '');
+  try {
+    const parsed = new URL(trimmed);
+    if (parsed.hostname === 'lite-api.jup.ag') {
+      parsed.hostname = 'api.jup.ag';
+      const migrated = parsed.toString().replace(/\/$/, '');
+      console.warn(
+        `[env] ${trimmed} uses the retired lite-api.jup.ag host; using ${migrated} instead. Update the env var.`,
+      );
+      return migrated;
+    }
+  } catch {
+    // Leave malformed values for the client to surface.
+  }
+  return trimmed;
+}
+
 /**
  * Nest ConfigModule loads `.env` into the object passed to `validate`
  * *before* those values are assigned to `process.env`. Always read from
@@ -115,13 +161,18 @@ export function validateEnv(env: EnvSource = process.env): AppEnv {
     PRIVY_APP_SECRET: readEnv(env, 'PRIVY_APP_SECRET'),
     ALCHEMY_SOLANA_WS_URL: readEnv(env, 'ALCHEMY_SOLANA_WS_URL'),
     JUPITER_API_URL:
-      readEnv(env, 'JUPITER_API_URL')?.replace(/\/$/, '') ??
-      'https://lite-api.jup.ag/swap/v1',
-    JUPITER_TRIGGER_API_URL: readEnv(env, 'JUPITER_TRIGGER_API_URL')?.replace(
-      /\/$/,
-      '',
+      migrateJupiterUrl(readEnv(env, 'JUPITER_API_URL')) ??
+      DEFAULT_JUPITER_API_URL,
+    JUPITER_TRIGGER_API_URL: migrateJupiterUrl(
+      readEnv(env, 'JUPITER_TRIGGER_API_URL'),
     ),
     JUPITER_TRACKING_ACCOUNT: readEnv(env, 'JUPITER_TRACKING_ACCOUNT'),
+    JUPITER_API_KEY: readEnv(env, 'JUPITER_API_KEY'),
+    JUPITER_MAX_RPS: readPositiveNumber(
+      env,
+      'JUPITER_MAX_RPS',
+      readEnv(env, 'JUPITER_API_KEY') ? JUPITER_KEYED_RPS : JUPITER_KEYLESS_RPS,
+    ),
     DUNE_API_KEY: readEnv(env, 'DUNE_API_KEY'),
     DUNE_API_BASE_URL: (
       readEnv(env, 'DUNE_API_BASE_URL') ?? 'https://api.dune.com/api/v1'
