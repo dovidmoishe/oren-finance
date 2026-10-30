@@ -10,11 +10,18 @@ import { NewsService } from '../../news/news.service';
 import { PortfolioCalendarService } from '../../portfolio/portfolio-calendar.service';
 import { PortfolioService } from '../../portfolio/portfolio.service';
 import { SocialService } from '../../social/social.service';
+import { publicQuote } from '../../execution/swap-terms';
+import { PriceMovedError } from '../../common/errors/provider.errors';
 import { VaultService } from '../../vault/vault.service';
 
 export interface AgentToolResult {
   output: unknown;
   artifact?: AgentArtifact;
+}
+
+/** Server-side facts about the conversation, never taken from model args. */
+export interface AgentToolContext {
+  walletAddress?: string;
 }
 
 export type ToolDefinition = {
@@ -43,7 +50,11 @@ export class AgentToolRegistry {
     return TOOL_SCHEMAS;
   }
 
-  async dispatch(name: string, args: unknown): Promise<AgentToolResult> {
+  async dispatch(
+    name: string,
+    args: unknown,
+    context: AgentToolContext = {},
+  ): Promise<AgentToolResult> {
     const input = asRecord(args);
 
     switch (name) {
@@ -177,9 +188,16 @@ export class AgentToolRegistry {
           amount: optionalNumber(input, 'amount'),
           preferredMint: optionalString(input, 'preferredMint'),
           slippageBps: optionalNumber(input, 'slippageBps'),
+          // Lets wallet-specific venues (Titan) compete for the route.
+          wallet: context.walletAddress,
         };
-        const quote = await this.execution.getQuote(intent);
-        return { output: quote, artifact: { type: 'quote', data: quote } };
+        // Route payloads (instructions, lookup tables) are for the server
+        // only; keep them out of the model's context, artifacts and the DB.
+        const quote = publicQuote(await this.execution.getQuote(intent));
+        return {
+          output: quote,
+          artifact: { type: 'quote', data: quote },
+        };
       }
 
       case 'proposeLimitOrder': {
@@ -241,13 +259,31 @@ export class AgentToolRegistry {
       }
 
       case 'prepareSwap': {
-        const prepared = await this.execution.prepare(
-          {
-            quoteId: required(input, 'quoteId'),
-            wallet: required(input, 'wallet'),
-          },
-          'agent',
-        );
+        let prepared: Awaited<ReturnType<ExecutionService['prepare']>>;
+        try {
+          prepared = await this.execution.prepare(
+            {
+              quoteId: required(input, 'quoteId'),
+              wallet: required(input, 'wallet'),
+            },
+            'agent',
+          );
+        } catch (err) {
+          if (!(err instanceof PriceMovedError)) throw err;
+          // Never execute the alternative: show it as a fresh quote the
+          // user must review and approve themselves.
+          const alternative = err.details?.alternative;
+          return {
+            output: {
+              status: 'price_moved',
+              message: err.message,
+              priceMoved: err.details,
+            },
+            artifact: alternative
+              ? { type: 'quote', data: alternative }
+              : undefined,
+          };
+        }
         return {
           output: prepared,
           artifact: { type: 'prepared_swap', data: prepared },

@@ -16,6 +16,7 @@ import type {
 import { Button, Modal, Toast } from '@/components/ui';
 import { BasketReview } from '@/components/trading/basket-review';
 import { QuoteReviewModal } from '@/components/trading/quote-review-modal';
+import { PriceMovedReview } from '@/components/trading/price-moved-review';
 import { LimitOrderReviewModal } from '@/components/trading/limit-order-review-modal';
 
 interface AgentActionReviewProps {
@@ -86,8 +87,14 @@ export function AgentActionReview({
         error={error}
         isRefreshingQuote={isRefreshingQuote}
         onClose={onClose}
+        onAcceptAlternative={(alternative) => {
+          // Swap in the Jupiter alternative; the modal prepares a fresh
+          // approval for it. Nothing is signed without the user.
+          seedQuoteIntoStore(alternative, useExecutionStore.getState().lastQuoteIntent);
+          resetFeedback();
+        }}
         onRefreshQuote={() => void refreshQuote()}
-        onSign={(approvalId) => executeQuote(liveQuote, approvalId)}
+        onSign={(approvalId, reviewed) => executeQuote(reviewed, approvalId)}
         open
         quote={liveQuote}
         refreshFailed={refreshFailed}
@@ -106,6 +113,8 @@ function BasketExecutionReview({ basket, onClose }: { basket: BasketResponse; on
   const [nextLeg, setNextLeg] = useState(0);
   const [preparing, setPreparing] = useState(false);
   const [preparationError, setPreparationError] = useState<string>();
+  // Jupiter alternatives the user accepted for legs refused with PRICE_MOVED.
+  const [acceptedAlternatives, setAcceptedAlternatives] = useState<Record<number, QuoteResponse>>({});
   const prepareBasketTrades = useExecutionStore(state => state.prepareBasketTrades);
   const { confirmation, error, executeQuote, flowStatus, resetFeedback } = useQuoteExecution(() => {
     setProgress(current => current ? { ...current, legs: current.legs.map((leg, i) => i === nextLeg ? { ...leg, status: 'confirmed' } : leg) } : current);
@@ -127,13 +136,20 @@ function BasketExecutionReview({ basket, onClose }: { basket: BasketResponse; on
       if (current()) setPreparationError(error instanceof Error ? error.message : 'Unable to prepare basket');
     } finally { setPreparing(false); }
   }
-  if (leg?.quote) return <QuoteReviewModal open quote={leg.quote} status={flowStatus} confirmation={confirmation} error={error}
-    onClose={onClose} onSign={id => executeQuote(leg.quote, id)} />;
+  const legQuote = leg ? acceptedAlternatives[nextLeg] ?? leg.quote : undefined;
+  if (leg && legQuote) return <QuoteReviewModal open quote={legQuote} status={flowStatus} confirmation={confirmation} error={error}
+    onClose={onClose} onSign={(id, reviewed) => executeQuote(reviewed, id)} />;
   return <Modal open title="Review basket" onClose={onClose}>
     <BasketReview basket={basket} progress={progress} />
     <p className="my-4 text-sm text-muted">Review and confirm each stock separately. Completed trades are not repeated.</p>
     {preparationError ? <Toast title="Basket preparation" description={preparationError} tone="error" /> : null}
-    {leg && !leg.quote ? <>
+    {leg && !leg.quote && leg.priceMoved ? (
+      <PriceMovedReview
+        details={leg.priceMoved}
+        onAccept={alternative => setAcceptedAlternatives(current => ({ ...current, [nextLeg]: alternative }))}
+        onCancel={() => setNextLeg(index => index + 1)}
+      />
+    ) : leg && !leg.quote ? <>
       <Toast title={`${leg.ticker} unavailable`} description={leg.error || 'This stock could not be prepared. No trade was submitted.'} tone="error" />
       <Button onClick={() => setNextLeg(index => index + 1)}>Skip this stock</Button>
     </> : null}

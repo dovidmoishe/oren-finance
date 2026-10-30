@@ -5,6 +5,8 @@ import {
   JupiterBadRequestError,
   JupiterUnavailableError,
 } from '../../common/errors/provider.errors';
+import type { RateLane } from '../../common/rate-limiter';
+import { JupiterGateway } from './jupiter-gateway';
 import type { JupiterQuoteRaw, JupiterSwapRaw } from './jupiter.types';
 
 @Injectable()
@@ -13,9 +15,12 @@ export class JupiterClient {
   private readonly baseUrl: string;
   private readonly trackingAccount?: string;
 
-  constructor(@Inject(APP_ENV) env: AppEnv) {
+  constructor(
+    @Inject(APP_ENV) env: AppEnv,
+    private readonly gateway: JupiterGateway,
+  ) {
     this.baseUrl = (
-      env.JUPITER_API_URL ?? 'https://lite-api.jup.ag/swap/v1'
+      env.JUPITER_API_URL ?? 'https://api.jup.ag/swap/v1'
     ).replace(/\/$/, '');
     this.trackingAccount = env.JUPITER_TRACKING_ACCOUNT;
   }
@@ -25,6 +30,8 @@ export class JupiterClient {
     outputMint: string;
     amount: string;
     slippageBps: number;
+    /** 'background' for quotes no user is waiting on (auto-refresh). */
+    lane?: RateLane;
   }): Promise<JupiterQuoteRaw> {
     const url = new URL(`${this.baseUrl}/quote`);
     url.searchParams.set('inputMint', params.inputMint);
@@ -32,7 +39,11 @@ export class JupiterClient {
     url.searchParams.set('amount', params.amount);
     url.searchParams.set('slippageBps', String(params.slippageBps));
 
-    return this.request<JupiterQuoteRaw>(url.toString(), { method: 'GET' });
+    return this.request<JupiterQuoteRaw>(
+      url.toString(),
+      { method: 'GET' },
+      params.lane,
+    );
   }
 
   async postSwap(body: {
@@ -61,16 +72,12 @@ export class JupiterClient {
     });
   }
 
-  private async request<T>(url: string, init: RequestInit): Promise<T> {
-    let response: Response;
-    try {
-      response = await fetch(url, {
-        ...init,
-        signal: AbortSignal.timeout(30_000),
-      });
-    } catch (err) {
-      throw new JupiterUnavailableError('Jupiter network error', err);
-    }
+  private async request<T>(
+    url: string,
+    init: RequestInit,
+    lane: RateLane = 'priority',
+  ): Promise<T> {
+    const response = await this.gateway.fetch(url, init, 'Jupiter', lane);
 
     if (response.ok) {
       return (await response.json()) as T;

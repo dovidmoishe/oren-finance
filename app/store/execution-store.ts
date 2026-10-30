@@ -2,7 +2,7 @@
 
 import { create } from "zustand";
 import { sessionSetter } from "@/services/wallet-session";
-import { confirmExecution, createBasket, getExecutionQuote, prepareBasket, prepareExecution } from "@/services";
+import { confirmExecution, createBasket, getExecutionQuote, prepareBasket, prepareExecution, refreshExecutionQuote } from "@/services";
 import type {
   BasketIntent,
   BasketResponse,
@@ -26,7 +26,8 @@ interface ExecutionState {
   isRefreshingQuote: boolean;
   error?: string;
   quoteTrade: (intent: TradeIntent) => Promise<QuoteResponse | undefined>;
-  refreshQuote: () => Promise<QuoteResponse | undefined>;
+  /** Re-quote the last intent. Automatic refreshes use the background lane. */
+  refreshQuote: (options?: { manual?: boolean }) => Promise<QuoteResponse | undefined>;
   prepareTrade: (request: PrepareExecutionRequest) => Promise<void>;
   confirmTrade: (wallet: string, executionId: string, quoteId: string, signature: string) => Promise<void>;
   buildBasket: (intent: BasketIntent) => Promise<void>;
@@ -72,13 +73,17 @@ export const useExecutionStore = create<ExecutionState>((set, get) => ({
       return undefined;
     }
   },
-  async refreshQuote() {
+  async refreshQuote(options) {
     const update = sessionSetter(set);
     const intent = get().lastQuoteIntent;
     if (!intent) return undefined;
     update({ isRefreshingQuote: true, error: undefined });
     try {
-      const quote = await getExecutionQuote(intent);
+      // Automatic refreshes are flagged so they never take rate budget from
+      // user swaps; a manual retry is a user waiting and stays on priority.
+      const quote = options?.manual
+        ? await getExecutionQuote(intent)
+        : await refreshExecutionQuote(intent);
       update({
         quote,
         lastQuoteIntent: intent,

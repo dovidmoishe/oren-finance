@@ -12,7 +12,11 @@ import {
   USDC_DECIMALS,
   USDC_MINT,
 } from '../../config/constants';
-import { QuoteExpiredError } from '../../common/errors/provider.errors';
+import {
+  JupiterRateLimitedError,
+  QuoteExpiredError,
+} from '../../common/errors/provider.errors';
+import type { RateLane } from '../../common/rate-limiter';
 import { JupiterClient } from './jupiter.client';
 import {
   mapJupiterQuoteToDomain,
@@ -34,6 +38,8 @@ export interface JupiterQuoteContext {
   /** USD notional for Quote.amountUsd. */
   amountUsd: number;
   slippageBps?: number;
+  /** 'background' for auto-refresh quotes; defaults to 'priority'. */
+  lane?: RateLane;
 }
 
 @Injectable()
@@ -91,6 +97,7 @@ export class JupiterService implements ExecutionProvider {
       outputMint: ctx.outputMint,
       amount: rawAmount,
       slippageBps,
+      lane: ctx.lane,
     });
 
     return mapJupiterQuoteToDomain({
@@ -126,10 +133,13 @@ export class JupiterService implements ExecutionProvider {
         userPublicKey: wallet,
         useSharedAccounts: false,
       });
-    } catch {
+    } catch (err) {
+      // Retrying a rate-limited request only burns more shared budget.
+      if (err instanceof JupiterRateLimitedError) throw err;
       try {
         swap = await this.client.postSwap({ quoteResponse, userPublicKey: wallet });
-      } catch {
+      } catch (retryErr) {
+        if (retryErr instanceof JupiterRateLimitedError) throw retryErr;
         // Attribution must never prevent a user from receiving a transaction.
         swap = await this.client.postSwap({
           quoteResponse,

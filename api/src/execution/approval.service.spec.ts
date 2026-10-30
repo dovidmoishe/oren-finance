@@ -54,12 +54,29 @@ function fixture(status = 'prepared') {
     broadcast: jest.fn().mockResolvedValue('signature'),
     status: jest.fn().mockResolvedValue(null),
     blockhashValid: jest.fn().mockResolvedValue(true),
+    currentSlot: jest.fn().mockResolvedValue(100),
+  };
+  const executedQuote = {
+    id: 'quote',
+    provider: 'jupiter',
+    expiresAt: new Date(Date.now() + 60000),
+    routePayload: { secret: 'route' },
+  };
+  const expectation = {
+    inputMint: 'in',
+    outputMint: 'out',
+    maxInRaw: '100',
+    minOutRaw: '99',
   };
   const execution = {
-    prepare: jest.fn().mockResolvedValue({
-      transaction: 'unsigned',
-      executionId: 'execution',
-      expiresAt: new Date(Date.now() + 60000),
+    prepareWithQuote: jest.fn().mockResolvedValue({
+      prepared: {
+        transaction: 'unsigned',
+        executionId: 'execution',
+        expiresAt: new Date(Date.now() + 60000),
+      },
+      quote: executedQuote,
+      expectation,
     }),
   };
   const executions = {
@@ -67,10 +84,12 @@ function fixture(status = 'prepared') {
     submitAndEnqueue: jest.fn(),
     updateStatus: jest.fn(),
   };
+  const cachedQuote = {
+    quote: { id: 'quote', expiresAt: new Date(Date.now() + 60000) },
+  };
   const quotes = {
-    get: jest.fn().mockReturnValue({
-      quote: { id: 'quote', expiresAt: new Date(Date.now() + 60000) },
-    }),
+    get: jest.fn().mockReturnValue(cachedQuote),
+    peek: jest.fn().mockReturnValue(cachedQuote),
   };
   const orders = {
     upsert: jest.fn(),
@@ -96,6 +115,9 @@ function fixture(status = 'prepared') {
     execution,
     executions,
     orders,
+    quotes,
+    executedQuote,
+    expectation,
     row: () => row,
     set: (patch: Partial<ApprovalRow>) => {
       row = { ...row, ...patch };
@@ -103,6 +125,86 @@ function fixture(status = 'prepared') {
   };
 }
 describe('server trade approvals', () => {
+  it('binds the approval to the quote prepare executed, without re-reading the cache (H5)', async () => {
+    const f = fixture();
+    await f.service.prepare('Bearer token', {
+      kind: 'swap',
+      referenceId: 'quote',
+      wallet: 'wallet',
+    });
+    expect(f.execution.prepareWithQuote).toHaveBeenCalledWith({
+      quoteId: 'quote',
+      wallet: 'wallet',
+    });
+    expect(f.quotes.peek).not.toHaveBeenCalled();
+    expect(f.quotes.get).not.toHaveBeenCalled();
+    const { routePayload: _omit, ...publicExecuted } = f.executedQuote;
+    void _omit;
+    expect(f.approvals.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        details: expect.objectContaining({
+          quote: publicExecuted,
+          expectation: f.expectation,
+        }) as unknown,
+      }),
+    );
+    // Route payloads never reach the approval row / client.
+    const created = (f.approvals.create.mock.calls[0] as unknown[])[0] as {
+      details: { quote: Record<string, unknown> };
+    };
+    expect(created.details.quote).not.toHaveProperty('routePayload');
+  });
+  it('caps approval validity at the route expiry from prepare', async () => {
+    const f = fixture();
+    const routeExpiry = new Date(Date.now() + 10_000);
+    f.execution.prepareWithQuote.mockResolvedValueOnce({
+      prepared: {
+        transaction: 'unsigned',
+        executionId: 'execution',
+        expiresAt: routeExpiry,
+        expiresAfterSlot: 500,
+      },
+      quote: f.executedQuote,
+      expectation: f.expectation,
+    });
+    await f.service.prepare('Bearer token', {
+      kind: 'swap',
+      referenceId: 'quote',
+      wallet: 'wallet',
+    });
+    expect(f.approvals.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        expiresAt: routeExpiry,
+        details: expect.objectContaining({ expiresAfterSlot: 500 }) as unknown,
+      }),
+    );
+  });
+  it('re-checks balances against the reviewed expectation and the slot before signing', async () => {
+    const f = fixture();
+    f.set({
+      details: {
+        quote: { id: 'quote' },
+        expectation: f.expectation,
+        expiresAfterSlot: 150,
+      },
+    });
+    await f.service.approve('Bearer token', 'approval', 'request-signature');
+    expect(f.rpc.inspect).toHaveBeenCalledWith(
+      'unsigned',
+      'wallet',
+      f.expectation,
+    );
+    expect(f.rpc.currentSlot).toHaveBeenCalled();
+  });
+  it('refuses to sign once the route slot has passed', async () => {
+    const f = fixture();
+    f.set({ details: { quote: { id: 'quote' }, expiresAfterSlot: 99 } });
+    await expect(
+      f.service.approve('Bearer token', 'approval', 'request-signature'),
+    ).rejects.toThrow('expired');
+    expect(f.auth.signTransaction).not.toHaveBeenCalled();
+    expect(f.approvals.claim).not.toHaveBeenCalled();
+  });
   it('checks fresh wallet ownership for status without reloading the signing wallet', async () => {
     const f = fixture('submitted');
     f.set({ signature: 'signature' });
@@ -173,7 +275,11 @@ describe('server trade approvals', () => {
       kind: 'swap',
       referenceId: 'quote',
     });
-    expect(f.rpc.inspect).toHaveBeenCalledWith('unsigned', 'wallet');
+    expect(f.rpc.inspect).toHaveBeenCalledWith(
+      'unsigned',
+      'wallet',
+      f.expectation,
+    );
     expect(f.auth.signTransaction).not.toHaveBeenCalled();
     expect(f.rpc.broadcast).not.toHaveBeenCalled();
   });

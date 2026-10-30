@@ -7,7 +7,11 @@ import {
   Logger,
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
-import { ProviderError } from '../errors/provider.errors';
+import {
+  PriceMovedError,
+  type PriceMovedDetails,
+  ProviderError,
+} from '../errors/provider.errors';
 
 @Catch()
 export class HttpExceptionFilter implements ExceptionFilter {
@@ -22,11 +26,13 @@ export class HttpExceptionFilter implements ExceptionFilter {
     let message = 'Internal server error';
     let error = 'InternalServerError';
     let approvalFailure: { code: string; submissionState: string } | undefined;
+    let priceMoved: PriceMovedDetails | undefined;
 
     if (exception instanceof ProviderError) {
       status = exception.statusCode;
       message = exception.message;
       error = exception.code;
+      if (exception instanceof PriceMovedError) priceMoved = exception.details;
     } else if (exception instanceof HttpException) {
       status = exception.getStatus();
       const body = exception.getResponse();
@@ -69,6 +75,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
 
     response.status(status).json({
       ...approvalFailure,
+      ...(priceMoved ? { priceMoved } : {}),
       statusCode: status,
       message,
       error,

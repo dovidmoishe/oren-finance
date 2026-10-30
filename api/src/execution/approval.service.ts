@@ -22,6 +22,7 @@ import { ExecutionRepository } from './execution.repository';
 import { LimitOrderRepository } from './limit-order.repository';
 import { LimitOrderCache } from './limit-order-cache';
 import { QuoteCache } from './quote-cache';
+import { publicQuote, type SwapExpectation } from './swap-terms';
 
 export type ApprovalKind = 'swap' | 'limit' | 'cancel';
 @Injectable()
@@ -47,17 +48,30 @@ export class ApprovalService {
         'Server trading is only available on Solana mainnet',
       );
     const owner = await this.auth.requireSigner(authorization, input.wallet);
-    let prepared: { transaction: string; executionId: string; expiresAt: Date };
+    let prepared: {
+      transaction: string;
+      executionId: string;
+      expiresAt: Date | string;
+    };
     let details: Record<string, unknown>;
     let expiresAt = Date.now() + 60_000;
+    let expectation: SwapExpectation | undefined;
     if (input.kind === 'swap') {
-      const quote = this.quotes.get(input.referenceId).quote;
-      prepared = await this.execution.prepare({
-        quoteId: quote.id,
+      // Bind the approval to the quote and bytes prepare actually produced
+      // (a refreshed Titan route or the Jupiter fallback), never to a later
+      // cache read that a concurrent prepare could have replaced.
+      const result = await this.execution.prepareWithQuote({
+        quoteId: input.referenceId,
         wallet: input.wallet,
       });
-      details = { quote };
-      expiresAt = Math.min(expiresAt, quote.expiresAt.getTime());
+      prepared = result.prepared;
+      expectation = result.expectation;
+      details = {
+        quote: publicQuote(result.quote),
+        expectation,
+        expiresAfterSlot: result.prepared.expiresAfterSlot,
+      };
+      expiresAt = Math.min(expiresAt, result.quote.expiresAt.getTime());
     } else if (input.kind === 'limit') {
       const proposal = this.limits.getProposal(input.referenceId);
       prepared = await this.execution.prepareLimitOrder({
@@ -88,6 +102,7 @@ export class ApprovalService {
     const feeLamports = await this.rpc.inspect(
       prepared.transaction,
       input.wallet,
+      expectation,
     );
     // The latest blockhash after simulation gives a conservative validity bound
     // for the reviewed transaction without changing its message or blockhash.
@@ -181,8 +196,16 @@ export class ApprovalService {
         throw new BadRequestException(
           'Approval expired. Review a fresh quote.',
         );
-      // Simulate again immediately before signing, without changing the reviewed bytes.
-      await this.rpc.inspect(row.transaction, row.wallet);
+      // Simulate again immediately before signing, without changing the
+      // reviewed bytes, and re-check balances against the reviewed terms.
+      if (row.kind === 'swap') await this.assertSlotValid(row);
+      await this.rpc.inspect(
+        row.transaction,
+        row.wallet,
+        row.kind === 'swap'
+          ? (row.details.expectation as SwapExpectation | undefined)
+          : undefined,
+      );
       if (row.expiresAt.getTime() <= Date.now())
         throw new BadRequestException(
           'Approval expired. Review a fresh quote.',
@@ -318,6 +341,15 @@ export class ApprovalService {
       }
     }
     return this.view(row);
+  }
+
+  /** Titan routes carry a slot after which their on-chain state is stale. */
+  private async assertSlotValid(row: ApprovalRow) {
+    const expiresAfterSlot = Number(row.details.expiresAfterSlot);
+    if (!Number.isSafeInteger(expiresAfterSlot) || expiresAfterSlot <= 0)
+      return;
+    if ((await this.rpc.currentSlot()) > expiresAfterSlot)
+      throw new BadRequestException('Approval expired. Review a fresh quote.');
   }
 
   private async track(row: ApprovalRow) {

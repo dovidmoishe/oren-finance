@@ -62,11 +62,11 @@ export function useQuoteRefresh(options: {
   const activeQuote = quote ?? seedQuote;
   const canRefresh = Boolean(enabled && lastQuoteIntent && !signing);
 
-  const runRefresh = useCallback(async () => {
+  const runRefresh = useCallback(async (manual = false) => {
     if (!canRefresh || refreshInFlight.current) return;
     refreshInFlight.current = true;
     setRefreshFailed(false);
-    const next = await refreshQuote();
+    const next = await refreshQuote({ manual });
     refreshInFlight.current = false;
     if (!next) setRefreshFailed(true);
   }, [canRefresh, refreshQuote]);
@@ -105,7 +105,8 @@ export function useQuoteRefresh(options: {
     expired: isQuoteExpired(activeQuote),
     isRefreshingQuote,
     refreshFailed,
-    refreshQuote: runRefresh,
+    /** User-initiated retry (priority lane). */
+    refreshQuote: () => runRefresh(true),
   };
 }
 
