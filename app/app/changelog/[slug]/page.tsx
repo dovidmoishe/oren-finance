@@ -1,3 +1,6 @@
+
+import { ArrowLeft02Icon } from '@hugeicons/core-free-icons';
+import { HugeiconsIcon } from '@hugeicons/react';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
@@ -27,7 +30,7 @@ export default async function EntryPage({ params }: Props) {
   const entry = getChangelogEntry((await params).slug);
   if (!entry) notFound();
   return <>
-    <Link href="/changelog" className={styles.back}><span aria-hidden="true">←</span>All updates</Link>
+    <Link href="/changelog" className={styles.back}><span aria-hidden="true"><HugeiconsIcon icon={ArrowLeft02Icon} size={16} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className="inline-block shrink-0 align-middle" /></span>All updates</Link>
     <div className={styles.detail}>
       <ChangelogEntry entry={entry} detail />
     </div>

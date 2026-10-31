@@ -1,3 +1,6 @@
+
+import { ArrowUpRight01Icon } from '@hugeicons/core-free-icons';
+import { HugeiconsIcon } from '@hugeicons/react';
 import Link from "next/link";
 import { LaunchArrow } from "@/components/landing/launch-arrow";
 import { OrenLogo } from "@/components/brand/oren-logo";
@@ -46,7 +49,7 @@ export default function Home() {
               <ButtonLink className="h-12 rounded-full px-5 text-[14px] font-medium" href="/app" id="launch-oren-cta" variant="primary">
                 Launch Oren <LaunchArrow />
               </ButtonLink>
-              <Link className={styles.marketLink} href="/app/markets">Explore markets <span aria-hidden>↗</span></Link>
+              <Link className={styles.marketLink} href="/app/markets">Explore markets <span aria-hidden><HugeiconsIcon icon={ArrowUpRight01Icon} size={16} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className="inline-block shrink-0 align-middle" /></span></Link>
             </div>
           </div>
           <div className={styles.stage}>

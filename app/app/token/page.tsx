@@ -1,3 +1,6 @@
+
+import { Add01Icon } from '@hugeicons/core-free-icons';
+import { HugeiconsIcon } from '@hugeicons/react';
 import type { Metadata } from "next";
 import Link from "next/link";
 import { OrenLogo } from "@/components/brand/oren-logo";
@@ -91,7 +94,7 @@ export default function TokenPage() {
 
       <section className={`${styles.section} ${styles.faq}`} id="token-faq" aria-labelledby="faq-heading">
         <h2 id="faq-heading">A little more clarity.</h2>
-        <div>{questions.map(([question, answer]) => <details key={question} className={styles.question}><summary>{question}<svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16"><path d="M8 3v10M3 8h10" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" /></svg></summary><p>{answer}</p></details>)}</div>
+        <div>{questions.map(([question, answer]) => <details key={question} className={styles.question}><summary>{question}<HugeiconsIcon icon={Add01Icon} size={16} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className="inline-block shrink-0 align-middle" /></summary><p>{answer}</p></details>)}</div>
       </section>
       <section className={styles.closing} aria-labelledby="closing-heading"><h2 id="closing-heading">It starts with a useful product.</h2><ButtonLink className="h-12 rounded-full px-5 text-[14px] font-medium" href="/app" variant="primary">Launch Oren <ArrowIcon /></ButtonLink></section>
     </main>

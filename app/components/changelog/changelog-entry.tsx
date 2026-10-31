@@ -1,3 +1,6 @@
+
+import { ArrowUpRight01Icon } from '@hugeicons/core-free-icons';
+import { HugeiconsIcon } from '@hugeicons/react';
 import Image from 'next/image';
 import Link from 'next/link';
 import type { ChangelogEntry as Entry } from '@/content/changelog/model.mjs';
@@ -33,8 +36,8 @@ export function ChangelogEntry({ entry, detail = false }: { entry: Entry; detail
           <ul>{section.items.map((item, index) => <li key={index}>{typeof item === 'string' ? <p>{item}</p> : <><ChangeHeading>{item.title}</ChangeHeading><p>{item.description}</p></>}</li>)}</ul>
         </section>)}
         <div className={styles.entryLinks}>
-          {entry.links?.map(link => <Link className={styles.featureLink} key={link.href} href={link.href}>{link.label}<span aria-hidden="true">↗</span></Link>)}
-          {!detail && <Link className={styles.permalink} href={`/changelog/${entry.slug}`} aria-label={`Permalink: ${entry.title}`}>Full update <span aria-hidden="true">↗</span></Link>}
+          {entry.links?.map(link => <Link className={styles.featureLink} key={link.href} href={link.href}>{link.label}<span aria-hidden="true"><HugeiconsIcon icon={ArrowUpRight01Icon} size={16} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className="inline-block shrink-0 align-middle" /></span></Link>)}
+          {!detail && <Link className={styles.permalink} href={`/changelog/${entry.slug}`} aria-label={`Permalink: ${entry.title}`}>Full update <span aria-hidden="true"><HugeiconsIcon icon={ArrowUpRight01Icon} size={16} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className="inline-block shrink-0 align-middle" /></span></Link>}
         </div>
       </div>
     </div>
