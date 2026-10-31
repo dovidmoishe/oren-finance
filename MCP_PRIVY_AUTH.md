@@ -1,6 +1,6 @@
 # Oren MCP server with Privy auth: design and handoff
 
-> **Status:** draft design doc, not implemented yet. Branch `docs/mcp-privy-auth`.
+> **Status:** security design in progress; no MCP or delegated-signing code implemented. Branch `feat/mcp-privy-auth`.
 > **Researched:** 31 Oct 2026 (WAT, UTC+1). Policies and specs change often, so re-check the Sources before you ship.
 > **Audience:** Dave, continuing in Codex. This file is meant to stand on its own, so you should not need any other context.
 > **Legend:** **[verified]** = read on the cited page on 31 Oct 2026. **[unverified]** = from search snippets, third-party summaries, or my own reading, and not confirmed on a primary page. **[interpretation]** = my reading of policy text. It is not legal advice.
@@ -10,8 +10,8 @@
 ## 0. TL;DR
 
 - **Intent.** Let users of agent chats (ChatGPT, Claude, Cursor, Codex, our own Oren agent) connect an **Oren MCP server**, sign in with the **same Privy account** they use on oren-finance, and **trade tokenized stocks (xStocks)** on Solana through the existing Jupiter and Titan routing (`SWAP_ROUTER_MODE`).
-- **Technically feasible.** Privy cannot be the MCP OAuth authorization server, and Privy tokens can't be passed through as MCP tokens. So we run a **thin OAuth 2.1 authorization server (AS)** whose login page uses Privy and which issues its own audience-bound MCP tokens, keyed to the Privy user ID (`did:privy:...`). Signing then happens either (a) under a **Privy signer + policy** the user grants at consent time, for small trades, or (b) on an **Oren approval page**, reusing the existing `trade_approvals` flow, for everything else.
-- **The real blocker is platform policy, not tech:**
+- **Proposed architecture; delegated signing remains unproven.** Privy does not provide the MCP OAuth authorization server described here, and Privy tokens cannot be passed through as MCP tokens. We would run an **OAuth 2.1 authorization server (AS)** whose browser login uses Privy and which issues its own audience-bound MCP tokens, keyed to the Privy user ID (`did:privy:...`). Signing then happens either (a) under a **Privy signer + policy** the user grants at consent time, for bounded trades, or (b) on an **Oren approval page**, reusing the existing `trade_approvals` flow, for everything else. Path (a) requires the §6.6 compatibility proof.
+- **Distribution constraints from the research:**
   - **ChatGPT, including custom MCP / developer-mode connectors: not allowed.** OpenAI's *App Developer Terms* §1.6(h) explicitly covers "custom connectors created in ChatGPT developer mode" and says Apps must not "initiate, execute, or otherwise facilitate money transfers, cryptocurrency transfers, or other financial or investment transactions through the Services." **[verified]** The plugin and app submission guidelines separately ban "Execution of money transfers, crypto transfers, or investment trades." **[verified]**
   - **Codex plugins: not allowed** in the public directory, which is the same directory and the same guidelines as ChatGPT. The App Developer Terms define "Apps" to include plugins, so the §1.6(h) ban likely also reaches privately installed plugins. **[interpretation]**
   - **Claude directory and official plugin marketplace: no.** "We do not generally allow cryptocurrency software in our directory" (exception only with express written permission). **[verified]**
@@ -37,8 +37,8 @@
 - Listing in the ChatGPT/Codex directory or the Claude directory (blocked by policy; see §2).
 - Custodial or app-owned server wallets.
 
-### Repo rule to respect
-`AGENTS.md` says: *"Money moves: **propose → prepare → user reviews → user signs**. Never broadcast/sign for the user."* Path (a) below (a server-held Privy signer that signs within a user-granted policy) **changes this rule**. It needs an explicit product decision, and an update to `AGENTS.md` and `docs/api-build-board.md` if adopted. Path (b), the approval page, is fully compatible with today's rule and can ship first.
+### Product authorization decision
+The user chose bounded quick trades with a browser-based Privy enrollment. The browser verifies identity and installs a revocable signer grant once; it does not need to remain open for each trade. `AGENTS.md` now allows delegated signing only within an explicit grant, with the server validating the exact prepared trade before signing. A Privy login session alone does not authorize future trades. Trades outside the grant use a fresh human approval or fail closed.
 
 ---
 
@@ -298,17 +298,33 @@ The wallet is **never a tool argument**. It is derived from the token's Privy us
 - Revocation: a settings page in `app/` listing MCP grants → revoke tokens + `removeSigners`. The server checks `mcp_grants.revoked_at` before every sign.
 - Don't log JWTs or Privy errors verbatim; follow the existing redaction in `PrivyWalletAuth.signTransaction`.
 
+### 6.6 Quick-trade security contract (implementation gate)
+
+**Enrollment:** The MCP OAuth redirect opens Oren's browser page. The server verifies the Privy access token and resolves the linked embedded Solana wallet. The consent screen names the MCP client, allowed tool scope, eligible assets, per-trade and rolling spend caps, slippage cap, and expiration. The user separately adds Oren's signer to that wallet with a restrictive Privy override policy. Store the grant only after verifying the returned signer, policy and wallet IDs against Privy. The MCP client receives an Oren token bound to that client, resource, user and grant; it never receives the Privy token, signer key or wallet authorization signature. Closing the browser must not affect an active grant.
+
+**Execution:** The MCP token identifies the grant; the model cannot choose a wallet, raw transaction, program ID, output address or signer. `execute_swap` accepts only an Oren-prepared intent ID. The server reloads the intent and quote, checks ownership, expiry, asset/mint and route allowlists, slippage, simulation and balance changes, grant status, and the exact transaction bytes. Reserve rolling spend capacity and claim the intent atomically before the signing call, including concurrent requests across workers. Use the existing per-wallet signing lock and Privy idempotency key. Persist signed bytes before broadcast. Unknown Privy or RPC outcomes remain pending for reconciliation; never create or sign a replacement transaction merely because the request timed out.
+
+**Revocation:** Disable the grant in Oren's database before calling Privy `removeSigners`; reject new signs immediately, including requests holding an otherwise valid MCP token. Revoke or rotate MCP refresh tokens and invalidate access-token use through the grant lookup. If Privy removal is uncertain, keep the Oren grant disabled and retry removal through a controlled reconciliation job. The signer key stays in a dedicated secret store and never in the MCP process response or logs.
+
+**Fail-closed release gates:**
+1. Verify with Privy's current API and a disposable wallet that the *sign-only* `signTransaction` method is covered by the intended Solana override policy. The published Solana policy examples use `signAndSendTransaction`, while Oren signs first and broadcasts through Alchemy. Do not infer that one method covers the other. [Privy Solana examples](https://docs.privy.io/controls/policies/example-policies/solana).
+2. Exercise actual prepared Jupiter and Titan multi-instruction transaction shapes, including Token-2022 and address lookup tables. Privy says address-based policy checks fail when the address is loaded from an ALT; program, instruction, amount and time checks can still work. Record allowed and rejected cases. [Privy ALT limitation](https://docs.privy.io/controls/policies/example-policies/solana#address-lookup-tables-alts).
+3. Prove a policy cannot bypass a transfer limit through a broader ALLOW rule; Privy's own examples warn about this. Independently validate decoded transaction effects on Oren's server. Never rely on a generic program allowlist or a USD estimate alone to prove the destination and amount are safe.
+4. Test concurrent cap reservations, duplicate `execute_swap` calls, token theft after revocation, signer-removal failure, expired quotes, price movement, simulation mismatch, and uncertain submission. Keep the kill switch off until these pass and a limited human-controlled acceptance trade is reviewed.
+
+The current `ApprovalService.prepare` and `approve` methods require a Privy bearer token. An MCP bearer token must not be passed into them as if it were a Privy token. Refactor the approval core to accept a server-verified identity and authorization context, with separate HTTP adapters for Privy web calls and MCP grants. Retain every existing byte, expiry, lock and submission invariant during that refactor.
+
 ---
 
 ## 7. Phased build plan (for Codex)
 
 | Phase | Deliverable | Done when |
 |---|---|---|
-| **0. Spikes** | (1) Devnet harness (outside `assertFinancialExecutionEnabled`/mainnet guard, test app only): create a Privy policy with the allowlist above, add a test signer, and try signing **real recorded Titan and Jupiter mainnet-shaped txs** (multi-instruction swaps may trip "every instruction must ALLOW"). (2) Confirm Privy Solana policy fields support Token-2022 `TransferChecked` destination rules. (3) Confirm the Jupiter program IDs used by our prepared txs. | A written result in this doc; list any instructions that break the policy |
-| **1. Read-only MCP** | `api/src/mcp/` with Streamable HTTP, the read tools from §5.3 adapted from `AgentToolRegistry`, and **no auth yet** behind a feature flag, or a static dev token in non-prod | MCP Inspector lists tools; Claude/Cursor can call `search_stocks` |
+| **0. Spikes** | (1) Isolated Privy test wallet and policy to prove `signTransaction` authorization. (2) Offline and disposable-wallet fixtures for actual Jupiter/Titan multi-instruction swaps, Token-2022, ALT behavior and policy bypass attempts. (3) Confirm Jupiter program IDs from prepared transactions. No production wallet or funds. | Written evidence in this doc for every pass/fail case; delegated signing remains disabled until §6.6 gates pass |
+| **1. Read-only MCP** | `api/src/mcp/` with Streamable HTTP. In a non-production test environment only, expose public stock search/market data behind a feature flag. Portfolio, activity and all wallet-derived tools require OAuth before exposure. | MCP Inspector lists public tools; no private data is reachable without auth |
 | **2. OAuth AS + Privy login** | `api/src/mcp-auth/` + `app/app/oauth/authorize`: metadata, CIMD + DCR, PKCE, RFC 8707/9207, rotating refresh, hashed storage, tables from §6.3, consent page | Sign in works from Claude custom connector, Cursor, and Claude Code; tokens rejected with the wrong `aud` |
 | **3. Trade via approval page (path c)** | `prepare_swap`, `execute_swap` → `needs_approval` link, `app/app/approve/[id]` page reusing `privy-session.authorizeTrade` + `approval-service`, `get_trade_status`, `feature_source = 'mcp'` | An end-to-end mainnet trade of a small xStock from Claude with click-out approval |
-| **4. Quick trades (path a)** | Signer grant at consent, `McpRiskEngine` caps, delegated signing, revoke UI, audit | Trades under the cap execute without a click-out; above the cap they fall back to path c; revoke works within one request |
+| **4. Quick trades (path a)** | Browser signer grant at consent, atomic `McpRiskEngine` reservations, delegated signing, revoke UI, audit, and §6.6 release gates | Trades under the cap execute with the browser closed; above the cap they fall back to path c; revoked grants cannot sign another transaction |
 | **5. Distribution** | Claude install link in the Oren app; Cursor deeplink + optional Marketplace submission (open-source plugin repo); Claude Code self-hosted marketplace repo; update `AGENTS.md` and `docs/api-build-board.md` | Listed or shareable on the allowed surfaces only |
 
 Board hygiene: per `AGENTS.md`, add these phases to `docs/api-build-board.md` / `.html` when work starts. Note: `docs/` is listed in `.gitignore` (line 60), so the board files and this doc are untracked by default. Committing this doc needs `git add -f docs/mcp-privy-auth.md`, or a `.gitignore` exception such as `!docs/mcp-privy-auth.md`.
@@ -316,7 +332,7 @@ Board hygiene: per `AGENTS.md`, add these phases to `docs/api-build-board.md` / 
 ---
 
 ## 8. Open questions
-1. **Product/policy:** are we OK changing the AGENTS.md rule "Never broadcast/sign for the user" for policy-bounded quick trades (path a)? If not, ship only path c.
+1. **Resolved product decision:** bounded, revocable quick trades are in scope. `AGENTS.md` now states the authorization requirements. Privy policy compatibility and exact limits remain release gates.
 2. **ChatGPT:** ship nothing, or a read-only connector? Get an OpenAI policy answer first, since §1.6(h) "facilitate" is broad.
 3. **Claude:** request written permission from Anthropic for a directory listing (HITL + caps), or stay custom-connector only?
 4. **Legal/compliance:** tokenized stocks (xStocks) eligibility and geo-restrictions for users arriving via third-party agents; the Anthropic Usage Policy high-risk finance requirements (AI disclosure, human review of *recommendations*).

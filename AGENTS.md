@@ -36,7 +36,7 @@ Do not leave completed work marked `pending` on the board.
 - Keep Postgres as **app memory only** — Solana is the financial ledger.
 - Users think in **stocks**; Oren resolves tokenized variants + Jupiter under the hood.
 - Intelligence scores are **deterministic**; LLMs explain, they do not invent indicators.
-- Money moves: **propose → prepare → user reviews → user signs**. Never broadcast/sign for the user.
+- Money moves: **propose → prepare → authorize → sign → broadcast**. Authorization is either the user's review and signature for this exact trade, or an explicit, revocable Privy signer grant for bounded quick trades. A delegated trade must be bound to the authenticated user and embedded wallet, allowed asset and route, spend and slippage limits, grant expiry, and an idempotent prepared intent. Enforce these limits server-side immediately before signing; never let an LLM supply a wallet or arbitrary transaction to sign. No signing or broadcast without a valid authorization path.
 - Prefer extending existing Nest modules under `api/src/` and types under `api/types/`.
 - Do not commit secrets (`.env`). Use `api/.env.example` as the template.
 - Do not commit `node_modules/`, `dist/`, `target/`, or `.env`.
