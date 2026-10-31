@@ -3,7 +3,7 @@
 /**
  * @typedef {{src: string, alt: string, width: number, height: number}} Screenshot
  * @typedef {{src: string, poster: string, label: string, caption: string, width: number, height: number}} Film
- * @typedef {{slug: string, date: string, status: 'draft' | 'published', title: string, summary: string, sections?: {heading: 'Added' | 'Improved' | 'Fixed', items: string[]}[], links?: {label: string, href: string}[], screenshots?: Screenshot[], video?: Film}} ChangelogEntry
+ * @typedef {{slug: string, date: string, status: 'draft' | 'published', title: string, summary: string, sections?: {heading: 'Added' | 'Improved' | 'Fixed', items: (string | {title: string, description: string})[]}[], links?: {label: string, href: string}[], screenshots?: Screenshot[], video?: Film}} ChangelogEntry
  */
 
 /** @param {unknown} value */
@@ -59,7 +59,7 @@ export function validateEntries(values) {
         const section = record(value);
         if (!['Added', 'Improved', 'Fixed'].includes(String(section.heading)) || headings.has(section.heading)) throw new Error('Invalid or duplicate section heading');
         headings.add(section.heading);
-        if (!Array.isArray(section.items) || !section.items.length || !section.items.every(text)) throw new Error('Section needs text items');
+        if (!Array.isArray(section.items) || !section.items.length || !section.items.every(item => text(item) || (item && typeof item === 'object' && !Array.isArray(item) && text(item.title) && text(item.description)))) throw new Error('Section needs text or titled description items');
       }
     }
     if (entry.links !== undefined) {

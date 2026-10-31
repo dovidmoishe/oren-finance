@@ -3,7 +3,6 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { ChangelogEntry } from '@/components/changelog/changelog-entry';
 import { getChangelog, getChangelogEntry } from '@/content/changelog';
-import { formatReleaseDate } from '@/content/changelog/model.mjs';
 import styles from '@/components/changelog/changelog.module.css';
 
 type Props = { params: Promise<{ slug: string }> };
@@ -29,8 +28,7 @@ export default async function EntryPage({ params }: Props) {
   if (!entry) notFound();
   return <>
     <Link href="/changelog" className={styles.back}><span aria-hidden="true">←</span>All updates</Link>
-    <div className={`${styles.group} ${styles.detail}`}>
-      <div className={styles.date}><time dateTime={entry.date}>{formatReleaseDate(entry.date)}</time></div>
+    <div className={styles.detail}>
       <ChangelogEntry entry={entry} detail />
     </div>
   </>;

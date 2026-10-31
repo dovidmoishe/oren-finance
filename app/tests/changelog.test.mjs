@@ -21,6 +21,13 @@ test('rejects missing fields, duplicate slugs, invalid dates and malformed conte
   assert.equal(validateEntries([entry({date: '2024-02-29'})]).length, 1);
 });
 
+test('accepts titled changes alongside plain text and rejects incomplete change objects', () => {
+  const sections = [{heading: 'Added', items: ['A small fix.', {title: 'A release film', description: 'Watch the story.'}]}];
+  assert.equal(validateEntries([entry({sections})])[0].sections[0].items.length, 2);
+  for (const item of [{title: 'Missing description'}, {title: '', description: 'Text'}, null, 12, ['Nested']]) {
+    assert.throws(() => validateEntries([entry({sections: [{heading: 'Added', items: [item]}]})]));
+  }
+});
 test('supports app paths and HTTPS while rejecting executable and ambiguous links', () => {
   for (const href of ['/token', '/changelog#latest', 'https://oren.finance/token']) assert.equal(supportedLink(href), true);
   for (const href of ['//evil.test', '/\\evil.test', 'javascript:alert(1)', 'data:text/html,no', 'http://example.com', 'https://user:password@example.com', '/a\nb']) assert.equal(supportedLink(href), false);
