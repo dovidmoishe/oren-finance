@@ -1,3 +1,6 @@
+
+import { ArrowDown02Icon, ArrowUpRight01Icon, ArrowRight02Icon } from '@hugeicons/core-free-icons';
+import { HugeiconsIcon } from '@hugeicons/react';
 import styles from "./token.module.css";
 
 /** Original vector scenes, rather than a generic icon set. */
@@ -44,5 +47,5 @@ export function TokenArt({ kind }: { kind: "access" | "benefits" | "burn" }) {
 }
 
 export function ArrowIcon({ direction = "right" }: { direction?: "right" | "down" | "diagonal" }) {
-  return <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" style={{ transform: `rotate(${direction === "down" ? 90 : direction === "diagonal" ? -45 : 0}deg)` }}><path d="M4 12h15m-6-6 6 6-6 6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /></svg>;
+  return <HugeiconsIcon icon={direction === "down" ? ArrowDown02Icon : direction === "diagonal" ? ArrowUpRight01Icon : ArrowRight02Icon} size={18} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className="inline-block shrink-0 align-middle" />;
 }

@@ -1,4 +1,7 @@
 "use client";
+import { ArrowRight02Icon, ArrowDown01Icon, ArrowUpRight01Icon } from '@hugeicons/core-free-icons';
+import { HugeiconsIcon } from '@hugeicons/react';
+
 
 import Link from "next/link";
 import { useId, useRef, useState } from "react";
@@ -19,7 +22,7 @@ const questions = [
 ];
 
 function Arrow() {
-  return <svg aria-hidden width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 8h9M8.5 4.5 12 8l-3.5 3.5" stroke="currentColor" strokeWidth="1.35" strokeLinecap="round" strokeLinejoin="round" /></svg>;
+  return <HugeiconsIcon icon={ArrowRight02Icon} size={16} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className="inline-block shrink-0 align-middle" />;
 }
 
 export function LandingFaqCta() {
@@ -43,7 +46,7 @@ export function LandingFaqCta() {
             <h3>
               <button type="button" id={questionId} className={`t-acc-head ${styles.question}`} aria-expanded={expanded} aria-controls={answerId} onClick={() => setOpen(current => current === index ? null : index)}>
                 <span>{item.question}</span>
-                <span className={`t-acc-chevron ${styles.chevron}`} aria-hidden="true"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M4 6.5L8 10.5L12 6.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" /></svg></span>
+                <span className={`t-acc-chevron ${styles.chevron}`} aria-hidden="true"><HugeiconsIcon icon={ArrowDown01Icon} size={16} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className="inline-block shrink-0 align-middle" /></span>
               </button>
             </h3>
             <div id={answerId} className="t-acc-panel" role="region" aria-labelledby={questionId} aria-hidden={!expanded} inert={!expanded}>
@@ -62,7 +65,7 @@ export function LandingFaqCta() {
           <p className={styles.description}>Research a stock, build a mix, and review your next trade with Oren.</p>
           <div className={styles.actions}>
             <ButtonLink href="/app" id="closing-launch-cta" variant="primary" className="h-11 rounded-full px-5 text-[13px] font-medium">Launch Oren <Arrow /></ButtonLink>
-            <Link href="/app/markets" className={styles.marketLink}>Explore markets <span aria-hidden="true">↗</span></Link>
+            <Link href="/app/markets" className={styles.marketLink}>Explore markets <span aria-hidden="true"><HugeiconsIcon icon={ArrowUpRight01Icon} size={16} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className="inline-block shrink-0 align-middle" /></span></Link>
           </div>
         </div>
         <div className={styles.mascotStage} aria-hidden="true">

@@ -1,3 +1,6 @@
+
+import { ArrowUpRight01Icon } from '@hugeicons/core-free-icons';
+import { HugeiconsIcon } from '@hugeicons/react';
 import Link from "next/link";
 import { LaunchArrow } from "@/components/landing/launch-arrow";
 import { OrenLogo } from "@/components/brand/oren-logo";
@@ -22,11 +25,12 @@ export default function Home() {
             <OrenLogo className="h-7 w-7" size={28} />
             <span className="text-[15px] font-semibold tracking-[0.16em]">OREN</span>
           </Link>
-          <div className="absolute left-1/2 hidden -translate-x-1/2 items-center gap-8 text-sm text-[#676762] md:flex">
+          <div className="absolute left-1/2 hidden -translate-x-1/2 items-center gap-7 text-sm text-[#676762] lg:flex">
             <a className="transition-colors hover:text-[#111110]" href="#product">Product</a>
             <a className="transition-colors hover:text-[#111110]" href="#stock-mix">Stock mix</a>
             <Link className="transition-colors hover:text-[#111110]" href="/app/markets">Markets</Link>
             <Link className="transition-colors hover:text-[#111110]" href="/token">Token</Link>
+            <Link className="transition-colors hover:text-[#111110]" href="/changelog">Changelog</Link>
           </div>
           <ButtonLink className="h-10 rounded-full px-4 text-sm font-medium" href="/app" variant="primary">
             Launch App <LaunchArrow />
@@ -45,7 +49,7 @@ export default function Home() {
               <ButtonLink className="h-12 rounded-full px-5 text-[14px] font-medium" href="/app" id="launch-oren-cta" variant="primary">
                 Launch Oren <LaunchArrow />
               </ButtonLink>
-              <Link className={styles.marketLink} href="/app/markets">Explore markets <span aria-hidden>↗</span></Link>
+              <Link className={styles.marketLink} href="/app/markets">Explore markets <span aria-hidden><HugeiconsIcon icon={ArrowUpRight01Icon} size={16} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className="inline-block shrink-0 align-middle" /></span></Link>
             </div>
           </div>
           <div className={styles.stage}>

@@ -1,4 +1,7 @@
 "use client";
+import { ArrowDownLeft01Icon, Logout01Icon } from '@hugeicons/core-free-icons';
+import { HugeiconsIcon } from '@hugeicons/react';
+
 
 import { useId, useRef } from "react";
 import { useOrenAuth } from "@/components/auth/auth-context";
@@ -23,10 +26,10 @@ export function AccountMenu() {
         <div className="min-w-0"><p className="font-semibold">Your account</p><p className="mt-1 truncate text-sm text-muted">{auth.email || "Signed in"}</p></div>
       </div>
       <div aria-label="Account actions" className="p-2">
-        <button className="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-sm font-medium hover:bg-background focus-visible:outline-2" onClick={() => { close(); auth.openDeposit(); }} type="button"><svg aria-hidden width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18M6 7v11h11" /></svg> Deposit</button>
+        <button className="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-sm font-medium hover:bg-background focus-visible:outline-2" onClick={() => { close(); auth.openDeposit(); }} type="button"><HugeiconsIcon icon={ArrowDownLeft01Icon} size={20} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className="inline-block shrink-0 align-middle" /> Deposit</button>
       </div>
       <div className="border-t border-border p-2">
-        <button className="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-sm font-medium text-red-600 hover:bg-red-50" onClick={() => { close(); void auth.signOut(); }} type="button"><svg aria-hidden width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M10 4H5v16h5M9 12h12m-4-4 4 4-4 4" /></svg> Sign out</button>
+        <button className="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-sm font-medium text-red-600 hover:bg-red-50" onClick={() => { close(); void auth.signOut(); }} type="button"><HugeiconsIcon icon={Logout01Icon} size={20} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className="inline-block shrink-0 align-middle" /> Sign out</button>
       </div>
       {auth.error && <p className="px-5 pb-4 text-xs text-red-700" role="alert">{auth.error}</p>}
     </div>

@@ -1,4 +1,7 @@
 "use client";
+import { Cursor01Icon, Search01Icon, ArrowUpRight01Icon, ArrowRight02Icon, Tick02Icon, ArrowUp02Icon } from '@hugeicons/core-free-icons';
+import { HugeiconsIcon } from '@hugeicons/react';
+
 
 import { useEffect, useId, useRef, useState } from "react";
 import Image from "next/image";
@@ -38,7 +41,7 @@ function StockMark({ stock }: { stock: typeof stocks[number] }) {
 }
 
 function DemoCursor({ clicking }: { clicking: boolean }) {
-  return <span aria-hidden className={styles.cursor} data-clicking={clicking}><svg width="23" height="27" viewBox="0 0 23 27" fill="none"><path d="M3 2v20l5.5-5 4 8 3.5-1.8-4-7.5 7-1.5L3 2Z" fill="#252521" stroke="white" strokeWidth="1.8" strokeLinejoin="round" /></svg></span>;
+  return <span aria-hidden className={styles.cursor} data-clicking={clicking}><HugeiconsIcon icon={Cursor01Icon} size={23} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className="inline-block shrink-0 align-middle" /></span>;
 }
 
 function PriceChart({ progress }: { progress: number }) {
@@ -119,7 +122,7 @@ export function ProductWalkthrough() {
           <div className={styles.marketArea}>
             {step === 0 ? (
               <div className={styles.scene} key="markets">
-                <div className={styles.sectionHeading}><div><span className={styles.muted}>Explore</span><h3>Market</h3></div><span className={styles.search}>⌕ <span>Search stocks</span></span></div>
+                <div className={styles.sectionHeading}><div><span className={styles.muted}>Explore</span><h3>Market</h3></div><span className={styles.search}><HugeiconsIcon icon={Search01Icon} size={16} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className="inline-block shrink-0 align-middle" /> <span>Search stocks</span></span></div>
                 <div className={styles.highlights}>
                   <div><span>Trending</span><strong><Image alt="NVIDIA logo" src={stockLogos.NVDA} width={24} height={24} className="rounded-full" />NVDA</strong><small>NVIDIA <b>+3.28%</b></small></div>
                   <div><span>Oren Opportunity</span><strong><Image alt="Microsoft logo" src={stockLogos.MSFT} width={24} height={24} className="rounded-full" />MSFT</strong><small>Microsoft <b>82 / 100</b></small></div>
@@ -132,7 +135,7 @@ export function ProductWalkthrough() {
                     {i === 0 && running && local > 2800 && <DemoCursor clicking={local > 5000} />}
                   </button>
                 ))}
-                <span className={styles.marketHint}>Select NVIDIA to explore it <span aria-hidden>↗</span></span>
+                <span className={styles.marketHint}>Select NVIDIA to explore it <span aria-hidden><HugeiconsIcon icon={ArrowUpRight01Icon} size={16} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className="inline-block shrink-0 align-middle" /></span></span>
               </div>
             ) : (
               <div className={styles.scene} key="stock">
@@ -146,29 +149,29 @@ export function ProductWalkthrough() {
             )}
           </div>
           <aside className={styles.agentArea}>
-            <div className={styles.agentHeader}><OrenLogo size={26} className="h-[26px] w-[26px]" state={running && step === 2 && local < 2200 ? "thinking" : "idle"} /><strong>{step === 3 ? "Trade review" : "Oren Agent"}</strong><span>↗</span></div>
+            <div className={styles.agentHeader}><OrenLogo size={26} className="h-[26px] w-[26px]" state={running && step === 2 && local < 2200 ? "thinking" : "idle"} /><strong>{step === 3 ? "Trade review" : "Oren Agent"}</strong><span><HugeiconsIcon icon={ArrowUpRight01Icon} size={16} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className="inline-block shrink-0 align-middle" /></span></div>
             {step < 2 ? (
               <div className={`${styles.agentWelcome} ${styles.scene}`} key="welcome">
                 <OrenLogo size={48} className="h-12 w-12" /><h4>What&apos;s on your mind?</h4><p>Ask about a stock or your portfolio.</p>
-                <button className={styles.actionTarget} onClick={() => selectStep(2)}>What&apos;s happening with NVIDIA? <span>↗</span>{step === 1 && running && local > 2800 && <DemoCursor clicking={local > 5000} />}</button>
+                <button className={styles.actionTarget} onClick={() => selectStep(2)}>What&apos;s happening with NVIDIA? <span><HugeiconsIcon icon={ArrowUpRight01Icon} size={16} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className="inline-block shrink-0 align-middle" /></span>{step === 1 && running && local > 2800 && <DemoCursor clicking={local > 5000} />}</button>
               </div>
             ) : step === 2 ? (
               <div className={`${styles.conversation} ${styles.scene}`} key="conversation">
                 <p className={styles.question}>What&apos;s happening with NVIDIA?</p>
                 <div className={styles.answer}><span className={styles.answerLabel}>Oren</span><p>{"NVIDIA is up 3.28% today. Momentum is positive, with moderate volatility over the past month.".slice(0, Math.floor(local / 20) + 1)}</p></div>
                 {local > 2300 && <div className={`${styles.insightCard} ${styles.scene}`}><span>Portfolio context</span><p>NVIDIA is 18% of your holdings.</p><small>A $100 buy would bring it to 20%.</small></div>}
-                {local > 3600 && <button className={`${styles.primaryButton} ${styles.actionTarget}`} onClick={() => selectStep(3)}>Review a $100 buy <span>→</span>{running && local > 4200 && <DemoCursor clicking={local > 5400} />}</button>}
+                {local > 3600 && <button className={`${styles.primaryButton} ${styles.actionTarget}`} onClick={() => selectStep(3)}>Review a $100 buy <span><HugeiconsIcon icon={ArrowRight02Icon} size={16} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className="inline-block shrink-0 align-middle" /></span>{running && local > 4200 && <DemoCursor clicking={local > 5400} />}</button>}
               </div>
             ) : (
               <div className={`${styles.review} ${styles.scene}`} key="review">
                 <span className={styles.reviewEyebrow}><Image alt="NVIDIA logo" src={stockLogos.NVDA} width={22} height={22} className="rounded-full" />Buy NVIDIA</span><strong className={styles.tradeAmount}>$100<span>USDC</span></strong>
                 <dl><div><dt>You receive</dt><dd>≈ 0.5364 NVDA</dd></div><div><dt>Price</dt><dd>$186.42</dd></div><div><dt>Network</dt><dd>Solana</dd></div><div><dt>Estimated fee</dt><dd>$0.01</dd></div></dl>
-                <div className={styles.reviewNotice}><span aria-hidden>✓</span> You review every trade before it moves.</div>
-                <div className={styles.approvalPreview}>Approve trade <span aria-hidden>→</span></div>
+                <div className={styles.reviewNotice}><span aria-hidden><HugeiconsIcon icon={Tick02Icon} size={16} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className="inline-block shrink-0 align-middle" /></span> You review every trade before it moves.</div>
+                <div className={styles.approvalPreview}>Approve trade <span aria-hidden><HugeiconsIcon icon={ArrowRight02Icon} size={16} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className="inline-block shrink-0 align-middle" /></span></div>
                 <p className={styles.sampleNotice}>Sample trade · No funds will move</p>
               </div>
             )}
-            {step < 3 && <div className={styles.composer}><span>Ask Oren…</span><button aria-label="Show the Ask Oren demo step" onClick={() => selectStep(2)}>↑</button></div>}
+            {step < 3 && <div className={styles.composer}><span>Ask Oren…</span><button aria-label="Show the Ask Oren demo step" onClick={() => selectStep(2)}><HugeiconsIcon icon={ArrowUp02Icon} size={16} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className="inline-block shrink-0 align-middle" /></button></div>}
           </aside>
         </div>
       </div></div>
