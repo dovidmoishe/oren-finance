@@ -139,9 +139,11 @@ describe('AgentService', () => {
       }),
       expect.any(Object),
     );
-    expect(tools.dispatch).toHaveBeenCalledWith('analyzeStock', {
-      assetIdOrTicker: 'NVDA',
-    });
+    expect(tools.dispatch).toHaveBeenCalledWith(
+      'analyzeStock',
+      { assetIdOrTicker: 'NVDA' },
+      { walletAddress: 'wallet-1' },
+    );
     expect(streamed.map((event) => event.type)).toEqual([
       'turn_started',
       'tool_started',

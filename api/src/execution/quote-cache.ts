@@ -5,11 +5,18 @@ import {
   QUOTE_TTL_MS,
 } from '../config/constants';
 import { QuoteExpiredError } from '../common/errors/provider.errors';
+import { type ReviewedTerms, reviewedTermsFor } from './swap-terms';
 
 export interface CachedQuoteEntry {
   quote: Quote;
   /** Set after prepare. */
   executionId?: string;
+  /**
+   * Terms of the quote as first issued to the user. Captured once in `set`
+   * and never changed by `replace`, so a later prepare cannot lower the
+   * floor (re-quotes and fallbacks are judged against this).
+   */
+  readonly reviewed?: ReviewedTerms;
   storedAt: number;
 }
 
@@ -22,9 +29,12 @@ export class QuoteCache {
   >();
 
   set(quote: Quote): void {
+    // Re-setting an id never resets the floor the user already reviewed.
+    const existing = this.quotes.get(quote.id);
     this.quotes.set(quote.id, {
       quote,
       storedAt: Date.now(),
+      reviewed: existing?.reviewed ?? reviewedTermsFor(quote),
     });
   }
 
@@ -48,6 +58,17 @@ export class QuoteCache {
       );
     }
     return entry;
+  }
+
+  /**
+   * Swap in the quote that will actually execute (Titan re-quote or Jupiter
+   * fallback) under the same id, keeping its original TTL and — crucially —
+   * its original reviewed terms. A missing entry is not recreated: the
+   * reviewed floor would be lost.
+   */
+  replace(quote: Quote): void {
+    const entry = this.quotes.get(quote.id);
+    if (entry) entry.quote = quote;
   }
 
   /** Soft get — returns null instead of throwing. */

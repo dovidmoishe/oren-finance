@@ -1,0 +1,101 @@
+"use client";
+
+import { AlertCircleIcon, ArrowRight01Icon } from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { Button, Toast, formatNumber } from "@/components/ui";
+import { priceMovedChangePercent } from "@/services/price-moved";
+import type { PriceMovedDetails, PriceMovedTerms, QuoteResponse } from "@/types";
+
+interface PriceMovedReviewProps {
+  details: PriceMovedDetails;
+  /** Start a new review for the alternative. Never signs anything by itself. */
+  onAccept: (alternative: QuoteResponse) => void;
+  onCancel: () => void;
+  disabled?: boolean;
+}
+
+function venueLabel(provider: string) {
+  return provider.startsWith("titan") ? "Titan" : provider.startsWith("jupiter") ? "Jupiter" : provider;
+}
+
+function Row({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-center justify-between gap-4 text-sm">
+      <span className="text-muted">{label}</span>
+      <span className="text-right font-mono font-medium">{value}</span>
+    </div>
+  );
+}
+
+function Terms({ title, terms }: { title: string; terms: PriceMovedTerms }) {
+  return (
+    <div className="space-y-3 rounded-[24px] border border-border p-4" data-terms={title}>
+      <p className="text-xs uppercase tracking-[0.12em] text-muted">{title}</p>
+      <Row label="Expected" value={`${formatNumber(terms.outputAmount, 6)} ${terms.outputSymbol}`} />
+      <Row label="Minimum received" value={`${formatNumber(terms.minimumOutputAmount, 6)} ${terms.outputSymbol}`} />
+      <Row label="Slippage" value={`${formatNumber(terms.slippageBps / 100, 2)}%`} />
+      <Row label="Route" value={venueLabel(terms.provider)} />
+    </div>
+  );
+}
+
+/**
+ * Shown when the API refuses to prepare a swap because the executable route
+ * fell below the terms the user reviewed (409 PRICE_MOVED). Lists the old
+ * and new terms and offers the fresh Jupiter quote as an alternative. Accept
+ * only starts a new review/approval for that quote.
+ */
+export function PriceMovedReview({ details, onAccept, onCancel, disabled }: PriceMovedReviewProps) {
+  const alternative = details.alternative;
+  const change = priceMovedChangePercent(details);
+  return (
+    <div className="space-y-4" data-price-moved={details.quoteId}>
+      <Toast
+        title="Price moved"
+        description="The route you reviewed is no longer available at those terms. Nothing was signed or submitted."
+        tone="info"
+      />
+      <Terms title="You reviewed" terms={details.reviewed} />
+      {details.latest ? <Terms title="Best route now" terms={details.latest} /> : null}
+      {alternative ? (
+        <>
+          <Terms
+            title="Jupiter alternative"
+            terms={{
+              provider: alternative.provider,
+              outputAmount: alternative.outputAmount,
+              minimumOutputAmount: alternative.minimumOutputAmount,
+              slippageBps: alternative.slippageBps,
+              outputSymbol: alternative.outputSymbol,
+              minOutRaw: alternative.minOutRaw,
+            }}
+          />
+          {change !== undefined ? (
+            <p className="text-sm text-muted">
+              You would receive {formatNumber(Math.abs(change), 2)}% {change < 0 ? "less" : "more"} than the quote you reviewed.
+            </p>
+          ) : null}
+          <div className="grid grid-cols-2 gap-3">
+            <Button className="h-12 rounded-[16px]" disabled={disabled} onClick={onCancel} variant="secondary">
+              Cancel
+            </Button>
+            <Button className="h-12 rounded-[16px]" disabled={disabled} onClick={() => onAccept(alternative)} variant="primary">
+              <HugeiconsIcon color="currentColor" icon={ArrowRight01Icon} size={16} strokeWidth={1.8} />
+              Review new quote
+            </Button>
+          </div>
+        </>
+      ) : (
+        <>
+          <div className="flex items-start gap-2 text-sm text-muted">
+            <HugeiconsIcon className="mt-0.5 shrink-0" color="currentColor" icon={AlertCircleIcon} size={14} strokeWidth={1.8} />
+            <span>No alternative route is available right now. Request a fresh quote to continue.</span>
+          </div>
+          <Button className="h-12 w-full rounded-[16px]" disabled={disabled} onClick={onCancel} variant="secondary">
+            Cancel
+          </Button>
+        </>
+      )}
+    </div>
+  );
+}

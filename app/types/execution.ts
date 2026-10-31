@@ -9,6 +9,8 @@ export interface TradeIntent {
   amount?: number;
   preferredMint?: string;
   slippageBps?: number;
+  /** Silent re-quote (no user click); uses the API's background rate lane. */
+  autoRefresh?: boolean;
 }
 
 export interface QuoteVariant {
@@ -124,6 +126,8 @@ export interface BasketLegProgress {
   variant?: QuoteVariant;
   preparedTransaction?: ExecutionPreparedTransaction;
   error?: string;
+  /** Set when the API refused the leg with PRICE_MOVED. */
+  priceMoved?: PriceMovedDetails;
 }
 
 export interface BasketExecutionProgress {
@@ -140,3 +144,29 @@ export interface PreparedBasketPurchase {
 }
 
 export type PreparedTransaction = ExecutionPreparedTransaction;
+
+/** Swap terms shown when the API refuses a prepare with PRICE_MOVED. */
+export interface PriceMovedTerms {
+  provider: string;
+  outputAmount: number;
+  /** Smallest output the route enforces on-chain. */
+  minimumOutputAmount: number;
+  minOutRaw: string;
+  slippageBps: number;
+  outputSymbol: string;
+}
+
+/**
+ * 409 PRICE_MOVED body (`priceMoved`). `alternative` is a fresh Jupiter quote
+ * the user may review; it is never executed without a new approval.
+ */
+export interface PriceMovedDetails {
+  quoteId: string;
+  reviewed: PriceMovedTerms;
+  latest?: PriceMovedTerms;
+  alternative?: QuoteResponse & {
+    minimumOutputAmount: number;
+    minOutRaw: string;
+  };
+}
+

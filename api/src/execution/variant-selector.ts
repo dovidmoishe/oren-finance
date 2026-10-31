@@ -13,7 +13,7 @@ import {
   TokensNotFoundError,
 } from '../common/errors/provider.errors';
 import { TokensService } from '../tokens/tokens.service';
-import { JupiterService } from './jupiter/jupiter.service';
+import { SwapRouter, TITAN_MAX_VARIANT_QUOTES } from './swap-router';
 
 export interface VariantSelectionResult {
   equity: Equity;
@@ -27,7 +27,7 @@ export class VariantSelector {
 
   constructor(
     private readonly tokens: TokensService,
-    private readonly jupiter: JupiterService,
+    private readonly router: SwapRouter,
   ) {}
 
   async selectAndQuote(intent: TradeIntent): Promise<VariantSelectionResult> {
@@ -42,9 +42,7 @@ export class VariantSelector {
 
     const quotes = await this.quoteCandidates(equity, candidates, intent);
     if (quotes.length === 0) {
-      throw new JupiterBadRequestError(
-        `No Jupiter routes for ${equity.ticker}`,
-      );
+      throw new JupiterBadRequestError(`No swap routes for ${equity.ticker}`);
     }
 
     quotes.sort((a, b) => {
@@ -57,7 +55,7 @@ export class VariantSelector {
     return quotes[0];
   }
 
-  /** Exported for unit tests — filter + rank without Jupiter. */
+  /** Exported for unit tests — filter + rank without quoting. */
   pickCandidates(
     equity: Equity,
     preferredMint?: string,
@@ -96,18 +94,28 @@ export class VariantSelector {
   ): Promise<VariantSelectionResult[]> {
     const results: VariantSelectionResult[] = [];
 
-    await mapPool(candidates, VARIANT_QUOTE_CONCURRENCY, async (variant) => {
-      try {
-        const quote = await this.buildQuoteForVariant(equity, variant, intent);
-        results.push({ equity, variant, quote });
-      } catch (err) {
-        this.logger.warn(
-          `Jupiter quote failed for ${variant.mint}: ${
-            err instanceof Error ? err.message : String(err)
-          }`,
-        );
-      }
-    });
+    // Candidates arrive liquidity-ranked; only the top few go to Titan.
+    await mapPool(
+      candidates,
+      VARIANT_QUOTE_CONCURRENCY,
+      async (variant, index) => {
+        try {
+          const quote = await this.buildQuoteForVariant(
+            equity,
+            variant,
+            intent,
+            index < TITAN_MAX_VARIANT_QUOTES,
+          );
+          results.push({ equity, variant, quote });
+        } catch (err) {
+          this.logger.warn(
+            `Quote failed for ${variant.mint}: ${
+              err instanceof Error ? err.message : String(err)
+            }`,
+          );
+        }
+      },
+    );
 
     return results;
   }
@@ -116,6 +124,7 @@ export class VariantSelector {
     equity: Equity,
     variant: TokenizedEquity,
     intent: TradeIntent,
+    titanEligible: boolean,
   ): Promise<Quote> {
     const stockDecimals = variant.decimals ?? USDC_DECIMALS;
     const side = intent.side;
@@ -125,7 +134,7 @@ export class VariantSelector {
       if (amountUsd === undefined || amountUsd <= 0) {
         throw new JupiterBadRequestError('amountUsd is required for buys');
       }
-      return this.jupiter.getQuoteWithContext({
+      return this.router.quote({
         side: 'buy',
         assetId: equity.id,
         ticker: equity.ticker,
@@ -139,6 +148,9 @@ export class VariantSelector {
         amountUi: amountUsd,
         amountUsd,
         slippageBps: intent.slippageBps,
+        wallet: intent.wallet,
+        titanEligible,
+        lane: intent.autoRefresh ? 'background' : 'priority',
       });
     }
 
@@ -151,7 +163,7 @@ export class VariantSelector {
       intent.amountUsd ??
       (equity.price !== undefined ? amount * equity.price : 0);
 
-    return this.jupiter.getQuoteWithContext({
+    return this.router.quote({
       side: 'sell',
       assetId: equity.id,
       ticker: equity.ticker,
@@ -165,6 +177,9 @@ export class VariantSelector {
       amountUi: amount,
       amountUsd,
       slippageBps: intent.slippageBps,
+      wallet: intent.wallet,
+      titanEligible,
+      lane: intent.autoRefresh ? 'background' : 'priority',
     });
   }
 }
@@ -172,13 +187,13 @@ export class VariantSelector {
 async function mapPool<T>(
   items: T[],
   concurrency: number,
-  fn: (item: T) => Promise<void>,
+  fn: (item: T, index: number) => Promise<void>,
 ): Promise<void> {
   let index = 0;
   async function worker() {
     while (index < items.length) {
       const current = index++;
-      await fn(items[current]);
+      await fn(items[current], current);
     }
   }
   const n = Math.min(concurrency, items.length);

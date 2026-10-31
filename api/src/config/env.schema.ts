@@ -2,6 +2,24 @@ import { DEFAULT_VAULT_PROGRAM_ID } from './constants';
 
 export type SolanaNetwork = 'mainnet' | 'devnet';
 
+/**
+ * How market swaps are routed.
+ * - jupiter: Jupiter only (default, pre-Titan behaviour)
+ * - shadow:  quote Jupiter + Titan, log the comparison, always execute Jupiter
+ * - best:    execute the better quote net of estimated network fees; Jupiter
+ *            on any Titan problem
+ */
+export type SwapRouterMode = 'jupiter' | 'shadow' | 'best';
+
+const SWAP_ROUTER_MODES: readonly SwapRouterMode[] = [
+  'jupiter',
+  'shadow',
+  'best',
+];
+
+const DEFAULT_TITAN_API_URL = 'https://portal.api.titan.exchange';
+export const DEFAULT_TITAN_MAX_PRICE_DEVIATION_BPS = 100;
+
 /** Keyless api.jup.ag is limited to 0.5 rps; a free key gets 1 rps. */
 const JUPITER_KEYLESS_RPS = 0.5;
 const JUPITER_KEYED_RPS = 1;
@@ -26,6 +44,22 @@ export interface AppEnv {
   JUPITER_API_KEY?: string;
   /** Client-side Jupiter request budget (shared by quote, swap and trigger). */
   JUPITER_MAX_RPS: number;
+  /** Server-only Titan Portal key. Unset = Titan disabled (kill switch). */
+  TITAN_API_KEY?: string;
+  TITAN_API_URL: string;
+  /** Client-side Titan request budget. Titan is skipped (not queued) when spent. */
+  TITAN_MAX_RPS: number;
+  /**
+   * Extra program ids allowed in Titan-built transactions, on top of the
+   * built-in allowlist (comma-separated base58).
+   */
+  TITAN_EXTRA_PROGRAM_IDS: string[];
+  /**
+   * Titan rejects routes that deviate more than this from its reference
+   * price (Titan's own default is 1000 = 10%). Oren default: 100 (1%).
+   */
+  TITAN_MAX_PRICE_DEVIATION_BPS: number;
+  SWAP_ROUTER_MODE: SwapRouterMode;
   DUNE_API_KEY?: string;
   DUNE_API_BASE_URL: string;
   DUNE_UPLOAD_NAMESPACE?: string;
@@ -96,6 +130,33 @@ function readPositiveNumber(
     throw new Error(`${key} must be a positive number, got "${raw}"`);
   }
   return value;
+}
+
+function readSwapRouterMode(env: EnvSource): SwapRouterMode {
+  const raw = (readEnv(env, 'SWAP_ROUTER_MODE') ?? 'jupiter').toLowerCase();
+  if (!SWAP_ROUTER_MODES.includes(raw as SwapRouterMode)) {
+    throw new Error(
+      `SWAP_ROUTER_MODE must be one of ${SWAP_ROUTER_MODES.join(', ')}, got "${raw}"`,
+    );
+  }
+  return raw as SwapRouterMode;
+}
+
+/** Integer basis points in 1..10000. */
+function readBps(env: EnvSource, key: string, fallback: number): number {
+  const raw = readEnv(env, key);
+  const value = raw == null ? fallback : Number(raw);
+  if (!Number.isInteger(value) || value < 1 || value > 10_000) {
+    throw new Error(`${key} must be an integer from 1 to 10000, got "${raw}"`);
+  }
+  return value;
+}
+
+function readList(env: EnvSource, key: string): string[] {
+  return (readEnv(env, key) ?? '')
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean);
 }
 
 /**
@@ -173,6 +234,18 @@ export function validateEnv(env: EnvSource = process.env): AppEnv {
       'JUPITER_MAX_RPS',
       readEnv(env, 'JUPITER_API_KEY') ? JUPITER_KEYED_RPS : JUPITER_KEYLESS_RPS,
     ),
+    TITAN_API_KEY: readEnv(env, 'TITAN_API_KEY'),
+    TITAN_API_URL: (
+      readEnv(env, 'TITAN_API_URL') ?? DEFAULT_TITAN_API_URL
+    ).replace(/\/$/, ''),
+    TITAN_MAX_RPS: readPositiveNumber(env, 'TITAN_MAX_RPS', 1),
+    TITAN_EXTRA_PROGRAM_IDS: readList(env, 'TITAN_EXTRA_PROGRAM_IDS'),
+    TITAN_MAX_PRICE_DEVIATION_BPS: readBps(
+      env,
+      'TITAN_MAX_PRICE_DEVIATION_BPS',
+      DEFAULT_TITAN_MAX_PRICE_DEVIATION_BPS,
+    ),
+    SWAP_ROUTER_MODE: readSwapRouterMode(env),
     DUNE_API_KEY: readEnv(env, 'DUNE_API_KEY'),
     DUNE_API_BASE_URL: (
       readEnv(env, 'DUNE_API_BASE_URL') ?? 'https://api.dune.com/api/v1'

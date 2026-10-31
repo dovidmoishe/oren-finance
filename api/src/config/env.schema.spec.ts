@@ -50,3 +50,43 @@ describe('validateEnv — Jupiter', () => {
     );
   });
 });
+
+describe('validateEnv — swap routing (Titan)', () => {
+  it('defaults to Titan disabled and jupiter-only routing', () => {
+    const env = validateEnv(required);
+    expect(env.TITAN_API_KEY).toBeUndefined();
+    expect(env.TITAN_API_URL).toBe('https://portal.api.titan.exchange');
+    expect(env.TITAN_MAX_RPS).toBe(1);
+    expect(env.TITAN_EXTRA_PROGRAM_IDS).toEqual([]);
+    expect(env.TITAN_MAX_PRICE_DEVIATION_BPS).toBe(100);
+    expect(env.SWAP_ROUTER_MODE).toBe('jupiter');
+  });
+
+  it('reads TITAN_MAX_PRICE_DEVIATION_BPS as integer bps in 1..10000', () => {
+    expect(
+      validateEnv({ ...required, TITAN_MAX_PRICE_DEVIATION_BPS: '250' })
+        .TITAN_MAX_PRICE_DEVIATION_BPS,
+    ).toBe(250);
+    for (const bad of ['0', '10001', '1.5', 'abc']) {
+      expect(() =>
+        validateEnv({ ...required, TITAN_MAX_PRICE_DEVIATION_BPS: bad }),
+      ).toThrow(/TITAN_MAX_PRICE_DEVIATION_BPS/);
+    }
+  });
+
+  it('validates SWAP_ROUTER_MODE, rps values and program lists', () => {
+    expect(
+      validateEnv({ ...required, SWAP_ROUTER_MODE: 'SHADOW' }).SWAP_ROUTER_MODE,
+    ).toBe('shadow');
+    expect(() =>
+      validateEnv({ ...required, SWAP_ROUTER_MODE: 'titan' }),
+    ).toThrow(/SWAP_ROUTER_MODE/);
+    expect(() => validateEnv({ ...required, TITAN_MAX_RPS: '0' })).toThrow(
+      /TITAN_MAX_RPS/,
+    );
+    expect(
+      validateEnv({ ...required, TITAN_EXTRA_PROGRAM_IDS: ' a , b ,' })
+        .TITAN_EXTRA_PROGRAM_IDS,
+    ).toEqual(['a', 'b']);
+  });
+});

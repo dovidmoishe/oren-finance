@@ -1,5 +1,6 @@
 import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
 import {
+  IsBoolean,
   IsIn,
   IsNumber,
   IsOptional,
@@ -32,6 +33,7 @@ import type {
 import type { TradeSide } from '../../types/quote';
 import type { LimitZoneBasis } from '../../types/analysis';
 import { ExecutionService } from './execution.service';
+import { publicQuote } from './swap-terms';
 
 /** Accepts either TradeIntent or mint-level QuoteRequest fields. */
 class ExecutionQuoteDto {
@@ -76,6 +78,10 @@ class ExecutionQuoteDto {
   @IsOptional()
   @IsString()
   wallet?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  autoRefresh?: boolean;
 }
 
 class ExecutionPrepareDto implements PostExecutionPrepareRequest {
@@ -257,8 +263,14 @@ export class ExecutionController {
   constructor(private readonly execution: ExecutionService) {}
 
   @Post('quote')
-  quote(@Body() body: ExecutionQuoteDto): Promise<PostExecutionQuoteResponse> {
-    return this.execution.getQuote(body as TradeIntent | QuoteRequest);
+  async quote(
+    @Body() body: ExecutionQuoteDto,
+  ): Promise<PostExecutionQuoteResponse> {
+    // Route payloads (instructions, lookup tables) stay server-side, keyed
+    // by quote id in the QuoteCache; clients only ever send the id back.
+    return publicQuote(
+      await this.execution.getQuote(body as TradeIntent | QuoteRequest),
+    );
   }
 
   @Post('prepare')

@@ -3,7 +3,7 @@ import type { TokenizedEquity } from './equity';
 export type TradeSide = 'buy' | 'sell';
 
 /**
- * Executable swap quote (Jupiter).
+ * Executable swap quote (Jupiter or Titan, chosen by SwapRouter).
  * Distinct from indicative Tokens API market prices.
  */
 export interface Quote {
@@ -27,7 +27,7 @@ export interface Quote {
   networkFeeUsd?: number;
   slippageBps: number;
 
-  /** Execution venue — typically "jupiter" for MVP. */
+  /** Execution venue — "jupiter" or "titan:<provider>" (e.g. titan:Titan-DART). */
   provider: string;
   /** Opaque provider route payload needed to prepare the tx. */
   routePayload?: unknown;

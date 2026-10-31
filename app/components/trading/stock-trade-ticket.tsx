@@ -16,7 +16,7 @@ import { useLimitOrderExecution } from "@/hooks/use-limit-order-execution";
 import { listLimitOrders, proposeLimitOrder } from "@/services";
 import { Button, Card, cn, formatCurrency, formatNumber } from "@/components/ui";
 import { useExecutionStore, usePortfolioStore } from "@/store";
-import type { LimitOrderProposal, LimitOrderRecord, LimitZone, StockDetail, TradeSide } from "@/types";
+import type { LimitOrderProposal, LimitOrderRecord, LimitZone, QuoteResponse, StockDetail, TradeSide } from "@/types";
 import { QuoteReviewModal } from "./quote-review-modal";
 import { LimitOrderReviewModal } from "./limit-order-review-modal";
 import { CancelOrderReviewModal } from "./cancel-order-review-modal";
@@ -85,7 +85,8 @@ function roughlyEqual(left: number, right: number) {
 }
 
 function isNoRouteError(message?: string) {
-  return Boolean(message?.toLowerCase().includes("no jupiter routes"));
+  // Matches the API's venue-neutral "No swap routes" and the older "No Jupiter routes".
+  return /no (swap |jupiter )?routes/.test(message?.toLowerCase() ?? "");
 }
 
 export function StockTradeTicket({ stock, limitZones, onConfirmed }: StockTradeTicketProps) {
@@ -102,6 +103,7 @@ export function StockTradeTicket({ stock, limitZones, onConfirmed }: StockTradeT
   const isRefreshingQuote = useExecutionStore((state) => state.isRefreshingQuote);
   const quoteTrade = useExecutionStore((state) => state.quoteTrade);
   const resetTrade = useExecutionStore((state) => state.resetTrade);
+  const seedQuote = useExecutionStore((state) => state.seedQuote);
   const [openOrders, setOpenOrders] = useState<LimitOrderRecord[]>([]);
   const refreshOpenOrders = useCallback(async () => {
     if (!wallet) {
@@ -213,7 +215,7 @@ export function StockTradeTicket({ stock, limitZones, onConfirmed }: StockTradeT
     : isLoading
       ? "Fetching quote"
       : liveRouteUnavailable
-        ? "No live Jupiter route"
+        ? "No live route"
         : tradableRoutes
           ? `${tradableRoutes} catalog route${tradableRoutes === 1 ? "" : "s"}`
           : "No route";
@@ -377,8 +379,16 @@ export function StockTradeTicket({ stock, limitZones, onConfirmed }: StockTradeT
     await requestQuote({ openReview: true });
   };
 
-  const handlePrepareSignConfirm = async (approvalId: string) => {
-    await executeQuote(activeQuote, approvalId);
+  const handlePrepareSignConfirm = async (approvalId: string, reviewedQuote: QuoteResponse) => {
+    await executeQuote(reviewedQuote, approvalId);
+  };
+
+  // PRICE_MOVED: the user chose the Jupiter alternative. Make it the active
+  // quote (same intent, so refresh keeps working); the review modal then
+  // prepares a fresh approval for it. Nothing is signed here.
+  const handleAcceptAlternative = (alternative: QuoteResponse) => {
+    seedQuote(alternative, useExecutionStore.getState().lastQuoteIntent);
+    resetFeedback();
   };
 
   const handleProposeLimit = async () => {
@@ -587,7 +597,7 @@ export function StockTradeTicket({ stock, limitZones, onConfirmed }: StockTradeT
               <HugeiconsIcon className="mt-0.5 shrink-0" color="currentColor" icon={AlertCircleIcon} size={14} strokeWidth={1.8} />
               <span>
                 {liveRouteUnavailable && orderMode === "market"
-                  ? `No live Jupiter route is available for ${stock.ticker} at this amount. Try a smaller amount or another stock with deeper liquidity.`
+                  ? `No live route is available for ${stock.ticker} at this amount. Try a smaller amount or another stock with deeper liquidity.`
                   : (limitError ?? executionError ?? blockingError)}
               </span>
             </div>
@@ -677,6 +687,7 @@ export function StockTradeTicket({ stock, limitZones, onConfirmed }: StockTradeT
           if (flowStatus === 'confirmed') { resetTrade(); resetFeedback(); autoQuoteKeyRef.current = undefined; }
         }}
         onRefreshQuote={() => void refreshQuote()}
+        onAcceptAlternative={handleAcceptAlternative}
         onSign={handlePrepareSignConfirm}
         open={reviewOpen}
         quote={activeQuote}
