@@ -50,6 +50,13 @@
       "breakpoints": true,
       "tag": "0006_mcp_oauth",
       "idx": 6
+    },
+    {
+      "version": "7",
+      "when": 1793466000000,
+      "breakpoints": true,
+      "tag": "0007_mcp_connections",
+      "idx": 7
     }
   ]
 }

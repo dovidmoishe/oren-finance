@@ -69,6 +69,21 @@ export const mcpOauthObjects = pgTable(
   ],
 );
 
+/** Browser-approved OAuth connections. A token is usable only while this row is active. */
+export const mcpConnections = pgTable(
+  'mcp_connections',
+  {
+    grantId: text('grant_id').primaryKey(),
+    clientId: text('client_id').notNull(),
+    userId: text('user_id').notNull(),
+    walletId: text('wallet_id').notNull(),
+    wallet: text('wallet').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    revokedAt: timestamp('revoked_at', { withTimezone: true }),
+  },
+  (table) => [index('mcp_connections_user_idx').on(table.userId)],
+);
+
 /**
  * Postgres is Oren's application memory — not the financial ledger.
  * Required: portfolio_snapshots, stock_signals, executions, vault_positions
