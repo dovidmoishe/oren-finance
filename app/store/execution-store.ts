@@ -2,6 +2,7 @@
 
 import { create } from "zustand";
 import { sessionSetter } from "@/services/wallet-session";
+import { useWalletStore } from "./wallet-store";
 import { confirmExecution, createBasket, getExecutionQuote, prepareBasket, prepareExecution, refreshExecutionQuote } from "@/services";
 import type {
   BasketIntent,
@@ -46,6 +47,7 @@ function intentFromQuote(quote: QuoteResponse): TradeIntent {
     amount: quote.side === "sell" ? quote.inputAmount : undefined,
     preferredMint: quote.variant.mint,
     slippageBps: quote.slippageBps,
+    wallet: useWalletStore.getState().address,
   };
 }
 
@@ -75,8 +77,14 @@ export const useExecutionStore = create<ExecutionState>((set, get) => ({
   },
   async refreshQuote(options) {
     const update = sessionSetter(set);
-    const intent = get().lastQuoteIntent;
-    if (!intent) return undefined;
+    const previousIntent = get().lastQuoteIntent;
+    if (!previousIntent) return undefined;
+    // Agent artifacts contain public quote terms, not their server-side wallet
+    // context. Use the active session wallet for both automatic and manual refresh.
+    const intent = {
+      ...previousIntent,
+      wallet: useWalletStore.getState().address ?? previousIntent.wallet,
+    };
     update({ isRefreshingQuote: true, error: undefined });
     try {
       // Automatic refreshes are flagged so they never take rate budget from
