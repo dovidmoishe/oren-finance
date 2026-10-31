@@ -10,6 +10,7 @@ const entry = (overrides = {}) => ({slug: 'release', date: '2026-10-31', status:
 
 test('rejects missing fields, duplicate slugs, invalid dates and malformed content', () => {
   for (const override of [
+    {sequence: -1}, {sequence: 1.5}, {sequence: '2'}, {sequence: null}, {sequence: Number.MAX_SAFE_INTEGER + 1},
     {title: ' '}, {slug: '../escape'}, {date: '2026-02-30'}, {date: 'yesterday'}, {status: 'scheduled'},
     {sections: [{heading: 'Coming soon', items: ['No']}]}, {sections: [{heading: 'Added', items: []}]},
     {sections: [{heading: 'Added', items: ['Yes']}, {heading: 'Added', items: ['Again']}]},
@@ -39,6 +40,19 @@ test('orders newest first and groups multiple same-day releases with determinist
   assert.deepEqual(ordered.map(e => e.slug), ['a', 'z', 'older']);
   assert.deepEqual(groupEntries(ordered).map(g => [g.date, g.entries.length]), [['2026-10-31', 2], ['2026-10-30', 1]]);
   assert.equal(formatReleaseDate('2026-10-31'), 'October 31, 2026');
+});
+
+test('uses publication sequence within a day before the slug fallback', () => {
+  const entries = validateEntries([
+    entry({slug: 'a-earlier', sequence: 1}),
+    entry({slug: 'z-latest', sequence: 2}),
+    entry({slug: 'older-day', date: '2026-10-30', sequence: 99}),
+    entry({slug: 'legacy'}),
+  ]);
+  assert.deepEqual(visibleEntries(entries).map(e => e.slug), ['z-latest', 'a-earlier', 'legacy', 'older-day']);
+  const dir = new URL('../content/changelog/', import.meta.url);
+  const actual = validateEntries(readdirSync(dir).filter(f => f.endsWith('.json')).map(f => JSON.parse(readFileSync(new URL(f, dir), 'utf8'))));
+  assert.equal(visibleEntries(actual)[0].slug, 'more-routes-one-simple-swap');
 });
 
 test('draft lookup and listing require explicit development preview; production ignores the flag', () => {

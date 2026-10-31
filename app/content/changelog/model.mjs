@@ -3,7 +3,7 @@
 /**
  * @typedef {{src: string, alt: string, width: number, height: number}} Screenshot
  * @typedef {{src: string, poster: string, label: string, caption: string, width: number, height: number}} Film
- * @typedef {{slug: string, date: string, status: 'draft' | 'published', title: string, summary: string, sections?: {heading: 'Added' | 'Improved' | 'Fixed', items: (string | {title: string, description: string})[]}[], links?: {label: string, href: string}[], screenshots?: Screenshot[], video?: Film}} ChangelogEntry
+ * @typedef {{slug: string, date: string, sequence?: number, status: 'draft' | 'published', title: string, summary: string, sections?: {heading: 'Added' | 'Improved' | 'Fixed', items: (string | {title: string, description: string})[]}[], links?: {label: string, href: string}[], screenshots?: Screenshot[], video?: Film}} ChangelogEntry
  */
 
 /** @param {unknown} value */
@@ -51,6 +51,7 @@ export function validateEntries(values) {
     slugs.add(entry.slug);
     const date = String(entry.date);
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !Number.isFinite(Date.parse(date)) || new Date(date).toISOString().slice(0, 10) !== date) throw new Error(`Invalid release date: ${date}`);
+    if (entry.sequence !== undefined && (!Number.isSafeInteger(entry.sequence) || Number(entry.sequence) < 0)) throw new Error('Invalid release sequence');
     if (!['draft', 'published'].includes(String(entry.status))) throw new Error('Invalid entry status');
     if (entry.sections !== undefined) {
       if (!Array.isArray(entry.sections)) throw new Error('Sections must be an array');
@@ -84,7 +85,7 @@ export function draftsEnabled(nodeEnv, preview) { return nodeEnv === 'developmen
 /** @param {ChangelogEntry[]} entries @param {boolean} [preview] */
 export function visibleEntries(entries, preview = false) {
   return entries.filter(entry => entry.status === 'published' || preview)
-    .sort((a, b) => b.date.localeCompare(a.date) || a.slug.localeCompare(b.slug));
+    .sort((a, b) => b.date.localeCompare(a.date) || (b.sequence ?? 0) - (a.sequence ?? 0) || a.slug.localeCompare(b.slug));
 }
 
 /** @param {ChangelogEntry[]} entries @param {string} slug @param {boolean} [preview] */
