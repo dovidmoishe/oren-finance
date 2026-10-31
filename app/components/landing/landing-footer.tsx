@@ -15,6 +15,7 @@ const groups = [
     { label: "Activity", href: "/app/activity" },
   ] },
   { title: "Resources", links: [
+    { label: "Changelog", href: "/changelog" },
     { label: "Token", href: "/token" },
     { label: "Integrations", href: "/#features" },
     { label: "FAQ", href: "/#faq" },

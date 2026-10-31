@@ -22,11 +22,12 @@ export default function Home() {
             <OrenLogo className="h-7 w-7" size={28} />
             <span className="text-[15px] font-semibold tracking-[0.16em]">OREN</span>
           </Link>
-          <div className="absolute left-1/2 hidden -translate-x-1/2 items-center gap-8 text-sm text-[#676762] md:flex">
+          <div className="absolute left-1/2 hidden -translate-x-1/2 items-center gap-7 text-sm text-[#676762] lg:flex">
             <a className="transition-colors hover:text-[#111110]" href="#product">Product</a>
             <a className="transition-colors hover:text-[#111110]" href="#stock-mix">Stock mix</a>
             <Link className="transition-colors hover:text-[#111110]" href="/app/markets">Markets</Link>
             <Link className="transition-colors hover:text-[#111110]" href="/token">Token</Link>
+            <Link className="transition-colors hover:text-[#111110]" href="/changelog">Changelog</Link>
           </div>
           <ButtonLink className="h-10 rounded-full px-4 text-sm font-medium" href="/app" variant="primary">
             Launch App <LaunchArrow />

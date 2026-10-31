@@ -30,7 +30,7 @@ export default function TokenPage() {
     <LandingHeader>
       <nav className={styles.nav} aria-label="Main navigation">
         <Link className={styles.brand} href="/" aria-label="Oren home"><OrenLogo size={28} /><span>OREN</span></Link>
-        <div className={styles.navLinks}><Link href="/#product">Product</Link><Link href="/#stock-mix">Stock mix</Link><Link href="/app/markets">Markets</Link><Link href="/token" aria-current="page">Token</Link></div>
+        <div className={styles.navLinks}><Link href="/#product">Product</Link><Link href="/#stock-mix">Stock mix</Link><Link href="/app/markets">Markets</Link><Link href="/token" aria-current="page">Token</Link><Link href="/changelog">Changelog</Link></div>
         <ButtonLink className="h-10 rounded-full px-4 text-sm font-medium" href="/app" variant="primary">Launch App <ArrowIcon /></ButtonLink>
       </nav>
     </LandingHeader>

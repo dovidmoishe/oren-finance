@@ -47,4 +47,6 @@ See **Active phase** at the top of [`docs/api-build-board.md`](docs/api-build-bo
 
 ## App-specific notes
 
+- For release notes and changelog publishing, use [the Oren changelog skill](.agents/skills/oren-changelog/SKILL.md). Entries live in `app/content/changelog/`; films follow the existing separately deployed media workflow.
+
 - Next.js rules for `app/` may also appear in [`app/AGENTS.md`](app/AGENTS.md). Follow both: root board + app Next guidance.
