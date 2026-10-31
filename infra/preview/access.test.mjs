@@ -1,0 +1,42 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { once } from 'node:events';
+import { createAccessServer, hashPassword, signSession, validSession } from './access.mjs';
+
+const key = 'a'.repeat(64), host = 'pr-42.preview.example.com';
+test('sessions are bound to host, expire, and reject tampering or other keys', () => {
+  const now = 1_000_000, token = signSession(host, key, now);
+  assert.equal(validSession(token, host, key, now), true);
+  assert.equal(validSession(token, 'pr-43.preview.example.com', key, now), false);
+  assert.equal(validSession(token, host, key, now + 28_800_001), false);
+  assert.equal(validSession(token + 'x', host, key, now), false);
+  assert.equal(validSession(token, host, 'other-key', now), false);
+  assert.equal(validSession('garbage', host, key, now), false);
+});
+test('gateway password flow protects API and supports cookies with bearer headers', async t => {
+  const server = createAccessServer({key, passwordHash: hashPassword('test-password'), domain: 'preview.example.com'});
+  server.listen(0, '127.0.0.1'); await once(server, 'listening');
+  t.after(() => new Promise(resolve => { server.closeAllConnections(); server.close(resolve); }));
+  const url = `http://127.0.0.1:${server.address().port}`;
+  const headers = {'x-preview-host': host, 'x-preview-client': 'tester'};
+  const request = (path, options = {}) => fetch(url + path, {...options, redirect: 'manual', headers: {...headers, ...options.headers}});
+  assert.equal((await request('/verify')).status, 302);
+  assert.equal((await request('/verify', {headers: {Authorization: 'Bearer oren-token'}})).status, 302);
+  assert.equal((await request('/_preview/login')).status, 200);
+  const login = {method: 'POST', headers: {'content-type':'application/x-www-form-urlencoded', origin:`https://${host}`}, body:'password=test-password'};
+  assert.equal((await request('/_preview/login', {...login, headers: {...login.headers, origin:'https://evil.example'}})).status, 403);
+  assert.equal((await request('/_preview/login', {...login, body:'password=wrong'})).status, 401);
+  const response = await request('/_preview/login', login);
+  assert.equal(response.status, 303);
+  const cookie = response.headers.get('set-cookie');
+  for (const attribute of ['__Host-oren-preview=', 'Secure', 'HttpOnly', 'SameSite=Lax', 'Path=/', 'Max-Age=28800']) assert.ok(cookie.includes(attribute));
+  assert.ok(!cookie.includes('Domain='));
+  const tokenCookie = cookie.split(';')[0];
+  assert.equal((await request('/verify', {headers: {cookie: tokenCookie, Authorization:'Bearer oren-token'}})).status, 204);
+  assert.equal((await request('/verify', {headers: {cookie: tokenCookie, 'x-preview-host':'pr-43.preview.example.com'}})).status, 302);
+  assert.equal((await request('/verify', {headers: {'x-preview-host':'oren.finance'}})).status, 400);
+  const logout = await request('/_preview/logout', {...login, headers: {...login.headers, cookie:tokenCookie}, body:''});
+  assert.equal(logout.status, 303); assert.match(logout.headers.get('set-cookie'), /Max-Age=0/);
+  for(let i=0;i<10;i++) await request('/_preview/login', {...login, body:'password=wrong', headers:{...login.headers,'x-preview-client':'abuser'}});
+  assert.equal((await request('/_preview/login', {...login, headers:{...login.headers,'x-preview-client':'abuser'}})).status, 429);
+});

@@ -1,5 +1,7 @@
 "use client";
 
+import { financialExecutionEnabled } from "@/services/environment";
+
 import {
   AlertCircleIcon,
   CheckmarkCircle01Icon,
@@ -97,7 +99,7 @@ export function LimitOrderReviewModal({
           {review.error ? <Toast title="Unable to prepare order" description={review.error} tone="error" /> : null}
           {review.expired ? <Toast title="Review expired" description="Close this review and request a fresh limit order proposal." tone="info" /> : null}
           <p className="text-xs text-muted">Estimated network fee: {review.approval ? `${Number(review.approval.feeLamports) / 1e9} SOL` : 'Preparing…'}</p>
-          <Button className="h-12 w-full rounded-[16px]" disabled={signDisabled} onClick={() => review.approval && void onSign(review.approval.id)} variant="primary">
+          <Button className="h-12 w-full rounded-[16px]" disabled={!financialExecutionEnabled || signDisabled} onClick={() => review.approval && void onSign(review.approval.id)} variant="primary">
             {isBusy ? (
               <>
                 <HugeiconsIcon className="animate-spin" color="currentColor" icon={Clock01Icon} size={16} strokeWidth={1.8} />

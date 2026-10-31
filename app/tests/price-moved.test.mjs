@@ -62,6 +62,7 @@ function loadReview() {
   const { PriceMovedReview } = load('../components/trading/price-moved-review.tsx', {
     '@/components/ui': ui,
     '@/services/price-moved': priceMoved,
+    '@/services/environment': { financialExecutionEnabled: true },
     '@hugeicons/core-free-icons': {},
     '@hugeicons/react': { HugeiconsIcon: () => null },
   });
@@ -94,7 +95,7 @@ test('without an alternative only cancel is offered', () => {
   assert.equal(buttons[0].variant, 'secondary');
 });
 
-function approvalReviewFixture(prepareImpl) {
+function approvalReviewFixture(prepareImpl, executionEnabled = true) {
   const slots = []; let cursor = 0;
   const react = {
     useState(initial) { const i = cursor++; if (!(i in slots)) slots[i] = typeof initial === 'function' ? initial() : initial; return [slots[i], value => { slots[i] = value; }]; },
@@ -104,6 +105,7 @@ function approvalReviewFixture(prepareImpl) {
   };
   const { useApprovalReview: reviewHook } = load('../hooks/use-approval-review.ts', {
     react,
+    '@/services/environment': { financialExecutionEnabled: executionEnabled },
     '@/components/auth/auth-context': { useOrenAuth: () => ({ address: 'wallet', getAccessToken: async () => 'jwt' }) },
     '@/services/approval-service': { prepareServerApproval: prepareImpl },
     '@/services/price-moved': priceMoved,
@@ -185,4 +187,11 @@ test('refresh resolves the current wallet even if the artifact was seeded before
   assert.equal(sent[0].wallet, 'ready-wallet');
   assert.equal(sent[0].amount, 2);
   assert.equal(sent[0].preferredMint, 'stock');
+});
+
+test('preview approval reviews never request preparation', async () => {
+  let calls = 0;
+  const f = approvalReviewFixture(async () => { calls++; }, false);
+  await f.render('preview-quote').prepare();
+  assert.equal(calls, 0);
 });

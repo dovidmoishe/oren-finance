@@ -1,5 +1,7 @@
 "use client";
 
+import { financialExecutionEnabled } from "@/services/environment";
+
 import {
   ArrowLeft01Icon,
   Briefcase01Icon,
@@ -129,7 +131,7 @@ function CopyPortfolioDrawer({ slug }: { slug: string }) {
                 value={amountUsd}
               />
             </label>
-            <Button className="mt-4 w-full" disabled={!connected || isCopying} onClick={handlePrepareCopy} variant="primary">
+            <Button className="mt-4 w-full" disabled={!financialExecutionEnabled || !connected || isCopying} onClick={handlePrepareCopy} variant="primary">
               {isCopying ? "Building proposal..." : "Build copy proposal"}
             </Button>
           </div>
@@ -154,7 +156,7 @@ function CopyPortfolioDrawer({ slug }: { slug: string }) {
               {executionError ? <p className="rounded-[12px] bg-red-50 p-3 text-xs text-red-900">{executionError}</p> : null}
               <Button
                 className="w-full"
-                disabled={!wallet || executionLoading}
+                disabled={!financialExecutionEnabled || !wallet || executionLoading}
                 onClick={() => wallet && void prepareBasketTrades({ basketId: proposal.basket.id, wallet })}
                 variant="secondary"
               >

@@ -1,0 +1,70 @@
+name: Preview setup
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: Install trusted controller, or enable merge protection after two test PRs
+        type: choice
+        options: [install-controller, enable-merge-protection]
+        default: install-controller
+      acceptance:
+        description: For protection, enter ACCEPTED-preview-login-and-research after tester acceptance
+        type: string
+permissions:
+  contents: read
+jobs:
+  setup:
+    if: github.ref == 'refs/heads/master'
+    runs-on: ubuntu-24.04
+    environment: preview
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: webfactory/ssh-agent@v0.9.1
+        if: inputs.action == 'install-controller'
+        with:
+          ssh-private-key: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
+      - name: Install reviewed controller from master
+        if: inputs.action == 'install-controller'
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_PORT: ${{ secrets.VPS_PORT }}
+          VPS_SSH_KNOWN_HOSTS: ${{ secrets.VPS_SSH_KNOWN_HOSTS }}
+        run: |
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$VPS_SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+          ssh -p "${VPS_PORT:-22}" -o StrictHostKeyChecking=yes "$VPS_USER@$VPS_HOST" 'install -d -m 750 /opt/oren/preview/source'
+          scp -r -P "${VPS_PORT:-22}" -o StrictHostKeyChecking=yes infra/preview "$VPS_USER@$VPS_HOST:/opt/oren/preview/source/"
+          ssh -p "${VPS_PORT:-22}" -o StrictHostKeyChecking=yes "$VPS_USER@$VPS_HOST" 'bash /opt/oren/preview/source/preview/bootstrap.sh'
+      - name: Enable merge protection after acceptance
+        if: inputs.action == 'enable-merge-protection'
+        uses: actions/github-script@v7
+        env:
+          ACCEPTANCE: ${{ inputs.acceptance }}
+        with:
+          # Fine-grained token: this repository only, Administration write,
+          # Contents read, Deployments read. Never made available to PR builds.
+          github-token: ${{ secrets.PREVIEW_ADMIN_TOKEN }}
+          script: |
+            if (process.env.ACCEPTANCE !== 'ACCEPTED-preview-login-and-research') throw Error('Tester acceptance confirmation is required');
+            const deployments = await github.paginate(github.rest.repos.listDeployments, {...context.repo, per_page: 100});
+            const verified = new Set();
+            for (const deployment of deployments) {
+              if (!/^preview-pr-[1-9][0-9]*$/.test(deployment.environment)) continue;
+              const {data: statuses} = await github.rest.repos.listDeploymentStatuses({...context.repo, deployment_id: deployment.id, per_page: 1});
+              if (statuses[0]?.state === 'success') verified.add(deployment.environment);
+              if (verified.size >= 2) break;
+            }
+            if (verified.size < 2) throw Error('Verify two distinct healthy PR previews before enabling protection');
+            try {
+              await github.rest.repos.getBranchProtection({...context.repo, branch:'master'});
+              throw Error('Master already has protection; reconcile it manually rather than overwrite existing settings');
+            } catch (error) { if (error.status !== 404) throw error; }
+            await github.rest.repos.updateBranchProtection({...context.repo, branch:'master',
+              required_status_checks:{strict:true,contexts:['API test and build','App test, lint, and build','Preview infrastructure tests','Preview ready']},
+              enforce_admins:true,required_pull_request_reviews:{dismiss_stale_reviews:true,required_approving_review_count:1},
+              restrictions:null,allow_force_pushes:false,allow_deletions:false});

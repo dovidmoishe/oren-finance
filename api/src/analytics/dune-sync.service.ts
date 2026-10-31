@@ -1,3 +1,4 @@
+import { backgroundWorkersEnabled } from '../config/deployment';
 import { Inject, Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { APP_ENV } from '../config/constants';
 import type { AppEnv } from '../config/env.schema';
@@ -22,6 +23,7 @@ export class DuneSyncService implements OnModuleInit, OnModuleDestroy {
   }
 
   onModuleInit() {
+    if (!backgroundWorkersEnabled()) return;
     if (!this.enabled) return;
     this.timer = setInterval(() => void this.tick(), 5 * 60_000);
     this.timer.unref();
@@ -33,6 +35,7 @@ export class DuneSyncService implements OnModuleInit, OnModuleDestroy {
   }
 
   async tick(): Promise<void> {
+    if (!backgroundWorkersEnabled()) return;
     if (!this.enabled || this.running) return;
     this.running = true;
     let jobs = [] as Awaited<ReturnType<VolumeRepository['claimDuneJobs']>>;
