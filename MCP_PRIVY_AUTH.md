@@ -27,7 +27,7 @@
 
 ### Goals
 1. A remote MCP server (Streamable HTTP) for Oren: `https://<api-host>/mcp`. The host is TBD; see Open Questions.
-2. MCP OAuth 2.1 sign-in that resolves to the **same Privy user and embedded Solana wallet** as the web app (`app/components/auth/privy-session.tsx`, `api/src/auth/privy-wallet-auth.ts`).
+2. MCP OAuth 2.1 sign-in that resolves to the **same Privy user and embedded Solana wallet** as the web app (`app/components/auth/privy-session.tsx`, `api/src/auth/privy-wallet-auth.ts`). The browser login uses Oren's existing **email OTP** flow (`EmailLogin` / `useLoginWithEmail`); OAuth authorizes the MCP client after that login.
 3. Tools for portfolio, stock lookup, quotes, and **swap execution** through the existing router (`api/src/execution/swap-router.ts`: `jupiter` / `shadow` / `best`).
 4. Two-phase money movement: **prepare → (policy-bounded auto-sign | human approval page) → submit** via the existing Alchemy RPC path (`api/src/execution/approval-rpc.service.ts`).
 5. Revocation, audit log, and server-side rolling caps.
@@ -207,7 +207,7 @@ sequenceDiagram
   C->>M: GET /.well-known/oauth-protected-resource
   C->>A: GET /.well-known/oauth-authorization-server
   C->>U: open /authorize (PKCE S256, resource=MCP URL, CIMD or DCR client_id)
-  U->>A: Privy login on Oren page (email / passkey / wallet)
+  U->>A: Oren email OTP login through Privy
   A->>P: verifyAccessToken(privy JWT) -> sub = did:privy:...
   A->>U: consent: scopes (read, trade) + limits
   opt user enables "quick trades" (path a)
@@ -262,7 +262,7 @@ The wallet is **never a tool argument**. It is derived from the token's Privy us
 ## 6. Detailed design
 
 ### 6.1 Hosting
-- Option 1 (recommended): new Nest modules `api/src/mcp/` (resource server, Streamable HTTP via `@modelcontextprotocol/sdk` server transport) and `api/src/mcp-auth/` (AS endpoints), served on the existing API container. Add Caddy routes (e.g. `mcp.<domain>` and `auth.<domain>`, or paths on the API host). Login/consent UI lives in `app/app/oauth/authorize/page.tsx` and posts back to the API.
+- Option 1 (selected): new Nest modules `api/src/mcp/` (resource server, Streamable HTTP via the current `@modelcontextprotocol/server` v2 SDK) and `api/src/mcp-auth/` (OAuth AS through `oidc-provider` with durable Postgres storage), served on the existing API container and API domain. Login/consent UI lives in the existing Next app and reuses the Privy email OTP flow.
 - Option 2: the AS on Cloudflare Workers with `workers-oauth-provider`, and the MCP on the VPS. Battle-tested OAuth, but it splits infra.
 - Claude's 10 s endpoint timeout: keep `/token` and `/register` fast; there are no Privy calls on `/token`.
 
