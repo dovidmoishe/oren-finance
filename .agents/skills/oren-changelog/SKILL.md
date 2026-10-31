@@ -18,7 +18,7 @@ The editor is this workflow: versioned JSON content, local visual preview, and t
 Create one JSON file under `app/content/changelog/`, named after its permanent slug. Start from the existing token entry. The schema and validation are in `model.mjs` in that directory:
 
 - Required: `slug` (lowercase words separated by hyphens), `date` (`YYYY-MM-DD`), `status` (`draft` or `published`), `title`, `summary`.
-- Optional `sections`: objects with `heading` (`Added`, `Improved`, or `Fixed`) and nonempty `items` arrays. Each item is either plain text or `{title, description}` with both fields nonempty plain text; prefer titled items for the two-column change layout. Use each heading at most once.
+- Optional `sections`: objects with `heading` (`Added`, `Improved`, or `Fixed`) and nonempty `items` arrays. Each item is either plain text or `{title, description}` with both fields nonempty plain text; prefer short titled items when they make an update easier to scan. Use each heading at most once.
 - Optional `links`: `{label, href}` objects. Links support app paths and HTTPS URLs.
 - Optional `screenshots`: `{src, alt, width, height}` objects, using descriptive alternative text and actual pixel dimensions.
 - Optional `video`: `{src, poster, label, caption, width, height}`. Use the approved MP4 and poster; explain any depicted functionality that is still in development in visible text.
