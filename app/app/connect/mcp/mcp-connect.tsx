@@ -67,7 +67,11 @@ export function McpConnect({ uid }: { uid: string }) {
         <p className="text-sm text-muted">Agent client</p>
         <p className="mt-1 break-all font-medium">{details.clientId}</p>
         <p className="mt-5 text-sm text-muted">Access requested</p>
-        <p className="mt-1">Read your portfolio and stock market data. This connection cannot place trades.</p>
+        <p className="mt-1">
+          {details.scope.includes('oren.read') ? 'Read your portfolio and stock market data. ' : ''}
+          {details.scope.includes('oren.trade.prepare') ? 'Prepare a buy request and open Oren for your review and signature. ' : ''}
+          The agent cannot sign or submit a trade with this connection.
+        </p>
       </div>}
       {error && <p className="mt-5 text-sm text-red-700" role="alert">{error}</p>}
       {!auth.authenticated ? (
@@ -76,7 +80,7 @@ export function McpConnect({ uid }: { uid: string }) {
         </button>
       ) : (
         <button className="mt-6 rounded-xl bg-foreground px-5 py-3 text-white disabled:opacity-50" disabled={!details || !auth.address || busy} onClick={() => void authorize()} type="button">
-          {busy ? 'Connecting…' : auth.address ? 'Allow read access' : 'Preparing your wallet…'}
+          {busy ? 'Connecting…' : auth.address ? 'Allow connection' : 'Preparing your wallet…'}
         </button>
       )}
       <p className="mt-6 text-sm text-muted">
