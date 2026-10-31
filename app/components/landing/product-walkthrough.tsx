@@ -1,0 +1,177 @@
+"use client";
+
+import { useEffect, useId, useRef, useState } from "react";
+import Image from "next/image";
+import { OrenLogo } from "@/components/brand/oren-logo";
+import styles from "./product-walkthrough.module.css";
+import { stockLogos } from "./stock-logos";
+
+const STEP_MS = 1200;
+const SCENE_MS = 6000;
+const DURATION = STEP_MS * 4;
+const stocks = [
+  { symbol: "NVDA", name: "NVIDIA", price: "$186.42", change: "+3.28%", logo: stockLogos.NVDA },
+  { symbol: "AAPL", name: "Apple", price: "$268.75", change: "+1.46%", logo: stockLogos.AAPL },
+  { symbol: "MSFT", name: "Microsoft", price: "$528.36", change: "+2.17%", logo: stockLogos.MSFT },
+  { symbol: "TSLA", name: "Tesla", price: "$324.85", change: "−0.84%", logo: stockLogos.TSLA },
+];
+// Fixed illustrative observations: consolidation, a selloff, then recovery.
+// Keep these deterministic; this public demo does not represent a live feed.
+const chartPrices = [
+  169.8, 170.4, 169.9, 171.2, 170.8, 170.6, 171.1, 170.2, 169.7, 170.3,
+  171.5, 172.1, 171.7, 172.4, 173.8, 173.1, 173.5, 172.7, 173.2, 172.9,
+  172.6, 173.1, 172.8, 171.6, 170.9, 171.4, 170.3, 168.7, 169.2, 168.4,
+  169.6, 170.1, 169.5, 170.4, 171.8, 171.3, 172.5, 173.6, 173.2, 174.8,
+  175.2, 174.6, 175.7, 176.1, 175.3, 175.8, 175.5, 176.3, 175.9, 175.6,
+  176.2, 176.8, 176.4, 177.9, 179.3, 178.6, 180.2, 179.7, 180.8, 181.4,
+  180.6, 181.1, 179.8, 180.4, 179.5, 178.2, 178.8, 177.6, 178.5, 179.2,
+  178.7, 179.6, 180.3, 179.9, 180.7, 181.2, 180.8, 181.5, 182.6, 182.1,
+  183.4, 184.7, 184.1, 185.2, 184.5, 183.8, 184.3, 183.6, 182.9, 183.5,
+  182.7, 181.8, 182.4, 181.1, 180.5, 181.3, 182.2, 183.7, 183.1, 184.6,
+  185.4, 184.8, 185.7, 186.1, 185.5, 186.42,
+];
+const chartY = (price: number) => 195 - (price - 168) / 20 * 180;
+const chart = chartPrices.map((price, i) => `${i ? "L" : "M"}${(i / (chartPrices.length - 1) * 500).toFixed(2)} ${chartY(price).toFixed(2)}`).join(" ");
+
+function StockMark({ stock }: { stock: typeof stocks[number] }) {
+  return <span className={styles.stockMark}><Image alt={`${stock.name} logo`} src={stock.logo} width={30} height={30} className="h-full w-full rounded-full object-cover" /></span>;
+}
+
+function DemoCursor({ clicking }: { clicking: boolean }) {
+  return <span aria-hidden className={styles.cursor} data-clicking={clicking}><svg width="23" height="27" viewBox="0 0 23 27" fill="none"><path d="M3 2v20l5.5-5 4 8 3.5-1.8-4-7.5 7-1.5L3 2Z" fill="#252521" stroke="white" strokeWidth="1.8" strokeLinejoin="round" /></svg></span>;
+}
+
+function PriceChart({ progress }: { progress: number }) {
+  const id = useId().replace(/:/g, "");
+  return (
+    <div className={styles.chartFrame}>
+      <svg aria-label="Illustrative NVIDIA 30-day price chart, ending at 186 dollars and 42 cents" className={styles.chart} viewBox="0 0 500 210" preserveAspectRatio="none" role="img">
+        <defs>
+          <linearGradient id={`${id}-fill`} x1="0" x2="0" y1="0" y2="1"><stop stopColor="#dcd5f5" stopOpacity=".38" /><stop offset="1" stopColor="#dcd5f5" stopOpacity="0" /></linearGradient>
+          <clipPath id={`${id}-reveal`}><rect x="0" y="0" width={500 * progress} height="210" /></clipPath>
+        </defs>
+        {[188, 182, 176, 170].map((price) => <path key={price} d={`M0 ${chartY(price)}H500`} stroke="#eeede9" strokeDasharray="3 5" vectorEffect="non-scaling-stroke" />)}
+        <g clipPath={`url(#${id}-reveal)`}>
+          <path d={`${chart} L500 210 H0 Z`} fill={`url(#${id}-fill)`} />
+          <path d={chart} fill="none" stroke="#68615f" strokeWidth="1.7" strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
+        </g>
+      </svg>
+      <div aria-hidden className={styles.priceAxis}>{[188, 182, 176, 170].map((price) => <span key={price} style={{ top: `${chartY(price) / 210 * 100}%` }}>${price}</span>)}</div>
+    </div>
+  );
+}
+
+export function ProductWalkthrough() {
+  const root = useRef<HTMLDivElement>(null);
+  const started = useRef(false);
+  const [elapsed, setElapsed] = useState(0);
+  const [playing, setPlaying] = useState(false);
+  const [visible, setVisible] = useState(false);
+  const [foreground, setForeground] = useState(true);
+  const step = Math.min(3, Math.floor(elapsed / STEP_MS));
+  // Scale all reveals together so a pace change keeps each scene complete.
+  const local = (elapsed - step * STEP_MS) / STEP_MS * SCENE_MS;
+  const ended = elapsed >= DURATION;
+  const running = playing && visible && foreground && !ended;
+
+  useEffect(() => {
+    const media = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const motionChanged = () => { if (media.matches) { setPlaying(false); setElapsed(DURATION); } };
+    const visibilityChanged = () => setForeground(!document.hidden);
+    const observer = new IntersectionObserver(([entry]) => {
+      setVisible(entry.isIntersecting);
+      setForeground(!document.hidden);
+      if (entry.isIntersecting && !started.current) {
+        started.current = true;
+        setPlaying(!media.matches);
+        if (media.matches) setElapsed(DURATION);
+      }
+    }, { threshold: .2 });
+    if (root.current) observer.observe(root.current);
+    media.addEventListener("change", motionChanged);
+    document.addEventListener("visibilitychange", visibilityChanged);
+    return () => { observer.disconnect(); media.removeEventListener("change", motionChanged); document.removeEventListener("visibilitychange", visibilityChanged); };
+  }, []);
+
+  useEffect(() => {
+    if (!running) return;
+    let previous = performance.now();
+    const timer = window.setInterval(() => {
+      const now = performance.now();
+      const delta = now - previous;
+      previous = now;
+      setElapsed((value) => (value + delta) % DURATION);
+    }, 60);
+    return () => window.clearInterval(timer);
+  }, [running]);
+
+  function selectStep(index: number) { setElapsed(index * STEP_MS); setPlaying(true); }
+
+  return (
+    <div className={styles.walkthrough} ref={root} data-playing={running} data-step={step}>
+      <div className={styles.frame}><div className={styles.terminal}>
+        <header className={styles.header}>
+          <span className={styles.brand}><OrenLogo size={25} className="h-[25px] w-[25px]" /> Oren</span>
+          <div className={styles.navigation} aria-hidden><span>Dashboard</span><span className={styles.activeNav}>Market</span><span>Portfolio</span></div>
+          <span className={styles.demoLabel}><span /> Product demo</span>
+        </header>
+        <div className={styles.workspace}>
+          <div className={styles.marketArea}>
+            {step === 0 ? (
+              <div className={styles.scene} key="markets">
+                <div className={styles.sectionHeading}><div><span className={styles.muted}>Explore</span><h3>Market</h3></div><span className={styles.search}>⌕ <span>Search stocks</span></span></div>
+                <div className={styles.highlights}>
+                  <div><span>Trending</span><strong><Image alt="NVIDIA logo" src={stockLogos.NVDA} width={24} height={24} className="rounded-full" />NVDA</strong><small>NVIDIA <b>+3.28%</b></small></div>
+                  <div><span>Oren Opportunity</span><strong><Image alt="Microsoft logo" src={stockLogos.MSFT} width={24} height={24} className="rounded-full" />MSFT</strong><small>Microsoft <b>82 / 100</b></small></div>
+                </div>
+                <div className={styles.tableHead}><span>Stock</span><span>Price</span><span>Today</span></div>
+                {stocks.map((stock, i) => (
+                  <button disabled={i !== 0} className={`${styles.stockRow} ${styles.actionTarget} ${i === 0 && local > 2400 ? styles.highlightRow : ""}`} key={stock.symbol} onClick={() => selectStep(1)} aria-label={i === 0 ? "Explore NVIDIA in the demo" : `${stock.name} sample stock`}>
+                    <span className={styles.stockName}><StockMark stock={stock} /><span><strong>{stock.name}</strong><small>{stock.symbol}</small></span></span>
+                    <span>{stock.price}</span><span className={i === 3 ? styles.negative : styles.positive}>{stock.change}</span>
+                    {i === 0 && running && local > 2800 && <DemoCursor clicking={local > 5000} />}
+                  </button>
+                ))}
+                <span className={styles.marketHint}>Select NVIDIA to explore it <span aria-hidden>↗</span></span>
+              </div>
+            ) : (
+              <div className={styles.scene} key="stock">
+                <div className={styles.stockHeading}><StockMark stock={stocks[0]} /><div><h3>NVIDIA</h3><span className={styles.muted}>NVDA · Tokenized stock</span></div><span className={styles.stockTag}>Technology</span></div>
+                <div className={styles.price}><strong>$186.42</strong><span className={styles.positive}>+3.28% <span className={styles.muted}>today</span></span></div>
+                <PriceChart progress={step === 1 ? Math.min(1, .35 + local / 2200) : 1} />
+                <div className={styles.chartAxis}><span>Oct 1</span><span>Oct 15</span><span>Oct 30</span></div>
+                <div className={styles.chartRanges}><span>24H</span><span>7D</span><span className={styles.selectedRange}>30D</span><span>90D</span><span>1Y</span></div>
+                <div className={styles.outlook}><div><span>Market outlook</span><span className={styles.score}>84 / 100</span></div><p>Positive momentum. Moderate volatility.</p><div className={styles.metrics}><span>7D momentum<strong className={styles.positive}>+6.84%</strong></span><span>30D volatility<strong>3.12%</strong></span><span>Trend<strong>Uptrend</strong></span></div></div>
+              </div>
+            )}
+          </div>
+          <aside className={styles.agentArea}>
+            <div className={styles.agentHeader}><OrenLogo size={26} className="h-[26px] w-[26px]" state={running && step === 2 && local < 2200 ? "thinking" : "idle"} /><strong>{step === 3 ? "Trade review" : "Oren Agent"}</strong><span>↗</span></div>
+            {step < 2 ? (
+              <div className={`${styles.agentWelcome} ${styles.scene}`} key="welcome">
+                <OrenLogo size={48} className="h-12 w-12" /><h4>What&apos;s on your mind?</h4><p>Ask about a stock or your portfolio.</p>
+                <button className={styles.actionTarget} onClick={() => selectStep(2)}>What&apos;s happening with NVIDIA? <span>↗</span>{step === 1 && running && local > 2800 && <DemoCursor clicking={local > 5000} />}</button>
+              </div>
+            ) : step === 2 ? (
+              <div className={`${styles.conversation} ${styles.scene}`} key="conversation">
+                <p className={styles.question}>What&apos;s happening with NVIDIA?</p>
+                <div className={styles.answer}><span className={styles.answerLabel}>Oren</span><p>{"NVIDIA is up 3.28% today. Momentum is positive, with moderate volatility over the past month.".slice(0, Math.floor(local / 20) + 1)}</p></div>
+                {local > 2300 && <div className={`${styles.insightCard} ${styles.scene}`}><span>Portfolio context</span><p>NVIDIA is 18% of your holdings.</p><small>A $100 buy would bring it to 20%.</small></div>}
+                {local > 3600 && <button className={`${styles.primaryButton} ${styles.actionTarget}`} onClick={() => selectStep(3)}>Review a $100 buy <span>→</span>{running && local > 4200 && <DemoCursor clicking={local > 5400} />}</button>}
+              </div>
+            ) : (
+              <div className={`${styles.review} ${styles.scene}`} key="review">
+                <span className={styles.reviewEyebrow}><Image alt="NVIDIA logo" src={stockLogos.NVDA} width={22} height={22} className="rounded-full" />Buy NVIDIA</span><strong className={styles.tradeAmount}>$100<span>USDC</span></strong>
+                <dl><div><dt>You receive</dt><dd>≈ 0.5364 NVDA</dd></div><div><dt>Price</dt><dd>$186.42</dd></div><div><dt>Network</dt><dd>Solana</dd></div><div><dt>Estimated fee</dt><dd>$0.01</dd></div></dl>
+                <div className={styles.reviewNotice}><span aria-hidden>✓</span> You review every trade before it moves.</div>
+                <div className={styles.approvalPreview}>Approve trade <span aria-hidden>→</span></div>
+                <p className={styles.sampleNotice}>Sample trade · No funds will move</p>
+              </div>
+            )}
+            {step < 3 && <div className={styles.composer}><span>Ask Oren…</span><button aria-label="Show the Ask Oren demo step" onClick={() => selectStep(2)}>↑</button></div>}
+          </aside>
+        </div>
+      </div></div>
+    </div>
+  );
+}

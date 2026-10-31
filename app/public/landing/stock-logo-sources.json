@@ -1,0 +1,30 @@
+[
+  {
+    "ticker": "AAPL",
+    "name": "Apple xStock",
+    "symbol": "AAPLx",
+    "metadata": "https://xstocks-metadata.backed.fi/tokens/Solana/AAPLx/metadata.json",
+    "image": "https://xstocks-metadata.backed.fi/logos/tokens/AAPLx.png"
+  },
+  {
+    "ticker": "NVDA",
+    "name": "NVIDIA xStock",
+    "symbol": "NVDAx",
+    "metadata": "https://xstocks-metadata.backed.fi/tokens/Solana/NVDAx/metadata.json",
+    "image": "https://xstocks-metadata.backed.fi/logos/tokens/NVDAx.png"
+  },
+  {
+    "ticker": "MSFT",
+    "name": "Microsoft xStock",
+    "symbol": "MSFTx",
+    "metadata": "https://xstocks-metadata.backed.fi/tokens/Solana/MSFTx/metadata.json",
+    "image": "https://xstocks-metadata.backed.fi/logos/tokens/MSFTx.png"
+  },
+  {
+    "ticker": "TSLA",
+    "name": "Tesla xStock",
+    "symbol": "TSLAx",
+    "metadata": "https://xstocks-metadata.backed.fi/tokens/Solana/TSLAx/metadata.json",
+    "image": "https://xstocks-metadata.backed.fi/logos/tokens/TSLAx.png"
+  }
+]

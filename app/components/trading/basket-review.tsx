@@ -10,6 +10,7 @@ import {
 import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
 import { Card, CardContent, CardHeader, cn, formatCurrency, formatNumber } from "@/components/ui";
 import type { BasketExecutionProgress, BasketLegStatus, BasketResponse } from "@/types";
+import { StockLogo } from "@/components/stock/stock-logo";
 
 interface BasketReviewProps {
   basket: BasketResponse;
@@ -89,14 +90,17 @@ export function BasketReview({ basket, progress }: BasketReviewProps) {
             return (
               <article className="rounded-[18px] border border-border p-4" key={allocation.assetId}>
                 <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <h3 className="font-display text-lg font-semibold">{allocation.ticker}</h3>
-                      <span className="rounded-full bg-panel-subtle px-2 py-1 font-mono text-[11px] text-muted">
-                        {formatNumber(allocation.weightPercent, 1)}%
-                      </span>
+                  <div className="flex items-center gap-3">
+                    <StockLogo ticker={allocation.ticker} size={30} />
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-display text-lg font-semibold">{allocation.ticker}</h3>
+                        <span className="rounded-full bg-panel-subtle px-2 py-1 font-mono text-[11px] text-muted">
+                          {formatNumber(allocation.weightPercent, 1)}%
+                        </span>
+                      </div>
+                      {allocation.name ? <p className="text-xs text-muted">{allocation.name}</p> : null}
                     </div>
-                    {allocation.name ? <p className="text-xs text-muted">{allocation.name}</p> : null}
                   </div>
                   <div className="text-right">
                     <p className="font-mono text-sm font-semibold">{formatCurrency(allocation.amountUsd)}</p>

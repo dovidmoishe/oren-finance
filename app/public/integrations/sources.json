@@ -1,0 +1,41 @@
+[
+  {
+    "name": "Solana",
+    "file": "solana.svg",
+    "source": "Existing official Solana mark in oren-launch/assets/solana-mark.svg"
+  },
+  {
+    "name": "tokens.xyz",
+    "file": "tokens.svg",
+    "source": "https://tokens.xyz",
+    "note": "Header SVG"
+  },
+  {
+    "name": "Titan",
+    "file": "titan.svg",
+    "source": "https://titan.exchange",
+    "note": "Header wordmark"
+  },
+  {
+    "name": "Jupiter",
+    "file": "jupiter.svg",
+    "source": "https://jup.ag",
+    "note": "Header SVG"
+  },
+  {
+    "name": "OpenAI",
+    "source": "https://openai.com/brand/",
+    "note": "Plain text service name; no recreated or modified logo"
+  },
+  {
+    "name": "Privy",
+    "file": "privy.svg",
+    "source": "https://privy.io",
+    "note": "Official header wordmark including Stripe company attribution"
+  },
+  {
+    "name": "Alchemy",
+    "file": "alchemy.svg",
+    "source": "https://media.alchemy.com/1699253173-alchemy-logo.svg"
+  }
+]
