@@ -29,10 +29,20 @@ test('the real Privy SDK forwards the exact client-authorized request without ex
   for (const [key, value] of Object.entries(payload.headers)) assert.equal(requests[0].headers.get(key), value);
   assert.equal(requests[0].headers.get('privy-authorization-signature'), 'offline-authorization');
 });
-const exports = {};
-vm.runInNewContext(ts.transpileModule(readFileSync(new URL('../src/execution/approval-rpc.service.ts', import.meta.url), 'utf8'), {
-  compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, experimentalDecorators: true, esModuleInterop: true },
-}).outputText, { exports, Buffer, require(id) { return id === '../alchemy/alchemy.client' ? { AlchemyClient: class {} } : require(id); } });
+// Resolve relative TypeScript dependencies beside their source, rather than
+// beside this script. Exercise the real balance guard with the real SDK too.
+function loadSource(url) {
+  const exports = {};
+  const sourceRequire = createRequire(url);
+  vm.runInNewContext(ts.transpileModule(readFileSync(url, 'utf8'), {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, experimentalDecorators: true, esModuleInterop: true },
+  }).outputText, { exports, Buffer, require(id) {
+    if (id === '../alchemy/alchemy.client') return { AlchemyClient: class {} };
+    return id.startsWith('.') ? loadSource(new URL(`${id}.ts`, url)) : sourceRequire(id);
+  } });
+  return exports;
+}
+const exports = loadSource(new URL('../src/execution/approval-rpc.service.ts', import.meta.url));
 const rpc = new exports.ApprovalRpc({ call() { throw new Error('No network calls allowed'); } });
 test('simulation and fee estimation start together while simulation failures still reject the trade', async () => {
   const owner = Keypair.generate();
