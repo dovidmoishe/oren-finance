@@ -48,6 +48,7 @@ function loadStore(name, services) {
       if (id === 'zustand') return { create };
       if (id === '@/services') return services;
       if (id === '@/services/wallet-session') return { sessionSetter, walletSessionIsCurrent };
+      if (id === './wallet-store') return { useWalletStore: { getState: () => ({}) } };
       return require(id);
     },
   });

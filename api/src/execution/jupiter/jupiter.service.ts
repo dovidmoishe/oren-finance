@@ -16,6 +16,7 @@ import {
   JupiterRateLimitedError,
   QuoteExpiredError,
 } from '../../common/errors/provider.errors';
+import type { RateLane } from '../../common/rate-limiter';
 import { JupiterClient } from './jupiter.client';
 import {
   mapJupiterQuoteToDomain,
@@ -37,6 +38,8 @@ export interface JupiterQuoteContext {
   /** USD notional for Quote.amountUsd. */
   amountUsd: number;
   slippageBps?: number;
+  /** 'background' for auto-refresh quotes; defaults to 'priority'. */
+  lane?: RateLane;
 }
 
 @Injectable()
@@ -94,6 +97,7 @@ export class JupiterService implements ExecutionProvider {
       outputMint: ctx.outputMint,
       amount: rawAmount,
       slippageBps,
+      lane: ctx.lane,
     });
 
     return mapJupiterQuoteToDomain({

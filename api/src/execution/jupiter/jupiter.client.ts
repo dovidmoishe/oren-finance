@@ -5,6 +5,7 @@ import {
   JupiterBadRequestError,
   JupiterUnavailableError,
 } from '../../common/errors/provider.errors';
+import type { RateLane } from '../../common/rate-limiter';
 import { JupiterGateway } from './jupiter-gateway';
 import type { JupiterQuoteRaw, JupiterSwapRaw } from './jupiter.types';
 
@@ -29,6 +30,8 @@ export class JupiterClient {
     outputMint: string;
     amount: string;
     slippageBps: number;
+    /** 'background' for quotes no user is waiting on (auto-refresh). */
+    lane?: RateLane;
   }): Promise<JupiterQuoteRaw> {
     const url = new URL(`${this.baseUrl}/quote`);
     url.searchParams.set('inputMint', params.inputMint);
@@ -36,7 +39,11 @@ export class JupiterClient {
     url.searchParams.set('amount', params.amount);
     url.searchParams.set('slippageBps', String(params.slippageBps));
 
-    return this.request<JupiterQuoteRaw>(url.toString(), { method: 'GET' });
+    return this.request<JupiterQuoteRaw>(
+      url.toString(),
+      { method: 'GET' },
+      params.lane,
+    );
   }
 
   async postSwap(body: {
@@ -65,8 +72,12 @@ export class JupiterClient {
     });
   }
 
-  private async request<T>(url: string, init: RequestInit): Promise<T> {
-    const response = await this.gateway.fetch(url, init, 'Jupiter');
+  private async request<T>(
+    url: string,
+    init: RequestInit,
+    lane: RateLane = 'priority',
+  ): Promise<T> {
+    const response = await this.gateway.fetch(url, init, 'Jupiter', lane);
 
     if (response.ok) {
       return (await response.json()) as T;

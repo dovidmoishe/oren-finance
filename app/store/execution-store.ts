@@ -2,7 +2,8 @@
 
 import { create } from "zustand";
 import { sessionSetter } from "@/services/wallet-session";
-import { confirmExecution, createBasket, getExecutionQuote, prepareBasket, prepareExecution } from "@/services";
+import { useWalletStore } from "./wallet-store";
+import { confirmExecution, createBasket, getExecutionQuote, prepareBasket, prepareExecution, refreshExecutionQuote } from "@/services";
 import type {
   BasketIntent,
   BasketResponse,
@@ -26,7 +27,8 @@ interface ExecutionState {
   isRefreshingQuote: boolean;
   error?: string;
   quoteTrade: (intent: TradeIntent) => Promise<QuoteResponse | undefined>;
-  refreshQuote: () => Promise<QuoteResponse | undefined>;
+  /** Re-quote the last intent. Automatic refreshes use the background lane. */
+  refreshQuote: (options?: { manual?: boolean }) => Promise<QuoteResponse | undefined>;
   prepareTrade: (request: PrepareExecutionRequest) => Promise<void>;
   confirmTrade: (wallet: string, executionId: string, quoteId: string, signature: string) => Promise<void>;
   buildBasket: (intent: BasketIntent) => Promise<void>;
@@ -45,6 +47,7 @@ function intentFromQuote(quote: QuoteResponse): TradeIntent {
     amount: quote.side === "sell" ? quote.inputAmount : undefined,
     preferredMint: quote.variant.mint,
     slippageBps: quote.slippageBps,
+    wallet: useWalletStore.getState().address,
   };
 }
 
@@ -72,13 +75,23 @@ export const useExecutionStore = create<ExecutionState>((set, get) => ({
       return undefined;
     }
   },
-  async refreshQuote() {
+  async refreshQuote(options) {
     const update = sessionSetter(set);
-    const intent = get().lastQuoteIntent;
-    if (!intent) return undefined;
+    const previousIntent = get().lastQuoteIntent;
+    if (!previousIntent) return undefined;
+    // Agent artifacts contain public quote terms, not their server-side wallet
+    // context. Use the active session wallet for both automatic and manual refresh.
+    const intent = {
+      ...previousIntent,
+      wallet: useWalletStore.getState().address ?? previousIntent.wallet,
+    };
     update({ isRefreshingQuote: true, error: undefined });
     try {
-      const quote = await getExecutionQuote(intent);
+      // Automatic refreshes are flagged so they never take rate budget from
+      // user swaps; a manual retry is a user waiting and stays on priority.
+      const quote = options?.manual
+        ? await getExecutionQuote(intent)
+        : await refreshExecutionQuote(intent);
       update({
         quote,
         lastQuoteIntent: intent,

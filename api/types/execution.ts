@@ -36,6 +36,16 @@ export interface TradeIntent {
   amount?: number;
   preferredMint?: string;
   slippageBps?: number;
+  /**
+   * User wallet the swap will be built for. Optional; without it only
+   * wallet-agnostic venues (Jupiter) can quote.
+   */
+  wallet?: string;
+  /**
+   * True for silent client re-quotes (no user waiting on a click). These
+   * use the background rate lane so they never starve user swaps.
+   */
+  autoRefresh?: boolean;
 }
 
 export interface QuoteRequest {
@@ -58,6 +68,11 @@ export interface PreparedTransaction {
   transaction: string;
   provider: string;
   expiresAt: Date;
+  /**
+   * Provider hard expiry in slots (Titan routes). The approval refuses to
+   * sign once the cluster reaches this slot.
+   */
+  expiresAfterSlot?: number;
 }
 
 export interface BasketAllocation {
@@ -106,6 +121,8 @@ export interface BasketLegProgress {
   variant?: TokenizedEquity;
   preparedTransaction?: PreparedTransaction;
   error?: string;
+  /** Set when the leg was refused with PRICE_MOVED (see PriceMovedDetails). */
+  priceMoved?: PriceMovedDetails;
 }
 
 export interface BasketExecutionProgress {
@@ -119,4 +136,33 @@ export interface PreparedBasketPurchase {
   wallet: string;
   transactions: PreparedTransaction[];
   progress: BasketExecutionProgress;
+}
+
+/** Terms shown to the user when a prepare is refused (UI units + raw). */
+export interface PriceMovedTerms {
+  provider: string;
+  outputAmount: number;
+  /** Smallest output the route would enforce on-chain (UI units). */
+  minimumOutputAmount: number;
+  minOutRaw: string;
+  slippageBps: number;
+  outputSymbol: string;
+}
+
+/**
+ * Body sent with a 409 PRICE_MOVED. `alternative` is a fresh Jupiter quote
+ * for the same trade (no route payload). It is only an offer: the client
+ * must start a new review/approval with `alternative.id`; nothing executes
+ * without the user's confirmation.
+ */
+export interface PriceMovedDetails {
+  quoteId: string;
+  reviewed: PriceMovedTerms;
+  /** Best route we could get now, which fell below `reviewed`. */
+  latest?: PriceMovedTerms;
+  /** Public quote (no routePayload) plus its own enforced minimum. */
+  alternative?: Quote & {
+    minimumOutputAmount: number;
+    minOutRaw: string;
+  };
 }

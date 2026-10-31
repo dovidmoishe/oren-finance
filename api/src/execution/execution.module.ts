@@ -20,6 +20,11 @@ import { JupiterTriggerClient } from './jupiter/jupiter-trigger.client';
 import { LimitOrderCache } from './limit-order-cache';
 import { LimitOrderRepository } from './limit-order.repository';
 import { QuoteCache } from './quote-cache';
+import { SwapFeeOracle } from './swap-fee-oracle';
+import { SwapRouter } from './swap-router';
+import { TitanClient } from './titan/titan.client';
+import { TitanService } from './titan/titan.service';
+import { TitanTxBuilder } from './titan/titan-tx.builder';
 import { VariantSelector } from './variant-selector';
 import { LimitOrderFillPoller } from './limit-order-fill.poller';
 
@@ -43,6 +48,11 @@ import { LimitOrderFillPoller } from './limit-order-fill.poller';
     JupiterClient,
     JupiterTriggerClient,
     JupiterService,
+    TitanClient,
+    TitanTxBuilder,
+    TitanService,
+    SwapFeeOracle,
+    SwapRouter,
     QuoteCache,
     VariantSelector,
     ExecutionRepository,
@@ -50,6 +60,6 @@ import { LimitOrderFillPoller } from './limit-order-fill.poller';
     ExecutionService,
     LimitOrderFillPoller,
   ],
-  exports: [ExecutionService, JupiterService],
+  exports: [ExecutionService, JupiterService, SwapRouter],
 })
 export class ExecutionModule {}

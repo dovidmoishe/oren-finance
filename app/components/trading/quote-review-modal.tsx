@@ -8,9 +8,11 @@ import {
   Wallet02Icon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
+import { useState } from "react";
 import { Button, Modal, Toast, formatCurrency, formatNumber } from "@/components/ui";
 import type { ExecutionStatus, QuoteResponse } from "@/types";
 import { useApprovalReview } from "@/hooks/use-approval-review";
+import { PriceMovedReview } from "./price-moved-review";
 
 type TradeFlowStatus = "idle" | "quoted" | "preparing" | "signing" | "confirming" | "submitted" | "confirmed" | "failed";
 
@@ -25,7 +27,14 @@ interface QuoteReviewModalProps {
   refreshFailed?: boolean;
   onRefreshQuote?: () => void;
   onClose: () => void;
-  onSign: (approvalId: string) => Promise<void>;
+  /** Sign the approval; `quote` is the one it was prepared for. */
+  onSign: (approvalId: string, quote: QuoteResponse) => Promise<void>;
+  /**
+   * The user accepted the alternative offered with PRICE_MOVED. Callers that
+   * own the quote (e.g. the store) swap it in; otherwise the modal reviews
+   * the alternative itself. Either way a new approval is prepared for it.
+   */
+  onAcceptAlternative?: (quote: QuoteResponse) => void;
 }
 
 function formatExpiryLabel(secondsLeft: number, refreshing: boolean) {
@@ -56,9 +65,18 @@ export function QuoteReviewModal({
   onRefreshQuote,
   onClose,
   onSign,
+  onAcceptAlternative,
 }: QuoteReviewModalProps) {
-  const review = useApprovalReview('swap', requestedQuote?.id, open);
-  const quote = review.approval?.details.quote ?? requestedQuote;
+  const [accepted, setAccepted] = useState<{ forId: string; quote: QuoteResponse }>();
+  // An accepted alternative replaces the requested quote until that changes.
+  const reviewQuote =
+    accepted && accepted.forId === requestedQuote?.id ? accepted.quote : requestedQuote;
+  const review = useApprovalReview('swap', reviewQuote?.id, open);
+  const quote = review.approval?.details.quote ?? reviewQuote;
+  const acceptAlternative = (alternative: QuoteResponse) => {
+    if (onAcceptAlternative) onAcceptAlternative(alternative);
+    else if (requestedQuote) setAccepted({ forId: requestedQuote.id, quote: alternative });
+  };
   const secondsLeft = quoteSecondsLeft ?? review.secondsLeft;
   const expired = Boolean(quote && secondsLeft <= 0);
   const isBusy = status === "preparing" || status === "signing" || status === "confirming";
@@ -79,6 +97,13 @@ export function QuoteReviewModal({
     <Modal open={open} onClose={onClose} side="right" title={quote ? `Review ${quote.side} · ${quote.ticker}` : "Review trade"}>
       {!quote ? (
         <Toast title="No quote loaded" description="Request a fresh quote from the trade ticket." tone="error" />
+      ) : review.priceMoved ? (
+        <PriceMovedReview
+          details={review.priceMoved}
+          disabled={isBusy}
+          onAccept={acceptAlternative}
+          onCancel={onClose}
+        />
       ) : (
         <div className="space-y-5">
           <div className="space-y-3 rounded-[24px] border border-border p-4">
@@ -124,7 +149,7 @@ export function QuoteReviewModal({
               Retry quote refresh
             </Button>
           ) : (
-            <Button className="h-12 w-full rounded-[16px]" disabled={signDisabled} onClick={() => review.approval && void onSign(review.approval.id)} variant="primary">
+            <Button className="h-12 w-full rounded-[16px]" disabled={signDisabled} onClick={() => review.approval && reviewQuote && void onSign(review.approval.id, reviewQuote)} variant="primary">
               {isBusy ? (
                 <>
                   <HugeiconsIcon className="animate-spin" color="currentColor" icon={Clock01Icon} size={16} strokeWidth={1.8} />
