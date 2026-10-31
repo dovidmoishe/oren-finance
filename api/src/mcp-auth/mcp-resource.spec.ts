@@ -8,6 +8,7 @@ const connection = {
   userId: 'user-1',
   walletId: 'wallet-1',
   wallet: 'solana-wallet',
+  scopes: 'oren.read',
 };
 
 function fixture(overrides: Record<string, unknown> = {}, rows = [connection]) {
@@ -50,6 +51,14 @@ describe('MCP resource access', () => {
 
   it('rejects a token with no active connection', async () => {
     const { deps, req, verifyMcpWallet } = fixture({}, []);
+    await expect(requireMcpAccess(req, deps)).resolves.toBeUndefined();
+    expect(verifyMcpWallet).not.toHaveBeenCalled();
+  });
+
+  it('rejects a token that claims a scope the connection did not grant', async () => {
+    const { deps, req, verifyMcpWallet } = fixture({
+      scopes: new Set(['oren.read', 'oren.trade.prepare']),
+    });
     await expect(requireMcpAccess(req, deps)).resolves.toBeUndefined();
     expect(verifyMcpWallet).not.toHaveBeenCalled();
   });

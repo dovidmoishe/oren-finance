@@ -57,6 +57,13 @@
       "breakpoints": true,
       "tag": "0007_mcp_connections",
       "idx": 7
+    },
+    {
+      "version": "7",
+      "when": 1793469600000,
+      "breakpoints": true,
+      "tag": "0008_mcp_trade_intents",
+      "idx": 8
     }
   ]
 }

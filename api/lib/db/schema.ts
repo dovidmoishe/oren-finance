@@ -78,10 +78,31 @@ export const mcpConnections = pgTable(
     userId: text('user_id').notNull(),
     walletId: text('wallet_id').notNull(),
     wallet: text('wallet').notNull(),
+    scopes: text('scopes').notNull().default('oren.read'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     revokedAt: timestamp('revoked_at', { withTimezone: true }),
   },
   (table) => [index('mcp_connections_user_idx').on(table.userId)],
+);
+
+/** Agent buy requests are application intents; no signature or route is stored here. */
+export const mcpTradeIntents = pgTable(
+  'mcp_trade_intents',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    grantId: text('grant_id').notNull(),
+    clientId: text('client_id').notNull(),
+    userId: text('user_id').notNull(),
+    wallet: text('wallet').notNull(),
+    assetId: text('asset_id').notNull(),
+    ticker: text('ticker').notNull(),
+    approvalId: uuid('approval_id'),
+    amountUsd: numeric('amount_usd', { precision: 18, scale: 6 }).notNull(),
+    slippageBps: integer('slippage_bps').notNull(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index('mcp_trade_intents_owner_idx').on(table.userId, table.id)],
 );
 
 /**

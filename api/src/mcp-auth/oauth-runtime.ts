@@ -65,7 +65,7 @@ export async function createMcpOAuthRuntime(
     cookies: { keys: cookieKeys },
     pkce: { required: () => true },
     responseTypes: ['code'],
-    scopes: ['oren.read', 'offline_access'],
+    scopes: ['oren.read', 'oren.trade.prepare', 'offline_access'],
     clientAuthMethods: ['none'],
     rotateRefreshToken: true,
     issueRefreshToken: () => true,
@@ -86,7 +86,7 @@ export async function createMcpOAuthRuntime(
         getResourceServerInfo: (_context, requested) => {
           if (requested !== resource) throw new errors.InvalidTarget();
           return {
-            scope: 'oren.read',
+            scope: 'oren.read oren.trade.prepare',
             audience: resource,
             accessTokenTTL: 600,
           };
