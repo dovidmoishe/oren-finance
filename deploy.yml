@@ -31,6 +31,9 @@ services:
     networks: [oren]
 
   api:
+    environment:
+      DEPLOYMENT_ENV: production
+      COMMIT_SHA: ${IMAGE_TAG}
     image: ghcr.io/${GHCR_OWNER:?set GHCR_OWNER in .release.env}/oren-api:${IMAGE_TAG:?set IMAGE_TAG in .release.env}
     restart: unless-stopped
     env_file: .env
@@ -85,9 +88,10 @@ services:
       - "443:443/udp"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - /opt/oren/preview/sites:/etc/caddy/previews:ro
       - caddy_data:/data
       - caddy_config:/config
-    networks: [oren]
+    networks: [oren, preview-edge]
 
   # Intentional, manual first-run/catalog refresh task; never on user requests.
   catalog-sync:
@@ -102,6 +106,8 @@ services:
     networks: [oren]
 
 networks:
+  preview-edge:
+    external: true
   oren:
     driver: bridge
 

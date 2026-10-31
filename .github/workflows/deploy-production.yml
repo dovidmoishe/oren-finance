@@ -26,6 +26,7 @@ jobs:
     if: >-
       github.event_name == 'workflow_run' &&
       github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
       github.event.workflow_run.head_repository.full_name == github.repository
     runs-on: ubuntu-24.04
     outputs:
@@ -64,6 +65,7 @@ jobs:
           build-args: |
             NEXT_PUBLIC_OREN_API_URL=${{ vars.PUBLIC_API_ORIGIN || 'https://api.oren.finance' }}/api
             NEXT_PUBLIC_PRIVY_APP_ID=${{ vars.PRIVY_APP_ID }}
+            NEXT_PUBLIC_COMMIT_SHA=${{ steps.release.outputs.image_tag }}
           push: true
           tags: ghcr.io/${{ github.repository_owner }}/oren-app:${{ steps.release.outputs.image_tag }}
           cache-from: type=gha,scope=oren-app
@@ -77,6 +79,9 @@ jobs:
       (github.event_name == 'workflow_dispatch' || needs.build.result == 'success')
     runs-on: ubuntu-24.04
     environment: production
+    outputs:
+      api_digest: ${{ steps.manifest.outputs.api_digest }}
+      app_digest: ${{ steps.manifest.outputs.app_digest }}
     permissions:
       contents: read
       packages: read
@@ -88,13 +93,19 @@ jobs:
       VPS_USER: ${{ secrets.VPS_USER }}
       VPS_SSH_KNOWN_HOSTS: ${{ secrets.VPS_SSH_KNOWN_HOSTS }}
     steps:
+      - name: Validate release SHA
+        run: '[[ "$IMAGE_TAG" =~ ^[a-f0-9]{40}$ ]]'
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.IMAGE_TAG }}
+          persist-credentials: false
       - name: Validate production configuration
         env:
           PUBLIC_APP_ORIGIN: ${{ vars.PUBLIC_APP_ORIGIN || 'https://oren.finance' }}
           PUBLIC_API_ORIGIN: ${{ vars.PUBLIC_API_ORIGIN || 'https://api.oren.finance' }}
         run: |
-          test -n "$IMAGE_TAG"
+          [[ "$IMAGE_TAG" =~ ^[a-f0-9]{40}$ ]]
+          [[ "$GHCR_OWNER" =~ ^[a-z0-9-]+$ ]]
           test -n "$PUBLIC_APP_ORIGIN"
           test -n "$PUBLIC_API_ORIGIN"
           test -n "$VPS_HOST"
@@ -108,6 +119,10 @@ jobs:
           install -d -m 700 ~/.ssh
           printf '%s\n' "$VPS_SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/known_hosts
+      - name: Prepare preview routing prerequisites
+        run: |
+          ssh -p "${VPS_PORT:-22}" -o StrictHostKeyChecking=yes "$VPS_USER@$VPS_HOST" \
+            "install -d -m 750 /opt/oren/preview/sites && (docker network inspect preview-edge >/dev/null 2>&1 || docker network create preview-edge)"
       - name: Copy release configuration
         run: |
           scp -P "${VPS_PORT:-22}" -o StrictHostKeyChecking=yes \
@@ -128,4 +143,51 @@ jobs:
       - name: Activate immutable release
         run: |
           ssh -p "${VPS_PORT:-22}" -o StrictHostKeyChecking=yes "$VPS_USER@$VPS_HOST" \
-            "cd /opt/oren && printf 'GHCR_OWNER=%s\\nIMAGE_TAG=%s\\n' '$GHCR_OWNER' '$IMAGE_TAG' > .release.env && docker compose --env-file .env --env-file .release.env -f deploy.yml pull && docker logout ghcr.io && docker compose --env-file .env --env-file .release.env -f deploy.yml up -d --wait --wait-timeout 180 --remove-orphans && docker compose --env-file .env --env-file .release.env -f deploy.yml exec -T caddy caddy reload --config /etc/caddy/Caddyfile && docker image prune -f"
+            "cd /opt/oren && printf 'GHCR_OWNER=%s\\nIMAGE_TAG=%s\\n' '$GHCR_OWNER' '$IMAGE_TAG' > .release.env && docker compose --env-file .env --env-file .release.env -f deploy.yml pull && docker logout ghcr.io && docker compose --env-file .env --env-file .release.env -f deploy.yml up -d --wait --wait-timeout 180 --remove-orphans && if [ -f infra/preview/connect-caddy.sh ]; then bash infra/preview/connect-caddy.sh; fi && docker compose --env-file .env --env-file .release.env -f deploy.yml exec -T caddy caddy reload --config /etc/caddy/Caddyfile"
+
+      - name: Verify public production endpoints
+        env:
+          PUBLIC_APP_ORIGIN: ${{ vars.PUBLIC_APP_ORIGIN || 'https://oren.finance' }}
+          PUBLIC_API_ORIGIN: ${{ vars.PUBLIC_API_ORIGIN || 'https://api.oren.finance' }}
+        run: |
+          curl --fail --silent --show-error --retry 5 --retry-delay 5 "$PUBLIC_APP_ORIGIN/" > /dev/null
+          curl --fail --silent --show-error --retry 5 --retry-delay 5 "$PUBLIC_API_ORIGIN/api/health/ready" | jq -e '.status == "ok"' > /dev/null
+
+      - name: Record running production image digests
+        id: manifest
+        run: |
+          ssh -p "${VPS_PORT:-22}" -o StrictHostKeyChecking=yes "$VPS_USER@$VPS_HOST" "bash -s -- '$GHCR_OWNER'" <<'REMOTE' >> "$GITHUB_OUTPUT"
+          set -euo pipefail
+          owner="$1"
+          for service in api app; do
+            image=$(docker inspect --format '{{.Image}}' "oren-$service-1")
+            digest=$(docker image inspect "$image" --format '{{json .RepoDigests}}' | jq -er --arg prefix "ghcr.io/$owner/oren-$service@" '[.[] | select(startswith($prefix)) | split("@")[1]][0]')
+            [[ "$digest" =~ ^sha256:[a-f0-9]{64}$ ]]
+            echo "${service}_digest=$digest"
+          done
+          REMOTE
+
+  release:
+    name: Record verified production deployment
+    needs: [build, deploy]
+    if: always() && needs.deploy.result == 'success'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      packages: read
+      actions: read
+    env:
+      IMAGE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.image_tag || needs.build.outputs.image_tag }}
+      API_DIGEST: ${{ needs.deploy.outputs.api_digest }}
+      APP_DIGEST: ${{ needs.deploy.outputs.app_digest }}
+    steps:
+      # The release publisher is trusted default-branch tooling, not selected release code.
+      - uses: actions/checkout@v4
+        with:
+          ref: master
+          persist-credentials: false
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            const {publishRelease} = await import(process.env.GITHUB_WORKSPACE + '/infra/preview/publish-release.mjs');
+            await publishRelease({github, context, core});

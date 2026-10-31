@@ -1,0 +1,80 @@
+name: Preview maintenance
+on:
+  schedule:
+    - cron: '17 * * * *'
+  pull_request_target:
+    types: [closed]
+    branches: [master]
+  workflow_dispatch:
+    inputs:
+      action:
+        description: Reconcile all previews, stop one, or reset one before redeploy
+        type: choice
+        options: [reconcile, stop, reset]
+        default: reconcile
+      pr:
+        description: PR number for stop or reset
+        type: number
+      reset_confirmation:
+        description: For reset only, enter RESET-pr-N
+        type: string
+permissions:
+  contents: read
+jobs:
+  maintain:
+    if: github.ref == 'refs/heads/master'
+    runs-on: ubuntu-24.04
+    environment: preview
+    concurrency:
+      group: preview-maintenance
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      pull-requests: read
+      deployments: write
+      statuses: write
+    env:
+      VPS_HOST: ${{ secrets.VPS_HOST }}
+      VPS_USER: ${{ secrets.VPS_USER }}
+      VPS_PORT: ${{ secrets.VPS_PORT }}
+      VPS_SSH_KNOWN_HOSTS: ${{ secrets.VPS_SSH_KNOWN_HOSTS }}
+      ACTION: ${{ github.event_name == 'pull_request_target' && 'stop' || inputs.action || 'reconcile' }}
+      PR: ${{ github.event.pull_request.number || inputs.pr }}
+      CONFIRM: ${{ inputs.reset_confirmation }}
+      GH_TOKEN: ${{ github.token }}
+      REPO: ${{ github.repository }}
+    steps:
+      - uses: webfactory/ssh-agent@v0.9.1
+        with:
+          ssh-private-key: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
+      - name: Configure verified SSH host
+        run: |
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$VPS_SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+      - name: Run installed trusted maintenance controller
+        run: |
+          if [[ "$ACTION" == reconcile ]]; then
+            [[ "$REPO" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]]
+            printf '%s\n' "$GH_TOKEN" | ssh -p "${VPS_PORT:-22}" -o StrictHostKeyChecking=yes "$VPS_USER@$VPS_HOST" "bash /opt/oren/preview/control/reconcile.sh '$REPO'" | tee maintenance.log
+          else
+            [[ "$ACTION" =~ ^(stop|reset)$ && "$PR" =~ ^[1-9][0-9]{0,8}$ ]]
+            if [[ "$ACTION" == reset ]]; then [[ "$CONFIRM" == "RESET-pr-$PR" ]]; else CONFIRM=''; fi
+            ssh -p "${VPS_PORT:-22}" -o StrictHostKeyChecking=yes "$VPS_USER@$VPS_HOST" "bash /opt/oren/preview/control/manage.sh '$ACTION' '$PR' '$CONFIRM'" | tee maintenance.log
+          fi
+      - name: Mark removed deployments inactive
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('node:fs');
+            if (!fs.existsSync('maintenance.log')) return;
+            for (const line of fs.readFileSync('maintenance.log','utf8').split('\n')) {
+              const match = /^PREVIEW_REMOVED ([1-9][0-9]*) ([a-f0-9]{40})$/.exec(line);
+              if (!match) continue;
+              const [, number, sha] = match;
+              const deployments = await github.paginate(github.rest.repos.listDeployments, {...context.repo, environment: `preview-pr-${number}`, per_page: 100});
+              for (const deployment of deployments) await github.rest.repos.createDeploymentStatus({...context.repo, deployment_id: deployment.id, state: 'inactive'});
+              const {data: pr} = await github.rest.pulls.get({...context.repo, pull_number: Number(number)});
+              if (pr.state === 'open' && pr.head.sha === sha) await github.rest.repos.createCommitStatus({...context.repo, sha, context: 'Preview ready', state: 'failure', description: 'Preview removed or expired; rerun PR preview to recreate'});
+            }

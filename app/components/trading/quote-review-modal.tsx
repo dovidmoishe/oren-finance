@@ -1,5 +1,7 @@
 "use client";
 
+import { financialExecutionEnabled } from "@/services/environment";
+
 import {
   AlertCircleIcon,
   CheckmarkCircle01Icon,
@@ -100,7 +102,7 @@ export function QuoteReviewModal({
       ) : review.priceMoved ? (
         <PriceMovedReview
           details={review.priceMoved}
-          disabled={isBusy}
+          disabled={!financialExecutionEnabled || isBusy}
           onAccept={acceptAlternative}
           onCancel={onClose}
         />
@@ -127,7 +129,7 @@ export function QuoteReviewModal({
 
           {error ? <Toast title="Trade error" description={error} tone="error" /> : null}
           {review.error ? <Toast title="Unable to prepare trade" description={review.error} tone="error" /> : null}
-          {review.error ? <Button onClick={() => void review.prepare()} disabled={isBusy} variant="secondary">Retry preparation</Button> : null}
+          {review.error ? <Button onClick={() => void review.prepare()} disabled={!financialExecutionEnabled || isBusy} variant="secondary">Retry preparation</Button> : null}
           {review.expired && !signed ? <Toast title="Approval expired" description="Request a fresh quote before confirming." tone="info" /> : null}
 
           {confirmation ? (
@@ -149,7 +151,7 @@ export function QuoteReviewModal({
               Retry quote refresh
             </Button>
           ) : (
-            <Button className="h-12 w-full rounded-[16px]" disabled={signDisabled} onClick={() => review.approval && reviewQuote && void onSign(review.approval.id, reviewQuote)} variant="primary">
+            <Button className="h-12 w-full rounded-[16px]" disabled={!financialExecutionEnabled || signDisabled} onClick={() => review.approval && reviewQuote && void onSign(review.approval.id, reviewQuote)} variant="primary">
               {isBusy ? (
                 <>
                   <HugeiconsIcon className="animate-spin" color="currentColor" icon={Clock01Icon} size={16} strokeWidth={1.8} />

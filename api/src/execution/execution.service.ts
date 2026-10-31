@@ -1,3 +1,4 @@
+import { assertFinancialExecutionEnabled } from '../config/deployment';
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import bs58 from 'bs58';
@@ -202,6 +203,7 @@ export class ExecutionService {
     basketId: string;
     wallet: string;
   }): Promise<PreparedBasketPurchase> {
+    assertFinancialExecutionEnabled();
     if (!input.basketId?.trim()) {
       throw new BadRequestException('basketId is required');
     }
@@ -270,6 +272,7 @@ export class ExecutionService {
     input: PostExecutionPrepareRequest,
     featureSource: ExecutionFeature = 'direct',
   ): Promise<PreparedTransaction> {
+    assertFinancialExecutionEnabled();
     return (await this.prepareWithQuote(input, featureSource)).prepared;
   }
 
@@ -286,6 +289,7 @@ export class ExecutionService {
     quote: Quote;
     expectation?: SwapExpectation;
   }> {
+    assertFinancialExecutionEnabled();
     const wallet = assertWallet(input.wallet);
     if (!input.quoteId?.trim()) {
       throw new BadRequestException('quoteId is required');
@@ -337,6 +341,7 @@ export class ExecutionService {
     wallet: string;
     signature: string;
   }): Promise<PostExecutionConfirmResponse> {
+    assertFinancialExecutionEnabled();
     const wallet = assertWallet(input.wallet);
     if (!input.quoteId?.trim()) {
       throw new BadRequestException('quoteId is required');
@@ -479,6 +484,7 @@ export class ExecutionService {
     proposalId: string;
     wallet: string;
   }): Promise<PreparedLimitOrder> {
+    assertFinancialExecutionEnabled();
     const wallet = assertWallet(input.wallet);
     if (!input.proposalId?.trim()) {
       throw new BadRequestException('proposalId is required');
@@ -552,6 +558,7 @@ export class ExecutionService {
     status: 'confirmed';
     portfolioRefreshed: boolean;
   }> {
+    assertFinancialExecutionEnabled();
     const wallet = assertWallet(input.wallet);
     if (!input.proposalId?.trim()) {
       throw new BadRequestException('proposalId is required');
@@ -722,6 +729,7 @@ export class ExecutionService {
     orderKey: string;
     wallet: string;
   }): Promise<PreparedLimitCancel> {
+    assertFinancialExecutionEnabled();
     const wallet = assertWallet(input.wallet);
     if (!input.orderKey?.trim()) {
       throw new BadRequestException('orderKey is required');
@@ -780,6 +788,7 @@ export class ExecutionService {
     signature: string;
     status: 'cancelled';
   }> {
+    assertFinancialExecutionEnabled();
     const wallet = assertWallet(input.wallet);
     if (!input.orderKey?.trim()) {
       throw new BadRequestException('orderKey is required');

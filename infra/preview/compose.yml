@@ -1,0 +1,92 @@
+# Always use the trusted default-branch copy, never the PR's Compose file.
+services:
+  db:
+    image: postgres:16.10-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: oren_preview
+      POSTGRES_USER: oren_preview
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?required}
+    volumes: [data:/var/lib/postgresql/data]
+    networks: [private]
+    mem_limit: 512m
+    cpus: 0.5
+    healthcheck:
+      test: [CMD-SHELL, pg_isready -U oren_preview -d oren_preview]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    labels: {oren.preview: 'true'}
+    logging: &logging
+      driver: json-file
+      options: {max-size: 10m, max-file: '3'}
+  migrate:
+    image: ghcr.io/${GHCR_OWNER}/oren-api:${IMAGE_TAG}
+    env_file: /opt/oren/preview/provider.env
+    environment: &api_env
+      DEPLOYMENT_ENV: preview
+      PREVIEW_PR_NUMBER: ${PR_NUMBER}
+      COMMIT_SHA: ${COMMIT_SHA}
+      POSTGRES_URL: postgresql://oren_preview:${DB_PASSWORD}@db:5432/oren_preview
+      CORS_ORIGIN: https://${PREVIEW_HOST}
+      VAULT_PROGRAM_LIVE: 'false'
+      DUNE_API_KEY: ''
+      DUNE_UPLOAD_NAMESPACE: ''
+    command: [node, lib/db/migrate.mjs]
+    networks: [private]
+    depends_on:
+      db: {condition: service_healthy}
+    mem_limit: 512m
+    cpus: 0.5
+    labels: {oren.preview: 'true'}
+    logging: *logging
+  seed:
+    extends:
+      service: migrate
+    command: [node, lib/db/sync-stocks.mjs]
+  api:
+    image: ghcr.io/${GHCR_OWNER}/oren-api:${IMAGE_TAG}
+    env_file: /opt/oren/preview/provider.env
+    environment: *api_env
+    networks:
+      private:
+      edge:
+        aliases: ["pr-${PR_NUMBER}-api"]
+    mem_limit: 1g
+    cpus: 1
+    restart: unless-stopped
+    labels: {oren.preview: 'true'}
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    healthcheck:
+      test: [CMD, node, -e, "fetch('http://127.0.0.1:3000/api/health/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    logging: *logging
+  app:
+    image: ghcr.io/${GHCR_OWNER}/oren-app:${IMAGE_TAG}
+    networks:
+      edge:
+        aliases: ["pr-${PR_NUMBER}-app"]
+    volumes:
+      - /opt/oren/media/videos:/app/public/videos:ro
+    mem_limit: 512m
+    cpus: 0.5
+    restart: unless-stopped
+    labels: {oren.preview: 'true'}
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    healthcheck:
+      test: [CMD, node, -e, "fetch('http://127.0.0.1:3000').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    logging: *logging
+networks:
+  private:
+  edge:
+    labels: {oren.preview: 'true'}
+volumes:
+  data:
+    labels: {oren.preview: 'true'}

@@ -1,3 +1,4 @@
+import { backgroundWorkersEnabled } from '../config/deployment';
 import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { VolumeRepository } from '../analytics/volume.repository';
 import { ExecutionRepository } from './execution.repository';
@@ -19,6 +20,7 @@ export class LimitOrderFillPoller implements OnModuleInit, OnModuleDestroy {
   ) {}
 
   onModuleInit() {
+    if (!backgroundWorkersEnabled()) return;
     this.timer = setInterval(() => void this.tick(), 30_000);
     this.timer.unref();
   }
@@ -28,6 +30,7 @@ export class LimitOrderFillPoller implements OnModuleInit, OnModuleDestroy {
   }
 
   async tick(): Promise<void> {
+    if (!backgroundWorkersEnabled()) return;
     if (this.running) return;
     this.running = true;
     try {

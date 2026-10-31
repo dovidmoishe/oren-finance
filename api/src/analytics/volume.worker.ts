@@ -1,3 +1,4 @@
+import { backgroundWorkersEnabled } from '../config/deployment';
 import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { USDC_MINT } from '../config/constants';
 import { AlchemyService } from '../alchemy/alchemy.service';
@@ -21,6 +22,7 @@ export class VolumeWorker implements OnModuleInit, OnModuleDestroy {
   ) {}
 
   onModuleInit() {
+    if (!backgroundWorkersEnabled()) return;
     this.timer = setInterval(() => void this.tick(), 5_000);
     this.timer.unref();
     void this.tick();
@@ -31,6 +33,7 @@ export class VolumeWorker implements OnModuleInit, OnModuleDestroy {
   }
 
   async tick(): Promise<void> {
+    if (!backgroundWorkersEnabled()) return;
     if (this.running) return;
     this.running = true;
     try {

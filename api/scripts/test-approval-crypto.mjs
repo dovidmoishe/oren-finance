@@ -6,19 +6,14 @@ import vm from 'node:vm';
 import ts from 'typescript';
 import { PrivyClient } from '@privy-io/node';
 import { Keypair, SystemProgram, Transaction, TransactionMessage, VersionedTransaction } from '@solana/web3.js';
-const require = createRequire(import.meta.url);
 test('the real Privy SDK forwards the exact client-authorized request without exchanging a login JWT', async () => {
   const requests = [];
-  const authExports = {};
-  vm.runInNewContext(ts.transpileModule(readFileSync(new URL('../src/auth/privy-wallet-auth.ts', import.meta.url), 'utf8'), {
-    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, experimentalDecorators: true, esModuleInterop: true },
-  }).outputText, { exports: authExports, require(id) {
-    if (id !== '@privy-io/node') return require(id);
-    return { PrivyClient: class { constructor(options) { return new PrivyClient({ ...options, maxRetries: 0, fetch: async (url, init) => {
+  const authExports = loadSource(new URL('../src/auth/privy-wallet-auth.ts', import.meta.url), {
+    '@privy-io/node': { PrivyClient: class { constructor(options) { return new PrivyClient({ ...options, maxRetries: 0, fetch: async (url, init) => {
       requests.push({ url: String(url), body: JSON.parse(init.body), headers: new Headers(init.headers) });
       return new Response(JSON.stringify({ method: 'signTransaction', data: { signed_transaction: 'signed-offline' } }), { status: 200, headers: { 'content-type': 'application/json' } });
-    } }); } } };
-  } });
+    } }); } } },
+  });
   const auth = new authExports.PrivyWalletAuth('offline-app', 'offline-secret');
   const expiry = new Date(Date.now() + 60000);
   const payload = auth.signingRequest('wallet-id', 'unsigned-offline', 'approval-id', expiry);
@@ -31,14 +26,15 @@ test('the real Privy SDK forwards the exact client-authorized request without ex
 });
 // Resolve relative TypeScript dependencies beside their source, rather than
 // beside this script. Exercise the real balance guard with the real SDK too.
-function loadSource(url) {
+function loadSource(url, modules = {}) {
   const exports = {};
   const sourceRequire = createRequire(url);
   vm.runInNewContext(ts.transpileModule(readFileSync(url, 'utf8'), {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, experimentalDecorators: true, esModuleInterop: true },
-  }).outputText, { exports, Buffer, require(id) {
+  }).outputText, { exports, Buffer, process, require(id) {
+    if (id in modules) return modules[id];
     if (id === '../alchemy/alchemy.client') return { AlchemyClient: class {} };
-    return id.startsWith('.') ? loadSource(new URL(`${id}.ts`, url)) : sourceRequire(id);
+    return id.startsWith('.') ? loadSource(new URL(`${id}.ts`, url), modules) : sourceRequire(id);
   } });
   return exports;
 }

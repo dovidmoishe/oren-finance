@@ -1,5 +1,7 @@
 'use client';
 
+import { financialExecutionEnabled } from "@/services/environment";
+
 import { useEffect, useState } from 'react';
 import { useQuoteExecution } from '@/hooks/use-quote-execution';
 import { useOrenAuth } from '@/components/auth/auth-context';
@@ -153,7 +155,7 @@ function BasketExecutionReview({ basket, onClose }: { basket: BasketResponse; on
       <Toast title={`${leg.ticker} unavailable`} description={leg.error || 'This stock could not be prepared. No trade was submitted.'} tone="error" />
       <Button onClick={() => setNextLeg(index => index + 1)}>Skip this stock</Button>
     </> : null}
-    <Button disabled={preparing || Boolean(progress) || !auth.address} onClick={() => void prepare()}>
+    <Button disabled={!financialExecutionEnabled || preparing || Boolean(progress) || !auth.address} onClick={() => void prepare()}>
       {progress ? leg ? 'Review paused' : 'Basket review complete' : preparing ? 'Preparing…' : 'Review first stock'}
     </Button>
   </Modal>;

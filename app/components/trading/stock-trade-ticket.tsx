@@ -1,5 +1,7 @@
 "use client";
 
+import { financialExecutionEnabled } from "@/services/environment";
+
 import {
   AlertCircleIcon,
   CoinsSwapIcon,
@@ -476,7 +478,7 @@ export function StockTradeTicket({ stock, limitZones, onConfirmed }: StockTradeT
               <div className="flex items-center gap-2 normal-case tracking-normal">
                 <button
                   className="rounded-full bg-panel px-2 py-0.5 text-[10px] font-semibold text-foreground shadow-sm disabled:cursor-not-allowed disabled:opacity-40"
-                  disabled={side !== "sell" || stockBalance <= 0}
+                  disabled={!financialExecutionEnabled || side !== "sell" || stockBalance <= 0}
                   onClick={() => handleAmountChange(String(stockBalance))}
                   type="button"
                 >
@@ -617,7 +619,7 @@ export function StockTradeTicket({ stock, limitZones, onConfirmed }: StockTradeT
                     <p className="text-muted">{formatCurrency(order.amountUsd ?? 0)}</p>
                   </div>
                   <Button
-                    disabled={limitFlowStatus === "preparing" || limitFlowStatus === "signing"}
+                    disabled={!financialExecutionEnabled || limitFlowStatus === "preparing" || limitFlowStatus === "signing"}
                     onClick={() => { resetLimitFeedback(); setCancelReviewKey(order.orderKey); }}
                     size="sm"
                     variant="secondary"
@@ -631,7 +633,7 @@ export function StockTradeTicket({ stock, limitZones, onConfirmed }: StockTradeT
 
           <Button
             className="mt-3 h-9 w-full rounded-[14px]"
-            disabled={
+            disabled={!financialExecutionEnabled ||
               !auth.ready || !auth.configured || (auth.authenticated && (!connected || !wallet) && !auth.error) || (connected
                 ? Boolean(blockingError) ||
                   isLoading ||

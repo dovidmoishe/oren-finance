@@ -1,4 +1,6 @@
 # JSON access logs in the caddy_data volume, read by infra/visits.sh.
+# Host-controlled preview routes; an empty directory is valid before setup.
+import /etc/caddy/previews/*.caddy
 # Caddy redacts Cookie and Authorization headers by default.
 (access_log) {
 	log {

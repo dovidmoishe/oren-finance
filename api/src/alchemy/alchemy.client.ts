@@ -1,3 +1,4 @@
+import { assertFinancialExecutionEnabled } from '../config/deployment';
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { APP_ENV } from '../config/constants';
 import type { AppEnv } from '../config/env.schema';
@@ -25,6 +26,7 @@ export class AlchemyClient {
     params: unknown[],
     signal?: AbortSignal,
   ): Promise<T> {
+    if (method === 'sendTransaction' || method === 'sendRawTransaction') assertFinancialExecutionEnabled();
     let response: Response;
     try {
       response = await fetch(this.rpcUrl, {

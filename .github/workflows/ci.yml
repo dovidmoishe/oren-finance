@@ -10,6 +10,37 @@ permissions:
   contents: read
 
 jobs:
+  preview-infra:
+    name: Preview infrastructure tests
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node --test infra/preview/*.test.mjs
+      - run: for script in infra/preview/*.sh; do bash -n "$script"; done
+      - name: Validate preview Compose configuration
+        env:
+          PR_NUMBER: '42'
+          COMMIT_SHA: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+          GHCR_OWNER: example
+          IMAGE_TAG: pr-42-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+          PREVIEW_HOST: pr-42.preview.example.com
+          DB_PASSWORD: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+        run: |
+          sudo install -d /opt/oren/preview
+          sudo touch /opt/oren/preview/provider.env /opt/oren/preview/access.env
+          docker compose -f infra/preview/compose.yml config --quiet
+          docker compose -f infra/preview/access.compose.yml config --quiet
+      - name: Verify two disposable preview databases are isolated
+        run: bash infra/preview/isolation.sh
+      - name: Validate Caddy with a generated preview route
+        run: |
+          mkdir -p "$RUNNER_TEMP/caddy-previews"
+          awk '/^cat >.*route.candidate.*<<EOF/ {capture=1;next} capture && /^EOF$/ {exit} capture' infra/preview/manage.sh | sed 's/\$HOST/pr-42.preview.example.com/g;s/\$PR/42/g' > "$RUNNER_TEMP/caddy-previews/pr-42.caddy"
+          test -s "$RUNNER_TEMP/caddy-previews/pr-42.caddy"
+          docker run --rm -e DOMAIN=production.example.com -e API_DOMAIN=api.production.example.com -v "$PWD/Caddyfile:/etc/caddy/Caddyfile:ro" -v "$RUNNER_TEMP/caddy-previews:/etc/caddy/previews:ro" caddy:2.10.2-alpine caddy validate --config /etc/caddy/Caddyfile
   api:
     name: API test and build
     runs-on: ubuntu-24.04
