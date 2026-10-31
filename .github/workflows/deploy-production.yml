@@ -114,6 +114,10 @@ jobs:
             deploy.yml Caddyfile "$VPS_USER@$VPS_HOST:/opt/oren/"
           scp -r -P "${VPS_PORT:-22}" -o StrictHostKeyChecking=yes \
             infra "$VPS_USER@$VPS_HOST:/opt/oren/"
+      - name: Verify separately uploaded public videos
+        run: |
+          ssh -p "${VPS_PORT:-22}" -o StrictHostKeyChecking=yes "$VPS_USER@$VPS_HOST" \
+            "cd /opt/oren/media/videos && sha256sum -c /opt/oren/infra/videos.sha256"
       - name: Authenticate VPS to GHCR for this release
         env:
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}

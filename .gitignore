@@ -26,6 +26,17 @@ DEPLOYMENT.md
 oren-launch/
 panta-motion/
 
+# Local creative sources, review captures, and separately deployed media
+design/
+oren-token-motion/
+oren-titan-motion/
+media/
+app/public/videos/
+app/public/landing/trading-steps/*-v1.webp
+*.mp4
+*.webm
+*.mov
+
 # Logs & OS
 logs/
 *.log
