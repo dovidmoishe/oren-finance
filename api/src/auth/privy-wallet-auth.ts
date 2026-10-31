@@ -1,3 +1,4 @@
+import { assertFinancialExecutionEnabled } from '../config/deployment';
 import {
   ForbiddenException,
   Logger,
@@ -130,6 +131,7 @@ export class PrivyWalletAuth {
     approvalId: string,
     expiresAt: Date,
   ) {
+    assertFinancialExecutionEnabled();
     if (!this.client)
       throw new ServiceUnavailableException('Authentication is not configured');
     try {

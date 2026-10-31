@@ -1,5 +1,7 @@
 "use client";
 
+import { financialExecutionEnabled } from "@/services/environment";
+
 import {
   AlertCircleIcon,
   Calendar03Icon,
@@ -209,7 +211,7 @@ export function VaultDashboard() {
           </p>
         </header>
         <Button
-          disabled={isLoading || !wallet}
+          disabled={!financialExecutionEnabled || isLoading || !wallet}
           onClick={() => {
             if (!wallet) return;
             void loadVaults(wallet);
@@ -391,7 +393,7 @@ export function VaultDashboard() {
                   </p>
                 </div>
 
-                <Button className="h-12 w-full rounded-[16px]" onClick={openLockReview} variant="primary">
+                <Button className="h-12 w-full rounded-[16px]" disabled={!financialExecutionEnabled} onClick={openLockReview} variant="primary">
                   <HugeiconsIcon color="currentColor" icon={SafeIcon} size={16} strokeWidth={1.8} />
                   Review lock
                 </Button>
@@ -484,7 +486,7 @@ export function VaultDashboard() {
                         </TableCell>
                         <TableCell className="text-right">
                           <Button
-                            disabled={!eligible}
+                            disabled={!financialExecutionEnabled || !eligible}
                             onClick={() => openUnlockReview(position)}
                             size="sm"
                             variant="secondary"

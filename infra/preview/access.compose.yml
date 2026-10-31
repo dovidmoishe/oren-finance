@@ -1,0 +1,22 @@
+name: oren-preview-access
+services:
+  preview-access:
+    image: node:22-bookworm-slim
+    command: [node, /service/access.mjs]
+    user: node
+    restart: unless-stopped
+    env_file: /opt/oren/preview/access.env
+    volumes:
+      - /opt/oren/preview/control/access.mjs:/service/access.mjs:ro
+    networks: [preview-edge]
+    mem_limit: 128m
+    cpus: 0.25
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    logging:
+      driver: json-file
+      options: {max-size: 10m, max-file: '3'}
+networks:
+  preview-edge:
+    external: true

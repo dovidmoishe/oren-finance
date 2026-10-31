@@ -1,3 +1,4 @@
+import { assertFinancialExecutionEnabled } from '../config/deployment';
 import {
   BadRequestException,
   Inject,
@@ -68,6 +69,7 @@ export class VaultService {
   }
 
   async prepareLock(input: LockIntent): Promise<PreparedVaultTransaction> {
+    assertFinancialExecutionEnabled();
     this.assertProgramLive();
     const wallet = assertPublicKey(input.wallet, 'wallet');
     const unlockAt = toDate(input.unlockAt);
@@ -107,6 +109,7 @@ export class VaultService {
   }
 
   async confirmLock(input: ConfirmLockRequest): Promise<ConfirmVaultResponse> {
+    assertFinancialExecutionEnabled();
     this.assertProgramLive();
     const wallet = assertPublicKey(input.wallet, 'wallet');
     const signature = assertNonEmpty(input.signature, 'signature');
@@ -132,6 +135,7 @@ export class VaultService {
   }
 
   async prepareUnlock(input: UnlockIntent): Promise<PreparedVaultTransaction> {
+    assertFinancialExecutionEnabled();
     this.assertProgramLive();
     const wallet = assertPublicKey(input.wallet, 'wallet');
     const lockAddress = assertPublicKey(input.lockAddress, 'lockAddress');
@@ -166,6 +170,7 @@ export class VaultService {
   async confirmUnlock(
     input: ConfirmUnlockRequest,
   ): Promise<ConfirmVaultResponse> {
+    assertFinancialExecutionEnabled();
     this.assertProgramLive();
     const wallet = assertPublicKey(input.wallet, 'wallet');
     const lockAddress = assertPublicKey(input.lockAddress, 'lockAddress');

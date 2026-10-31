@@ -1,3 +1,4 @@
+import { deploymentCapabilities } from './deployment';
 import { DEFAULT_VAULT_PROGRAM_ID } from './constants';
 
 export type SolanaNetwork = 'mainnet' | 'devnet';
@@ -27,6 +28,9 @@ const JUPITER_KEYED_RPS = 1;
 const DEFAULT_JUPITER_API_URL = 'https://api.jup.ag/swap/v1';
 
 export interface AppEnv {
+  DEPLOYMENT_ENV?: 'production' | 'development' | 'preview';
+  PREVIEW_PR_NUMBER?: number | null;
+  COMMIT_SHA?: string | null;
   PORT: number;
   CORS_ORIGIN: string;
   POSTGRES_URL: string;
@@ -208,7 +212,11 @@ export function validateEnv(env: EnvSource = process.env): AppEnv {
     throw new Error(`Invalid PORT: ${portRaw}`);
   }
 
+  const deployment = deploymentCapabilities(env);
   return {
+    DEPLOYMENT_ENV: deployment.environment,
+    PREVIEW_PR_NUMBER: deployment.prNumber,
+    COMMIT_SHA: deployment.commitSha,
     PORT: port,
     CORS_ORIGIN: readEnv(env, 'CORS_ORIGIN') ?? '*',
     POSTGRES_URL: requireEnv(env, 'POSTGRES_URL'),

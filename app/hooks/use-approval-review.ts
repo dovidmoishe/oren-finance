@@ -1,4 +1,5 @@
 'use client';
+import { financialExecutionEnabled } from '@/services/environment';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useOrenAuth } from '@/components/auth/auth-context';
 import { prepareServerApproval, type ApprovalKind, type TradeApproval } from '@/services/approval-service';
@@ -12,7 +13,7 @@ export function useApprovalReview(kind: ApprovalKind, referenceId: string | unde
   const prepare = useCallback(async () => {
     const attempt = Symbol();
     generation.current = attempt;
-    if (!open || !address || !referenceId) return;
+    if (!financialExecutionEnabled || !open || !address || !referenceId) return;
     setState({ loading: true });
     try {
       const token = await getAccessToken();

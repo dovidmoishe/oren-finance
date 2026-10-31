@@ -27,6 +27,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
     let error = 'InternalServerError';
     let approvalFailure: { code: string; submissionState: string } | undefined;
     let priceMoved: PriceMovedDetails | undefined;
+    let previewExecutionDisabled = false;
 
     if (exception instanceof ProviderError) {
       status = exception.statusCode;
@@ -40,6 +41,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
         message = body;
       } else if (typeof body === 'object' && body !== null) {
         const record = body as Record<string, unknown>;
+        previewExecutionDisabled = record.code === 'PREVIEW_EXECUTION_DISABLED';
         message = Array.isArray(record.message)
           ? record.message
               .filter((item): item is string => typeof item === 'string')
@@ -75,6 +77,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
 
     response.status(status).json({
       ...approvalFailure,
+      ...(previewExecutionDisabled ? { code: 'PREVIEW_EXECUTION_DISABLED' } : {}),
       ...(priceMoved ? { priceMoved } : {}),
       statusCode: status,
       message,

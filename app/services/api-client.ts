@@ -47,7 +47,10 @@ export function buildApiUrl(
 ) {
   const baseUrl = API_BASE_URL.endsWith("/") ? API_BASE_URL : `${API_BASE_URL}/`;
   const requestPath = path.replace(/^\/+/, "");
-  const url = new URL(requestPath, baseUrl);
+  const resolvedBase = baseUrl.startsWith("/")
+    ? new URL(baseUrl, typeof window !== "undefined" ? window.location.origin : "http://localhost")
+    : baseUrl;
+  const url = new URL(requestPath, resolvedBase);
 
   for (const [key, value] of Object.entries(query ?? {})) {
     if (value !== undefined) url.searchParams.set(key, String(value));

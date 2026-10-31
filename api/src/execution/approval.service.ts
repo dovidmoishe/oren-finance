@@ -1,3 +1,4 @@
+import { assertFinancialExecutionEnabled } from '../config/deployment';
 import {
   BadRequestException,
   ConflictException,
@@ -43,6 +44,7 @@ export class ApprovalService {
     authorization: string | undefined,
     input: { kind: ApprovalKind; referenceId: string; wallet: string },
   ) {
+    assertFinancialExecutionEnabled();
     if (this.env.SOLANA_NETWORK !== 'mainnet')
       throw new ServiceUnavailableException(
         'Server trading is only available on Solana mainnet',
@@ -154,6 +156,7 @@ export class ApprovalService {
   }
 
   async authorizationRequest(authorization: string | undefined, id: string) {
+    assertFinancialExecutionEnabled();
     const { row } = await this.owned(authorization, id);
     if (row.status !== 'prepared' || row.expiresAt.getTime() <= Date.now())
       throw new BadRequestException(
@@ -172,6 +175,7 @@ export class ApprovalService {
     id: string,
     authorizationSignature?: string,
   ) {
+    assertFinancialExecutionEnabled();
     const owned = await this.owned(authorization, id);
     let row = owned.row;
     if (row.status === 'submitted') {
@@ -280,6 +284,7 @@ export class ApprovalService {
   }
 
   async status(authorization: string | undefined, id: string) {
+    assertFinancialExecutionEnabled();
     let { row } = await this.owned(authorization, id, false);
     if (row.status === 'signing' && row.expiresAt.getTime() <= Date.now())
       row =

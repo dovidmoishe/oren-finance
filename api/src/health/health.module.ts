@@ -1,3 +1,4 @@
+import { EnvironmentController } from './environment.controller';
 import { Module } from '@nestjs/common';
 import { AlchemyModule } from '../alchemy/alchemy.module';
 import { AnalyticsModule } from '../analytics/analytics.module';
@@ -7,7 +8,7 @@ import { HealthService } from './health.service';
 
 @Module({
   imports: [TokensModule, AlchemyModule, AnalyticsModule],
-  controllers: [HealthController],
+  controllers: [HealthController, EnvironmentController],
   providers: [HealthService],
 })
 export class HealthModule {}

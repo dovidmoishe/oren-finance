@@ -1,0 +1,166 @@
+name: PR preview
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      pr:
+        description: PR number to redeploy
+        required: true
+        type: number
+permissions:
+  contents: read
+jobs:
+  resolve:
+    if: github.ref == 'refs/heads/master'
+    environment: preview
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      pull-requests: read
+      statuses: write
+      actions: read
+    outputs:
+      pr: ${{ steps.pr.outputs.pr }}
+      sha: ${{ steps.pr.outputs.sha }}
+      owner: ${{ steps.pr.outputs.owner }}
+      privy_id: ${{ steps.pr.outputs.privy_id }}
+    steps:
+      - id: pr
+        uses: actions/github-script@v7
+        env:
+          PREVIEW_PRIVY_APP_ID: ${{ vars.PREVIEW_PRIVY_APP_ID }}
+        with:
+          script: |
+            const run = context.payload.workflow_run;
+            if (run && (run.event !== 'pull_request' || run.conclusion !== 'success')) return;
+            const args = {owner: context.repo.owner, repo: context.repo.repo};
+            const candidates = context.eventName === 'workflow_dispatch'
+              ? [{number: Number(context.payload.inputs.pr)}]
+              : (await github.rest.repos.listPullRequestsAssociatedWithCommit({...args, commit_sha: run.head_sha})).data;
+            for (const candidate of candidates) {
+              const {data: pr} = await github.rest.pulls.get({...args, pull_number: candidate.number});
+              if (pr.state !== 'open' || pr.base.ref !== 'master' || (run && pr.head.sha !== run.head_sha)) continue;
+              const status = (state, description) => github.rest.repos.createCommitStatus({...args, sha: pr.head.sha, context: 'Preview ready', state, description});
+              if (pr.head.repo?.full_name !== context.payload.repository.full_name || pr.user.type !== 'User') {
+                await status('failure', 'Preview unsupported: use a trusted repository branch'); continue;
+              }
+              const {data: permission} = await github.rest.repos.getCollaboratorPermissionLevel({...args, username: pr.user.login});
+              if (!['admin','maintain','write'].includes(permission.permission)) {
+                await status('failure', 'Preview requires a repository collaborator'); continue;
+              }
+              // Manual redeploys must also have passing CI for this exact head.
+              const {data: runs} = await github.rest.actions.listWorkflowRuns({...args, workflow_id: 'ci.yml', head_sha: pr.head.sha, event: 'pull_request', per_page: 20});
+              if (!runs.workflow_runs.some(r => r.conclusion === 'success')) {
+                await status('failure', 'CI must pass for the current PR commit'); continue;
+              }
+              if (!process.env.PREVIEW_PRIVY_APP_ID) { await status('failure', 'Configure PREVIEW_PRIVY_APP_ID in Preview environment'); continue; }
+              core.setOutput('privy_id', process.env.PREVIEW_PRIVY_APP_ID);
+              await status('pending', 'Building isolated preview');
+              core.setOutput('pr', String(pr.number)); core.setOutput('sha', pr.head.sha);
+              core.setOutput('owner', context.repo.owner.toLowerCase()); return;
+            }
+  build:
+    needs: resolve
+    if: needs.resolve.outputs.pr != ''
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.resolve.outputs.sha }}
+          persist-credentials: false
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: ./api
+          push: true
+          tags: ghcr.io/${{ needs.resolve.outputs.owner }}/oren-api:pr-${{ needs.resolve.outputs.pr }}-${{ needs.resolve.outputs.sha }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: ./app
+          push: true
+          build-args: |
+            NEXT_PUBLIC_OREN_API_URL=/api
+            NEXT_PUBLIC_PRIVY_APP_ID=${{ needs.resolve.outputs.privy_id }}
+            NEXT_PUBLIC_DEPLOYMENT_ENV=preview
+            NEXT_PUBLIC_PREVIEW_PR_NUMBER=${{ needs.resolve.outputs.pr }}
+            NEXT_PUBLIC_COMMIT_SHA=${{ needs.resolve.outputs.sha }}
+          tags: ghcr.io/${{ needs.resolve.outputs.owner }}/oren-app:pr-${{ needs.resolve.outputs.pr }}-${{ needs.resolve.outputs.sha }}
+  deploy:
+    needs: [resolve, build]
+    if: always() && needs.resolve.outputs.pr != ''
+    runs-on: ubuntu-24.04
+    environment: preview
+    concurrency:
+      group: preview-${{ needs.resolve.outputs.pr }}
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      packages: read
+      pull-requests: read
+      statuses: write
+      deployments: write
+    env:
+      PR: ${{ needs.resolve.outputs.pr }}
+      SHA: ${{ needs.resolve.outputs.sha }}
+      OWNER: ${{ needs.resolve.outputs.owner }}
+      VPS_HOST: ${{ secrets.VPS_HOST }}
+      VPS_USER: ${{ secrets.VPS_USER }}
+      VPS_PORT: ${{ secrets.VPS_PORT }}
+      VPS_SSH_KNOWN_HOSTS: ${{ secrets.VPS_SSH_KNOWN_HOSTS }}
+    steps:
+      - id: deployment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const {data: pr} = await github.rest.pulls.get({...context.repo, pull_number: Number(process.env.PR)});
+            if (pr.state !== 'open' || pr.head.sha !== process.env.SHA) throw Error('PR closed or superseded');
+            const {data} = await github.rest.repos.createDeployment({...context.repo, ref: process.env.SHA, environment: `preview-pr-${process.env.PR}`, auto_merge: false, required_contexts: [], transient_environment: true, production_environment: false});
+            core.setOutput('id', data.id);
+            await github.rest.repos.createDeploymentStatus({...context.repo, deployment_id: data.id, state: 'in_progress'});
+      - name: Require successful image build
+        env:
+          BUILD_RESULT: ${{ needs.build.result }}
+        run: test "$BUILD_RESULT" = success
+      - uses: webfactory/ssh-agent@v0.9.1
+        with:
+          ssh-private-key: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
+      - name: Configure verified SSH host
+        run: |
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$VPS_SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+      - name: Deploy using installed trusted controller
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO_NAME: ${{ github.event.repository.name }}
+          PRIVY_ID: ${{ needs.resolve.outputs.privy_id }}
+        run: |
+          [[ "$PR" =~ ^[1-9][0-9]*$ && "$SHA" =~ ^[a-f0-9]{40}$ && "$OWNER" =~ ^[a-z0-9-]+$ && "$REPO_NAME" =~ ^[A-Za-z0-9_.-]+$ ]]
+          [[ "$PRIVY_ID" =~ ^[A-Za-z0-9_-]+$ ]]
+          printf '%s\n' "$GH_TOKEN" | ssh -p "${VPS_PORT:-22}" -o StrictHostKeyChecking=yes "$VPS_USER@$VPS_HOST" "bash /opt/oren/preview/control/manage.sh deploy '$PR' '$SHA' '$OWNER' '$REPO_NAME' '$PRIVY_ID'"
+      - name: Publish final status
+        if: always()
+        uses: actions/github-script@v7
+        env:
+          JOB_STATUS: ${{ job.status }}
+          DEPLOYMENT_ID: ${{ steps.deployment.outputs.id }}
+          PREVIEW_DOMAIN: ${{ vars.PREVIEW_DOMAIN || 'preview.oren.finance' }}
+        with:
+          script: |
+            const args = {...context.repo};
+            const {data: pr} = await github.rest.pulls.get({...args, pull_number: Number(process.env.PR)});
+            const current = pr.state === 'open' && pr.head.sha === process.env.SHA;
+            const ok = current && process.env.JOB_STATUS === 'success';
+            const url = `https://pr-${process.env.PR}.${process.env.PREVIEW_DOMAIN}`;
+            if (process.env.DEPLOYMENT_ID) await github.rest.repos.createDeploymentStatus({...args, deployment_id: Number(process.env.DEPLOYMENT_ID), state: !current ? 'inactive' : ok ? 'success' : 'failure', environment_url: url, log_url: `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`});
+            if (current) await github.rest.repos.createCommitStatus({...args, sha: process.env.SHA, context: 'Preview ready', state: ok ? 'success' : 'failure', description: ok ? 'Preview healthy; financial execution disabled' : 'Preview failed; inspect deployment logs', target_url: ok ? url : `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`});
