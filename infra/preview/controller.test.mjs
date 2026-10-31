@@ -52,6 +52,13 @@ test('controller allocates exact preview project and records verified commit', {
   assert.match(readFileSync(f.site,'utf8'),/forward_auth preview-access:8080/);
   assert.match(f.log(),/--project-name oren-pr-42/);assert.ok(!f.log().includes('prune'));
 });
+test('controller accepts quoted shared Privy app IDs', {skip:!linux}, t=>{
+  const f=fixture(t);
+  for (const quote of ['"', "'"]) {
+    writeFileSync(join(f.root,'provider.env'),`PRIVY_APP_ID=${quote}preview-id${quote}\n`);
+    const result=f.run();assert.equal(result.status,0,result.stderr);
+  }
+});
 test('failed migration removes routing without deleting preview data', {skip:!linux},t=>{
   const f=fixture(t,{FAIL_MIGRATION:'1'});f.existing();const result=f.run();
   assert.notEqual(result.status,0);assert.equal(existsSync(f.site),false);

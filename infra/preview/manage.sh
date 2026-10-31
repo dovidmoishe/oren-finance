@@ -51,7 +51,12 @@ SHA="${3:-}"; OWNER="${4:-}"; REPO="${5:-}"; PRIVY_ID="${6:-}"
 DOMAIN=$(cat "$ROOT/domain")
 [[ "$DOMAIN" =~ ^[a-z0-9.-]+$ ]] || exit 1
 HOST="pr-$PR.$DOMAIN"
-[[ "$PRIVY_ID" =~ ^[A-Za-z0-9_-]+$ ]] && grep -Fxq "PRIVY_APP_ID=$PRIVY_ID" "$ROOT/provider.env" || { echo 'Preview Privy ID must match the frontend build' >&2; exit 1; }
+[[ "$PRIVY_ID" =~ ^[A-Za-z0-9_-]+$ ]] || { echo 'Invalid preview Privy ID' >&2; exit 1; }
+if ! grep -Fxq "PRIVY_APP_ID=$PRIVY_ID" "$ROOT/provider.env" &&
+   ! grep -Fxq "PRIVY_APP_ID=\"$PRIVY_ID\"" "$ROOT/provider.env" &&
+   ! grep -Fxq "PRIVY_APP_ID='$PRIVY_ID'" "$ROOT/provider.env"; then
+  echo 'Preview Privy ID must match the frontend build' >&2; exit 1
+fi
 # Explicit origins must be registered in the separate preview Privy application.
 if ! grep -Fxq -- "$HOST" "$ROOT/privy-origins" && ! grep -Fxq -- "*.$DOMAIN" "$ROOT/privy-origins"; then
   echo "Register $HOST in preview Privy, then add it to privy-origins" >&2; exit 1
