@@ -50,6 +50,13 @@ services:
   app:
     image: ghcr.io/${GHCR_OWNER:?set GHCR_OWNER in .release.env}/oren-app:${IMAGE_TAG:?set IMAGE_TAG in .release.env}
     restart: unless-stopped
+    volumes:
+      - type: bind
+        source: ./media/videos
+        target: /app/public/videos
+        read_only: true
+        bind:
+          create_host_path: false
     depends_on:
       api:
         condition: service_healthy

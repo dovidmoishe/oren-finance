@@ -6,3 +6,4 @@ coverage
 *.log
 tests
 README.md
+public/videos
