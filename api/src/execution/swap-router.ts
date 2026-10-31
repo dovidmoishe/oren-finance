@@ -180,11 +180,29 @@ export class SwapRouter {
     }
 
     const feesP = this.feeSnapshot();
-    const [j, t] = await Promise.all([jupiterP, titanP]);
-    let fees: FeeSnapshot | undefined;
+    const [j, initialTitan] = await Promise.all([jupiterP, titanP]);
+    let t = initialTitan;
+    const fees = j.ok && t.ok ? await feesP : undefined;
+    // A slow Jupiter response can outlive Titan's route or our quote TTL.
+    // This is still quote selection: request a new quote with its own lifetime,
+    // rather than prepare-time requote(), which preserves the original expiry.
+    if (t.ok && !this.freshForSelection(t.value!, ctx.wallet!)) {
+      t = await this.timed(async () => {
+        const fresh = await this.titan.getQuoteWithContext({
+          ...ctx,
+          wallet: ctx.wallet!,
+        });
+        if (!this.freshForSelection(fresh, ctx.wallet!)) {
+          throw new TitanError(
+            'stale_quote',
+            'Titan returned an expired route',
+          );
+        }
+        return fresh;
+      });
+    }
     let titanWins = t.ok && !j.ok;
     if (t.ok && j.ok) {
-      fees = await feesP;
       // Fail safe: without live fee inputs Titan is never picked on a
       // fee-adjusted basis — Jupiter keeps the trade.
       titanWins =
@@ -416,6 +434,14 @@ export class SwapRouter {
       hardExpiry !== undefined &&
       hardExpiry > 0 &&
       now >= hardExpiry - TITAN_EXPIRY_SAFETY_MS
+    );
+  }
+
+  private freshForSelection(quote: Quote, wallet: string): boolean {
+    return (
+      quote.expiresAt.getTime() > this.now() + TITAN_EXPIRY_SAFETY_MS &&
+      isTitanPayload(quote.routePayload) &&
+      !this.needsRequote(quote.routePayload, wallet)
     );
   }
 

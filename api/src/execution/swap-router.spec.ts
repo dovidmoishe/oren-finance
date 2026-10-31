@@ -291,6 +291,82 @@ describe('SwapRouter.quote', () => {
       (quote.routePayload as TitanRoutePayload).jupiterFallback,
     ).toBeUndefined();
   });
+
+  it('refreshes Titan with a new lifetime after Jupiter times out', async () => {
+    const { router, jupiter, titan, advance } = setup('best');
+    const stale = titanQuote('402000000');
+    const fresh = titanQuote('401000000', { quotedAtMs: NOW + 30_001 });
+    fresh.expiresAt = new Date(NOW + 60_001);
+    jupiter.getQuoteWithContext.mockImplementation(async () => {
+      advance(30_001);
+      throw new Error('Jupiter timed out');
+    });
+    titan.getQuoteWithContext
+      .mockResolvedValueOnce(stale)
+      .mockResolvedValueOnce(fresh);
+
+    await expect(router.quote(ctx)).resolves.toBe(fresh);
+    expect(titan.getQuoteWithContext).toHaveBeenCalledTimes(2);
+    expect(titan.requote).not.toHaveBeenCalled();
+    expect(fresh.expiresAt.getTime()).toBeGreaterThan(router.now());
+  });
+
+  it('compares the refreshed Titan price when Jupiter was slow', async () => {
+    const { router, jupiter, titan, advance } = setup('best');
+    const jup = jupiterQuote('400000000');
+    const fresh = titanQuote('399000000', { quotedAtMs: NOW + 6_000 });
+    jupiter.getQuoteWithContext.mockImplementation(async () => {
+      advance(6_000);
+      return jup;
+    });
+    titan.getQuoteWithContext
+      .mockResolvedValueOnce(titanQuote('402000000'))
+      .mockResolvedValueOnce(fresh);
+
+    await expect(router.quote(ctx)).resolves.toBe(jup);
+    expect(titan.getQuoteWithContext).toHaveBeenCalledTimes(2);
+  });
+
+  it('keeps Jupiter if refreshing an old Titan route exhausts its budget', async () => {
+    const { router, jupiter, titan, advance } = setup('best');
+    const jup = jupiterQuote('400000000');
+    jupiter.getQuoteWithContext.mockImplementation(async () => {
+      advance(6_000);
+      return jup;
+    });
+    titan.getQuoteWithContext
+      .mockResolvedValueOnce(titanQuote('402000000'))
+      .mockRejectedValueOnce(new TitanError('skipped_rate_budget', 'spent'));
+
+    await expect(router.quote(ctx)).resolves.toBe(jup);
+  });
+
+  it('never returns an expired Titan route when its refresh is also stale', async () => {
+    const { router, jupiter, titan, advance } = setup('best');
+    const failure = new Error('Jupiter timed out');
+    jupiter.getQuoteWithContext.mockImplementation(async () => {
+      advance(30_001);
+      throw failure;
+    });
+    titan.getQuoteWithContext.mockResolvedValue(titanQuote('402000000'));
+
+    await expect(router.quote(ctx)).rejects.toBe(failure);
+    expect(titan.getQuoteWithContext).toHaveBeenCalledTimes(2);
+  });
+
+  it('refreshes a provider hard expiry even before the local route age limit', async () => {
+    const { router, jupiter, titan } = setup('best');
+    const stale = titanQuote('402000000');
+    (stale.routePayload as TitanRoutePayload).route.expiresAtMs = NOW + 500;
+    const fresh = titanQuote('401000000');
+    jupiter.getQuoteWithContext.mockResolvedValue(jupiterQuote('400000000'));
+    titan.getQuoteWithContext
+      .mockResolvedValueOnce(stale)
+      .mockResolvedValueOnce(fresh);
+
+    await expect(router.quote(ctx)).resolves.toBe(fresh);
+    expect(titan.getQuoteWithContext).toHaveBeenCalledTimes(2);
+  });
 });
 
 describe('SwapRouter.prepare', () => {
