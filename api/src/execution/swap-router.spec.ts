@@ -297,9 +297,9 @@ describe('SwapRouter.quote', () => {
     const stale = titanQuote('402000000');
     const fresh = titanQuote('401000000', { quotedAtMs: NOW + 30_001 });
     fresh.expiresAt = new Date(NOW + 60_001);
-    jupiter.getQuoteWithContext.mockImplementation(async () => {
+    jupiter.getQuoteWithContext.mockImplementation(() => {
       advance(30_001);
-      throw new Error('Jupiter timed out');
+      return Promise.reject(new Error('Jupiter timed out'));
     });
     titan.getQuoteWithContext
       .mockResolvedValueOnce(stale)
@@ -315,9 +315,9 @@ describe('SwapRouter.quote', () => {
     const { router, jupiter, titan, advance } = setup('best');
     const jup = jupiterQuote('400000000');
     const fresh = titanQuote('399000000', { quotedAtMs: NOW + 6_000 });
-    jupiter.getQuoteWithContext.mockImplementation(async () => {
+    jupiter.getQuoteWithContext.mockImplementation(() => {
       advance(6_000);
-      return jup;
+      return Promise.resolve(jup);
     });
     titan.getQuoteWithContext
       .mockResolvedValueOnce(titanQuote('402000000'))
@@ -330,9 +330,9 @@ describe('SwapRouter.quote', () => {
   it('keeps Jupiter if refreshing an old Titan route exhausts its budget', async () => {
     const { router, jupiter, titan, advance } = setup('best');
     const jup = jupiterQuote('400000000');
-    jupiter.getQuoteWithContext.mockImplementation(async () => {
+    jupiter.getQuoteWithContext.mockImplementation(() => {
       advance(6_000);
-      return jup;
+      return Promise.resolve(jup);
     });
     titan.getQuoteWithContext
       .mockResolvedValueOnce(titanQuote('402000000'))
@@ -344,9 +344,9 @@ describe('SwapRouter.quote', () => {
   it('never returns an expired Titan route when its refresh is also stale', async () => {
     const { router, jupiter, titan, advance } = setup('best');
     const failure = new Error('Jupiter timed out');
-    jupiter.getQuoteWithContext.mockImplementation(async () => {
+    jupiter.getQuoteWithContext.mockImplementation(() => {
       advance(30_001);
-      throw failure;
+      return Promise.reject(failure);
     });
     titan.getQuoteWithContext.mockResolvedValue(titanQuote('402000000'));
 
