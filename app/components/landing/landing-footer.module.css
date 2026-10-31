@@ -4,6 +4,7 @@
 .wordmark { display: inline-flex; align-items: center; gap: 10px; min-height: 36px; width: fit-content; color: #3c382f; font-size: 15px; font-weight: 600; letter-spacing: .16em; }
 .wordmark > span:first-child { display: flex; }
 .brand p { max-width: 245px; margin-top: 16px; font-size: 13px; line-height: 1.8; text-wrap: pretty; }
+.socialLinks { display: flex; flex-wrap: wrap; column-gap: 24px; }
 .social { display: inline-flex; align-items: center; gap: 9px; min-height: 40px; margin-top: 13px; font-size: 11px; color: #756b5d; }
 .social > span:first-child { font-size: 16px; color: #4f473c; }
 .navigation { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 42px; }
