@@ -130,8 +130,9 @@ test('other prepare failures stay ordinary errors', async () => {
   assert.equal(state.priceMoved, undefined);
 });
 
-test('automatic quote refreshes are flagged for the background lane; manual retries are not', async () => {
+function executionFixture() {
   const sent = [];
+  let address;
   const services = load('../services/execution-service.ts', {
     './api-client': { apiRequest: async (_path, options) => { sent.push(options.body); return { id: 'q' }; } },
   });
@@ -140,8 +141,14 @@ test('automatic quote refreshes are flagged for the background lane; manual retr
   const { useExecutionStore } = load('../store/execution-store.ts', {
     zustand,
     '@/services/wallet-session': { sessionSetter: set => set },
+    './wallet-store': { useWalletStore: { getState: () => ({ address }) } },
     '@/services': services,
   });
+  return { useExecutionStore, sent, setWallet: value => { address = value; } };
+}
+
+test('automatic quote refreshes are flagged for the background lane; manual retries are not', async () => {
+  const { useExecutionStore, sent } = executionFixture();
   const store = useExecutionStore.getState();
   await store.quoteTrade({ side: 'buy', ticker: 'TSLA', amountUsd: 10 });
   await useExecutionStore.getState().refreshQuote();
@@ -149,4 +156,33 @@ test('automatic quote refreshes are flagged for the background lane; manual retr
   assert.equal(sent[0].autoRefresh, undefined);
   assert.equal(sent[1].autoRefresh, true);
   assert.equal(sent[2].autoRefresh, undefined);
+});
+
+test('agent quote refreshes include the session wallet on both lanes', async () => {
+  const { useExecutionStore, sent, setWallet } = executionFixture();
+  setWallet('session-wallet');
+  useExecutionStore.getState().seedQuote({
+    id: 'agent-titan', assetId: 'tsla', ticker: 'TSLA', side: 'buy',
+    amountUsd: 100, inputAmount: 100, slippageBps: 50, variant: { mint: 'stock' },
+  });
+  assert.equal(useExecutionStore.getState().lastQuoteIntent.wallet, 'session-wallet');
+  await useExecutionStore.getState().refreshQuote();
+  await useExecutionStore.getState().refreshQuote({ manual: true });
+  assert.equal(sent.length, 2);
+  assert.ok(sent.every(intent => intent.wallet === 'session-wallet'));
+  assert.equal(sent[0].autoRefresh, true);
+  assert.equal(sent[1].autoRefresh, undefined);
+});
+
+test('refresh resolves the current wallet even if the artifact was seeded before it was ready', async () => {
+  const { useExecutionStore, sent, setWallet } = executionFixture();
+  useExecutionStore.getState().seedQuote({
+    id: 'agent-sell', assetId: 'tsla', ticker: 'TSLA', side: 'sell',
+    inputAmount: 2, slippageBps: 50, variant: { mint: 'stock' },
+  });
+  setWallet('ready-wallet');
+  await useExecutionStore.getState().refreshQuote();
+  assert.equal(sent[0].wallet, 'ready-wallet');
+  assert.equal(sent[0].amount, 2);
+  assert.equal(sent[0].preferredMint, 'stock');
 });
