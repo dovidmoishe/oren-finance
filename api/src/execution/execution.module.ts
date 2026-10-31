@@ -14,6 +14,7 @@ import { ExecutionController } from './execution.controller';
 import { ExecutionRepository } from './execution.repository';
 import { ExecutionService } from './execution.service';
 import { JupiterClient } from './jupiter/jupiter.client';
+import { JupiterGateway } from './jupiter/jupiter-gateway';
 import { JupiterService } from './jupiter/jupiter.service';
 import { JupiterTriggerClient } from './jupiter/jupiter-trigger.client';
 import { LimitOrderCache } from './limit-order-cache';
@@ -38,6 +39,7 @@ import { LimitOrderFillPoller } from './limit-order-fill.poller';
     ApprovalRpc,
     BasketCache,
     LimitOrderCache,
+    JupiterGateway,
     JupiterClient,
     JupiterTriggerClient,
     JupiterService,
