@@ -65,6 +65,7 @@
 .branches article { padding: 22px 92px 22px 20px; border-radius: 12px; position: relative; }
 .operation { background: #e6e9de; }
 .burn { background: #e9e3ee; }
+.team { background: #eee6da; }
 .holding { border-top: 1px solid #dcd7cd; padding-top: 22px; display: flex; gap: 15px; align-items: center; color: #89806f; }
 .holding > span { font-size: 24px; }
 .holding p { font-size: 11px; line-height: 1.8; }

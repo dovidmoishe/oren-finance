@@ -1,7 +1,7 @@
 # Public video delivery
 
 Video exports and local motion projects stay outside Git history. The token page
-uses `/videos/oren-token-explainer.mp4` and `/videos/oren-token-poster.jpg`.
+uses `/videos/oren-token-explainer-50-percent.mp4` and `/videos/oren-token-poster.jpg`.
 For local development, keep both files under `app/public/videos/` (ignored).
 
 Production mounts `/opt/oren/media/videos` read-only into the app container.
@@ -24,7 +24,7 @@ temporary file before replacing its destination. It does not restart containers.
 Pass `-IdentityFile` with your SSH key path when using a dedicated deployment key.
 Keep a separate backup of the ignored source projects and exports.
 
-When replacing a video, review the export, update the manifest hashes, and upload
-the matching files before deployment. For a rollback that expects older media,
-restore the corresponding assets as well; media files are not versioned with the
-container images.
+When revising a video, give the reviewed export a new filename, update the page
+and manifest hashes, and upload the matching files before deployment. A new URL
+prevents browsers from reusing cached video bytes. Keep older exports on the VPS
+for releases that still reference them; media files are not part of container images.

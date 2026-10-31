@@ -11,14 +11,15 @@ import { ButtonLink } from "@/components/ui";
 
 export const metadata: Metadata = {
   title: "$OREN — Holder access & token utility",
-  description: "See what we are building for $OREN: holding-based access, member benefits, and automated fee-funded buybacks and burns.",
+  description: "Explore $OREN holder access and the platform-fee allocation: 50% buybacks and burns, 20% treasury, and 30% development team.",
 };
 
 const questions = [
   ["What is $OREN for?", "We are building holding-based membership tiers. Your $OREN holdings will determine access to platform features and usage allowances. We will publish the benefits and holding requirements before access goes live."],
   ["Are holder benefits available now?", "Holder access and membership tiers are in development. Holding $OREN does not unlock these benefits yet. We will publish the features, usage allowances and holding requirements before activation."],
   ["Will I hold tokens or spend them?", "Membership is being built around holding $OREN, without spending your tokens on access or paying an extra subscription. Trading and network fees are separate. Creator fees from $OREN trading already help fund Oren’s API and infrastructure costs."],
-  ["How do buybacks and burns fit in?", "We are building an automated system that uses a share of Oren’s platform fees to buy $OREN and permanently remove the purchased tokens from circulation through burns. This system is not active yet. We will publish the fee allocation and execution rules before activation, and transaction records once it goes live."],
+  ["How are platform fees allocated?", "The allocation is 50% for $OREN buybacks and burns, 20% for the team treasury to fund building, and 30% for the development team. These percentages divide Oren’s platform fees, not the amount you trade. The treasury supports infrastructure, tools and future product work; the development-team allocation supports the people building and maintaining Oren."],
+  ["How do buybacks and burns fit in?", "We are building an automated system that uses 50% of Oren’s platform fees to buy $OREN and permanently remove the purchased tokens from circulation through burns. This system is not active yet. The 50% / 20% / 30% allocation is defined; execution rules will be published before activation, with transaction records once it goes live."],
   ["Is $OREN the same as the stocks in Oren?", "$OREN is Oren’s own token on Solana. It is separate from the tokenized stocks you research and trade in the app. The address above identifies $OREN; each supported stock has its own token details in Markets."],
   ["How can I follow delivery?", "We are shipping product updates and building holder access alongside the buyback-and-burn system. This page will carry access requirements, rollout updates and onchain receipts as each part goes live."],
 ];
@@ -47,10 +48,10 @@ export default function TokenPage() {
       <section className={styles.film} id="token-film" aria-labelledby="film-heading">
         <div className={styles.filmHeading}><h2 id="film-heading">The idea, in 36 seconds.</h2><span>$OREN, explained.</span></div>
         <video className={styles.filmPlayer} controls playsInline preload="none" poster="/videos/oren-token-poster.jpg" width={1920} height={1080} aria-label="Oren token utility explainer" aria-describedby="film-description">
-          <source src="/videos/oren-token-explainer.mp4" type="video/mp4" />
-          <a href="/videos/oren-token-explainer.mp4">Watch the Oren token explainer</a>
+          <source src="/videos/oren-token-explainer-50-percent.mp4" type="video/mp4" />
+          <a href="/videos/oren-token-explainer-50-percent.mp4">Watch the Oren token explainer</a>
         </video>
-        <p id="film-description" className={styles.filmCaption}>Holder access, member benefits, and the buyback &amp; burn system we are building.</p>
+        <p id="film-description" className={styles.filmCaption}>Holder access, member benefits, and a buyback &amp; burn system funded by 50% of platform fees. In development.</p>
       </section>
 
       <section className={styles.section} id="utility" aria-labelledby="utility-heading">
@@ -69,19 +70,21 @@ export default function TokenPage() {
           <span className={styles.connector}><ArrowIcon /></span>
           <div className={styles.fees}><h3>Platform fees</h3></div>
           <div className={styles.branches}>
-            <article className={styles.operation}><div className={styles.miniArt}><TokenArt kind="benefits" /></div><h3>Fund the product</h3><p>Infrastructure. Features. Improvements.</p></article>
-            <article className={styles.burn}><div className={styles.miniArt}><TokenArt kind="burn" /></div><h3>Buy $OREN. Burn it.</h3><p>A share of fees buys tokens to burn.</p></article>
+            <article className={styles.burn}><div className={styles.miniArt}><TokenArt kind="burn" /></div><h3>50% · Buybacks &amp; burns</h3><p>Buy $OREN and permanently remove the purchased tokens from circulation.</p></article>
+            <article className={styles.operation}><div className={styles.miniArt}><TokenArt kind="benefits" /></div><h3>20% · Team treasury</h3><p>Reserves for infrastructure, tools, and future product work.</p></article>
+            <article className={styles.team}><div className={styles.miniArt}><TokenArt kind="access" /></div><h3>30% · Development team</h3><p>Support the people building and maintaining Oren.</p></article>
           </div>
         </div>
         <div className={styles.holding}><ArrowIcon /><p><strong>Membership will be based on $OREN holdings.</strong></p></div>
-        <p className={styles.flowNote}>This is the platform-fee model we are building. Automated buybacks and burns are not active yet. Fee allocation and execution rules will be published before activation.</p>
+        <p className={styles.flowNote}>50% buybacks &amp; burns · 20% team treasury · 30% development team. This split applies to Oren’s platform fees, not trade amounts. Automated buybacks and burns are in development; execution rules will be published before activation.</p>
       </section>
 
       <section className={`${styles.section} ${styles.rollout}`} aria-labelledby="rollout-heading">
         <div><h2 id="rollout-heading">What we are building.</h2><Link className={styles.textLink} href="/app">Explore the product <ArrowIcon direction="diagonal" /></Link></div>
         <ol className={styles.milestones}>
           <li><div><h3>Membership tiers & benefits</h3></div><span className={styles.badge}>In development</span></li>
-          <li><div><h3>Buyback & burn rules</h3></div><span className={styles.badge}>In development</span></li>
+          <li><div><h3>50% / 20% / 30% fee allocation</h3></div><span className={styles.badge}>Defined</span></li>
+          <li><div><h3>Buyback &amp; burn execution rules</h3></div><span className={styles.badge}>In development</span></li>
           <li><div><h3>Public buyback & burn transactions</h3></div><span className={styles.badge}>In development</span></li>
         </ol>
       </section>
