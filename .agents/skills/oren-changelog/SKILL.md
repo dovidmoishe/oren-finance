@@ -23,7 +23,7 @@ Create one JSON file under `app/content/changelog/`, named after its permanent s
 - Optional `screenshots`: `{src, alt, width, height}` objects, using descriptive alternative text and actual pixel dimensions.
 - Optional `video`: `{src, poster, label, caption, width, height}`. Use the approved MP4 and poster; explain any depicted functionality that is still in development in visible text.
 
-Write concise product copy, not commit messages. Avoid internal IDs, speculative claims, and arbitrary HTML. Several entries may share a date; the feed groups them and sorts their slugs consistently. Keep a published slug stable so shared links continue working.
+Write concise product copy, not commit messages. Avoid internal IDs, speculative claims, and arbitrary HTML. Several entries may share a date. Set optional `sequence` to a nonnegative integer, increasing for each new release on that date. The feed sorts by date, then sequence (both newest first); entries without a sequence use zero, with slug order only as a deterministic tie-breaker. Keep a published slug stable so shared links continue working.
 
 ## Preview and media
 
