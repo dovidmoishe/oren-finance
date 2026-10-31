@@ -49,6 +49,26 @@ export const tradeApprovals = pgTable(
   ],
 );
 
+/** Durable OAuth provider state. Identifiers are HMACed by the adapter. */
+export const mcpOauthObjects = pgTable(
+  'mcp_oauth_objects',
+  {
+    key: text('key').primaryKey(),
+    model: text('model').notNull(),
+    payload: jsonb('payload').$type<Record<string, unknown>>().notNull(),
+    uidHash: text('uid_hash'),
+    userCodeHash: text('user_code_hash'),
+    grantId: text('grant_id'),
+    expiresAt: timestamp('expires_at', { withTimezone: true }),
+  },
+  (table) => [
+    index('mcp_oauth_uid_idx').on(table.model, table.uidHash),
+    index('mcp_oauth_user_code_idx').on(table.model, table.userCodeHash),
+    index('mcp_oauth_grant_idx').on(table.model, table.grantId),
+    index('mcp_oauth_expiry_idx').on(table.expiresAt),
+  ],
+);
+
 /**
  * Postgres is Oren's application memory — not the financial ledger.
  * Required: portfolio_snapshots, stock_signals, executions, vault_positions
