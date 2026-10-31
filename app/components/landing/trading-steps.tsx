@@ -1,4 +1,7 @@
 "use client";
+import { ArrowUpRight01Icon } from '@hugeicons/core-free-icons';
+import { HugeiconsIcon } from '@hugeicons/react';
+
 
 import Image from "next/image";
 import { useRef, type CSSProperties } from "react";
@@ -33,6 +36,6 @@ export function TradingSteps() {
         <div className={styles.copy}><h3>{step.title}</h3><p>{step.copy}</p></div>
       </article>)}
     </div>
-    <a className={styles.explore} href="#stock-mix">Try it with Stock mix <span aria-hidden>↗</span></a>
+    <a className={styles.explore} href="#stock-mix">Try it with Stock mix <span aria-hidden><HugeiconsIcon icon={ArrowUpRight01Icon} size={16} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className="inline-block shrink-0 align-middle" /></span></a>
   </section>;
 }

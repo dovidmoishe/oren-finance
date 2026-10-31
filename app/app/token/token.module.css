@@ -1,7 +1,8 @@
 .page { position: relative; background: #f9f9f7; color: #111110; min-height: 100vh; overflow-x: clip; }
 .nav { position: relative; max-width: 1280px; margin: auto; height: 76px; padding: 0 48px; display: flex; align-items: center; justify-content: space-between; gap: 24px; }
 .brand { display: flex; align-items: center; gap: 10px; font-size: 15px; font-weight: 600; letter-spacing: .16em; }
-.navLinks { position: absolute; left: 50%; transform: translateX(-50%); display: flex; gap: 32px; font-size: 14px; color: #676762; }
+.navLinks { position: absolute; left: 50%; transform: translateX(-50%); display: flex; gap: 28px; font-size: 14px; color: #676762; }
+@media (max-width: 1023px) { .navLinks { display: none; } }
 .navLinks [aria-current] { color: #292720; }
 .button { display: inline-flex; align-items: center; justify-content: center; gap: 18px; min-height: 42px; padding: 0 20px; background: #292820; color: #fffefb; border-radius: 999px; font-size: 13px; }
 .main { position: relative; max-width: 1280px; margin: auto; padding: 0 48px; }

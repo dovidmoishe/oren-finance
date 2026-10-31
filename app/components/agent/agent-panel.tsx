@@ -1,10 +1,6 @@
 'use client';
 
-import {
-  Add01Icon,
-  Cancel01Icon,
-  HistoryIcon,
-} from '@hugeicons/core-free-icons';
+import { Add01Icon, Cancel01Icon, HistoryIcon, ArrowExpand01Icon, ArrowShrink01Icon } from '@hugeicons/core-free-icons';
 import { HugeiconsIcon, type IconSvgElement } from '@hugeicons/react';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { usePathname } from 'next/navigation';
@@ -29,29 +25,13 @@ function Icon({ icon, size = 18, className }: { icon: IconSvgElement; size?: num
 
 function ExpandIcon({ size = 17 }: { size?: number }) {
   return (
-    <svg aria-hidden className="shrink-0" fill="none" height={size} viewBox="0 0 24 24" width={size}>
-      <path
-        d="M8 4H5v3M16 4h3v3M16 20h3v-3M8 20H5v-3"
-        stroke="currentColor"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth="1.8"
-      />
-    </svg>
+    <HugeiconsIcon icon={ArrowExpand01Icon} size={size} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className="shrink-0" />
   );
 }
 
 function CollapseIcon({ size = 17 }: { size?: number }) {
   return (
-    <svg aria-hidden className="shrink-0" fill="none" height={size} viewBox="0 0 24 24" width={size}>
-      <path
-        d="M9 9H5V5M15 9h4V5M15 15h4v4M9 15H5v4"
-        stroke="currentColor"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth="1.8"
-      />
-    </svg>
+    <HugeiconsIcon icon={ArrowShrink01Icon} size={size} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className="shrink-0" />
   );
 }
 
