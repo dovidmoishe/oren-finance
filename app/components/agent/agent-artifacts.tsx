@@ -23,6 +23,7 @@ import { TechnicalBriefPanel } from '@/components/stock/technical-brief-panel';
 import { Button, cn, formatCurrency, formatNumber } from '@/components/ui';
 import { useQuoteRefresh } from '@/hooks/use-quote-refresh';
 import { useExecutionStore } from '@/store';
+import { BasketProposal } from '@/components/trading/basket-proposal';
 
 interface AgentArtifactsProps {
   artifacts: AgentArtifact[];
@@ -350,30 +351,7 @@ function AgentArtifactCard({
       );
     case 'basket':
       return (
-        <ArtifactShell icon={Briefcase01Icon} label="Basket proposal" tone="pink">
-          <div className="flex items-end justify-between gap-3">
-            <div>
-              <p className="font-display text-xl font-semibold">{formatCurrency(artifact.data.totalAmountUsd)}</p>
-              <p className="text-xs capitalize text-muted">{artifact.data.riskLabel ?? 'Risk pending'}</p>
-            </div>
-            <span className="rounded-full bg-white/75 px-2 py-1 text-xs font-semibold">
-              {artifact.data.allocations.length} stocks
-            </span>
-          </div>
-          <div className="mt-3 flex flex-wrap gap-1.5">
-            {artifact.data.allocations.map((allocation) => (
-              <span className="rounded-full bg-white/75 px-2 py-1 text-[11px] font-semibold" key={allocation.assetId}>
-                {allocation.ticker} {formatNumber(allocation.weightPercent, 0)}%
-              </span>
-            ))}
-          </div>
-          {artifact.data.thesis ? (
-            <p className="mt-3 text-xs leading-5 text-muted">{artifact.data.thesis}</p>
-          ) : null}
-          <Button className="mt-4 h-10 w-full rounded-[14px]" onClick={() => onReviewBasket(artifact.data)} variant="primary">
-            Review basket
-          </Button>
-        </ArtifactShell>
+        <BasketProposal basket={artifact.data} onReview={onReviewBasket} />
       );
     case 'copy_portfolio_proposal':
       return (

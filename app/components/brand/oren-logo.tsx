@@ -103,20 +103,35 @@ export function OrenLogo({
       return;
     }
 
-    const updateGesture = () => {
+    let previousFrameTime: number | undefined;
+    let pendingPointer: { x: number; y: number } | undefined;
+
+    const updateGesture = (time: number) => {
+      // Coalesce high-frequency pointer events before the frame's style writes.
+      if (pendingPointer) {
+        const point = pendingPointer;
+        pendingPointer = undefined;
+        setTargetFromPoint(point.x, point.y, true);
+      }
+      const elapsed = previousFrameTime === undefined ? 1000 / 60 : Math.min(64, time - previousFrameTime);
+      previousFrameTime = time;
+      const frames = elapsed / (1000 / 60);
+      const shellEase = 1 - Math.pow(0.91, frames);
+      const eyeEase = 1 - Math.pow(0.8, frames);
+      const energyEase = 1 - Math.pow(0.89, frames);
       const target = gestureTarget.current;
       const current = gestureCurrent.current;
       const shellTargetX = target.x - target.kickX * 0.22;
       const shellTargetY = target.y - target.kickY * 0.16;
       const targetEnergy = target.engaged ? Math.min(1, Math.hypot(target.x, target.y) + 0.16) : 0;
 
-      current.shellX += (shellTargetX - current.shellX) * 0.09;
-      current.shellY += (shellTargetY - current.shellY) * 0.09;
-      current.eyeX += (target.x - current.eyeX) * 0.2;
-      current.eyeY += (target.y - current.eyeY) * 0.2;
-      current.energy += (targetEnergy - current.energy) * 0.11;
-      target.kickX *= 0.84;
-      target.kickY *= 0.84;
+      current.shellX += (shellTargetX - current.shellX) * shellEase;
+      current.shellY += (shellTargetY - current.shellY) * shellEase;
+      current.eyeX += (target.x - current.eyeX) * eyeEase;
+      current.eyeY += (target.y - current.eyeY) * eyeEase;
+      current.energy += (targetEnergy - current.energy) * energyEase;
+      target.kickX *= Math.pow(0.84, frames);
+      target.kickY *= Math.pow(0.84, frames);
 
       logo.style.setProperty('--oren-look-x', `${current.shellX * 4.8}px`);
       logo.style.setProperty('--oren-look-y', `${current.shellY * 3.6}px`);
@@ -141,6 +156,7 @@ export function OrenLogo({
         gestureFrame.current = window.requestAnimationFrame(updateGesture);
       } else {
         gestureFrame.current = undefined;
+        previousFrameTime = undefined;
       }
     };
 
@@ -183,6 +199,7 @@ export function OrenLogo({
     };
 
     const releaseGesture = () => {
+      pendingPointer = undefined;
       gestureTarget.current = { x: 0, y: 0, kickX: 0, kickY: 0, engaged: false };
       lastPointer.current.time = 0;
       logo.dataset.attention = 'false';
@@ -191,7 +208,8 @@ export function OrenLogo({
 
     const handlePointerMove = (event: PointerEvent) => {
       if (event.pointerType === 'touch') return;
-      setTargetFromPoint(event.clientX, event.clientY, true);
+      pendingPointer = { x: event.clientX, y: event.clientY };
+      startGesture();
     };
 
     const handlePointerOut = (event: PointerEvent) => {
@@ -214,6 +232,7 @@ export function OrenLogo({
     const attentionTarget = attentionTargetId ? document.getElementById(attentionTargetId) : null;
     const focusAttentionTarget = () => {
       if (!attentionTarget) return;
+      pendingPointer = undefined;
       const bounds = attentionTarget.getBoundingClientRect();
       logo.dataset.attention = 'true';
       setTargetFromPoint(bounds.left + bounds.width / 2, bounds.top + bounds.height / 2);
@@ -241,6 +260,7 @@ export function OrenLogo({
       attentionTarget?.removeEventListener('pointerenter', focusAttentionTarget);
       attentionTarget?.removeEventListener('pointerleave', clearAttentionTarget);
       if (gestureFrame.current !== undefined) window.cancelAnimationFrame(gestureFrame.current);
+      gestureFrame.current = undefined;
       if (reactionTimer.current) clearTimeout(reactionTimer.current);
     };
   }, [attentionTargetId, interactive, reducedMotion, state]);

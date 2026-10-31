@@ -1,12 +1,10 @@
 'use client';
 
 import {
-  ArrowUp02Icon,
   CancelCircleIcon,
   CheckmarkCircle01Icon,
   Loading03Icon,
   SparklesIcon,
-  StopCircleIcon,
   Wallet02Icon,
 } from '@hugeicons/core-free-icons';
 import { HugeiconsIcon, type IconSvgElement } from '@hugeicons/react';
@@ -24,6 +22,7 @@ import { Button, cn } from '@/components/ui';
 import { useOrenAuth } from '@/components/auth/auth-context';
 import { AgentArtifacts } from './agent-artifacts';
 import { toolLabel } from './agent-utils';
+import { AgentComposerView } from './agent-composer-view';
 
 function Icon({ icon, size = 18, className }: { icon: IconSvgElement; size?: number; className?: string }) {
   return <HugeiconsIcon className={className} color="currentColor" icon={icon} size={size} strokeWidth={1.8} />;
@@ -303,69 +302,10 @@ export function AgentConversationThread({
   );
 }
 
-export function AgentComposer({
-  connected,
-  isSending,
-  composer,
-  composerRef,
-  onComposerChange,
-  onSubmit,
-  onStop,
-}: {
-  connected: boolean;
-  isSending: boolean;
-  composer: string;
-  composerRef: RefObject<HTMLTextAreaElement | null>;
-  onComposerChange: (value: string) => void;
-  onSubmit: () => void;
-  onStop: () => void;
-}) {
+export function AgentComposer(props: Omit<Parameters<typeof AgentComposerView>[0], 'placeholder'>) {
   const auth = useOrenAuth();
-  return (
-    <footer className="shrink-0 border-t border-border bg-panel/95 p-3 backdrop-blur">
-      <div className="rounded-[20px] border border-border-strong bg-panel-subtle p-2 focus-within:border-foreground">
-        <textarea
-          aria-label="Ask Oren"
-          className="max-h-32 min-h-12 w-full resize-none bg-transparent px-2 py-2 text-sm leading-6 outline-none placeholder:text-muted-2"
-          disabled={!connected || isSending}
-          onChange={(event) => onComposerChange(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === 'Enter' && !event.shiftKey) {
-              event.preventDefault();
-              onSubmit();
-            }
-          }}
-          placeholder={connected ? 'Ask about your portfolio or the market…' : auth.authenticated ? 'Preparing your wallet…' : 'Sign in to ask Oren'}
-          ref={composerRef}
-          rows={1}
-          value={composer}
-        />
-        <div className="flex items-center justify-between gap-3 px-1 pb-1">
-          <p className="text-[10px] text-muted">Oren proposes. Your wallet approves.</p>
-          {isSending ? (
-            <Button
-              aria-label="Stop response"
-              className="h-9 w-9 rounded-full"
-              onClick={onStop}
-              size="icon"
-              variant="secondary"
-            >
-              <Icon icon={StopCircleIcon} size={16} />
-            </Button>
-          ) : (
-            <Button
-              aria-label="Send message"
-              className="h-9 w-9 rounded-full"
-              disabled={!connected || !composer.trim()}
-              onClick={() => onSubmit()}
-              size="icon"
-              variant="primary"
-            >
-              <Icon icon={ArrowUp02Icon} size={16} />
-            </Button>
-          )}
-        </div>
-      </div>
-    </footer>
-  );
+  const placeholder = props.connected
+    ? 'Ask about your portfolio or the market…'
+    : auth.authenticated ? 'Preparing your wallet…' : 'Sign in to ask Oren';
+  return <AgentComposerView {...props} placeholder={placeholder} />;
 }

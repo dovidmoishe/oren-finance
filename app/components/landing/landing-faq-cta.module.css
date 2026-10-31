@@ -1,0 +1,45 @@
+.faq { max-width: 1280px; margin: 0 auto; padding: 12px 48px 100px; display: grid; grid-template-columns: .85fr 1.4fr; gap: 100px; scroll-margin-top: 110px; }
+.faqIntro h2 { color: #3c372f; font-size: clamp(32px,3.3vw,40px); font-weight: 500; line-height: 1.1; letter-spacing: -.045em; }
+.faqNote { margin-top: 20px; font-size: 13px; color: #8b8175; line-height: 1.7; }
+.questions { border-top: 1px solid #e6e2da; min-width: 0; }
+.item { border-bottom: 1px solid #e6e2da; }
+.question { display: flex; align-items: center; justify-content: space-between; gap: 24px; width: 100%; padding: 23px 0; text-align: left; font-size: 15px; line-height: 1.5; font-weight: 400; letter-spacing: -.015em; color: #51493e; cursor: pointer; }
+.question:hover { color: #171613; }
+.question:focus-visible { outline: 2px solid #ab96c0; outline-offset: 5px; border-radius: 3px; }
+.chevron { color: #9a8b79; flex: 0 0 auto; }
+.answer { max-width: 515px; padding: 0 32px 23px 0; color: #85796a; font-size: 13px; line-height: 1.85; text-wrap: pretty; }
+.closing { max-width: 1280px; margin: 0 auto; padding: 0 48px; scroll-margin-top: 96px; }
+.invitation { position: relative; isolation: isolate; overflow: hidden; border-radius: 26px; background: #f4f1e8; display: grid; grid-template-columns: 1fr 1fr; align-items: center; min-height: 360px; }
+.landscape { position: absolute; inset: 0; z-index: -1; background: linear-gradient(to right, #f7f5ef 0%, rgb(247 245 239 / .97) 26%, rgb(247 245 239 / .75) 45%, rgb(247 245 239 / .05) 76%), url('/oren-editorial-landscape-hero.webp') center 42% / cover no-repeat; }
+.closingCopy { position: relative; padding: 48px 0 48px 56px; max-width: 440px; }
+.closingCopy h2 { font-size: clamp(36px,4vw,49px); line-height: 1.04; font-weight: 500; color: #37342e; letter-spacing: -.05em; }
+.description { max-width: 295px; margin-top: 18px; color: #85796a; font-size: 13px; line-height: 1.8; text-wrap: pretty; }
+.actions { display: flex; align-items: center; flex-wrap: wrap; gap: 21px; margin-top: 23px; }
+.marketLink { display: inline-flex; align-items: center; min-height: 44px; gap: 7px; color: #7c7164; font-size: 12px; }
+.marketLink:hover { color: #302b25; }
+.marketLink:focus-visible { outline: 2px solid #ab96c0; outline-offset: 5px; border-radius: 2px; }
+.mascotStage { position: relative; display: grid; place-items: center; height: 280px; }
+.mascot { position: relative; z-index: 1; width: 170px; height: 170px; filter: drop-shadow(0 16px 22px rgb(91 69 119 / .1)); }
+.character { width: 100% !important; height: 100% !important; }
+.ground { position: absolute; top: 77%; left: 50%; transform: translateX(-50%); width: 106px; height: 10px; border-radius: 50%; background: #766784; opacity: .15; filter: blur(8px); pointer-events: none; }
+@media (max-width: 1023px) { .faq { padding: 10px 32px 80px; gap: 52px; grid-template-columns: .8fr 1.4fr; } .closing { padding: 0 32px; } .closingCopy { padding: 38px 0 38px 36px; } .invitation { grid-template-columns: 1.2fr 1fr; } .actions { gap: 16px; } }
+@media (max-width: 700px) {
+  .faq { display: block; padding: 12px 20px 65px; }
+  .faqIntro { margin-bottom: 30px; }
+  .faqIntro h2 { font-size: 33px; }
+  .faqIntro h2 br { display: none; }
+  .faqNote { margin-top: 13px; font-size: 12px; }
+  .question { padding: 21px 0; gap: 16px; font-size: 14px; }
+  .answer { font-size: 12px; padding: 0 25px 21px 0; }
+  .closing { padding: 0 20px; }
+  .invitation { grid-template-columns: 1fr; border-radius: 21px; }
+  .closingCopy { padding: 32px 27px 0; max-width: none; }
+  .closingCopy h2 { font-size: 38px; }
+  .description { font-size: 12px; max-width: 270px; }
+  .actions { gap: 17px; }
+  .marketLink { font-size: 11px; }
+  .mascotStage { height: 210px; }
+  .mascot { width: 135px; height: 135px; }
+  .landscape { background-image: linear-gradient(to bottom, #f7f5ef 0%, rgb(247 245 239 / .98) 30%, rgb(247 245 239 / .85) 49%, rgb(247 245 239 / .04) 78%), url('/oren-editorial-landscape-hero.webp'); background-position: center, 58% top; background-size: auto, auto 155%; }
+  .ground { top: 80%; width: 88px; }
+}

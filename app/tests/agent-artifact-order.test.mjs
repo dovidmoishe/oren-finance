@@ -15,6 +15,7 @@ function loadComponent(file) {
   }).outputText, { exports, require(id) {
     if (id === './agent-artifacts') return { AgentArtifacts: () => createElement('div', { 'data-artifacts': true }, 'Analysis card') };
     if (id === './agent-conversation') return {};
+    if (id === './agent-composer-view') return {};
     if (id === './agent-utils') return { toolLabel: () => 'Running Oren analysis' };
     if (id === '@/components/ui') return { cn: (...values) => values.filter(Boolean).join(' ') };
     if (id === '@/components/auth/auth-context') return {};

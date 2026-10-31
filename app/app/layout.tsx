@@ -31,6 +31,7 @@ const neueFreigeist = localFont({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://oren.finance"),
   title: "Oren",
   description: "Tokenized equities portfolio and investing copilot.",
 };
