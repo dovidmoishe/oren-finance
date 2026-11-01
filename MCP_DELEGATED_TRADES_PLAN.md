@@ -1,6 +1,85 @@
 # Build plan: delegated trade signing from Claude/agent chats
 
-> **Status:** browser buy/sell intents, delegation/reservation schema, exact-mint fresh quote path and disabled execution-scope consent foundations are implemented on PR #18. Enrollment and signing remain unimplemented; startup rejects enabling delegated trades until route-level proof. Updated 1 Nov 2026 (WAT, UTC+1).
+## 2 Nov 2026 decision: enforce the whole transaction with an independent signer gate
+
+The disposable-wallet sign-only proof found that Privy allows a reviewed
+Jupiter buy route and rejects over-cap input, wrong mints/accounts, excessive
+slippage, transfers, and message signing. It also **signed two individually
+allowed 1 USDC Jupiter routes in one transaction**. The wallet was unfunded,
+no transaction was broadcast, and the owner subsequently removed the proof
+signer; Privy read-back showed zero signers and no delegation. See
+[`api/scripts/PRIVY_TRADE_POLICY_PROOF.md`](api/scripts/PRIVY_TRADE_POLICY_PROOF.md).
+
+This behavior follows [Privy's Solana policy evaluation](https://docs.privy.io/controls/policies/overview):
+each instruction is checked separately. The documented
+[stateful aggregation](https://docs.privy.io/controls/policies/stateful-policies)
+methods currently cover Ethereum only. Condition sets and tighter Jupiter IDL
+fields cannot count sibling instructions. Therefore the tested Privy policy
+cannot independently cap a Solana transaction's total input or the wallet's
+rolling 24-hour spend. Do not infer those properties from its per-instruction
+denials. Keep the execution flag off until the revised gate below is proven.
+
+**Recommended path for the existing embedded-wallet model:**
+
+1. Oren's signer gate owns the complete transaction limit. Resolve every ALT,
+   require exactly one Jupiter route, permit only narrowly decoded compute
+   budget instructions, require the exact fee payer and sole wallet signer,
+   and reject ATA creation, token transfers, arbitrary programs and a second
+   route. Bind the route's decoded raw input, output minimum, side, both mints,
+   source/destination wallet ATAs and slippage to the immutable intent and a
+   fresh same-mint quote. Recheck simulation and quote validity immediately
+   before signing. Keep sell share-input and independent USD valuation caps.
+2. Move the trade authorization key into a separately deployed signer gate
+   with its own credentials and network boundary. The MCP API supplies an
+   intent ID, not arbitrary bytes to sign. The signer gate independently reads
+   the authenticated connection, user/wallet, delegation, intent, fresh quote
+   and transaction; it atomically claims the intent and reserves the rolling
+   budget in Postgres before authorizing the exact Privy request. It must not
+   sign a caller-supplied digest without reconstructing and verifying the
+   request body. The gate must own writes to grant limits and reservations;
+   the MCP API runtime must not hold a database role that can raise caps,
+   activate grants, release pending reservations, or use migration privileges.
+   The gate verifies browser Privy identity itself for grant changes. Persist
+   signed bytes before broadcast and keep uncertain outcomes pending. The MCP
+   API must not possess this gate's key. Deploy it with separate secrets and
+   access controls; two processes sharing the same unrestricted host secrets
+   are not independent security boundaries.
+3. Prefer a Privy **2-of-2 signer quorum**, with one key in the MCP API and one
+   in the isolated signer gate. Privy documents independent server keys in a
+   quorum and requires all signatures over the same request payload
+   ([overview](https://docs.privy.io/controls/key-quorum/overview),
+   [signing](https://docs.privy.io/controls/key-quorum/sign)). The policy owner
+   key remains separate from both. Prove on an unfunded disposable wallet
+   that either key alone is denied, both keys plus one validated route are
+   accepted, and the signer gate refuses two routes before producing its
+   signature. Confirm the SDK/request construction and signer-override policy
+   work together; this integration has **not** been tested yet.
+   Build the exact Privy request once, including its wallet URL, transaction,
+   idempotency key and request expiry. Both services should authorize the same
+   canonical bytes using Privy's
+   [`formatRequestForAuthorizationSignature`](https://docs.privy.io/controls/authorization-keys/using-owners/sign/utility-functions)
+   utility. The isolated gate reconstructs the request from trusted intent
+   state and refuses a digest/body mismatch before signing. Privy verifies
+   both signatures over the complete request.
+4. Keep Privy's reviewed side-specific route policy as another required check:
+   per-instruction raw input, mints, wallet ATAs, slippage, expiry and method
+   restrictions. It limits what even a jointly authorized request may do,
+   while the isolated gate enforces one route and the rolling budget. Jupiter
+   buy is first; Jupiter sell and Titan remain browser-only until each has
+   its own positive/negative and Token-2022/ALT proof.
+
+This design changes the independent boundary from “Privy policy alone caps
+the whole Solana transaction” to “Privy requires an isolated signer gate that
+caps the whole transaction and budget, plus Privy's route policy.” A single
+API process with a signer key and a local instruction check would work only
+while that process remains trustworthy; a compromised process could bypass
+its own check. If the product requirement remains a *Privy-policy-only*
+aggregate cap, wait for Privy to expose and prove a Solana transaction-level
+condition, or design and audit an on-chain swap guard. Neither is currently
+proven. Do not use simulation, tight compute limits, short expiry, one-time
+policy updates, or server-only checks as substitutes for that requirement.
+
+> **Status:** browser buy/sell intents, delegation/reservation schema, exact-mint fresh quote path and disabled execution-scope consent foundations are implemented on PR #18. The disposable-wallet signer proof found a whole-transaction cap gap; the owner revoked that signer. Live delegated signing remains disabled pending the independent signer-gate proof above. Updated 2 Nov 2026 (WAT, UTC+1).
 > **Audience:** Codex, implementing in this repo. Read `AGENTS.md` (money-move rule, line 39) and `MCP_PRIVY_AUTH.md` §6.6 first; this plan implements that contract.
 > **Legend:** **[doc]** = read on the cited docs.privy.io page on 1 Nov 2026. **[unverified]** = my understanding, not confirmed on a primary source; Phase 0 must prove it. **[code]** = read in this repo.
 
