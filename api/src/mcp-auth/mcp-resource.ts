@@ -12,6 +12,8 @@ import type { Database } from '../database/database.provider';
 import type { PrivyWalletAuth } from '../auth/privy-wallet-auth';
 import type { MarketService } from '../market/market.service';
 import type { PortfolioService } from '../portfolio/portfolio.service';
+import type { ExecutionService } from '../execution/execution.service';
+import { enforcedMinimumOut, rawIn } from '../execution/swap-terms';
 import type { McpOAuthRuntime } from './oauth-runtime';
 
 export interface McpResourceDeps {
@@ -19,6 +21,7 @@ export interface McpResourceDeps {
   auth: PrivyWalletAuth;
   market: MarketService;
   portfolio: PortfolioService;
+  execution: ExecutionService;
   oauth: McpOAuthRuntime;
 }
 
@@ -135,6 +138,103 @@ export async function handleMcpRequest(
       },
     );
   if (connection.tokenScopes.has('oren.trade.prepare')) {
+    server.registerTool(
+      'prepare_trade',
+      {
+        title: 'Prepare stock trade',
+        description:
+          'Prepare a USDC stock buy or stock sell for review and signature in Oren.',
+        inputSchema: z.object({
+          assetId: z.string().trim().min(1).max(80),
+          side: z.enum(['buy', 'sell']),
+          amountUsd: z.number().finite().min(0.01).max(100000).optional(),
+          amountShares: z.number().finite().positive().optional(),
+          slippageBps: z.number().int().min(1).max(50).default(50),
+        }),
+        annotations: { destructiveHint: false },
+      },
+      async ({ assetId, side, amountUsd, amountShares, slippageBps }) => {
+        if (
+          (side === 'buy' &&
+            (amountUsd === undefined || amountShares !== undefined)) ||
+          (side === 'sell' &&
+            (amountShares === undefined || amountUsd !== undefined))
+        )
+          return {
+            content: [
+              {
+                type: 'text',
+                text: 'Use amountUsd for buys or amountShares for sells.',
+              },
+            ],
+            isError: true,
+          };
+        const quote = await deps.execution.getQuote({
+          assetId,
+          ticker: '',
+          side,
+          amountUsd,
+          amount: amountShares,
+          slippageBps,
+          wallet: connection.wallet,
+        });
+        const maxIn = rawIn(quote);
+        const minOut = enforcedMinimumOut(quote);
+        if (!maxIn || minOut === undefined)
+          return {
+            content: [
+              {
+                type: 'text',
+                text: 'The route has no verifiable trade amounts.',
+              },
+            ],
+            isError: true,
+          };
+        const [intent] = await deps.db
+          .insert(mcpTradeIntents)
+          .values({
+            grantId: connection.grantId,
+            clientId: connection.clientId,
+            userId: connection.userId,
+            wallet: connection.wallet,
+            assetId: quote.assetId,
+            ticker: quote.ticker,
+            side,
+            stockMint: quote.variant.mint,
+            amountUsd: side === 'buy' ? amountUsd!.toFixed(6) : null,
+            amountShares: side === 'sell' ? amountShares!.toFixed(12) : null,
+            maxInRaw: maxIn,
+            minOutRaw: minOut.toString(),
+            slippageBps,
+            expiresAt: new Date(Date.now() + 5 * 60_000),
+          })
+          .returning({
+            id: mcpTradeIntents.id,
+            expiresAt: mcpTradeIntents.expiresAt,
+          });
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({
+                intentId: intent.id,
+                side,
+                ticker: quote.ticker,
+                stockMint: quote.variant.mint,
+                amountUsd,
+                amountShares,
+                minOutRaw: minOut.toString(),
+                maxInRaw: maxIn,
+                slippageBps,
+                expiresAt: intent.expiresAt.toISOString(),
+                mode: 'browser',
+                approvalUrl: `${deps.oauth.appOrigin}/app/trades/review/${intent.id}`,
+              }),
+            },
+          ],
+        };
+      },
+    );
     server.registerTool(
       'prepare_buy',
       {

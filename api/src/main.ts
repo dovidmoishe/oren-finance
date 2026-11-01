@@ -6,7 +6,6 @@ import { AppModule } from './app.module';
 import { PrivyWalletAuth } from './auth/privy-wallet-auth';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { validateEnv } from './config/env.schema';
-import { USDC_MINT } from './config/constants';
 import { DatabaseService } from './database/database.provider';
 import {
   mcpConnections,
@@ -15,6 +14,7 @@ import {
 } from './database/schema';
 import { MarketService } from './market/market.service';
 import { PortfolioService } from './portfolio/portfolio.service';
+import { ExecutionService } from './execution/execution.service';
 import { handleMcpRequest } from './mcp-auth/mcp-resource';
 import {
   clientMayPrepareTrades,
@@ -22,6 +22,7 @@ import {
   mountPathBasedDiscoveryAtIssuer,
 } from './mcp-auth/oauth-runtime';
 import { createRegistrationRateLimit } from './mcp-auth/registration-rate-limit';
+import { approvalMatchesMcpIntent } from './mcp-auth/intent-approval';
 
 async function bootstrap() {
   const env = validateEnv();
@@ -46,6 +47,7 @@ async function bootstrap() {
       auth: identity,
       market: app.get(MarketService, { strict: false }),
       portfolio: app.get(PortfolioService, { strict: false }),
+      execution: app.get(ExecutionService, { strict: false }),
       oauth,
     };
     expressApp.get(
@@ -111,6 +113,9 @@ async function bootstrap() {
             assetId: mcpTradeIntents.assetId,
             ticker: mcpTradeIntents.ticker,
             amountUsd: mcpTradeIntents.amountUsd,
+            amountShares: mcpTradeIntents.amountShares,
+            side: mcpTradeIntents.side,
+            stockMint: mcpTradeIntents.stockMint,
             slippageBps: mcpTradeIntents.slippageBps,
             wallet: mcpTradeIntents.wallet,
             expiresAt: mcpTradeIntents.expiresAt,
@@ -145,7 +150,14 @@ async function bootstrap() {
           id: intent.id,
           assetId: intent.assetId,
           ticker: intent.ticker,
-          amountUsd: Number(intent.amountUsd),
+          amountUsd:
+            intent.amountUsd == null ? undefined : Number(intent.amountUsd),
+          amountShares:
+            intent.amountShares == null
+              ? undefined
+              : Number(intent.amountShares),
+          side: intent.side,
+          stockMint: intent.stockMint,
           slippageBps: intent.slippageBps,
           wallet: intent.wallet,
           expiresAt: intent.expiresAt,
@@ -212,16 +224,13 @@ async function bootstrap() {
             !approval ||
             approval.status !== 'prepared' ||
             approval.expiresAt <= new Date() ||
-            quote?.side !== 'buy' ||
-            quote.assetId !== intent.assetId ||
-            quote.inputMint !== USDC_MINT ||
-            quote.id !== approval.referenceId ||
-            !Number.isFinite(Number(quote.amountUsd)) ||
-            !Number.isFinite(Number(quote.slippageBps)) ||
-            Math.abs(Number(quote.amountUsd) - Number(intent.amountUsd)) >
-              0.000001 ||
-            Number(quote.slippageBps) < 1 ||
-            Number(quote.slippageBps) > intent.slippageBps
+            !approvalMatchesMcpIntent(
+              intent,
+              quote,
+              approval.details.expectation as
+                Record<string, unknown> | undefined,
+              approval.referenceId,
+            )
           )
             return res.sendStatus(403);
           const [updated] = await db

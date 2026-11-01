@@ -79,7 +79,9 @@ export const mcpConnections = pgTable(
     walletId: text('wallet_id').notNull(),
     wallet: text('wallet').notNull(),
     scopes: text('scopes').notNull().default('oren.read'),
-    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
     revokedAt: timestamp('revoked_at', { withTimezone: true }),
   },
   (table) => [index('mcp_connections_user_idx').on(table.userId)],
@@ -97,10 +99,17 @@ export const mcpTradeIntents = pgTable(
     assetId: text('asset_id').notNull(),
     ticker: text('ticker').notNull(),
     approvalId: uuid('approval_id'),
-    amountUsd: numeric('amount_usd', { precision: 18, scale: 6 }).notNull(),
+    side: text('side').$type<'buy' | 'sell'>().notNull().default('buy'),
+    stockMint: text('stock_mint'),
+    amountUsd: numeric('amount_usd', { precision: 18, scale: 6 }),
+    amountShares: numeric('amount_shares', { precision: 30, scale: 12 }),
+    maxInRaw: text('max_in_raw'),
+    minOutRaw: text('min_out_raw'),
     slippageBps: integer('slippage_bps').notNull(),
     expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
-    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
   },
   (table) => [index('mcp_trade_intents_owner_idx').on(table.userId, table.id)],
 );
