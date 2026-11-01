@@ -24,6 +24,8 @@ export const DEFAULT_TITAN_MAX_PRICE_DEVIATION_BPS = 100;
 /** Keyless api.jup.ag is limited to 0.5 rps; a free key gets 1 rps. */
 const JUPITER_KEYLESS_RPS = 0.5;
 const JUPITER_KEYED_RPS = 1;
+/** Change only after the route-level Privy proof and signing path are reviewed. */
+const DELEGATED_SIGNING_READY = false;
 
 const DEFAULT_JUPITER_API_URL = 'https://api.jup.ag/swap/v1';
 
@@ -235,6 +237,10 @@ export function validateEnv(env: EnvSource = process.env): AppEnv {
       'PRIVY_POLICY_ADMIN_QUORUM_ID',
     ])
       requireEnv(env, key);
+    if (!DELEGATED_SIGNING_READY)
+      throw new Error(
+        'Delegated signing is blocked pending route-level Privy proof',
+      );
   }
   return {
     DEPLOYMENT_ENV: deployment.environment,

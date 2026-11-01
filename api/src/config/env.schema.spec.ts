@@ -112,7 +112,7 @@ describe('validateEnv — delegated MCP trading', () => {
       PRIVY_MCP_SIGNER_PRIVATE_KEY: 'key-test',
       PRIVY_POLICY_ADMIN_QUORUM_ID: 'quorum-admin',
     };
-    expect(validateEnv(configured).MCP_DELEGATED_TRADES_ENABLED).toBe(true);
+    expect(() => validateEnv(configured)).toThrow(/route-level Privy proof/);
     expect(() =>
       validateEnv({
         ...configured,
