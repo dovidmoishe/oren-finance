@@ -327,6 +327,9 @@ async function bootstrap() {
         );
         if (!resourceScopes.length) return res.sendStatus(403);
         grant.addResourceScope(oauth.resource, resourceScopes);
+        // oidc-provider also checks configured scopes against the OP grant.
+        // Keep that check satisfied while the resource grant remains required.
+        grant.addOIDCScope(resourceScopes);
         if (requested.includes('offline_access'))
           grant.addOIDCScope('offline_access');
         const grantId = await grant.save();
