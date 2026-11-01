@@ -19,6 +19,7 @@ import { handleMcpRequest } from './mcp-auth/mcp-resource';
 import {
   clientMayPrepareTrades,
   createMcpOAuthRuntime,
+  mountPathBasedDiscoveryAtIssuer,
 } from './mcp-auth/oauth-runtime';
 import { createRegistrationRateLimit } from './mcp-auth/registration-rate-limit';
 
@@ -66,7 +67,7 @@ async function bootstrap() {
     expressApp.use(
       '/.well-known/oauth-authorization-server/oauth',
       (req: Request, res: Response) => {
-        req.url = '/.well-known/oauth-authorization-server';
+        mountPathBasedDiscoveryAtIssuer(req);
         void oauth.provider
           .callback()(req, res)
           .catch(() => {

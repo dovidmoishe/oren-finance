@@ -9,6 +9,17 @@ export interface McpOAuthRuntime {
   resource: string;
 }
 
+/** Preserve the OAuth issuer mount when serving RFC 8414 path discovery. */
+export function mountPathBasedDiscoveryAtIssuer(request: {
+  url: string;
+  baseUrl: string;
+  originalUrl: string;
+}): void {
+  request.url = '/.well-known/oauth-authorization-server';
+  request.baseUrl = '/oauth';
+  request.originalUrl = `/oauth${request.url}`;
+}
+
 /** Keep public client registration limited to the pilot and Codex loopback. */
 export function isSupportedMcpRedirect(value: string): boolean {
   if (value === 'https://claude.ai/api/mcp/auth_callback') return true;
