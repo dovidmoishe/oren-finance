@@ -11,7 +11,7 @@
 - Migration `0009_mcp_trade_sides.sql` adds side, stock mint, share amount, and raw input/output bounds to MCP intents. `prepare_trade` can now prepare buys or sells for browser review; the review and API approval checks bind sells to the mint, shares, and raw input. `prepare_buy` remains available. No delegated signing or broadcast was added.
 - The remaining delegation schema starts at migration `0010`, not `0009`. A live route requires a disposable-wallet proof that Privy enforces input amount, mint, destination, and expiry for that provider. Tier 1 program-only policies are insufficient for live headless trades; unsupported providers use browser approval.
 - Sell budgets must cap the prepared share input and use an independent stock reference valuation. Count the greater of reference value and quoted USDC proceeds against per-trade and rolling-day limits.
-- PR previews build and test the branch but disable financial execution and currently reject MCP OAuth at startup. They can verify deployment and nonfinancial UI; the isolated Privy policy and real signing proof must run separately.
+- PR previews keep financial execution disabled. With the trusted controller from PR #20 installed and this branch rebased onto that change, they can exercise password-gated MCP OAuth, preparation and browser review through a controlled client. External Claude cannot traverse the gateway without its session; the isolated Privy policy and real signing proof must run separately.
 
 ---
 
