@@ -99,7 +99,11 @@ export async function createMcpOAuthRuntime(
     clientAuthMethods: ['none'],
     rotateRefreshToken: true,
     issueRefreshToken: () => true,
-    ttl: { AccessToken: 600, RefreshToken: 7 * 24 * 60 * 60 },
+    ttl: {
+      AccessToken: 600,
+      RefreshToken: 7 * 24 * 60 * 60,
+      Grant: 7 * 24 * 60 * 60,
+    },
     findAccount: (_context, accountId) => ({
       accountId,
       claims: () => ({ sub: accountId }),

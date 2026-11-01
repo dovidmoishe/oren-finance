@@ -20,6 +20,7 @@ import {
   clientMayPrepareTrades,
   createMcpOAuthRuntime,
 } from './mcp-auth/oauth-runtime';
+import { createRegistrationRateLimit } from './mcp-auth/registration-rate-limit';
 
 async function bootstrap() {
   const env = validateEnv();
@@ -433,6 +434,18 @@ async function bootstrap() {
         } catch {
           return res.sendStatus(503);
         }
+      },
+    );
+    const registrationRetryAfter = createRegistrationRateLimit();
+    expressApp.post(
+      '/oauth/reg',
+      (_req: Request, res: Response, next: NextFunction) => {
+        const retryAfter = registrationRetryAfter();
+        if (retryAfter) {
+          res.setHeader('Retry-After', String(retryAfter));
+          return res.sendStatus(429);
+        }
+        next();
       },
     );
     expressApp.use('/oauth', oauth.provider.callback());

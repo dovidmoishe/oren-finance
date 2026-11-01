@@ -51,6 +51,8 @@ export async function requireMcpAccess(req: Request, deps: McpResourceDeps) {
     )
     .limit(1);
   if (!connection) return undefined;
+  if (connection.createdAt.getTime() <= Date.now() - 7 * 24 * 60 * 60_000)
+    return undefined;
   const granted = new Set(connection.scopes.split(/\s+/));
   if (
     [...token.scopes].some(

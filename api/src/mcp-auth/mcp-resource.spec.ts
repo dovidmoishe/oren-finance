@@ -9,6 +9,7 @@ const connection = {
   walletId: 'wallet-1',
   wallet: 'solana-wallet',
   scopes: 'oren.read',
+  createdAt: new Date(),
 };
 
 function fixture(overrides: Record<string, unknown> = {}, rows = [connection]) {
@@ -59,6 +60,16 @@ describe('MCP resource access', () => {
     const { deps, req, verifyMcpWallet } = fixture({
       scopes: new Set(['oren.read', 'oren.trade.prepare']),
     });
+    await expect(requireMcpAccess(req, deps)).resolves.toBeUndefined();
+    expect(verifyMcpWallet).not.toHaveBeenCalled();
+  });
+
+  it('rejects a connection after seven days even with a valid token', async () => {
+    const expired = {
+      ...connection,
+      createdAt: new Date(Date.now() - 8 * 24 * 60 * 60_000),
+    };
+    const { deps, req, verifyMcpWallet } = fixture({}, [expired]);
     await expect(requireMcpAccess(req, deps)).resolves.toBeUndefined();
     expect(verifyMcpWallet).not.toHaveBeenCalled();
   });
