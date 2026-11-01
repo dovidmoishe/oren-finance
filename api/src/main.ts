@@ -9,6 +9,7 @@ import { validateEnv } from './config/env.schema';
 import { DatabaseService } from './database/database.provider';
 import {
   mcpConnections,
+  mcpTradeDelegations,
   mcpTradeIntents,
   tradeApprovals,
 } from './database/schema';
@@ -18,6 +19,7 @@ import { ExecutionService } from './execution/execution.service';
 import { handleMcpRequest } from './mcp-auth/mcp-resource';
 import {
   clientMayPrepareTrades,
+  clientMayExecuteTrades,
   createMcpOAuthRuntime,
   mountPathBasedDiscoveryAtIssuer,
 } from './mcp-auth/oauth-runtime';
@@ -56,7 +58,11 @@ async function bootstrap() {
         res.json({
           resource: oauth.resource,
           authorization_servers: [oauth.issuer],
-          scopes_supported: ['oren.read', 'oren.trade.prepare'],
+          scopes_supported: [
+            'oren.read',
+            'oren.trade.prepare',
+            ...(env.MCP_DELEGATED_TRADES_ENABLED ? ['oren.trade.execute'] : []),
+          ],
         }),
     );
     // Path-based issuer discovery for clients following RFC 8414.
@@ -268,7 +274,7 @@ async function bootstrap() {
           res.setHeader('Access-Control-Allow-Credentials', 'true');
           res.setHeader(
             'Access-Control-Allow-Headers',
-            'Authorization, Content-Type',
+            'Authorization, Content-Type, X-Oren-Trade-Execute-Consent',
           );
           res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
           res.setHeader('Vary', 'Origin');
@@ -308,9 +314,14 @@ async function bootstrap() {
         if (
           requested.some(
             (scope) =>
-              !['oren.read', 'oren.trade.prepare', 'offline_access'].includes(
-                scope,
-              ),
+              ![
+                'oren.read',
+                'oren.trade.prepare',
+                ...(env.MCP_DELEGATED_TRADES_ENABLED
+                  ? ['oren.trade.execute']
+                  : []),
+                'offline_access',
+              ].includes(scope),
           )
         )
           return res.sendStatus(403);
@@ -319,18 +330,48 @@ async function bootstrap() {
         if (
           !client ||
           (requested.includes('oren.trade.prepare') &&
-            !clientMayPrepareTrades(client.redirectUris))
+            !clientMayPrepareTrades(client.redirectUris)) ||
+          (requested.includes('oren.trade.execute') &&
+            !clientMayExecuteTrades(client.redirectUris))
         )
           return res.sendStatus(403);
         const owner = await identity.requireMcpIdentity(
           req.headers.authorization,
         );
+        if (requested.includes('oren.trade.execute')) {
+          if (req.headers['x-oren-trade-execute-consent'] !== 'true')
+            return res.sendStatus(403);
+          if (
+            !env.MCP_DELEGATED_TRADES_ENABLED ||
+            !(
+              env.MCP_DELEGATED_TRADES_ALLOWED_USERS.includes('*') ||
+              env.MCP_DELEGATED_TRADES_ALLOWED_USERS.includes(owner.userId)
+            )
+          )
+            return res.sendStatus(403);
+          const [delegation] = await db
+            .select({ id: mcpTradeDelegations.id })
+            .from(mcpTradeDelegations)
+            .where(
+              and(
+                eq(mcpTradeDelegations.userId, owner.userId),
+                eq(mcpTradeDelegations.walletId, owner.walletId),
+                eq(mcpTradeDelegations.wallet, owner.wallet),
+                eq(mcpTradeDelegations.status, 'active'),
+                gt(mcpTradeDelegations.expiresAt, new Date()),
+              ),
+            )
+            .limit(1);
+          if (!delegation) return res.sendStatus(403);
+        }
         const grant = new oauth.provider.Grant({
           accountId: owner.userId,
           clientId,
         });
         const resourceScopes = requested.filter((scope) =>
-          ['oren.read', 'oren.trade.prepare'].includes(scope),
+          ['oren.read', 'oren.trade.prepare', 'oren.trade.execute'].includes(
+            scope,
+          ),
         );
         if (!resourceScopes.length) return res.sendStatus(403);
         grant.addResourceScope(oauth.resource, resourceScopes);

@@ -81,7 +81,7 @@ export default function McpConnectionsPage() {
             <p className="break-all font-medium">{connection.clientId}</p>
             <p className="mt-2 break-all text-sm text-muted">Wallet: {connection.wallet}</p>
             <p className="mt-1 text-sm text-muted">Connected {new Date(connection.createdAt).toLocaleDateString()}</p>
-            <p className="mt-2 text-sm">{connection.scopes.includes('oren.trade.prepare') ? 'Read and prepare buy requests' : 'Read access only'}</p>
+            <p className="mt-2 text-sm">{connection.scopes.includes('oren.trade.execute') ? 'Executes trades within your active limits' : connection.scopes.includes('oren.trade.prepare') ? 'Read and prepare buys and sells for browser review' : 'Read access only'}</p>
             <button className="mt-4 rounded-xl border border-border px-4 py-2 disabled:opacity-50" disabled={busy === connection.grantId} onClick={() => void revoke(connection.grantId)} type="button">
               {busy === connection.grantId ? 'Revoking…' : 'Revoke access'}
             </button>

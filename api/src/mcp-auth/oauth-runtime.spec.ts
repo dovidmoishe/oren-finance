@@ -1,5 +1,6 @@
 import {
   clientMayPrepareTrades,
+  clientMayExecuteTrades,
   isSupportedMcpRedirect,
 } from './oauth-runtime';
 
@@ -40,5 +41,20 @@ describe('MCP client trade scope', () => {
       false,
     );
     expect(clientMayPrepareTrades(undefined)).toBe(false);
+  });
+
+  it('limits execution permission to the exact Claude callback', () => {
+    expect(
+      clientMayExecuteTrades(['https://claude.ai/api/mcp/auth_callback']),
+    ).toBe(true);
+    expect(clientMayExecuteTrades(['http://127.0.0.1:49152/callback'])).toBe(
+      false,
+    );
+    expect(
+      clientMayExecuteTrades([
+        'https://claude.ai/api/mcp/auth_callback',
+        'http://127.0.0.1/callback',
+      ]),
+    ).toBe(false);
   });
 });

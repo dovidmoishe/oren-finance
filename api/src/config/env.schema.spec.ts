@@ -90,3 +90,36 @@ describe('validateEnv — swap routing (Titan)', () => {
     ).toEqual(['a', 'b']);
   });
 });
+
+describe('validateEnv — delegated MCP trading', () => {
+  it('defaults to disabled with explicit empty allowlist', () => {
+    const env = validateEnv(required);
+    expect(env.MCP_DELEGATED_TRADES_ENABLED).toBe(false);
+    expect(env.MCP_DELEGATED_TRADES_ALLOWED_USERS).toEqual([]);
+  });
+
+  it('refuses preview and incomplete production configuration', () => {
+    const enabled = { ...required, MCP_DELEGATED_TRADES_ENABLED: 'true' };
+    expect(() => validateEnv(enabled)).toThrow(/MCP OAuth/);
+    expect(() =>
+      validateEnv({ ...enabled, MCP_OAUTH_ENABLED: 'true' }),
+    ).toThrow(/allowlist/);
+    const configured = {
+      ...enabled,
+      MCP_OAUTH_ENABLED: 'true',
+      MCP_DELEGATED_TRADES_ALLOWED_USERS: 'did:privy:test',
+      PRIVY_MCP_SIGNER_QUORUM_ID: 'quorum-test',
+      PRIVY_MCP_SIGNER_PRIVATE_KEY: 'key-test',
+      PRIVY_POLICY_ADMIN_QUORUM_ID: 'quorum-admin',
+    };
+    expect(validateEnv(configured).MCP_DELEGATED_TRADES_ENABLED).toBe(true);
+    expect(() =>
+      validateEnv({
+        ...configured,
+        DEPLOYMENT_ENV: 'preview',
+        PREVIEW_PR_NUMBER: '18',
+        COMMIT_SHA: 'a'.repeat(40),
+      }),
+    ).toThrow(/PR preview/);
+  });
+});

@@ -64,6 +64,14 @@ describe('MCP resource access', () => {
     expect(verifyMcpWallet).not.toHaveBeenCalled();
   });
 
+  it('rejects an execution scope absent from browser consent', async () => {
+    const { deps, req, verifyMcpWallet } = fixture({
+      scopes: new Set(['oren.read', 'oren.trade.execute']),
+    });
+    await expect(requireMcpAccess(req, deps)).resolves.toBeUndefined();
+    expect(verifyMcpWallet).not.toHaveBeenCalled();
+  });
+
   it('rejects a connection after seven days even with a valid token', async () => {
     const expired = {
       ...connection,

@@ -40,6 +40,13 @@ export interface AppEnv {
   SOLANA_NETWORK: SolanaNetwork;
   PRIVY_APP_ID?: string;
   PRIVY_APP_SECRET?: string;
+  MCP_DELEGATED_TRADES_ENABLED: boolean;
+  MCP_DELEGATED_TRADES_ALLOWED_USERS: string[];
+  MCP_DELEGATED_MAX_PER_TRADE_USD: number;
+  MCP_DELEGATED_MAX_DAILY_USD: number;
+  PRIVY_MCP_SIGNER_QUORUM_ID?: string;
+  PRIVY_MCP_SIGNER_PRIVATE_KEY?: string;
+  PRIVY_POLICY_ADMIN_QUORUM_ID?: string;
   ALCHEMY_SOLANA_WS_URL?: string;
   JUPITER_API_URL?: string;
   JUPITER_TRIGGER_API_URL?: string;
@@ -213,6 +220,22 @@ export function validateEnv(env: EnvSource = process.env): AppEnv {
   }
 
   const deployment = deploymentCapabilities(env);
+  const delegatedEnabled = readBool(env, 'MCP_DELEGATED_TRADES_ENABLED', false);
+  const delegatedUsers = readList(env, 'MCP_DELEGATED_TRADES_ALLOWED_USERS');
+  if (delegatedEnabled) {
+    if (deployment.environment === 'preview')
+      throw new Error('Delegated trades cannot be enabled in a PR preview');
+    if (readEnv(env, 'MCP_OAUTH_ENABLED') !== 'true')
+      throw new Error('Delegated trades require MCP OAuth');
+    if (delegatedUsers.length === 0)
+      throw new Error('Delegated trades require an explicit user allowlist');
+    for (const key of [
+      'PRIVY_MCP_SIGNER_QUORUM_ID',
+      'PRIVY_MCP_SIGNER_PRIVATE_KEY',
+      'PRIVY_POLICY_ADMIN_QUORUM_ID',
+    ])
+      requireEnv(env, key);
+  }
   return {
     DEPLOYMENT_ENV: deployment.environment,
     PREVIEW_PR_NUMBER: deployment.prNumber,
@@ -228,6 +251,21 @@ export function validateEnv(env: EnvSource = process.env): AppEnv {
     SOLANA_NETWORK: network,
     PRIVY_APP_ID: readEnv(env, 'PRIVY_APP_ID'),
     PRIVY_APP_SECRET: readEnv(env, 'PRIVY_APP_SECRET'),
+    MCP_DELEGATED_TRADES_ENABLED: delegatedEnabled,
+    MCP_DELEGATED_TRADES_ALLOWED_USERS: delegatedUsers,
+    MCP_DELEGATED_MAX_PER_TRADE_USD: readPositiveNumber(
+      env,
+      'MCP_DELEGATED_MAX_PER_TRADE_USD',
+      100,
+    ),
+    MCP_DELEGATED_MAX_DAILY_USD: readPositiveNumber(
+      env,
+      'MCP_DELEGATED_MAX_DAILY_USD',
+      250,
+    ),
+    PRIVY_MCP_SIGNER_QUORUM_ID: readEnv(env, 'PRIVY_MCP_SIGNER_QUORUM_ID'),
+    PRIVY_MCP_SIGNER_PRIVATE_KEY: readEnv(env, 'PRIVY_MCP_SIGNER_PRIVATE_KEY'),
+    PRIVY_POLICY_ADMIN_QUORUM_ID: readEnv(env, 'PRIVY_POLICY_ADMIN_QUORUM_ID'),
     ALCHEMY_SOLANA_WS_URL: readEnv(env, 'ALCHEMY_SOLANA_WS_URL'),
     JUPITER_API_URL:
       migrateJupiterUrl(readEnv(env, 'JUPITER_API_URL')) ??
