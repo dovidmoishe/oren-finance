@@ -30,9 +30,11 @@ for a delegated trial or enable headless execution with this policy. Keep
 Jupiter and Titan on browser approval until a Privy-enforced aggregate input or
 single-route constraint is proven, including Token-2022 and lookup-table cases.
 
-The proof-only signer remains attached for controlled testing. Revoke it from
-the browser proof page when testing is complete; Privy's removal operation
-removes every signer on the wallet. Verify zero signers after removal.
+The owner revoked the proof signer in the browser after the failed gate.
+Privy read-back showed zero additional signers and no delegation; the wallet
+still held zero SOL. Privy's removal operation removes every signer on the
+wallet. The temporary browser proof page was removed from the PR after this
+drill.
 
 ## Reproduce the sign-only checks
 
