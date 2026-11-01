@@ -13,7 +13,11 @@ import type { PrivyWalletAuth } from '../auth/privy-wallet-auth';
 import type { MarketService } from '../market/market.service';
 import type { PortfolioService } from '../portfolio/portfolio.service';
 import type { ExecutionService } from '../execution/execution.service';
-import { enforcedMinimumOut, rawIn } from '../execution/swap-terms';
+import {
+  enforcedMinimumOut,
+  rawIn,
+  reviewedTermsFor,
+} from '../execution/swap-terms';
 import type { McpOAuthRuntime } from './oauth-runtime';
 
 export interface McpResourceDeps {
@@ -34,7 +38,7 @@ export async function requireMcpAccess(req: Request, deps: McpResourceDeps) {
     !token?.isValid ||
     token.aud !== deps.oauth.resource ||
     ![...token.scopes].some((scope) =>
-      ['oren.read', 'oren.trade.prepare'].includes(scope),
+      ['oren.read', 'oren.trade.prepare', 'oren.trade.execute'].includes(scope),
     ) ||
     !token.accountId ||
     !token.clientId ||
@@ -148,7 +152,12 @@ export async function handleMcpRequest(
           assetId: z.string().trim().min(1).max(80),
           side: z.enum(['buy', 'sell']),
           amountUsd: z.number().finite().min(0.01).max(100000).optional(),
-          amountShares: z.number().finite().positive().optional(),
+          amountShares: z
+            .number()
+            .finite()
+            .positive()
+            .max(1_000_000_000)
+            .optional(),
           slippageBps: z.number().int().min(1).max(50).default(50),
         }),
         annotations: { destructiveHint: false },
@@ -180,7 +189,8 @@ export async function handleMcpRequest(
         });
         const maxIn = rawIn(quote);
         const minOut = enforcedMinimumOut(quote);
-        if (!maxIn || minOut === undefined)
+        const reviewed = reviewedTermsFor(quote);
+        if (!maxIn || minOut === undefined || !reviewed)
           return {
             content: [
               {
@@ -190,6 +200,26 @@ export async function handleMcpRequest(
             ],
             isError: true,
           };
+        const stock =
+          side === 'sell'
+            ? await deps.market.getStock(quote.assetId)
+            : undefined;
+        const referenceValueUsd =
+          side === 'sell' &&
+          stock?.price &&
+          Number.isFinite(stock.price) &&
+          stock.price > 0 &&
+          Number.isFinite(amountShares! * stock.price)
+            ? (
+                Math.ceil(amountShares! * stock.price * 1_000_000) / 1_000_000
+              ).toFixed(6)
+            : null;
+        const quotedProceedsUsd =
+          side === 'sell' &&
+          Number.isFinite(quote.outputAmount) &&
+          quote.outputAmount > 0
+            ? (Math.ceil(quote.outputAmount * 1_000_000) / 1_000_000).toFixed(6)
+            : null;
         const [intent] = await deps.db
           .insert(mcpTradeIntents)
           .values({
@@ -205,6 +235,9 @@ export async function handleMcpRequest(
             amountShares: side === 'sell' ? amountShares!.toFixed(12) : null,
             maxInRaw: maxIn,
             minOutRaw: minOut.toString(),
+            referenceValueUsd,
+            quotedProceedsUsd,
+            reviewedTerms: { ...reviewed },
             slippageBps,
             expiresAt: new Date(Date.now() + 5 * 60_000),
           })
@@ -224,6 +257,8 @@ export async function handleMcpRequest(
                 amountUsd,
                 amountShares,
                 minOutRaw: minOut.toString(),
+                referenceValueUsd,
+                quotedProceedsUsd,
                 maxInRaw: maxIn,
                 slippageBps,
                 expiresAt: intent.expiresAt.toISOString(),
