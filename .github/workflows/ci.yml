@@ -30,8 +30,8 @@ jobs:
           PREVIEW_HOST: pr-42.preview.example.com
           DB_PASSWORD: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
         run: |
-          sudo install -d /opt/oren/preview
-          sudo touch /opt/oren/preview/provider.env /opt/oren/preview/access.env
+          sudo install -d /opt/oren/preview/stacks/pr-42
+          sudo touch /opt/oren/preview/provider.env /opt/oren/preview/access.env /opt/oren/preview/stacks/pr-42/oauth.env
           docker compose -f infra/preview/compose.yml config --quiet
           docker compose -f infra/preview/access.compose.yml config --quiet
       - name: Verify two disposable preview databases are isolated
