@@ -16,6 +16,7 @@ function deferred() {
 function session(createWallet) {
   const slots = [], effects = [];
   let cursor = 0, loginComplete, modal, walletContext;
+  const signerCalls = [];
   const sdk = { ready: true, authenticated: true, user: { id: 'alice', linkedAccounts: [] }, logout: async () => {}, linkWallet() {}, getAccessToken: async () => 'token' };
   const walletSdk = { ready: true, wallets: [] };
   const effect = (fn, deps) => {
@@ -44,7 +45,15 @@ function session(createWallet) {
     exports, URL, window: { location: { href: 'https://oren.finance/app' }, localStorage: { getItem: () => null } },
     require(id) {
       if (id === 'react') return react;
-      if (id === '@privy-io/react-auth') return { useAuthorizationSignature: () => ({ generateAuthorizationSignature: async () => ({ signature: 'request-signature' }) }), usePrivy: () => sdk, useLogin: ({ onComplete }) => { loginComplete = onComplete; return { login() {} }; } };
+      if (id === '@privy-io/react-auth') return {
+        useAuthorizationSignature: () => ({ generateAuthorizationSignature: async () => ({ signature: 'request-signature' }) }),
+        usePrivy: () => sdk,
+        useLogin: ({ onComplete }) => { loginComplete = onComplete; return { login() {} }; },
+        useSigners: () => ({
+          async addSigners(input) { signerCalls.push({ method: 'add', ...input }); },
+          async removeSigners(input) { signerCalls.push({ method: 'remove', ...input }); },
+        }),
+      };
       if (id === '@privy-io/react-auth/solana') return { useWallets: () => walletSdk, useCreateWallet: () => ({ createWallet }), useSignMessage: () => ({}), useSignTransaction: () => ({}) };
       if (id === 'next/navigation') return { usePathname: () => '/app' };
       if (id === '@/store') return Object.fromEntries(['useAgentStore','useExecutionStore','usePortfolioStore','useSocialStore','useVaultStore','useWalletStore'].map(k => [k, store]));
@@ -67,9 +76,25 @@ function session(createWallet) {
     while (effects.length) effects.shift()();
     return tree.props.value;
   }
-  return { sdk, walletSdk, render, wallet: () => walletContext, resetCount: () => resets, requestConnection: () => modal.setVisible(true), isLoginOpen: () => modal.visible, completeLogin: data => loginComplete(data) };
+  return { sdk, walletSdk, render, wallet: () => walletContext, signerCalls, resetCount: () => resets, requestConnection: () => modal.setVisible(true), isLoginOpen: () => modal.visible, completeLogin: data => loginComplete(data) };
 }
 const settle = () => new Promise(resolve => setImmediate(resolve));
+
+test('proof signer consent and removal require the active authenticated wallet', async () => {
+  const app = session(async () => {});
+  const address = '11111111111111111111111111111111';
+  app.sdk.user.linkedAccounts = [{ type: 'wallet', chainType: 'solana', walletClientType: 'privy', address }];
+  const auth = app.render();
+  await assert.rejects(auth.addWalletSigners('other-wallet', [{ signerId: 'signer', policyIds: ['policy'] }]), /exact wallet/);
+  await assert.rejects(auth.removeWalletSigners('other-wallet'), /exact wallet/);
+  assert.deepEqual(app.signerCalls, []);
+  await auth.addWalletSigners(address, [{ signerId: 'signer', policyIds: ['policy'] }]);
+  await auth.removeWalletSigners(address);
+  assert.deepEqual(app.signerCalls, [
+    { method: 'add', address, signers: [{ signerId: 'signer', policyIds: ['policy'] }] },
+    { method: 'remove', address },
+  ]);
+});
 
 test('an already loaded owned wallet stays available while SDK discovery refreshes', async () => {
   const app = session(async () => { throw new Error('must not recreate an existing wallet'); });
