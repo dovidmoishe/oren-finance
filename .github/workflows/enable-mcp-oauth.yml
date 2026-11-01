@@ -1,0 +1,51 @@
+name: Enable MCP OAuth
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: Type enable-mcp-oauth to activate the production OAuth service
+        required: true
+        type: string
+
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  enable:
+    if: inputs.confirm == 'enable-mcp-oauth'
+    runs-on: ubuntu-24.04
+    environment: production
+    env:
+      VPS_HOST: ${{ secrets.VPS_HOST }}
+      VPS_PORT: ${{ secrets.VPS_PORT }}
+      VPS_USER: ${{ secrets.VPS_USER }}
+      VPS_SSH_KNOWN_HOSTS: ${{ secrets.VPS_SSH_KNOWN_HOSTS }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: master
+          persist-credentials: false
+      - name: Verify VPS configuration
+        run: |
+          test -n "$VPS_HOST"
+          test -n "$VPS_USER"
+          test -n "$VPS_SSH_KNOWN_HOSTS"
+      - uses: webfactory/ssh-agent@v0.9.1
+        with:
+          ssh-private-key: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
+      - name: Pin the verified VPS host key
+        run: |
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$VPS_SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+      - name: Activate and verify MCP OAuth
+        run: |
+          release_sha=$(git rev-parse HEAD)
+          [[ "$release_sha" =~ ^[a-f0-9]{40}$ ]]
+          scp -P "${VPS_PORT:-22}" -o StrictHostKeyChecking=yes infra/mcp/enable-oauth.sh "$VPS_USER@$VPS_HOST:/opt/oren/enable-mcp-oauth.sh"
+          ssh -p "${VPS_PORT:-22}" -o StrictHostKeyChecking=yes "$VPS_USER@$VPS_HOST" "bash /opt/oren/enable-mcp-oauth.sh '$release_sha'"

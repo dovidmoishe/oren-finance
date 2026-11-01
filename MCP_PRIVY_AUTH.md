@@ -7,6 +7,14 @@
 
 ---
 
+## Claude custom connector rollout
+
+The production OAuth switch remains off until the manual `Enable MCP OAuth` workflow succeeds. That workflow generates signing and storage keys on the VPS, verifies the already deployed master image, starts the API with OAuth, tests discovery and Claude dynamic client registration, and restores the previous `.env` on a failed check. Run it only after the release containing `infra/mcp/enable-oauth.sh` is healthy.
+
+In Claude's custom connector settings, use `https://api.oren.finance/mcp`, choose **Sign in now** and **Register automatically**, then complete Oren's existing Privy email OTP and consent in the browser. No Google OAuth credentials are involved. Claude's buy tools currently return an Oren browser review link; they cannot sign or broadcast on their own.
+
+---
+
 ## Codex local connection (pending OAuth deployment)
 
 After the API deployment includes `feat/mcp-local-connector` and production OAuth is enabled, add the existing API as a personal remote MCP server:
