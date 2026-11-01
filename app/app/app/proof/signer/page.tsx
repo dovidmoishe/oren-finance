@@ -1,11 +1,10 @@
-import { notFound } from 'next/navigation';
-import { ProofSigner } from './proof-signer';
+import { notFound, redirect } from 'next/navigation';
 
-/** Disposable-wallet proof page; remove this route before PR #18 is merged. */
+/** Keep the original proof URL working while the disposable test is in progress. */
 export default function Page() {
   if (
     process.env.NEXT_PUBLIC_DEPLOYMENT_ENV !== 'preview' ||
     process.env.NEXT_PUBLIC_PREVIEW_PR_NUMBER !== '18'
   ) notFound();
-  return <ProofSigner />;
+  redirect('/proof/signer');
 }

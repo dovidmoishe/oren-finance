@@ -59,8 +59,6 @@ function createLoadingSession() {
     open: signIn, async signOut() {}, selectWallet() {}, async createWallet() {},
     async getAccessToken() { return null; },
     async authorizeTrade() { throw new Error("Sign in before approving a trade."); },
-    async addWalletSigners() { throw new Error("Sign in before adding a signer."); },
-    async removeWalletSigners() { throw new Error("Sign in before removing signers."); },
   };
   const modal: WalletModalContextState = { visible: false, setVisible(next) { if (next) signIn(); } };
   /** Replays queued requests into the loaded session, once. */
