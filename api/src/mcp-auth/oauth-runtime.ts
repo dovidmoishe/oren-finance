@@ -111,7 +111,9 @@ export async function createMcpOAuthRuntime(
     cookies: { keys: cookieKeys },
     pkce: { required: () => true },
     responseTypes: ['code'],
-    scopes: ['oren.read', 'oren.trade.prepare', 'offline_access'],
+    // MCP permissions belong only to the resource server, not OIDC identity scopes.
+    // Listing them here makes consent demand a second, ungranted OP scope.
+    scopes: ['openid', 'offline_access'],
     clientAuthMethods: ['none'],
     rotateRefreshToken: true,
     issueRefreshToken: () => true,

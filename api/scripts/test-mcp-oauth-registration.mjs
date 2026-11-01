@@ -25,6 +25,14 @@ const signingKey = {
 }
 const stored = new Map()
 const dialect = new PgDialect()
+function matchingRow(condition) {
+  const { params } = dialect.sqlToQuery(condition)
+  return [...stored.values()].find(
+    (item) =>
+      params.includes(item.model) &&
+      (params.includes(item.key) || params.includes(item.uidHash)),
+  )
+}
 const db = {
   insert: () => ({
     values: (row) => ({
@@ -37,13 +45,29 @@ const db = {
     from: () => ({
       where: (condition) => ({
         limit: async () => {
-          const { params } = dialect.sqlToQuery(condition)
-          const row = [...stored.values()].find(
-            (item) =>
-              params.includes(item.model) &&
-              (params.includes(item.key) || params.includes(item.uidHash)),
-          )
+          const row = matchingRow(condition)
           return row ? [{ payload: row.payload }] : []
+        },
+      }),
+    }),
+  }),
+  delete: () => ({
+    where: async (condition) => {
+      const row = matchingRow(condition)
+      if (row) stored.delete(row.key)
+    },
+  }),
+  update: () => ({
+    set: () => ({
+      where: (condition) => ({
+        returning: async () => {
+          const row = matchingRow(condition)
+          if (!row || row.payload.consumed) return []
+          row.payload = {
+            ...row.payload,
+            consumed: Math.floor(Date.now() / 1000),
+          }
+          return [{ key: row.key }]
         },
       }),
     }),
@@ -70,6 +94,38 @@ app.get('/oauth/interaction/:uid', async (req, res) => {
         `${runtime.appOrigin}/connect/mcp?uid=${encodeURIComponent(details.uid)}`,
       )
     return res.json({ clientId: details.params.client_id })
+  } catch {
+    return res.sendStatus(400)
+  }
+})
+app.post('/oauth/interaction/:uid', async (req, res) => {
+  try {
+    const details = await runtime.provider.interactionDetails(req, res)
+    if (details.uid !== req.params.uid) return res.sendStatus(403)
+    const grant = new runtime.provider.Grant({
+      accountId: 'disposable-test-user',
+      clientId: details.params.client_id,
+    })
+    grant.addResourceScope(runtime.resource, [
+      'oren.read',
+      'oren.trade.prepare',
+    ])
+    grant.addOIDCScope('offline_access')
+    const grantId = await grant.save()
+    const redirect = await runtime.provider.interactionResult(
+      req,
+      res,
+      {
+        login: {
+          accountId: 'disposable-test-user',
+          amr: ['email_otp'],
+          remember: false,
+        },
+        consent: { grantId },
+      },
+      { mergeWithLastSubmission: false },
+    )
+    return res.json({ redirect })
   } catch {
     return res.sendStatus(400)
   }
@@ -131,7 +187,7 @@ const authorization = await request(app)
     client_id: registration.body.client_id,
     redirect_uri: 'https://claude.ai/api/mcp/auth_callback',
     response_type: 'code',
-    scope: 'oren.read offline_access',
+    scope: 'oren.read oren.trade.prepare offline_access',
     resource: 'https://api.oren.finance/mcp',
     state: 'registration-test',
     code_challenge: challenge,
@@ -157,11 +213,6 @@ assert.ok(
   `interaction cookie path ${cookie.match(/path=[^;]*/i)?.[0]} must match ${launch.pathname}`,
 )
 const cookiePair = authorization.headers['set-cookie']
-  .filter(
-    (value) =>
-      value.startsWith('_interaction=') ||
-      value.startsWith('_interaction.sig='),
-  )
   .map((value) => value.split(';')[0])
   .join('; ')
 const forwarded = {
@@ -196,6 +247,42 @@ assert.equal(
   400,
   'interaction details require the cookie',
 )
+const consent = await request(app)
+  .post(launch.pathname)
+  .set({ ...forwarded, Origin: runtime.appOrigin })
+assert.equal(consent.status, 200, 'consent must persist a grant')
+const resume = await request(app)
+  .get(new URL(consent.body.redirect).pathname)
+  .set(forwarded)
+assert.equal(resume.status, 303, 'completed consent must leave Oren')
+assert.equal(
+  new URL(resume.headers.location).origin,
+  'https://claude.ai',
+  'completed consent must return to Claude instead of starting another prompt',
+)
+const callback = new URL(resume.headers.location)
+assert.equal(callback.searchParams.get('state'), 'registration-test')
+const code = callback.searchParams.get('code')
+assert.ok(code, 'Claude callback must contain an authorization code')
+const token = await request(app)
+  .post('/oauth/token')
+  .type('form')
+  .send({
+    grant_type: 'authorization_code',
+    client_id: registration.body.client_id,
+    code,
+    code_verifier: verifier,
+    redirect_uri: 'https://claude.ai/api/mcp/auth_callback',
+  })
+  .set('Host', 'api.oren.finance')
+  .set('X-Forwarded-Host', 'api.oren.finance')
+  .set('X-Forwarded-Proto', 'https')
+assert.equal(token.status, 200, 'Claude must be able to exchange the code')
+assert.equal(token.body.token_type, 'Bearer')
+assert.equal(typeof token.body.access_token, 'string')
+assert.equal(typeof token.body.refresh_token, 'string')
+assert.ok(token.body.scope?.includes('oren.read'))
+assert.ok(token.body.scope?.includes('oren.trade.prepare'))
 const disallowed = await request(app)
   .post('/oauth/reg')
   .send({
@@ -206,5 +293,5 @@ const disallowed = await request(app)
   })
 assert.equal(disallowed.status, 400)
 console.log(
-  'MCP OAuth discovery, Claude registration, and interaction handoff pass',
+  'MCP OAuth discovery, Claude registration, consent callback, and token exchange pass',
 )
