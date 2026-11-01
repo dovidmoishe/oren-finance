@@ -111,9 +111,10 @@ export async function createMcpOAuthRuntime(
     cookies: { keys: cookieKeys },
     pkce: { required: () => true },
     responseTypes: ['code'],
-    // MCP permissions belong only to the resource server, not OIDC identity scopes.
-    // Listing them here makes consent demand a second, ungranted OP scope.
-    scopes: ['openid', 'offline_access'],
+    // Claude includes MCP permissions in dynamic client metadata. The provider
+    // validates that metadata against this list and also checks these scopes
+    // against the OP grant during consent.
+    scopes: ['openid', 'oren.read', 'oren.trade.prepare', 'offline_access'],
     clientAuthMethods: ['none'],
     rotateRefreshToken: true,
     issueRefreshToken: () => true,
