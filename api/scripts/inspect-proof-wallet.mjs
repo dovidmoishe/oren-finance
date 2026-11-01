@@ -18,27 +18,30 @@ try {
 } catch (error) {
   if (error?.status === 404) {
     console.log(JSON.stringify({ found: false }));
-    process.exit(0);
+    process.exitCode = 0;
+  } else {
+    throw new Error(`Privy user lookup failed with status ${error?.status ?? 'unknown'}`);
   }
-  throw new Error(`Privy user lookup failed with status ${error?.status ?? 'unknown'}`);
 }
-const wallets = user.linked_accounts.filter(
-  (item) =>
-    item.type === 'wallet' &&
-    item.chain_type === 'solana' &&
-    item.wallet_client_type === 'privy' &&
-    typeof item.id === 'string',
-);
-const results = [];
-for (const wallet of wallets) {
-  const current = await client.wallets().get(wallet.id);
-  results.push({
-    walletId: wallet.id,
-    address: wallet.address,
-    delegated: wallet.delegated === true,
-    signerCount: Array.isArray(current.additional_signers)
-      ? current.additional_signers.length
-      : null,
-  });
+if (user) {
+  const wallets = user.linked_accounts.filter(
+    (item) =>
+      item.type === 'wallet' &&
+      item.chain_type === 'solana' &&
+      item.wallet_client_type === 'privy' &&
+      typeof item.id === 'string',
+  );
+  const results = [];
+  for (const wallet of wallets) {
+    const current = await client.wallets().get(wallet.id);
+    results.push({
+      walletId: wallet.id,
+      address: wallet.address,
+      delegated: wallet.delegated === true,
+      signerCount: Array.isArray(current.additional_signers)
+        ? current.additional_signers.length
+        : null,
+    });
+  }
+  console.log(JSON.stringify({ userId: user.id, wallets: results }));
 }
-console.log(JSON.stringify({ userId: user.id, wallets: results }));
