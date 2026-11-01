@@ -71,6 +71,13 @@
       "breakpoints": true,
       "tag": "0009_mcp_trade_sides",
       "idx": 9
+    },
+    {
+      "version": "7",
+      "when": 1793559600000,
+      "breakpoints": true,
+      "tag": "0010_mcp_delegated_trades",
+      "idx": 10
     }
   ]
 }

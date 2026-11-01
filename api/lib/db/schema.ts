@@ -8,6 +8,7 @@ import {
   numeric,
   pgEnum,
   pgTable,
+  smallint,
   text,
   timestamp,
   uuid,
@@ -105,6 +106,28 @@ export const mcpTradeIntents = pgTable(
     amountShares: numeric('amount_shares', { precision: 30, scale: 12 }),
     maxInRaw: text('max_in_raw'),
     minOutRaw: text('min_out_raw'),
+    mode: text('mode')
+      .$type<'browser' | 'delegated'>()
+      .notNull()
+      .default('browser'),
+    status: text('status')
+      .$type<'prepared' | 'executing' | 'submitted' | 'confirmed' | 'failed'>()
+      .notNull()
+      .default('prepared'),
+    delegationId: uuid('delegation_id').references(
+      () => mcpTradeDelegations.id,
+    ),
+    idempotencyKey: text('idempotency_key'),
+    referenceValueUsd: numeric('reference_value_usd', {
+      precision: 18,
+      scale: 6,
+    }),
+    quotedProceedsUsd: numeric('quoted_proceeds_usd', {
+      precision: 18,
+      scale: 6,
+    }),
+    reviewedTerms: jsonb('reviewed_terms').$type<Record<string, unknown>>(),
+    executionError: text('execution_error'),
     slippageBps: integer('slippage_bps').notNull(),
     expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
     createdAt: timestamp('created_at', { withTimezone: true })
@@ -112,6 +135,104 @@ export const mcpTradeIntents = pgTable(
       .defaultNow(),
   },
   (table) => [index('mcp_trade_intents_owner_idx').on(table.userId, table.id)],
+);
+
+/** User opt-in and verified Privy signer policy for bounded chat trades. */
+export const mcpTradeDelegations = pgTable(
+  'mcp_trade_delegations',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    userId: text('user_id').notNull(),
+    walletId: text('wallet_id').notNull(),
+    wallet: text('wallet').notNull(),
+    status: text('status')
+      .$type<'pending_signer' | 'active' | 'revoked' | 'expired'>()
+      .notNull()
+      .default('pending_signer'),
+    signerId: text('signer_id').notNull(),
+    policyId: text('policy_id').notNull(),
+    policyHash: text('policy_hash').notNull(),
+    policyTier: smallint('policy_tier').notNull(),
+    perTradeLimitUsd: numeric('per_trade_limit_usd', {
+      precision: 18,
+      scale: 6,
+    }).notNull(),
+    dailyLimitUsd: numeric('daily_limit_usd', {
+      precision: 18,
+      scale: 6,
+    }).notNull(),
+    maxSlippageBps: integer('max_slippage_bps').notNull(),
+    allowSell: boolean('allow_sell').notNull().default(false),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    activatedAt: timestamp('activated_at', { withTimezone: true }),
+    revokedAt: timestamp('revoked_at', { withTimezone: true }),
+    revokeReason: text('revoke_reason'),
+  },
+  (table) => [
+    uniqueIndex('mcp_delegation_wallet_open_idx')
+      .on(table.walletId)
+      .where(sql`${table.status} IN ('pending_signer', 'active')`),
+    index('mcp_delegation_owner_idx').on(table.userId, table.walletId),
+  ],
+);
+
+/** A reserved amount remains charged until confirmation or definite failure. */
+export const mcpBudgetReservations = pgTable(
+  'mcp_budget_reservations',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    delegationId: uuid('delegation_id')
+      .notNull()
+      .references(() => mcpTradeDelegations.id),
+    intentId: uuid('intent_id')
+      .notNull()
+      .references(() => mcpTradeIntents.id),
+    amountUsd: numeric('amount_usd', { precision: 18, scale: 6 }).notNull(),
+    status: text('status')
+      .$type<'reserved' | 'consumed' | 'released'>()
+      .notNull()
+      .default('reserved'),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    settledAt: timestamp('settled_at', { withTimezone: true }),
+  },
+  (table) => [
+    uniqueIndex('mcp_budget_intent_idx').on(table.intentId),
+    index('mcp_budget_window_idx')
+      .on(table.delegationId, table.createdAt)
+      .where(sql`${table.status} IN ('reserved', 'consumed')`),
+  ],
+);
+
+/** Redacted lifecycle records; no token, raw error, or transaction bytes. */
+export const mcpAuditEvents = pgTable(
+  'mcp_audit_events',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    userId: text('user_id').notNull(),
+    walletId: text('wallet_id'),
+    grantId: text('grant_id'),
+    delegationId: uuid('delegation_id').references(
+      () => mcpTradeDelegations.id,
+    ),
+    intentId: uuid('intent_id').references(() => mcpTradeIntents.id),
+    eventType: text('event_type').notNull(),
+    details: jsonb('details')
+      .$type<Record<string, unknown>>()
+      .notNull()
+      .default({}),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index('mcp_audit_user_idx').on(table.userId, table.createdAt),
+    index('mcp_audit_grant_idx').on(table.grantId, table.createdAt),
+  ],
 );
 
 /**
