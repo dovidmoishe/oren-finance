@@ -186,9 +186,16 @@ jobs:
         env:
           PUBLIC_APP_ORIGIN: ${{ vars.PUBLIC_APP_ORIGIN || 'https://oren.finance' }}
           PUBLIC_API_ORIGIN: ${{ vars.PUBLIC_API_ORIGIN || 'https://api.oren.finance' }}
+          IMAGE_TAG: ${{ env.IMAGE_TAG }}
         run: |
-          curl --fail --silent --show-error --retry 5 --retry-delay 5 "$PUBLIC_APP_ORIGIN/" > /dev/null
+          page=$(curl --fail --silent --show-error --retry 5 --retry-delay 5 "$PUBLIC_APP_ORIGIN/")
+          if grep -q 'Preview PR #' <<< "$page"; then
+            echo 'Production site is serving a preview image' >&2
+            exit 1
+          fi
           curl --fail --silent --show-error --retry 5 --retry-delay 5 "$PUBLIC_API_ORIGIN/api/health/ready" | jq -e '.status == "ok"' > /dev/null
+          curl --fail --silent --show-error --retry 5 --retry-delay 5 "$PUBLIC_API_ORIGIN/api/environment" |
+            jq -e --arg sha "$IMAGE_TAG" '.environment == "production" and .commitSha == $sha and .financialExecution == true' > /dev/null
 
       - name: Record running production image digests
         id: manifest
