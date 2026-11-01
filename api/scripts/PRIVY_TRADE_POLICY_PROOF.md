@@ -18,10 +18,14 @@ The sign-only probes produced these results:
 | Reviewed route plus SOL transfer | `policy_violation` |
 | **Two reviewed 1 USDC routes in one transaction** | **Signed** |
 
-The policy evaluates each Jupiter instruction separately. It does not cap the
-sum of input across a transaction, so it cannot satisfy Oren's per-trade input
-bound. A server check of instruction count is necessary but does not repair the
-Privy signer policy if the trade signer key is misused. Do not fund this wallet
+The policy evaluates each Jupiter instruction separately. [Privy's policy
+overview](https://docs.privy.io/controls/policies/overview) says every Solana
+instruction is evaluated against the rules. It does not cap the sum of input
+across a transaction, so it cannot satisfy Oren's per-trade input bound.
+[Stateful policy aggregations](https://docs.privy.io/controls/policies/stateful-policies)
+currently list Ethereum signing methods only and are not a proven Solana fix.
+A server check of instruction count is necessary but does not repair the Privy
+signer policy if the trade signer key is misused. Do not fund this wallet
 for a delegated trial or enable headless execution with this policy. Keep
 Jupiter and Titan on browser approval until a Privy-enforced aggregate input or
 single-route constraint is proven, including Token-2022 and lookup-table cases.
