@@ -7,7 +7,10 @@ const express = require(require.resolve('express', {
   paths: [require.resolve('@nestjs/platform-express')],
 }))
 const request = require('supertest')
-const { createMcpOAuthRuntime } = require('../dist/src/mcp-auth/oauth-runtime.js')
+const {
+  createMcpOAuthRuntime,
+  mountPathBasedDiscoveryAtIssuer,
+} = require('../dist/src/mcp-auth/oauth-runtime.js')
 
 const { privateKey } = generateKeyPairSync('rsa', { modulusLength: 2048 })
 const signingKey = {
@@ -37,7 +40,20 @@ const runtime = await createMcpOAuthRuntime(db, {
 })
 assert.ok(runtime)
 const app = express()
+app.use('/.well-known/oauth-authorization-server/oauth', (req, res) => {
+  mountPathBasedDiscoveryAtIssuer(req)
+  return runtime.provider.callback()(req, res)
+})
 app.use('/oauth', runtime.provider.callback())
+const pathMetadata = await request(app)
+  .get('/.well-known/oauth-authorization-server/oauth')
+  .set('Host', 'api.oren.finance')
+  .set('X-Forwarded-Host', 'api.oren.finance')
+  .set('X-Forwarded-Proto', 'https')
+assert.equal(pathMetadata.status, 200, JSON.stringify(pathMetadata.body))
+assert.equal(pathMetadata.body.authorization_endpoint, 'https://api.oren.finance/oauth/auth')
+assert.equal(pathMetadata.body.token_endpoint, 'https://api.oren.finance/oauth/token')
+assert.equal(pathMetadata.body.registration_endpoint, 'https://api.oren.finance/oauth/reg')
 const metadata = await request(app)
   .get('/oauth/.well-known/openid-configuration')
   .set('Host', 'api.oren.finance')
