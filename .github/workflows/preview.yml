@@ -61,7 +61,85 @@ jobs:
               core.setOutput('pr', String(pr.number)); core.setOutput('sha', pr.head.sha);
               core.setOutput('owner', context.repo.owner.toLowerCase()); return;
             }
-  build:
+  build-api:
+    name: Build and publish preview API image
+    needs: resolve
+    if: needs.resolve.outputs.pr != ''
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+      deployments: read
+    outputs:
+      digest: ${{ steps.digest.outputs.digest }}
+    steps:
+      # Reuse decisions run trusted default-branch code, never a PR checkout.
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          path: trusted
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.resolve.outputs.sha }}
+          path: source
+          persist-credentials: false
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Find verified API image for unchanged source
+        if: vars.API_IMAGE_REUSE_ENABLED == 'true'
+        id: reuse
+        continue-on-error: true
+        uses: actions/github-script@v7
+        env:
+          TARGET_SHA: ${{ needs.resolve.outputs.sha }}
+          PR_NUMBER: ${{ needs.resolve.outputs.pr }}
+        with:
+          script: |
+            const {findReusableApiImage} = await import(process.env.GITHUB_WORKSPACE + '/trusted/infra/preview/api-image-reuse.mjs');
+            const digest = await findReusableApiImage({github, repo: context.repo, sha: process.env.TARGET_SHA, environment: 'preview', pr: Number(process.env.PR_NUMBER)});
+            if (digest) core.setOutput('digest', digest);
+      - name: Reuse verified API image
+        if: steps.reuse.outputs.digest != ''
+        id: retag
+        continue-on-error: true
+        env:
+          SOURCE_DIGEST: ${{ steps.reuse.outputs.digest }}
+          IMAGE_TAG: pr-${{ needs.resolve.outputs.pr }}-${{ needs.resolve.outputs.sha }}
+          OWNER: ${{ needs.resolve.outputs.owner }}
+        run: |
+          [[ "$SOURCE_DIGEST" =~ ^sha256:[a-f0-9]{64}$ && "$IMAGE_TAG" =~ ^pr-[1-9][0-9]*-[a-f0-9]{40}$ ]]
+          image="ghcr.io/$OWNER/oren-api"
+          docker buildx imagetools create --tag "$image:$IMAGE_TAG" "$image@$SOURCE_DIGEST"
+          docker buildx imagetools inspect "$image:$IMAGE_TAG" > /dev/null
+      - id: build
+        if: steps.retag.outcome != 'success'
+        uses: docker/build-push-action@v6
+        with:
+          context: ./source/api
+          push: true
+          tags: ghcr.io/${{ needs.resolve.outputs.owner }}/oren-api:pr-${{ needs.resolve.outputs.pr }}-${{ needs.resolve.outputs.sha }}
+      - name: Record preview API digest
+        id: digest
+        env:
+          BUILT_DIGEST: ${{ steps.build.outputs.digest }}
+          IMAGE_TAG: pr-${{ needs.resolve.outputs.pr }}-${{ needs.resolve.outputs.sha }}
+          OWNER: ${{ needs.resolve.outputs.owner }}
+        run: |
+          image="ghcr.io/$OWNER/oren-api:$IMAGE_TAG"
+          if [[ -n "$BUILT_DIGEST" ]]; then
+            digest="$BUILT_DIGEST"
+          else
+            digest=$(docker buildx imagetools inspect "$image" | sed -n 's/^Digest: *//p' | head -n 1)
+          fi
+          [[ "$digest" =~ ^sha256:[a-f0-9]{64}$ ]]
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+  build-app:
+    name: Build and publish preview web image
     needs: resolve
     if: needs.resolve.outputs.pr != ''
     runs-on: ubuntu-24.04
@@ -81,11 +159,6 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
       - uses: docker/build-push-action@v6
         with:
-          context: ./api
-          push: true
-          tags: ghcr.io/${{ needs.resolve.outputs.owner }}/oren-api:pr-${{ needs.resolve.outputs.pr }}-${{ needs.resolve.outputs.sha }}
-      - uses: docker/build-push-action@v6
-        with:
           context: ./app
           push: true
           build-args: |
@@ -96,7 +169,7 @@ jobs:
             NEXT_PUBLIC_COMMIT_SHA=${{ needs.resolve.outputs.sha }}
           tags: ghcr.io/${{ needs.resolve.outputs.owner }}/oren-app:pr-${{ needs.resolve.outputs.pr }}-${{ needs.resolve.outputs.sha }}
   deploy:
-    needs: [resolve, build]
+    needs: [resolve, build-api, build-app]
     if: always() && needs.resolve.outputs.pr != ''
     runs-on: ubuntu-24.04
     environment: preview
@@ -129,8 +202,9 @@ jobs:
             await github.rest.repos.createDeploymentStatus({...context.repo, deployment_id: data.id, state: 'in_progress'});
       - name: Require successful image build
         env:
-          BUILD_RESULT: ${{ needs.build.result }}
-        run: test "$BUILD_RESULT" = success
+          API_BUILD_RESULT: ${{ needs['build-api'].result }}
+          APP_BUILD_RESULT: ${{ needs['build-app'].result }}
+        run: test "$API_BUILD_RESULT" = success && test "$APP_BUILD_RESULT" = success
       - uses: webfactory/ssh-agent@v0.9.1
         with:
           ssh-private-key: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
@@ -155,6 +229,7 @@ jobs:
           JOB_STATUS: ${{ job.status }}
           DEPLOYMENT_ID: ${{ steps.deployment.outputs.id }}
           PREVIEW_DOMAIN: ${{ vars.PREVIEW_DOMAIN || 'preview.oren.finance' }}
+          API_DIGEST: ${{ needs['build-api'].outputs.digest }}
         with:
           script: |
             const args = {...context.repo};
@@ -162,5 +237,5 @@ jobs:
             const current = pr.state === 'open' && pr.head.sha === process.env.SHA;
             const ok = current && process.env.JOB_STATUS === 'success';
             const url = `https://pr-${process.env.PR}.${process.env.PREVIEW_DOMAIN}`;
-            if (process.env.DEPLOYMENT_ID) await github.rest.repos.createDeploymentStatus({...args, deployment_id: Number(process.env.DEPLOYMENT_ID), state: !current ? 'inactive' : ok ? 'success' : 'failure', environment_url: url, log_url: `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`});
+            if (process.env.DEPLOYMENT_ID) await github.rest.repos.createDeploymentStatus({...args, deployment_id: Number(process.env.DEPLOYMENT_ID), state: !current ? 'inactive' : ok ? 'success' : 'failure', description: ok && /^sha256:[a-f0-9]{64}$/.test(process.env.API_DIGEST) ? `api ${process.env.API_DIGEST}` : undefined, environment_url: url, log_url: `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`});
             if (current) await github.rest.repos.createCommitStatus({...args, sha: process.env.SHA, context: 'Preview ready', state: ok ? 'success' : 'failure', description: ok ? 'Preview healthy; financial execution disabled' : 'Preview failed; inspect deployment logs', target_url: ok ? url : `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`});

@@ -61,6 +61,14 @@ Successful production deployment plus public HTTPS homepage/readiness checks cre
 
 Manual production deployments accept a full Git SHA and load its matching deployment configuration. They reuse existing images and are labelled “Manual deployment / rollback” in the new record. Database migrations are not automatically reversed. Rollback to a commit predating preview routing can remove preview connectivity; restore the current reviewed Caddy/Compose routing configuration afterward. No permanent staging branch or semantic-version automation is introduced.
 
+## Image build speed rollout
+
+Production and preview API/web images build in parallel. The production web build runs without the previous large GitHub Actions cache; previews remain uncached. Keep the exact SHA tags and the existing CI, deployment and health gates.
+
+Baseline image-job times from 2026-11-01: production runs 41284434443, 41281655445 and 41280080809 took about 4m31s, 4m25s and 5m06s; preview run 41228180240 took about 3m21s. Compare at least two new production image jobs and two warm preview image jobs using their Actions start/end timestamps. A preview cache experiment should use a separate scope per PR and service; keep it only if its warm total job time beats the uncached preview baseline. Likewise, restore a production web cache only if total image-job time improves. Do not judge a cache by the `next build` line alone: include layer import, export and builder cleanup.
+
+API image reuse is implemented but off by default. After the timing comparison, set repository Actions variable `API_IMAGE_REUSE_ENABLED=true` to enable it. A recent successful production release or same-PR preview deployment must record an API digest, be no older than seven days, and have the same `api/` Git tree as the target commit. The workflow copies that image by digest to the new exact-SHA tag; missing records, API changes or registry failures trigger a normal build. Preview success records the API digest for later runs. The web image always rebuilds because its public preview banner embeds PR/commit metadata. The API reads the new commit SHA from deployment environment variables, including when its image is reused.
+
 ## Verification commands
 
 ```sh
