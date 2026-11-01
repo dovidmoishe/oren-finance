@@ -24,6 +24,7 @@ case "$*" in
   login*) cat >/dev/null ;;
   *' run --rm migrate'*) [[ "\${FAIL_MIGRATION:-0}" != 1 ]] ;;
   *' pull'*) [[ "\${FAIL_PULL:-0}" != 1 ]] ;;
+  *'--entrypoint node'*) echo '{"keys":[{"kty":"RSA"}]}' ;;
   *'node --input-type=module'*) echo signed-cookie ;;
 esac
 `);
@@ -33,6 +34,8 @@ esac
  printf '{"state":"open","base":{"ref":"master"},"head":{"sha":"%s","repo":{"full_name":"owner/repo"}},"user":{"type":"User"}}' "$head"
 elif [[ "$*" == *--write-out* ]]; then echo 302
 elif [[ "$*" == *api/environment* ]]; then echo '{"environment":"preview","commitSha":"${sha}","prNumber":42,"financialExecution":false,"backgroundWorkers":false}'
+elif [[ "$*" == *oauth-protected-resource/mcp* ]]; then echo '{"resource":"https://pr-42.preview.example.com/mcp"}'
+elif [[ "$*" == *openid-configuration* ]]; then echo '{"issuer":"https://pr-42.preview.example.com/oauth","registration_endpoint":"https://pr-42.preview.example.com/oauth/reg"}'
 fi
 `);
   executable('awk',`if [[ "$*" == *MemAvailable* ]]; then echo "\${AVAILABLE_KIB:-8388608}"; else cat >/dev/null; echo 33554432; fi\n`);
@@ -50,7 +53,18 @@ test('controller allocates exact preview project and records verified commit', {
   const f=fixture(t), result=f.run();assert.equal(result.status,0,result.stderr);
   assert.equal(JSON.parse(readFileSync(join(f.stack,'state.json'),'utf8')).sha,sha);
   assert.match(readFileSync(f.site,'utf8'),/forward_auth preview-access:8080/);
+  assert.match(readFileSync(f.site,'utf8'),/\.well-known\/oauth-protected-resource\/mcp/);
+  assert.match(readFileSync(join(f.stack,'oauth.env'),'utf8'),/MCP_OAUTH_JWKS=/);
   assert.match(f.log(),/--project-name oren-pr-42/);assert.ok(!f.log().includes('prune'));
+});
+test('preview OAuth issuer keys persist across updates and disappear on stop', {skip:!linux}, t=>{
+  const f=fixture(t);
+  assert.equal(f.run().status,0);
+  const first=readFileSync(join(f.stack,'oauth.env'),'utf8');
+  assert.equal(f.run().status,0);
+  assert.equal(readFileSync(join(f.stack,'oauth.env'),'utf8'),first);
+  assert.equal(f.run('stop').status,0);
+  assert.equal(existsSync(join(f.stack,'oauth.env')),false);
 });
 test('controller accepts quoted shared Privy app IDs', {skip:!linux}, t=>{
   const f=fixture(t);

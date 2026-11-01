@@ -1,6 +1,6 @@
 # Oren PR previews
 
-Trusted collaborator PRs targeting `master` receive `https://pr-N.preview.oren.finance` after CI succeeds. Each has a separate app, API, database, volume and network. Research uses live providers and the shared Privy app; financial execution and background processing are disabled. Production still deploys after successful push CI on `master`.
+Trusted collaborator PRs targeting `master` receive `https://pr-N.preview.oren.finance` after CI succeeds. Each has a separate app, API, database, volume, network and MCP OAuth issuer keys. Research uses live providers and the shared Privy app; financial execution and background processing are disabled. Production still deploys after successful push CI on `master`.
 
 ## First installation
 
@@ -23,11 +23,14 @@ Open a PR from a repository collaborator's branch. CI builds/tests the final cod
 
 Enter the preview password, then sign in to Oren normally. The gateway cookie is secure, host-only, signed and valid for eight hours. It leaves `Authorization: Bearer ...` intact. The banner identifies the PR/commit; financial actions are disabled. `Lock preview` clears access on this browser. Separate PR origins require separate password entry.
 
+MCP discovery, OAuth consent and browser prepare flows use the same preview origin behind the password gateway. The trusted controller creates `stacks/pr-N/oauth.env` (mode 600) with unique OAuth keys on first deployment and keeps it across updates; stop/reset removes it with that preview. The preview issuer is `https://pr-N.preview.oren.finance/oauth`. External agent servers cannot use the password-protected MCP resource without a gateway session, so test its OAuth/prepare flow with a controlled client carrying that session. Browser review may display a quote, but signing and broadcast are blocked by the preview execution gate. Do not put production MCP OAuth keys in `provider.env`.
+
 Before enabling merge protection, verify **two distinct PRs** concurrently:
 
 - Both URLs show the correct commit/banner; create a conversation in one and confirm it is absent from the other. Production remains unchanged.
 - Password rejection, expiry/logout, Oren email login, wallet linking, portfolio reads, market research and streaming agent responses work. Test desktop and phone widths.
 - Direct prepare/approve/sign/broadcast/confirm/cancel requests return `403` with `code: PREVIEW_EXECUTION_DISABLED`; no real transaction is signed or submitted. Relevant UI controls are disabled.
+- The MCP and OAuth discovery paths require the preview gateway cookie. With a cookie they advertise the PR-specific issuer and resource. Reusing an OAuth token from another PR fails its audience and grant checks.
 - Push a new commit while an earlier build is running. Only the latest successful commit becomes ready. Preserve preview account/conversation data across a compatible migration.
 - A failed migration makes the preview unavailable, never silently resets its database, and never changes production. A failed new build does not claim readiness for the new SHA.
 - Close a PR; its route, containers and database disappear. Verify reconciliation handles a missed close event and seven-day expiry. Recreate an expired preview via manual redeploy.
