@@ -41,7 +41,7 @@ if [[ "$ACTION" != deploy ]]; then
   # Exact project and labelled volume only; never use a host-wide prune.
   docker network disconnect "${PROJECT}_edge" oren-caddy-1 2>/dev/null || true
   dc down --volumes --remove-orphans
-  rm -f -- "$STACK/release.env" "$STACK/state.json" "$STACK/route.candidate"
+  rm -f -- "$STACK/release.env" "$STACK/oauth.env" "$STACK/state.json" "$STACK/route.candidate"
   rmdir -- "$STACK" 2>/dev/null || true
   echo "PREVIEW_REMOVED $PR $OLD_SHA"
   exit 0
@@ -94,7 +94,25 @@ else
 fi
 [[ "$PASSWORD" =~ ^[a-f0-9]{48}$ ]] || exit 1
 printf 'PR_NUMBER=%s\nCOMMIT_SHA=%s\nGHCR_OWNER=%s\nIMAGE_TAG=pr-%s-%s\nPREVIEW_HOST=%s\nDB_PASSWORD=%s\n' "$PR" "$SHA" "$OWNER" "$PR" "$SHA" "$HOST" "$PASSWORD" > "$STACK/release.env"
+[[ -f "$STACK/oauth.env" ]] || install -m 600 /dev/null "$STACK/oauth.env"
 dc pull
+if [[ ! -s "$STACK/oauth.env" ]]; then
+  # Keep each preview issuer's signing key stable across redeploys.
+  JWKS=$(docker run --rm --network none --entrypoint node "ghcr.io/$OWNER/oren-api:pr-$PR-$SHA" -e '
+    const { generateKeyPairSync, randomUUID } = require("node:crypto");
+    const { privateKey } = generateKeyPairSync("rsa", { modulusLength: 3072 });
+    const key = privateKey.export({ format: "jwk" });
+    key.kid = randomUUID(); key.use = "sig"; key.alg = "RS256";
+    process.stdout.write(JSON.stringify({ keys: [key] }));
+  ')
+  [[ "$JWKS" == '{"keys":'* ]] || { echo 'Preview OAuth key generation failed' >&2; exit 1; }
+  OAUTH_TMP=$(mktemp "$STACK/oauth.env.XXXXXX")
+  printf 'MCP_OAUTH_STORAGE_KEY=%s\nMCP_OAUTH_COOKIE_KEYS=%s,%s\nMCP_OAUTH_JWKS=%s\n' \
+    "$(openssl rand -base64 48 | tr -d '\n')" "$(openssl rand -hex 32)" "$(openssl rand -hex 32)" "$JWKS" > "$OAUTH_TMP"
+  chmod 600 "$OAUTH_TMP"
+  mv -- "$OAUTH_TMP" "$STACK/oauth.env"
+  unset JWKS OAUTH_TMP
+fi
 current || exit 1
 # Migrations may change schema: remove public routing before changing a live DB.
 remove_route
@@ -122,7 +140,7 @@ $HOST {
       header_up X-Preview-Host {host}
       header_up X-Preview-Client {remote_host}
     }
-    @api path /api /api/*
+    @api path /api /api/* /oauth /oauth/* /mcp /mcp/* /.well-known/oauth-protected-resource/mcp /.well-known/oauth-authorization-server/oauth
     reverse_proxy @api pr-$PR-api:3000 {
       flush_interval -1
     }
@@ -135,11 +153,17 @@ if ! reload; then rm -f -- "$SITE"; reload; exit 1; fi
 # Public gate must be active, then use a cookie for the public metadata smoke.
 STATUS=$(curl --silent --show-error --retry 8 --retry-delay 5 --retry-all-errors --output /dev/null --write-out '%{http_code}' "https://$HOST/api/environment")
 [[ "$STATUS" == 302 ]] || { remove_route; echo 'Access gate smoke failed' >&2; exit 1; }
+STATUS=$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' "https://$HOST/.well-known/oauth-protected-resource/mcp")
+[[ "$STATUS" == 302 ]] || { remove_route; echo 'MCP access gate smoke failed' >&2; exit 1; }
 COOKIE=$(docker exec -e PREVIEW_HOST="$HOST" oren-preview-access-preview-access-1 node --input-type=module -e 'import {signSession} from "/service/access.mjs"; console.log(signSession(process.env.PREVIEW_HOST,process.env.PREVIEW_SESSION_KEY))')
 METADATA=$(curl --fail --silent --show-error --cookie "__Host-oren-preview=$COOKIE" "https://$HOST/api/environment")
 if ! jq -e --arg sha "$SHA" --argjson pr "$PR" '.environment == "preview" and .commitSha == $sha and .prNumber == $pr and .financialExecution == false and .backgroundWorkers == false' <<< "$METADATA" >/dev/null; then remove_route; echo 'Metadata smoke failed' >&2; exit 1; fi
+MCP_RESOURCE=$(curl --fail --silent --show-error --cookie "__Host-oren-preview=$COOKIE" "https://$HOST/.well-known/oauth-protected-resource/mcp")
+if ! jq -e --arg host "$HOST" '.resource == ("https://" + $host + "/mcp")' <<< "$MCP_RESOURCE" >/dev/null; then remove_route; echo 'MCP resource smoke failed' >&2; exit 1; fi
+MCP_DISCOVERY=$(curl --fail --silent --show-error --cookie "__Host-oren-preview=$COOKIE" "https://$HOST/oauth/.well-known/openid-configuration")
+if ! jq -e --arg host "$HOST" '.issuer == ("https://" + $host + "/oauth") and .registration_endpoint == ("https://" + $host + "/oauth/reg")' <<< "$MCP_DISCOVERY" >/dev/null; then remove_route; echo 'MCP discovery smoke failed' >&2; exit 1; fi
 curl --fail --silent --show-error --cookie "__Host-oren-preview=$COOKIE" "https://$HOST/" >/dev/null || { remove_route; exit 1; }
-unset COOKIE
+unset COOKIE MCP_RESOURCE MCP_DISCOVERY
 current || { remove_route; exit 1; }
 jq -n --argjson pr "$PR" --arg sha "$SHA" --arg host "$HOST" --argjson deployed "$(date +%s)" '{pr:$pr,sha:$sha,host:$host,deployed:$deployed}' > "$STACK/state.json"
 ACTIVATING=0

@@ -38,8 +38,6 @@ async function bootstrap() {
   app.useGlobalFilters(new HttpExceptionFilter());
   const oauth = await createMcpOAuthRuntime(app.get(DatabaseService).db);
   if (oauth) {
-    if (env.DEPLOYMENT_ENV === 'preview')
-      throw new Error('MCP OAuth is disabled in preview deployments');
     const expressApp = app.getHttpAdapter().getInstance() as Express;
     const db = app.get(DatabaseService).db;
     const identity = app.get(PrivyWalletAuth, { strict: false });
