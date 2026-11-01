@@ -1,4 +1,4 @@
-import { and, eq, gt, inArray, isNull, sql } from 'drizzle-orm';
+import { and, eq, gt, isNull, or, sql } from 'drizzle-orm';
 import type { Database } from '../database/database.provider';
 import {
   mcpBudgetReservations,
@@ -194,8 +194,16 @@ export async function reserveTradeBudget(
       .where(
         and(
           eq(mcpBudgetReservations.delegationId, delegation.id),
-          inArray(mcpBudgetReservations.status, ['reserved', 'consumed']),
-          gt(mcpBudgetReservations.createdAt, new Date(Date.now() - DAY_MS)),
+          or(
+            eq(mcpBudgetReservations.status, 'reserved'),
+            and(
+              eq(mcpBudgetReservations.status, 'consumed'),
+              gt(
+                mcpBudgetReservations.createdAt,
+                new Date(Date.now() - DAY_MS),
+              ),
+            ),
+          ),
         ),
       );
     if (usdMicros(usage.total) + amount > usdMicros(delegation.dailyLimitUsd))

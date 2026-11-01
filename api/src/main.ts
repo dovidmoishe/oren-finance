@@ -1,7 +1,7 @@
 import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import type { Express, Request, Response, NextFunction } from 'express';
-import { and, eq, gt, inArray, isNull, sql } from 'drizzle-orm';
+import { and, eq, gt, isNull, or, sql } from 'drizzle-orm';
 import { AppModule } from './app.module';
 import { PrivyWalletAuth } from './auth/privy-wallet-auth';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
@@ -137,10 +137,15 @@ async function bootstrap() {
           .where(
             and(
               eq(mcpBudgetReservations.delegationId, delegation.id),
-              inArray(mcpBudgetReservations.status, ['reserved', 'consumed']),
-              gt(
-                mcpBudgetReservations.createdAt,
-                new Date(Date.now() - 24 * 60 * 60_000),
+              or(
+                eq(mcpBudgetReservations.status, 'reserved'),
+                and(
+                  eq(mcpBudgetReservations.status, 'consumed'),
+                  gt(
+                    mcpBudgetReservations.createdAt,
+                    new Date(Date.now() - 24 * 60 * 60_000),
+                  ),
+                ),
               ),
             ),
           );
@@ -208,6 +213,8 @@ async function bootstrap() {
               eq(mcpTradeIntents.userId, owner.userId),
               eq(mcpTradeIntents.wallet, owner.wallet),
               gt(mcpTradeIntents.expiresAt, new Date()),
+              eq(mcpTradeIntents.mode, 'browser'),
+              eq(mcpTradeIntents.status, 'prepared'),
             ),
           )
           .limit(1);
@@ -267,6 +274,8 @@ async function bootstrap() {
                 eq(mcpTradeIntents.userId, owner.userId),
                 eq(mcpTradeIntents.wallet, owner.wallet),
                 gt(mcpTradeIntents.expiresAt, new Date()),
+                eq(mcpTradeIntents.mode, 'browser'),
+                eq(mcpTradeIntents.status, 'prepared'),
               ),
             )
             .limit(1);
@@ -315,11 +324,13 @@ async function bootstrap() {
             return res.sendStatus(403);
           const [updated] = await db
             .update(mcpTradeIntents)
-            .set({ approvalId })
+            .set({ approvalId, status: 'executing' })
             .where(
               and(
                 eq(mcpTradeIntents.id, intent.id),
                 isNull(mcpTradeIntents.approvalId),
+                eq(mcpTradeIntents.mode, 'browser'),
+                eq(mcpTradeIntents.status, 'prepared'),
               ),
             )
             .returning({ id: mcpTradeIntents.id });

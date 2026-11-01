@@ -6,6 +6,7 @@ import postgres from 'postgres';
 import { eq } from 'drizzle-orm';
 import type { Database } from '../database/database.provider';
 import {
+  mcpBudgetReservations,
   mcpConnections,
   mcpTradeDelegations,
   mcpTradeIntents,
@@ -204,5 +205,46 @@ describeDatabase('MCP budget reservations in Postgres', () => {
         })
       ).status,
     ).toBe('inactive');
+  }, 90_000);
+
+  it('keeps unresolved reservations charged after the rolling window', async () => {
+    const owner = await fixture('25.000000');
+    const firstId = await owner.intent();
+    expect(
+      (
+        await reserveTradeBudget(db, {
+          ...owner,
+          intentId: firstId,
+          rawInput: '10000000',
+          idempotencyKey: randomUUID(),
+        })
+      ).status,
+    ).toBe('reserved');
+    await db
+      .update(mcpBudgetReservations)
+      .set({ createdAt: new Date(Date.now() - 25 * 60 * 60_000) })
+      .where(eq(mcpBudgetReservations.intentId, firstId));
+    const secondId = await owner.intent();
+    expect(
+      (
+        await reserveTradeBudget(db, {
+          ...owner,
+          intentId: secondId,
+          rawInput: '10000000',
+          idempotencyKey: randomUUID(),
+        })
+      ).status,
+    ).toBe('reserved');
+    const thirdId = await owner.intent();
+    expect(
+      (
+        await reserveTradeBudget(db, {
+          ...owner,
+          intentId: thirdId,
+          rawInput: '10000000',
+          idempotencyKey: randomUUID(),
+        })
+      ).status,
+    ).toBe('over_budget');
   }, 90_000);
 });

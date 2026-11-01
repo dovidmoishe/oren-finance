@@ -318,48 +318,65 @@ export async function handleMcpRequest(
         return { content: [{ type: 'text', text: JSON.stringify(result) }] };
       },
     );
+    const openTradeReview = async ({ intentId }: { intentId: string }) => {
+      const [intent] = await deps.db
+        .select({ id: mcpTradeIntents.id })
+        .from(mcpTradeIntents)
+        .where(
+          and(
+            eq(mcpTradeIntents.id, intentId),
+            eq(mcpTradeIntents.grantId, connection.grantId),
+            eq(mcpTradeIntents.clientId, connection.clientId),
+            eq(mcpTradeIntents.userId, connection.userId),
+            eq(mcpTradeIntents.wallet, connection.wallet),
+            gt(mcpTradeIntents.expiresAt, new Date()),
+            eq(mcpTradeIntents.mode, 'browser'),
+            eq(mcpTradeIntents.status, 'prepared'),
+          ),
+        )
+        .limit(1);
+      if (!intent)
+        return {
+          content: [
+            { type: 'text' as const, text: 'Intent expired or unavailable.' },
+          ],
+          isError: true,
+        };
+      const result = {
+        intentId,
+        status: 'browser_approval_required',
+        approvalUrl: `${deps.oauth.appOrigin}/app/trades/review/${intentId}`,
+      };
+      return {
+        content: [{ type: 'text' as const, text: JSON.stringify(result) }],
+      };
+    };
+    server.registerTool(
+      'review_trade',
+      {
+        title: 'Open trade review',
+        description:
+          'Get the Oren browser review link for a prepared buy or sell intent. The user signs there.',
+        inputSchema: z.object({ intentId: z.uuid() }),
+      },
+      openTradeReview,
+    );
     server.registerTool(
       'execute_buy',
       {
-        title: 'Open buy review',
+        title: 'Open trade review',
         description:
-          'Get the Oren browser review link for a prepared buy intent. The user signs there.',
+          'Get the Oren browser review link for a prepared buy or sell intent. The user signs there.',
         inputSchema: z.object({ intentId: z.uuid() }),
       },
-      async ({ intentId }) => {
-        const [intent] = await deps.db
-          .select({ id: mcpTradeIntents.id })
-          .from(mcpTradeIntents)
-          .where(
-            and(
-              eq(mcpTradeIntents.id, intentId),
-              eq(mcpTradeIntents.grantId, connection.grantId),
-              eq(mcpTradeIntents.clientId, connection.clientId),
-              eq(mcpTradeIntents.userId, connection.userId),
-              eq(mcpTradeIntents.wallet, connection.wallet),
-              gt(mcpTradeIntents.expiresAt, new Date()),
-            ),
-          )
-          .limit(1);
-        if (!intent)
-          return {
-            content: [{ type: 'text', text: 'Intent expired or unavailable.' }],
-            isError: true,
-          };
-        const result = {
-          intentId,
-          status: 'browser_approval_required',
-          approvalUrl: `${deps.oauth.appOrigin}/app/trades/review/${intentId}`,
-        };
-        return { content: [{ type: 'text', text: JSON.stringify(result) }] };
-      },
+      openTradeReview,
     );
     server.registerTool(
       'trade_status',
       {
-        title: 'Get buy request status',
+        title: 'Get trade request status',
         description:
-          'Read the status of an Oren buy intent and its browser approval, if one exists.',
+          'Read the status of an Oren buy or sell intent and its browser approval, if one exists.',
         inputSchema: z.object({ intentId: z.uuid() }),
         annotations: { readOnlyHint: true },
       },
@@ -368,6 +385,8 @@ export async function handleMcpRequest(
           .select({
             id: mcpTradeIntents.id,
             approvalId: mcpTradeIntents.approvalId,
+            mode: mcpTradeIntents.mode,
+            status: mcpTradeIntents.status,
             expiresAt: mcpTradeIntents.expiresAt,
           })
           .from(mcpTradeIntents)
@@ -387,9 +406,11 @@ export async function handleMcpRequest(
             isError: true,
           };
         let status =
-          intent.expiresAt <= new Date()
+          intent.status === 'prepared' && intent.expiresAt <= new Date()
             ? 'expired'
-            : 'browser_approval_required';
+            : intent.mode === 'delegated' || intent.status !== 'prepared'
+              ? intent.status
+              : 'browser_approval_required';
         let signature: string | undefined;
         if (intent.approvalId) {
           const [approval] = await deps.db
