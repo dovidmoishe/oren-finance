@@ -5,8 +5,11 @@ import { fileURLToPath } from 'node:url';
 config({ path: fileURLToPath(new URL('../.env', import.meta.url)), quiet: true });
 
 const address = process.env.PROOF_WALLET_EMAIL;
+const expectedWallet = process.env.PROOF_WALLET_ADDRESS;
 if (!address || !process.env.PRIVY_APP_ID || !process.env.PRIVY_APP_SECRET)
   throw new Error('Set PROOF_WALLET_EMAIL and Privy app credentials');
+if (expectedWallet && !/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(expectedWallet))
+  throw new Error('PROOF_WALLET_ADDRESS must be a Solana public address');
 
 const client = new PrivyClient({
   appId: process.env.PRIVY_APP_ID,
@@ -41,7 +44,17 @@ if (user) {
       signerCount: Array.isArray(current.additional_signers)
         ? current.additional_signers.length
         : null,
+      exactWalletMatch: current.address === wallet.address,
+      solanaWallet: current.chain_type === 'solana',
     });
   }
-  console.log(JSON.stringify({ userId: user.id, wallets: results }));
+  const proofReady =
+    results.length === 1 &&
+    Boolean(expectedWallet) &&
+    results[0].address === expectedWallet &&
+    results[0].exactWalletMatch &&
+    results[0].solanaWallet &&
+    !results[0].delegated &&
+    results[0].signerCount === 0;
+  console.log(JSON.stringify({ userId: user.id, wallets: results, proofReady }));
 }
