@@ -45,6 +45,22 @@ jobs:
   api:
     name: API test and build
     runs-on: ubuntu-24.04
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: oren_test
+          POSTGRES_PASSWORD: oren_test
+          POSTGRES_DB: oren_mcp_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U oren_test -d oren_mcp_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      MCP_TEST_POSTGRES_URL: postgres://oren_test:oren_test@127.0.0.1:5432/oren_mcp_test
     defaults:
       run:
         working-directory: api
