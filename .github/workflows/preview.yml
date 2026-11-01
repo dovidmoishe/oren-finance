@@ -42,7 +42,7 @@ jobs:
             for (const candidate of candidates) {
               const {data: pr} = await github.rest.pulls.get({...args, pull_number: candidate.number});
               if (pr.state !== 'open' || pr.base.ref !== 'master' || (run && pr.head.sha !== run.head_sha)) continue;
-              const status = (state, description) => github.rest.repos.createCommitStatus({...args, sha: pr.head.sha, context: 'Preview ready', state, description});
+              const status = (state, description) => github.rest.repos.createCommitStatus({...args, sha: pr.head.sha, context: 'Preview ready', state, description, target_url: `${context.serverUrl}/${args.owner}/${args.repo}/actions/runs/${context.runId}`});
               if (pr.head.repo?.full_name !== context.payload.repository.full_name || pr.user.type !== 'User') {
                 await status('failure', 'Preview unsupported: use a trusted repository branch'); continue;
               }
