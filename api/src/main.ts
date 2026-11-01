@@ -16,7 +16,11 @@ import {
 import { MarketService } from './market/market.service';
 import { PortfolioService } from './portfolio/portfolio.service';
 import { handleMcpRequest } from './mcp-auth/mcp-resource';
-import { createMcpOAuthRuntime } from './mcp-auth/oauth-runtime';
+import {
+  clientMayPrepareTrades,
+  createMcpOAuthRuntime,
+} from './mcp-auth/oauth-runtime';
+import { createRegistrationRateLimit } from './mcp-auth/registration-rate-limit';
 
 async function bootstrap() {
   const env = validateEnv();
@@ -300,12 +304,20 @@ async function bootstrap() {
           )
         )
           return res.sendStatus(403);
+        const clientId = String(details.params.client_id);
+        const client = await oauth.provider.Client.find(clientId);
+        if (
+          !client ||
+          (requested.includes('oren.trade.prepare') &&
+            !clientMayPrepareTrades(client.redirectUris))
+        )
+          return res.sendStatus(403);
         const owner = await identity.requireMcpIdentity(
           req.headers.authorization,
         );
         const grant = new oauth.provider.Grant({
           accountId: owner.userId,
-          clientId: String(details.params.client_id),
+          clientId,
         });
         const resourceScopes = requested.filter((scope) =>
           ['oren.read', 'oren.trade.prepare'].includes(scope),
@@ -317,7 +329,7 @@ async function bootstrap() {
         const grantId = await grant.save();
         await db.insert(mcpConnections).values({
           grantId,
-          clientId: String(details.params.client_id),
+          clientId,
           userId: owner.userId,
           walletId: owner.walletId,
           wallet: owner.wallet,
@@ -422,6 +434,18 @@ async function bootstrap() {
         } catch {
           return res.sendStatus(503);
         }
+      },
+    );
+    const registrationRetryAfter = createRegistrationRateLimit();
+    expressApp.post(
+      '/oauth/reg',
+      (_req: Request, res: Response, next: NextFunction) => {
+        const retryAfter = registrationRetryAfter();
+        if (retryAfter) {
+          res.setHeader('Retry-After', String(retryAfter));
+          return res.sendStatus(429);
+        }
+        next();
       },
     );
     expressApp.use('/oauth', oauth.provider.callback());
