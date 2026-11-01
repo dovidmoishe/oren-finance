@@ -7,6 +7,7 @@ import {
   TransactionMessage,
   VersionedTransaction,
 } from '@solana/web3.js';
+import { getAssociatedTokenAddressSync, TOKEN_2022_PROGRAM_ID, TOKEN_PROGRAM_ID } from '@solana/spl-token';
 import { fileURLToPath } from 'node:url';
 import { inflateSync } from 'node:zlib';
 
@@ -195,6 +196,35 @@ const idlDecode = {
   inputMatchesQuote: decoded.in_amount === quote.inAmount,
   outputMatchesQuote: decoded.quoted_out_amount === quote.outAmount,
 };
+if (idlInstruction.name === 'shared_accounts_route') {
+  const [inputAccount, outputAccount] = await Promise.all([
+    rpc.getAccountInfo(new PublicKey(inputMint)),
+    rpc.getAccountInfo(new PublicKey(outputMint)),
+  ]);
+  if (!inputAccount || !outputAccount)
+    throw new Error('A route mint account is missing');
+  for (const account of [inputAccount, outputAccount]) {
+    if (
+      !account.owner.equals(TOKEN_PROGRAM_ID) &&
+      !account.owner.equals(TOKEN_2022_PROGRAM_ID)
+    ) throw new Error('A route mint is not owned by a supported token program');
+  }
+  const routeAccount = (name) => {
+    const index = idlInstruction.accounts.findIndex((account) => account.name === name);
+    if (index < 0) throw new Error(`IDL account ${name} is missing`);
+    return jupiterInstruction.keys[index]?.pubkey.toBase58();
+  };
+  idlDecode.sourceAtaMatches = routeAccount('source_token_account') ===
+    getAssociatedTokenAddressSync(
+      new PublicKey(inputMint), new PublicKey(wallet), false, inputAccount.owner,
+    ).toBase58();
+  idlDecode.sourceAtaStatic = staticKeys.has(routeAccount('source_token_account'));
+  idlDecode.destinationAtaMatches = routeAccount('destination_token_account') ===
+    getAssociatedTokenAddressSync(
+      new PublicKey(outputMint), new PublicKey(wallet), false, outputAccount.owner,
+    ).toBase58();
+  idlDecode.destinationAtaStatic = staticKeys.has(routeAccount('destination_token_account'));
+}
 let recompiled;
 if (recompileStaticMints) {
   const protectedMints = new Set([inputMint, outputMint]);
