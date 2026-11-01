@@ -1,7 +1,7 @@
 import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import type { Express, Request, Response, NextFunction } from 'express';
-import { and, eq, gt, isNull } from 'drizzle-orm';
+import { and, eq, gt, inArray, isNull, sql } from 'drizzle-orm';
 import { AppModule } from './app.module';
 import { PrivyWalletAuth } from './auth/privy-wallet-auth';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
@@ -9,6 +9,7 @@ import { validateEnv } from './config/env.schema';
 import { DatabaseService } from './database/database.provider';
 import {
   mcpConnections,
+  mcpBudgetReservations,
   mcpTradeDelegations,
   mcpTradeIntents,
   tradeApprovals,
@@ -85,6 +86,79 @@ async function bootstrap() {
     expressApp.get('/mcp', (_req: Request, res: Response) =>
       res.sendStatus(405),
     );
+    expressApp.use(
+      '/mcp/delegation',
+      (req: Request, res: Response, next: NextFunction) => {
+        if (req.headers.origin && req.headers.origin !== oauth.appOrigin)
+          return res.sendStatus(403);
+        if (req.headers.origin === oauth.appOrigin) {
+          res.setHeader('Access-Control-Allow-Origin', oauth.appOrigin);
+          res.setHeader('Access-Control-Allow-Headers', 'Authorization');
+          res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+          res.setHeader('Vary', 'Origin');
+        }
+        if (req.method === 'OPTIONS') return res.sendStatus(204);
+        next();
+      },
+    );
+    expressApp.get('/mcp/delegation', async (req: Request, res: Response) => {
+      try {
+        const owner = await identity.requireMcpIdentity(
+          req.headers.authorization,
+        );
+        res.setHeader('Cache-Control', 'no-store');
+        if (
+          !env.MCP_DELEGATED_TRADES_ENABLED ||
+          !(
+            env.MCP_DELEGATED_TRADES_ALLOWED_USERS.includes('*') ||
+            env.MCP_DELEGATED_TRADES_ALLOWED_USERS.includes(owner.userId)
+          )
+        )
+          return res.json({ enabled: false });
+        const [delegation] = await db
+          .select()
+          .from(mcpTradeDelegations)
+          .where(
+            and(
+              eq(mcpTradeDelegations.userId, owner.userId),
+              eq(mcpTradeDelegations.walletId, owner.walletId),
+              eq(mcpTradeDelegations.wallet, owner.wallet),
+              eq(mcpTradeDelegations.status, 'active'),
+              gt(mcpTradeDelegations.expiresAt, new Date()),
+            ),
+          )
+          .limit(1);
+        if (!delegation) return res.json({ enabled: false });
+        const [usage] = await db
+          .select({
+            total: sql<string>`COALESCE(SUM(${mcpBudgetReservations.amountUsd}), 0)`,
+          })
+          .from(mcpBudgetReservations)
+          .where(
+            and(
+              eq(mcpBudgetReservations.delegationId, delegation.id),
+              inArray(mcpBudgetReservations.status, ['reserved', 'consumed']),
+              gt(
+                mcpBudgetReservations.createdAt,
+                new Date(Date.now() - 24 * 60 * 60_000),
+              ),
+            ),
+          );
+        return res.json({
+          enabled: true,
+          delegationId: delegation.id,
+          wallet: delegation.wallet,
+          perTradeUsd: delegation.perTradeLimitUsd,
+          dailyUsd: delegation.dailyLimitUsd,
+          usedTodayUsd: usage.total,
+          maxSlippageBps: delegation.maxSlippageBps,
+          sides: delegation.allowSell ? ['buy', 'sell'] : ['buy'],
+          expiresAt: delegation.expiresAt.toISOString(),
+        });
+      } catch {
+        return res.sendStatus(401);
+      }
+    });
     expressApp.use(
       '/mcp/intents',
       (req: Request, res: Response, next: NextFunction) => {
@@ -274,7 +348,7 @@ async function bootstrap() {
           res.setHeader('Access-Control-Allow-Credentials', 'true');
           res.setHeader(
             'Access-Control-Allow-Headers',
-            'Authorization, Content-Type, X-Oren-Trade-Execute-Consent',
+            'Authorization, Content-Type, X-Oren-Trade-Execute-Consent, X-Oren-Delegation-Id',
           );
           res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
           res.setHeader('Vary', 'Origin');
@@ -362,7 +436,11 @@ async function bootstrap() {
               ),
             )
             .limit(1);
-          if (!delegation) return res.sendStatus(403);
+          if (
+            !delegation ||
+            req.headers['x-oren-delegation-id'] !== delegation.id
+          )
+            return res.sendStatus(403);
         }
         const grant = new oauth.provider.Grant({
           accountId: owner.userId,
