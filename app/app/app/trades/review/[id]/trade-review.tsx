@@ -5,6 +5,7 @@ import { useOrenAuth } from '@/components/auth/auth-context';
 import { QuoteReviewModal } from '@/components/trading/quote-review-modal';
 import { useQuoteExecution } from '@/hooks/use-quote-execution';
 import { getExecutionQuote } from '@/services/execution-service';
+import { mcpApiOrigin } from '@/services/mcp-api-origin';
 import type { QuoteResponse } from '@/types';
 
 type Intent = {
@@ -17,7 +18,6 @@ type Intent = {
   expiresAt: string;
 };
 
-const configuredApi = process.env.NEXT_PUBLIC_OREN_API_URL;
 const USDC_MINT = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
 
 export function BrowserTradeReview({ intentId }: { intentId: string }) {
@@ -28,7 +28,7 @@ export function BrowserTradeReview({ intentId }: { intentId: string }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>();
   const execution = useQuoteExecution();
-  const apiOrigin = configuredApi ? new URL(configuredApi).origin : undefined;
+  const apiOrigin = mcpApiOrigin();
 
   useEffect(() => {
     if (!authenticated || !address || !apiOrigin) return;

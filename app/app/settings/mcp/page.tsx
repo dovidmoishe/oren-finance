@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useOrenAuth } from '@/components/auth/auth-context';
+import { mcpApiOrigin } from '@/services/mcp-api-origin';
 
 type Connection = {
   grantId: string;
@@ -11,14 +12,12 @@ type Connection = {
   createdAt: string;
 };
 
-const configuredApi = process.env.NEXT_PUBLIC_OREN_API_URL;
-
 export default function McpConnectionsPage() {
   const auth = useOrenAuth();
   const [connections, setConnections] = useState<Connection[]>([]);
   const [error, setError] = useState<string>();
   const [busy, setBusy] = useState<string>();
-  const apiOrigin = configuredApi ? new URL(configuredApi).origin : undefined;
+  const apiOrigin = mcpApiOrigin();
   const { authenticated, ready, getAccessToken, open } = auth;
 
   useEffect(() => {

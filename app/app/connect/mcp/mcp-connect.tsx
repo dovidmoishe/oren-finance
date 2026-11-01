@@ -3,8 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useOrenAuth } from '@/components/auth/auth-context';
 import Link from 'next/link';
-
-const configuredApi = process.env.NEXT_PUBLIC_OREN_API_URL;
+import { mcpApiOrigin } from '@/services/mcp-api-origin';
 
 type Interaction = { clientId: string; scope: string; resource: string };
 
@@ -14,7 +13,7 @@ export function McpConnect({ uid }: { uid: string }) {
   const [details, setDetails] = useState<Interaction>();
   const [error, setError] = useState<string>();
   const [busy, setBusy] = useState(false);
-  const apiOrigin = configuredApi ? new URL(configuredApi).origin : undefined;
+  const apiOrigin = mcpApiOrigin();
 
   useEffect(() => {
     if (!uid || !apiOrigin) return;
