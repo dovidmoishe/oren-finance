@@ -1,5 +1,6 @@
 import { config } from 'dotenv';
 import { Connection, PublicKey } from '@solana/web3.js';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { inflateSync } from 'node:zlib';
 import { fileURLToPath } from 'node:url';
 
@@ -75,6 +76,18 @@ if (sharedRoute) {
     bytes: Buffer.byteLength(JSON.stringify(candidate)),
     typeNames: [...requiredTypes.keys()],
   };
+  if (process.env.PROOF_WRITE_CANDIDATE === 'true') {
+    if (programId.toBase58() !== 'JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4')
+      throw new Error('Only the Jupiter route IDL candidate can be written');
+    const directory = fileURLToPath(new URL('../.proof/', import.meta.url));
+    mkdirSync(directory, { recursive: true });
+    writeFileSync(
+      fileURLToPath(new URL('../.proof/jupiter-shared-route.idl.json', import.meta.url)),
+      JSON.stringify(candidate),
+      { flag: 'w', mode: 0o600 },
+    );
+    policyIdlCandidate.writtenToLocalProofDirectory = true;
+  }
 }
 console.log(
   JSON.stringify({
