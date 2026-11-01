@@ -36,10 +36,6 @@ async function bootstrap() {
     }),
   );
   app.useGlobalFilters(new HttpExceptionFilter());
-  app.enableCors({
-    origin: env.CORS_ORIGIN === '*' ? true : env.CORS_ORIGIN.split(','),
-  });
-
   const oauth = await createMcpOAuthRuntime(app.get(DatabaseService).db);
   if (oauth) {
     if (env.DEPLOYMENT_ENV === 'preview')
@@ -457,6 +453,12 @@ async function bootstrap() {
     );
     expressApp.use('/oauth', oauth.provider.callback());
   }
+
+  // MCP browser routes answer their own credentialed preflights before the
+  // general Nest CORS handler handles /api requests.
+  app.enableCors({
+    origin: env.CORS_ORIGIN === '*' ? true : env.CORS_ORIGIN.split(','),
+  });
 
   await app.listen(env.PORT);
   console.log(`Oren API listening on http://localhost:${env.PORT}/api`);
