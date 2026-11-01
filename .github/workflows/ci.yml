@@ -20,6 +20,7 @@ jobs:
           node-version: 22
       - run: node --test infra/preview/*.test.mjs
       - run: for script in infra/preview/*.sh; do bash -n "$script"; done
+      - run: bash -n infra/mcp/enable-oauth.sh
       - name: Validate preview Compose configuration
         env:
           PR_NUMBER: '42'
@@ -62,6 +63,7 @@ jobs:
       - run: pnpm test --runInBand
       - run: pnpm run test:approval:crypto
       - run: pnpm build
+      - run: pnpm run test:mcp:registration
 
   app:
     name: App test, lint, and build
