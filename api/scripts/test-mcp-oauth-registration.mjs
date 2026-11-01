@@ -110,6 +110,7 @@ app.post('/oauth/interaction/:uid', async (req, res) => {
       'oren.read',
       'oren.trade.prepare',
     ])
+    grant.addOIDCScope(['oren.read', 'oren.trade.prepare'])
     grant.addOIDCScope('offline_access')
     const grantId = await grant.save()
     const redirect = await runtime.provider.interactionResult(
@@ -171,9 +172,14 @@ const registration = await request(app)
     response_types: ['code'],
     grant_types: ['authorization_code', 'refresh_token'],
     client_name: 'Oren test',
+    scope: 'oren.read oren.trade.prepare offline_access',
   })
 assert.equal(registration.status, 201, JSON.stringify(registration.body))
 assert.equal(registration.body.token_endpoint_auth_method, 'none')
+assert.equal(
+  registration.body.scope,
+  'oren.read oren.trade.prepare offline_access',
+)
 assert.deepEqual(registration.body.redirect_uris, [
   'https://claude.ai/api/mcp/auth_callback',
 ])
@@ -292,6 +298,16 @@ const disallowed = await request(app)
     grant_types: ['authorization_code'],
   })
 assert.equal(disallowed.status, 400)
+const unsupportedScope = await request(app)
+  .post('/oauth/reg')
+  .send({
+    redirect_uris: ['https://claude.ai/api/mcp/auth_callback'],
+    token_endpoint_auth_method: 'none',
+    response_types: ['code'],
+    grant_types: ['authorization_code'],
+    scope: 'oren.read oren.trade.execute',
+  })
+assert.equal(unsupportedScope.status, 400)
 console.log(
   'MCP OAuth discovery, Claude registration, consent callback, and token exchange pass',
 )
