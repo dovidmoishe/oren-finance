@@ -93,3 +93,21 @@ test('without a Privy app id sign-in is unavailable and the wallet stays disconn
   assert.equal(seen.wallet.connected, false);
   assert.equal(seen.wallet.connecting, false);
 });
+
+test('MCP connection page receives the app authentication provider', () => {
+  const exports = {};
+  const AuthContext = createContext({ ready: true, open() { throw new Error('default auth context'); } });
+  const auth = { ready: true, open() {} };
+  vm.runInNewContext(transpile('../app/connect/mcp/layout.tsx'), {
+    exports,
+    require(id) {
+      if (id === '../../providers')
+        return { AppProviders({ children }) { return createElement(AuthContext.Provider, { value: auth }, children); } };
+      return require(id);
+    },
+  });
+  let seen;
+  function Probe() { seen = useContext(AuthContext); return null; }
+  renderToStaticMarkup(createElement(exports.default, null, createElement(Probe)));
+  assert.equal(seen, auth);
+});
