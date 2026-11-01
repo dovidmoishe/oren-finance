@@ -73,9 +73,10 @@ export function McpConnect({ uid }: { uid: string }) {
         </p>
       </div>}
       {error && <p className="mt-5 text-sm text-red-700" role="alert">{error}</p>}
+      {!auth.configured && <p className="mt-5 text-sm text-red-700" role="alert">Email sign-in is temporarily unavailable.</p>}
       {!auth.authenticated ? (
-        <button className="mt-6 rounded-xl bg-foreground px-5 py-3 text-white disabled:opacity-50" disabled={!auth.ready} onClick={auth.open} type="button">
-          Sign in with email code
+        <button className="mt-6 rounded-xl bg-foreground px-5 py-3 text-white disabled:opacity-50" disabled={!auth.configured || !auth.ready} onClick={auth.open} type="button">
+          {auth.ready ? 'Sign in with email code' : 'Loading sign-in…'}
         </button>
       ) : (
         <button className="mt-6 rounded-xl bg-foreground px-5 py-3 text-white disabled:opacity-50" disabled={!details || !auth.address || busy} onClick={() => void authorize()} type="button">
