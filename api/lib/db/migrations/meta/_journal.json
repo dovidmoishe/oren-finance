@@ -43,6 +43,27 @@
       "breakpoints": true,
       "tag": "0005_trade_approvals",
       "idx": 5
+    },
+    {
+      "version": "7",
+      "when": 1793462400000,
+      "breakpoints": true,
+      "tag": "0006_mcp_oauth",
+      "idx": 6
+    },
+    {
+      "version": "7",
+      "when": 1793466000000,
+      "breakpoints": true,
+      "tag": "0007_mcp_connections",
+      "idx": 7
+    },
+    {
+      "version": "7",
+      "when": 1793469600000,
+      "breakpoints": true,
+      "tag": "0008_mcp_trade_intents",
+      "idx": 8
     }
   ]
 }

@@ -70,7 +70,9 @@ jobs:
       run:
         working-directory: app
     env:
-      NEXT_PUBLIC_OREN_API_URL: https://ci.example.invalid/api
+      # Match the same-origin path used by PR preview images; this catches
+      # prerender failures that an absolute CI URL would miss.
+      NEXT_PUBLIC_OREN_API_URL: /api
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4

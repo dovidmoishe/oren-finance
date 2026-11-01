@@ -64,6 +64,74 @@ export class PrivyWalletAuth {
     return userId;
   }
 
+  async requireMcpUser(authorization: string | undefined): Promise<string> {
+    return (await this.verifiedUser(authorization)).userId;
+  }
+
+  /** Browser OTP session identity for OAuth consent; never returns the token. */
+  async requireMcpIdentity(authorization: string | undefined) {
+    const { userId, user } = await this.verifiedUser(authorization);
+    const account = user.linked_accounts.find(
+      (item) =>
+        item.type === 'wallet' &&
+        item.chain_type === 'solana' &&
+        item.wallet_client_type === 'privy' &&
+        'id' in item &&
+        Boolean(item.id),
+    );
+    if (
+      !account ||
+      account.type !== 'wallet' ||
+      !('id' in account) ||
+      !account.id
+    )
+      throw new ForbiddenException('An embedded Solana wallet is required');
+    const wallet = await this.client!.wallets()
+      .get(account.id)
+      .catch(() => {
+        throw new ServiceUnavailableException(
+          'Unable to verify wallet ownership',
+        );
+      });
+    if (wallet.chain_type !== 'solana' || wallet.address !== account.address)
+      throw new ForbiddenException('Wallet ownership could not be verified');
+    return { userId, walletId: account.id, wallet: wallet.address };
+  }
+
+  /** Recheck the exact wallet linked at consent on every MCP resource request. */
+  async verifyMcpWallet(userId: string, walletId: string, wallet: string) {
+    if (!this.client)
+      throw new ServiceUnavailableException('Authentication is not configured');
+    const user = await this.client
+      .users()
+      ._get(userId)
+      .catch(() => {
+        throw new ServiceUnavailableException(
+          'Unable to verify wallet ownership',
+        );
+      });
+    const linked = user.linked_accounts.some(
+      (account) =>
+        account.type === 'wallet' &&
+        account.chain_type === 'solana' &&
+        account.wallet_client_type === 'privy' &&
+        account.address === wallet &&
+        'id' in account &&
+        account.id === walletId,
+    );
+    if (!linked) throw new ForbiddenException('Wallet is no longer linked');
+    const owned = await this.client
+      .wallets()
+      .get(walletId)
+      .catch(() => {
+        throw new ServiceUnavailableException(
+          'Unable to verify wallet ownership',
+        );
+      });
+    if (owned.chain_type !== 'solana' || owned.address !== wallet)
+      throw new ForbiddenException('Wallet ownership could not be verified');
+  }
+
   async requireSigner(authorization: string | undefined, wallet: string) {
     const { userId, user } = await this.verifiedUser(authorization);
     const account = user.linked_accounts.find(
