@@ -3,6 +3,7 @@ import { resolve } from 'node:path';
 import { drizzle } from 'drizzle-orm/postgres-js';
 import { migrate } from 'drizzle-orm/postgres-js/migrator';
 import postgres from 'postgres';
+import { eq } from 'drizzle-orm';
 import type { Database } from '../database/database.provider';
 import {
   mcpConnections,
@@ -65,17 +66,15 @@ describeDatabase('MCP budget reservations in Postgres', () => {
         expiresAt: new Date(Date.now() + 86_400_000),
       })
       .returning({ id: mcpTradeDelegations.id });
-    await db
-      .insert(mcpConnections)
-      .values({
-        grantId,
-        clientId,
-        userId,
-        walletId,
-        wallet,
-        scopes: 'oren.read oren.trade.prepare oren.trade.execute',
-        createdAt: new Date(Date.now() - 30_000),
-      });
+    await db.insert(mcpConnections).values({
+      grantId,
+      clientId,
+      userId,
+      walletId,
+      wallet,
+      scopes: 'oren.read oren.trade.prepare oren.trade.execute',
+      createdAt: new Date(Date.now() - 30_000),
+    });
     async function intent() {
       const [row] = await db
         .insert(mcpTradeIntents)
@@ -175,5 +174,35 @@ describeDatabase('MCP budget reservations in Postgres', () => {
       ).status,
     ).toBe('reserved');
     await settleTradeBudget(db, secondId, 'confirmed');
+  }, 90_000);
+
+  it('refuses revoked grants and delegations before reserving', async () => {
+    const owner = await fixture();
+    const input = {
+      ...owner,
+      intentId: await owner.intent(),
+      rawInput: '10000000',
+      idempotencyKey: randomUUID(),
+    };
+    await db
+      .update(mcpConnections)
+      .set({ revokedAt: new Date() })
+      .where(eq(mcpConnections.grantId, owner.grantId));
+    expect((await reserveTradeBudget(db, input)).status).toBe('inactive');
+    const fresh = await fixture();
+    await db
+      .update(mcpTradeDelegations)
+      .set({ status: 'revoked', revokedAt: new Date() })
+      .where(eq(mcpTradeDelegations.id, fresh.delegationId));
+    expect(
+      (
+        await reserveTradeBudget(db, {
+          ...fresh,
+          intentId: await fresh.intent(),
+          rawInput: '10000000',
+          idempotencyKey: randomUUID(),
+        })
+      ).status,
+    ).toBe('inactive');
   }, 90_000);
 });
