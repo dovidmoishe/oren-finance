@@ -9,6 +9,36 @@ export interface McpOAuthRuntime {
   resource: string;
 }
 
+/** Keep public client registration limited to the pilot and Codex loopback. */
+export function isSupportedMcpRedirect(value: string): boolean {
+  if (value === 'https://claude.ai/api/mcp/auth_callback') return true;
+  let redirect: URL;
+  try {
+    redirect = new URL(value);
+  } catch {
+    return false;
+  }
+  return (
+    redirect.protocol === 'http:' &&
+    redirect.hostname === '127.0.0.1' &&
+    !redirect.username &&
+    !redirect.password &&
+    !redirect.search &&
+    !redirect.hash &&
+    /^\/callback(?:\/[A-Za-z0-9_-]{8,128})?$/.test(redirect.pathname)
+  );
+}
+
+/** Local Codex clients are limited to portfolio and market reads. */
+export function clientMayPrepareTrades(
+  redirectUris?: readonly string[],
+): boolean {
+  return (
+    redirectUris?.length === 1 &&
+    redirectUris[0] === 'https://claude.ai/api/mcp/auth_callback'
+  );
+}
+
 /** Disabled by default; partial configuration must fail startup, not weaken auth. */
 export async function createMcpOAuthRuntime(
   db: Database,
@@ -100,8 +130,7 @@ export async function createMcpOAuthRuntime(
         if (!context) return;
         if (
           metadata.redirect_uris?.length !== 1 ||
-          metadata.redirect_uris[0] !==
-            'https://claude.ai/api/mcp/auth_callback' ||
+          !isSupportedMcpRedirect(metadata.redirect_uris[0]) ||
           metadata.token_endpoint_auth_method !== 'none' ||
           metadata.response_types?.join(' ') !== 'code' ||
           !metadata.grant_types?.includes('authorization_code')

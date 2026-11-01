@@ -1,9 +1,22 @@
 # Oren MCP server with Privy auth: design and handoff
 
-> **Status:** security design in progress; no MCP or delegated-signing code implemented. Branch `feat/mcp-privy-auth`.
+> **Status (1 Nov 2026):** PR #8 merged. MCP OAuth, Privy email-OTP consent, read tools and browser buy review are implemented behind `MCP_OAUTH_ENABLED=false`; delegated signing is not implemented. The production flag remains off. `feat/mcp-local-connector` adds Codex loopback callbacks and restricts those clients to `oren.read`. This document's later research sections are historical design context.
 > **Researched:** 31 Oct 2026 (WAT, UTC+1). Policies and specs change often, so re-check the Sources before you ship.
 > **Audience:** Dave, continuing in Codex. This file is meant to stand on its own, so you should not need any other context.
 > **Legend:** **[verified]** = read on the cited page on 31 Oct 2026. **[unverified]** = from search snippets, third-party summaries, or my own reading, and not confirmed on a primary page. **[interpretation]** = my reading of policy text. It is not legal advice.
+
+---
+
+## Codex local connection (pending OAuth deployment)
+
+After the API deployment includes `feat/mcp-local-connector` and production OAuth is enabled, add the existing API as a personal remote MCP server:
+
+```sh
+codex mcp add oren --url https://api.oren.finance/mcp
+codex mcp login oren --scopes oren.read
+```
+
+The browser opens Oren's existing Privy email OTP login and consent page. Google credentials are not involved. Codex loopback clients can receive `oren.read` only; the API rejects their `oren.trade.prepare` consent requests. Check the three read tools and revoke the connection from Oren's connection management page after acceptance. Do not attempt login while `MCP_OAUTH_ENABLED=false`; the discovery endpoint returns 404.
 
 ---
 
