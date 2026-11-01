@@ -119,7 +119,7 @@ Created with `privy.policies().create({...owner_id: PRIVY_POLICY_ADMIN_QUORUM_ID
 
 ## 6. Changes by file
 
-### 6.1 Data model: `api/lib/db/migrations/0009_mcp_delegated_trades.sql` (+ `api/lib/db/schema.ts`, `meta/_journal.json`)
+### 6.1 Data model: `api/lib/db/migrations/0010_mcp_delegated_trades.sql` (+ `api/lib/db/schema.ts`, `meta/_journal.json`)
 - `mcp_trade_delegations`: `id uuid pk`, `user_id`, `wallet_id`, `wallet`, `status text check in ('pending_signer','active','revoked','expired')`, `privy_signer_id`, `privy_policy_id`, `policy_tier smallint`, `policy_hash text` (sha256 of the canonical policy JSON), `per_trade_limit_usd numeric(18,6)`, `daily_limit_usd numeric(18,6)`, `max_slippage_bps int check 1..50`, `allow_sell bool`, `expires_at timestamptz`, `created_at`, `activated_at`, `revoked_at`, `revoke_reason`. Unique partial index on `(wallet_id) WHERE status IN ('pending_signer','active')`. Checks: `per_trade ≤ daily`, `expires_at ≤ created_at + interval '7 days'`.
 - `mcp_budget_reservations`: `id uuid`, `delegation_id fk`, `intent_id uuid UNIQUE`, `amount_usd numeric(18,6) check > 0`, `status check in ('reserved','consumed','released')`, `created_at`, `settled_at`. Index on `(delegation_id, created_at)`.
 - `mcp_trade_intents` additions: `side text default 'buy' check in ('buy','sell')`, `mode text default 'browser' check in ('browser','delegated')`, `status text default 'prepared'` (`prepared, executing, submitted, confirmed, failed, expired, needs_browser`), `amount_raw numeric` (sells), `min_out_raw numeric`, `max_in_raw numeric`, `quote_ref text`, `delegation_id uuid`, `idempotency_key text`, `executed_at`. Relax `amount_usd` to nullable with `CHECK (amount_usd > 0 OR amount_raw > 0)`. Unique `(id, idempotency_key)`.
