@@ -279,6 +279,12 @@ async function bootstrap() {
         const details = await oauth.provider.interactionDetails(req, res);
         if (details.uid !== req.params.uid) return res.sendStatus(403);
         res.setHeader('Cache-Control', 'no-store');
+        if (req.query.launch === '1') {
+          return res.redirect(
+            303,
+            `${oauth.appOrigin}/connect/mcp?uid=${encodeURIComponent(details.uid)}`,
+          );
+        }
         return res.json({
           clientId: details.params.client_id,
           scope: details.params.scope,
