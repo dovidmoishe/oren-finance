@@ -151,19 +151,19 @@ function compile(routeInstruction, extraInstructions = []) {
 }
 const auth = { authorization_private_keys: [keys.signer.privateKeyDerBase64] };
 const attempts = [];
+let proofFailed = false;
 async function signOnly(name, transaction, expectAllow) {
   try {
     await privy.wallets().solana().signTransaction(linked[0].id, {
       transaction, authorization_context: auth, idempotency_key: randomUUID(),
     });
     attempts.push({ name, signed: true });
-    if (!expectAllow) throw new Error(`${name} unexpectedly signed; policy proof failed`);
+    if (!expectAllow) proofFailed = true;
   } catch (error) {
-    if (attempts.at(-1)?.name === name && attempts.at(-1).signed) throw error;
     const detail = String(error?.message ?? '').slice(0, 240);
     const policyDenial = /policy_violation/.test(detail);
     attempts.push({ name, signed: false, status: error?.status ?? null, policyDenial, detail });
-    if (expectAllow || !policyDenial) throw new Error(`${name} is inconclusive: ${detail}`);
+    if (expectAllow || !policyDenial) proofFailed = true;
   }
 }
 const changedData = (edit) => {
@@ -187,7 +187,10 @@ for (const name of ['source_mint', 'destination_mint', 'source_token_account', '
 await signOnly('reviewed_route_with_extra_sol_transfer', compile(route[0], [
   SystemProgram.transfer({ fromPubkey: owner, toPubkey: Keypair.generate().publicKey, lamports: 1 }),
 ]), false);
+await signOnly('two_reviewed_routes_in_one_transaction', compile(route[0], [route[0]]), false);
 console.log(JSON.stringify({ wallet: address, policyId: created.policyId, unfunded: true,
   broadcast: false, routeInstructions: allowedInstructions.length,
   lookupTables: tables.length, transactionBytes: Buffer.from(compile(route[0]), 'base64').length,
-  attempts }));
+  attempts, proofPassed: !proofFailed }));
+if (proofFailed)
+  throw new Error('Privy route policy did not enforce every tested transaction bound; keep headless execution disabled');
