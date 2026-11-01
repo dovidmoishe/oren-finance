@@ -1,6 +1,6 @@
 "use client";
 
-import { useAuthorizationSignature, useLogin, usePrivy } from "@privy-io/react-auth";
+import { useAuthorizationSignature, useLogin, usePrivy, useSigners } from "@privy-io/react-auth";
 import { usePathname } from "next/navigation";
 import { useCreateWallet, useSignMessage, useWallets } from "@privy-io/react-auth/solana";
 import { WalletContext, type WalletContextState } from "@solana/wallet-adapter-react";
@@ -37,6 +37,7 @@ function clearWalletData() {
 export function PrivySession({ children }: { children: React.ReactNode }) {
   const { ready, authenticated, user, logout, getAccessToken } = usePrivy();
   const { generateAuthorizationSignature } = useAuthorizationSignature();
+  const { addSigners, removeSigners } = useSigners();
   const pathname = usePathname();
   const [depositOpen, setDepositOpen] = useState(false);
   useLogin({ onComplete: ({ isNewUser, wasAlreadyAuthenticated }) => {
@@ -160,6 +161,20 @@ export function PrivySession({ children }: { children: React.ReactNode }) {
         const { signature } = await generateAuthorizationSignature(request);
         if (!current()) throw new Error('Your account changed. Review the trade again.');
         return signature;
+      },
+      async addWalletSigners(target, signers) {
+        if (!ready || !authenticated || !address || target !== address || signingOut)
+          throw new Error('Sign in to the exact wallet before adding a signer.');
+        const current = walletSessionIsCurrent();
+        await addSigners({ address: target, signers });
+        if (!current()) throw new Error('Your account changed. Check signer status again.');
+      },
+      async removeWalletSigners(target) {
+        if (!ready || !authenticated || !address || target !== address || signingOut)
+          throw new Error('Sign in to the exact wallet before removing signers.');
+        const current = walletSessionIsCurrent();
+        await removeSigners({ address: target });
+        if (!current()) throw new Error('Your account changed. Check signer status again.');
       },
       email: user?.email?.address,
       walletPreparing: authenticated && !address && !error && !(setup?.userId === user?.id && setup?.error) && !signingOut,
