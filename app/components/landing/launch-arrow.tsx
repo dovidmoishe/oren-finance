@@ -1,4 +1,7 @@
 "use client";
+import { ArrowRight02Icon, Loading03Icon } from '@hugeicons/core-free-icons';
+import { HugeiconsIcon } from '@hugeicons/react';
+
 
 import { useLinkStatus } from "next/link";
 import { useEffect, useState } from "react";
@@ -56,10 +59,8 @@ export function LaunchArrow() {
   const busy = pending || clicked;
   return (
     <span className="relative inline-grid h-4 w-4 place-items-center" ref={setAnchor}>
-      <svg aria-hidden className={`col-start-1 row-start-1 transition-[opacity,transform] group-hover:translate-x-0.5 ${busy ? "opacity-0" : "opacity-100"}`} fill="none" height="16" viewBox="0 0 16 16" width="16">
-        <path d="M3 8h9M8.5 4.5 12 8l-3.5 3.5" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.35" />
-      </svg>
-      <span aria-hidden className={`col-start-1 row-start-1 h-3.5 w-3.5 rounded-full border-[1.5px] border-current border-r-transparent motion-safe:animate-spin ${busy ? "opacity-100" : "opacity-0"}`} />
+      <HugeiconsIcon icon={ArrowRight02Icon} size={16} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className={`col-start-1 row-start-1 transition-[opacity,transform] group-hover:translate-x-0.5 ${busy ? "opacity-0" : "opacity-100"}`} />
+      <HugeiconsIcon icon={Loading03Icon} size={14} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className={`col-start-1 row-start-1 motion-safe:animate-spin ${busy ? "opacity-100" : "opacity-0"}`} />
       <span aria-live="polite" className="sr-only">{busy ? "Opening Oren…" : ""}</span>
     </span>
   );

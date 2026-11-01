@@ -1,4 +1,7 @@
 "use client";
+import { Cancel01Icon, Tick02Icon, Copy01Icon } from '@hugeicons/core-free-icons';
+import { HugeiconsIcon } from '@hugeicons/react';
+
 
 import QRCode from "qrcode";
 import { useEffect, useRef, useState } from "react";
@@ -27,7 +30,7 @@ export function DepositModal() {
     const rect = event.currentTarget.getBoundingClientRect();
     if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) auth.closeDeposit();
   }} ref={dialog}>
-    <div className="flex items-center justify-between gap-4"><h2 className="font-display text-xl font-semibold" id="deposit-title">Deposit</h2><button aria-label="Close deposit" className="grid h-8 w-8 place-items-center rounded-full text-xl text-muted hover:bg-background" onClick={auth.closeDeposit} type="button">×</button></div>
+    <div className="flex items-center justify-between gap-4"><h2 className="font-display text-xl font-semibold" id="deposit-title">Deposit</h2><button aria-label="Close deposit" className="grid h-8 w-8 place-items-center rounded-full text-xl text-muted hover:bg-background" onClick={auth.closeDeposit} type="button"><HugeiconsIcon icon={Cancel01Icon} size={16} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className="inline-block shrink-0 align-middle" /></button></div>
     {auth.depositOpen && <div className="mt-5">
       {!auth.authenticated ? <div><p className="text-sm text-muted">Sign in to get your deposit address.</p><Button className="mt-4" onClick={() => { auth.closeDeposit(); auth.open(); }}>Sign in</Button></div>
         : !auth.address ? <div role="status"><p className="text-sm text-muted">{auth.error ? "Your wallet needs another moment." : "Preparing your wallet…"}</p>{auth.error && <><p className="mt-2 text-sm text-red-700" role="alert">{auth.error}</p><Button className="mt-4" disabled={auth.busy} onClick={() => void auth.createWallet()}>Retry wallet setup</Button></>}</div>
@@ -62,9 +65,7 @@ function DepositAddress({ wallet, getAccessToken }: { wallet: string; getAccessT
       try { await navigator.clipboard.writeText(wallet); setCopied(true); setCopyError(false); }
       catch { setCopyError(true); }
     }}>
-      <svg aria-hidden width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
-        {copied ? <path d="m5 12 4 4L19 6" /> : <><rect x="8" y="8" width="12" height="12" rx="2" /><path d="M16 8V4H4v12h4" /></>}
-      </svg>
+      <HugeiconsIcon icon={copied ? Tick02Icon : Copy01Icon} size={18} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className="inline-block shrink-0 align-middle" />
     </Button>
     </div>
     <span aria-live="polite" className="sr-only">{copied ? "Address copied" : ""}</span>

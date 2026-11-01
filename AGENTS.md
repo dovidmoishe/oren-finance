@@ -47,4 +47,8 @@ See **Active phase** at the top of [`docs/api-build-board.md`](docs/api-build-bo
 
 ## App-specific notes
 
+- Use Hugeicons for interface icons across the website: named icons from `@hugeicons/core-free-icons` rendered with `HugeiconsIcon` from `@hugeicons/react`. Use these for arrows, controls, status indicators and social-link icons instead of Unicode glyphs or custom interface SVGs. Preserve original brand logos, product illustrations and data charts as their own visuals.
+
+- For release notes and changelog publishing, use [the Oren changelog skill](.agents/skills/oren-changelog/SKILL.md). Entries live in `app/content/changelog/`; films follow the existing separately deployed media workflow.
+
 - Next.js rules for `app/` may also appear in [`app/AGENTS.md`](app/AGENTS.md). Follow both: root board + app Next guidance.

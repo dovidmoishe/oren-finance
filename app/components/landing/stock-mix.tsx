@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ArrowLeft01Icon, RefreshIcon } from "@hugeicons/core-free-icons";
+import { ArrowLeft01Icon, RefreshIcon, ArrowUpRight01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { OrenLogo } from "@/components/brand/oren-logo";
 import { AgentComposerView } from "@/components/agent/agent-composer-view";
@@ -78,15 +78,15 @@ export function StockMix() {
             <div className={styles.chat}>
               <p className={styles.threadTitle}>Building your stock mix</p>
               <div className={styles.userMessage}>{question}</div>
-              <div className={styles.response}><span className={styles.agentIdentity}><OrenLogo size={25} className="h-[25px] w-[25px]" /><strong>Oren</strong></span><p aria-live="polite"><span key={`${question}:${answer}`} className={motion.reply}>{answer}</span></p><button type="button" className={styles.artifactChip} aria-label="View stock mix proposal" onClick={() => reviewRef.current?.scrollIntoView({ block: "start" })}>Stock mix · {basket.allocations.length} stocks ↗</button></div>
+              <div className={styles.response}><span className={styles.agentIdentity}><OrenLogo size={25} className="h-[25px] w-[25px]" /><strong>Oren</strong></span><p aria-live="polite"><span key={`${question}:${answer}`} className={motion.reply}>{answer}</span></p><button type="button" className={styles.artifactChip} aria-label="View stock mix proposal" onClick={() => reviewRef.current?.scrollIntoView({ block: "start" })}>Stock mix · {basket.allocations.length} stocks <HugeiconsIcon icon={ArrowUpRight01Icon} size={16} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className="inline-block shrink-0 align-middle" /></button></div>
             </div>
-            <div className={styles.suggestions} aria-label="Try a sample request">{prompts.map((prompt) => <button type="button" key={prompt} onClick={() => submit(prompt)}>{prompt}<span aria-hidden>↗</span></button>)}</div>
+            <div className={styles.suggestions} aria-label="Try a sample request">{prompts.map((prompt) => <button type="button" key={prompt} onClick={() => submit(prompt)}>{prompt}<span aria-hidden><HugeiconsIcon icon={ArrowUpRight01Icon} size={16} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className="inline-block shrink-0 align-middle" /></span></button>)}</div>
             <AgentComposerView connected isSending={false} composer={composer} composerRef={composerRef} placeholder="Try “Add Tesla” or “Use $500”…" onComposerChange={(value) => setComposer(value.slice(0, 180))} onSubmit={() => submit(composer)} onStop={() => {}} />
           </div>
           <aside className={styles.workingSet} aria-label="Stock mix working set">
             <div className={styles.workingHeading}><h3 ref={reviewRef} tabIndex={review ? -1 : undefined}>{review ? "Review your mix" : "Working set"}</h3>{review ? <Button size="sm" variant="ghost" onClick={() => { setReview(false); composerRef.current?.focus(); }}><HugeiconsIcon icon={ArrowLeft01Icon} size={13} />Back</Button> : <span>1 proposal</span>}</div>
             <div className={`${styles.result} ${motion.result}`} key={`${review}:${budget}:${holdings.map((holding) => `${holding.symbol}-${holding.weight}`).join(",")}`}>
-              {review ? <><BasketReview basket={basket} /><ButtonLink href="/app" className="mt-4 h-10 w-full rounded-[12px]" variant="primary">Open Oren ↗</ButtonLink></> : <BasketProposal basket={basket} onReview={() => setReview(true)} />}
+              {review ? <><BasketReview basket={basket} /><ButtonLink href="/app" className="mt-4 h-10 w-full rounded-[12px]" variant="primary">Open Oren <HugeiconsIcon icon={ArrowUpRight01Icon} size={16} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className="inline-block shrink-0 align-middle" /></ButtonLink></> : <BasketProposal basket={basket} onReview={() => setReview(true)} />}
             </div>
           </aside>
         </div>

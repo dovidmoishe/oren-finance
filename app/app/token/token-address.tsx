@@ -1,4 +1,7 @@
 "use client";
+import { Tick02Icon, Copy01Icon } from '@hugeicons/core-free-icons';
+import { HugeiconsIcon } from '@hugeicons/react';
+
 
 import { useEffect, useState } from "react";
 import styles from "./token.module.css";
@@ -30,9 +33,7 @@ export function TokenAddress() {
         <span className={styles.mintFull}>{MINT}</span><span className={styles.mintShort} aria-hidden="true">57vAaMsn…1okNpump</span>
       </a>
       <button type="button" onClick={copyAddress} aria-label={status === "copied" ? "Address copied" : "Copy token address"} title="Copy token address">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-          {status === "copied" ? <path d="m5 12 4 4L19 6" /> : <><rect x="8" y="8" width="12" height="12" rx="2" /><path d="M16 8V4H4v12h4" /></>}
-        </svg>
+        <HugeiconsIcon icon={status === "copied" ? Tick02Icon : Copy01Icon} size={16} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className="inline-block shrink-0 align-middle" />
       </button>
     </div>
     <span className={styles.copyStatus} role="status">{status === "error" ? "Couldn’t copy. Open the address on Solscan to copy it." : ""}</span>

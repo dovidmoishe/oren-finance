@@ -2,6 +2,10 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   output: "standalone",
+  outputFileTracingIncludes: {
+    "/changelog": ["./content/changelog/*.json"],
+    "/changelog/*": ["./content/changelog/*.json"],
+  },
   async redirects() {
     return [
       { source: "/activity", destination: "/app/activity", permanent: false },

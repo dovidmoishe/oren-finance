@@ -28,3 +28,9 @@ When revising a video, give the reviewed export a new filename, update the page
 and manifest hashes, and upload the matching files before deployment. A new URL
 prevents browsers from reusing cached video bytes. Keep older exports on the VPS
 for releases that still reference them; media files are not part of container images.
+
+The Titan changelog entry uses `/videos/oren-powered-by-titan-lift.mp4` and
+`/videos/oren-powered-by-titan-lift-poster.jpg`. Keep the approved 10-second
+1080p60 export and its poster in the same local/production video directories.
+Both are included in `videos.sha256`; upload and verify them before deploying
+the changelog reference. Earlier token-page assets remain required.

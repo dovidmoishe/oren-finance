@@ -2,12 +2,7 @@
 
 import { financialExecutionEnabled } from "@/services/environment";
 
-import {
-  AlertCircleIcon,
-  CoinsSwapIcon,
-  Loading03Icon,
-  Wallet02Icon,
-} from "@hugeicons/core-free-icons";
+import { AlertCircleIcon, CoinsSwapIcon, Loading03Icon, Wallet02Icon, ArrowUpDownIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { useOrenAuth } from "@/components/auth/auth-context";
@@ -501,7 +496,7 @@ export function StockTradeTicket({ stock, limitZones, onConfirmed }: StockTradeT
           </div>
 
           <button aria-label={`Switch to ${side === "buy" ? "sell" : "buy"}`} className="absolute left-1/2 top-[calc(50%-16px)] z-10 grid h-8 w-8 -translate-x-1/2 place-items-center rounded-full border-4 border-background bg-panel shadow-sm hover:bg-panel-subtle focus-visible:outline-2 focus-visible:outline-offset-2" onClick={() => handleSideChange(side === "buy" ? "sell" : "buy")} type="button">
-            <svg aria-hidden width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M8 19V5m-4 4 4-4 4 4M16 5v14m-4-4 4 4 4-4" /></svg>
+            <HugeiconsIcon icon={ArrowUpDownIcon} size={20} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className="inline-block shrink-0 align-middle" />
           </button>
 
           <div className="rounded-[16px] border border-border bg-panel-subtle p-2.5">
