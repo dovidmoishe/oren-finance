@@ -9,6 +9,11 @@ export interface McpOAuthRuntime {
   resource: string;
 }
 
+/** Let oidc-provider scope its interaction cookie to the API callback. */
+export function mcpInteractionUrl(issuer: string, uid: string): string {
+  return `${issuer}/interaction/${encodeURIComponent(uid)}?launch=1`;
+}
+
 /** Preserve the OAuth issuer mount when serving RFC 8414 path discovery. */
 export function mountPathBasedDiscoveryAtIssuer(request: {
   url: string;
@@ -121,7 +126,7 @@ export async function createMcpOAuthRuntime(
     }),
     interactions: {
       url: (_context, interaction) =>
-        `${appUrl.origin}/connect/mcp?uid=${encodeURIComponent(interaction.uid)}`,
+        mcpInteractionUrl(issuer, interaction.uid),
     },
     features: {
       devInteractions: { enabled: false },
