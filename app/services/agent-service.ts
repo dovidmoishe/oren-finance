@@ -14,10 +14,23 @@ import type {
 
 type UnknownRecord = Record<string, unknown>;
 
-export function sendAgentMessage(request: AgentRequest) {
+let agentTokenProvider: (() => Promise<string | null>) | undefined;
+
+export function setAgentTokenProvider(provider?: () => Promise<string | null>) {
+  agentTokenProvider = provider;
+}
+
+async function agentAuthorization(): Promise<Record<string, string>> {
+  const token = await agentTokenProvider?.();
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
+export async function sendAgentMessage(request: AgentRequest) {
+  const authorization = await agentAuthorization();
   return apiRequest<AgentResponse>('/agent/message', {
     method: 'POST',
     body: request,
+    headers: authorization,
   }).then((response) => ({
     ...response,
     message: normalizeMessage(response.message),
@@ -30,9 +43,10 @@ export async function streamAgentMessage(
   onEvent: (event: AgentStreamEvent) => void,
   signal?: AbortSignal,
 ): Promise<void> {
+  const authorization = await agentAuthorization();
   const response = await fetch(buildApiUrl('/agent/message/stream'), {
     method: 'POST',
-    headers: { Accept: 'text/event-stream', 'Content-Type': 'application/json' },
+    headers: { Accept: 'text/event-stream', 'Content-Type': 'application/json', ...authorization },
     body: JSON.stringify(request),
     signal,
   });
@@ -64,13 +78,14 @@ export async function streamAgentMessage(
   }
 }
 
-export function getAgentThreadMessages(
+export async function getAgentThreadMessages(
   threadId: string,
   walletAddress: string,
 ) {
+  const authorization = await agentAuthorization();
   return apiRequest<AgentThreadMessagesResponse>(
     `/agent/threads/${threadId}/messages`,
-    { query: { walletAddress } },
+    { query: { walletAddress }, headers: authorization },
   ).then((response) => ({
     ...response,
     messages: response.messages.map(normalizeMessage),

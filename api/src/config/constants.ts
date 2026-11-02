@@ -62,6 +62,20 @@ export const STOCK_CATALOG_TTL_MS = 60 * 1000;
 /** Reuse cached market news within this window. */
 export const NEWS_TTL_MS = 10 * 60 * 1000;
 
+/**
+ * Drip ticker opinions. Personal is 100,000 requests/month (60/min published,
+ * not enforced). Opinions in the default 30-day window do not need per-turn
+ * freshness, so one ticker is at most three upstream reads an hour.
+ */
+export const DRIP_TICKER_TTL_MS = 20 * 60 * 1000;
+
+/**
+ * Latest Drip picks feed. New calls land through the day, so this is shorter
+ * than the ticker cache. Polled continuously it is about 8,600 requests/month,
+ * inside the Personal allowance.
+ */
+export const DRIP_PICKS_TTL_MS = 5 * 60 * 1000;
+
 /** Default opportunities ranking floor. */
 export const DEFAULT_MIN_OPPORTUNITY_SCORE = 40;
 

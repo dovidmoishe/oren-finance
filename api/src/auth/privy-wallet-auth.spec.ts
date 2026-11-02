@@ -56,11 +56,36 @@ describe('PrivyWalletAuth', () => {
     ).rejects.toMatchObject({ status: 503 });
   });
 
+  it('identifies a bearer session and ignores a bad token', async () => {
+    getUser.mockResolvedValueOnce({
+      email: { address: 'owner@example.com' },
+      linked_accounts: [],
+    });
+    await expect(auth.tryIdentify('Bearer token')).resolves.toEqual({
+      userId: 'did:privy:user',
+      email: 'owner@example.com',
+    });
+    verify.mockRejectedValueOnce(new Error('bad token'));
+    await expect(auth.tryIdentify('Bearer token')).resolves.toBeUndefined();
+    await expect(auth.tryIdentify(undefined)).resolves.toBeUndefined();
+  });
+
   it('accepts a verified linked Solana wallet', async () => {
     await expect(auth.requireWallet('Bearer token', 'owned')).resolves.toBe(
       'did:privy:user',
     );
     expect(getUser).toHaveBeenCalledWith('did:privy:user');
+  });
+  it('binds research identity to the verified linked wallet', async () => {
+    await expect(
+      auth.requireResearchIdentity('Bearer token', 'owned'),
+    ).resolves.toMatchObject({
+      userId: 'did:privy:user',
+      walletAddress: 'owned',
+    });
+    await expect(
+      auth.requireResearchIdentity('Bearer token', 'unlinked'),
+    ).rejects.toMatchObject({ status: 403 });
   });
   it('requires an embedded wallet ID and matches its canonical address', async () => {
     await expect(

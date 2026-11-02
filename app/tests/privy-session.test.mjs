@@ -50,6 +50,7 @@ function session(createWallet) {
       if (id === '@/store') return Object.fromEntries(['useAgentStore','useExecutionStore','usePortfolioStore','useSocialStore','useVaultStore','useWalletStore'].map(k => [k, store]));
       if (id === '@/services/wallet-session') return { invalidateWalletSession() {}, walletSessionIsCurrent: () => () => true };
       if (id === '@/services/approval-service') return { getApprovalAuthorizationRequest: async () => ({}) };
+      if (id === '@/services/agent-service') return { setAgentTokenProvider() {} };
       if (id === '@/services/privy-signer') return { createPrivySigner: () => ({}) };
       if (id === '@/services/wallet-selection') return { resolveEmbeddedSolanaAccount, resolveSolanaWallet };
       if (id === './auth-context') return { AuthContext: { Provider: 'auth' } };

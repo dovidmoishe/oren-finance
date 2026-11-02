@@ -90,6 +90,16 @@ function AgentArtifactCard({
   onNavigate?: () => void;
 }) {
   switch (artifact.type) {
+    case 'research': {
+      const report = artifact.data;
+      return <div className="rounded-2xl border border-border bg-panel p-4">
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted">Stock research</p>
+        <h3 className="mt-1 font-display text-base font-semibold">{report.name} · {report.ticker}</h3>
+        <p className="mt-2 text-sm leading-6 text-muted">{report.analysis.data?.summary ?? 'Analysis is unavailable.'}</p>
+        <p className="mt-2 text-xs text-muted">{report.opinions.data ? `${report.opinions.data.distinctAuthors} cited writers · ${report.opinions.data.coverage} coverage` : 'Writer views unavailable'}{report.portfolio.data ? ` · ${report.portfolio.data.allocationPercent.toFixed(1)}% of your portfolio` : ''}</p>
+        <Link className="mt-3 inline-block text-sm font-medium underline-offset-2 hover:underline" href={`/app/stocks/${encodeURIComponent(report.assetId)}`} onClick={onNavigate}>Open research view</Link>
+      </div>;
+    }
     case 'portfolio': {
       const portfolio = artifact.data;
       return (
@@ -596,6 +606,8 @@ function formatPercentSignal(value?: number) {
 
 function artifactChipLabel(artifact: AgentArtifact): string {
   switch (artifact.type) {
+    case 'research':
+      return `${artifact.data.ticker} research`;
     case 'portfolio':
       return `Portfolio ${formatCurrency(artifact.data.totalValueUsd)}`;
     case 'stock':

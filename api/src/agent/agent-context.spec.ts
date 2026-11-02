@@ -38,30 +38,46 @@ describe('agent-context', () => {
   });
 
   it('includes wallet and portfolio context in instructions', () => {
-    const instructions = buildInstructions('wallet-1', { page: 'dashboard' }, {
-      totalValueUsd: 10_000,
-      availableValueUsd: 8_000,
-      lockedValueUsd: 500,
-      cashValueUsd: 1_500,
-      changeUsd: 250,
-      changePct: 2.5,
-      updatedAt: '2026-09-13T10:00:00Z',
-      positions: [
-        {
-          assetId: 'nvda',
-          ticker: 'NVDA',
-          name: 'NVIDIA',
-          quantity: 10,
-          valueUsd: 2_000,
-          allocationPct: 20,
-        },
-      ],
-    });
+    const instructions = buildInstructions(
+      'wallet-1',
+      { page: 'dashboard' },
+      {
+        totalValueUsd: 10_000,
+        availableValueUsd: 8_000,
+        lockedValueUsd: 500,
+        cashValueUsd: 1_500,
+        changeUsd: 250,
+        changePct: 2.5,
+        updatedAt: '2026-09-13T10:00:00Z',
+        positions: [
+          {
+            assetId: 'nvda',
+            ticker: 'NVDA',
+            name: 'NVIDIA',
+            quantity: 10,
+            valueUsd: 2_000,
+            allocationPct: 20,
+          },
+        ],
+      },
+    );
 
     expect(instructions).toContain('wallet-1');
     expect(instructions).toContain('Never ask them to paste a wallet address');
     expect(instructions).toContain('Top holdings: NVDA 20.0%');
     expect(instructions).toContain('currently on the dashboard page');
+    expect(instructions).not.toContain('getDripOpinions');
+  });
+
+  it('adds Drip citation rules only when the tools are registered', () => {
+    const instructions = buildInstructions('wallet-1', undefined, undefined, {
+      includeDrip: true,
+    });
+
+    expect(instructions).toContain('getDripOpinions');
+    expect(instructions).toContain('getDripPicks');
+    expect(instructions).toContain('financial advice');
+    expect(instructions).toContain('could not be fetched');
   });
 
   it('tells the model to fetch portfolio when snapshot is unavailable', () => {

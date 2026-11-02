@@ -3,6 +3,7 @@ import {
   Body,
   Controller,
   Get,
+  Headers,
   Param,
   Post,
   Query,
@@ -24,6 +25,7 @@ import type {
 } from '../../types/api';
 import type { AgentPage } from '../../types/agent';
 import { AgentService } from './agent.service';
+import { PrivyWalletAuth } from '../auth/privy-wallet-auth';
 
 const AGENT_PAGES: AgentPage[] = [
   'dashboard',
@@ -73,11 +75,18 @@ class AgentHistoryQueryDto {
 
 @Controller('agent')
 export class AgentController {
-  constructor(private readonly agent: AgentService) {}
+  constructor(
+    private readonly agent: AgentService,
+    private readonly auth: PrivyWalletAuth,
+  ) {}
 
   @Post('message')
-  message(@Body() body: AgentMessageDto): Promise<PostAgentMessageResponse> {
-    return this.agent.message(body);
+  async message(
+    @Body() body: AgentMessageDto,
+    @Headers('authorization') authorization?: string,
+  ): Promise<PostAgentMessageResponse> {
+    await this.auth.requireWallet(authorization, body.walletAddress);
+    return this.agent.message(body, authorization);
   }
 
   @Post('message/stream')
@@ -86,6 +95,10 @@ export class AgentController {
     @Req() request: Request,
     @Res() response: Response,
   ): Promise<void> {
+    await this.auth.requireWallet(
+      request.headers.authorization,
+      body.walletAddress,
+    );
     response.status(200);
     response.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
     response.setHeader('Cache-Control', 'no-cache, no-transform');
@@ -108,6 +121,7 @@ export class AgentController {
       for await (const event of this.agent.streamMessage(
         body,
         abortController.signal,
+        request.headers.authorization,
       )) {
         if (response.writableEnded || response.destroyed) break;
         response.write(`data: ${JSON.stringify(event)}\n\n`);
@@ -121,10 +135,12 @@ export class AgentController {
   }
 
   @Get('threads/:threadId/messages')
-  getThreadMessages(
+  async getThreadMessages(
     @Param('threadId') threadId: string,
     @Query() query: AgentHistoryQueryDto,
+    @Headers('authorization') authorization?: string,
   ): Promise<GetAgentThreadMessagesResponse> {
+    await this.auth.requireWallet(authorization, query.walletAddress);
     return this.agent.getThreadMessages(threadId, query.walletAddress);
   }
 }

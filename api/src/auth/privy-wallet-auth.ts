@@ -64,8 +64,41 @@ export class PrivyWalletAuth {
     return userId;
   }
 
+  async requireResearchIdentity(
+    authorization: string | undefined,
+    wallet: string,
+  ) {
+    const { userId, user } = await this.verifiedUser(authorization);
+    const linked = user.linked_accounts.some(
+      (account) =>
+        account.type === 'wallet' &&
+        account.chain_type === 'solana' &&
+        account.address === wallet,
+    );
+    if (!linked)
+      throw new ForbiddenException('Wallet is not linked to this account');
+    return { userId, walletAddress: wallet, email: emailFromPrivyUser(user) };
+  }
+
   async requireMcpUser(authorization: string | undefined): Promise<string> {
     return (await this.verifiedUser(authorization)).userId;
+  }
+
+  /**
+   * Best-effort session identity for feature allowlists. A missing or invalid
+   * token returns undefined so public agent chat keeps working.
+   */
+  async tryIdentify(
+    authorization: string | undefined,
+  ): Promise<{ userId: string; email?: string } | undefined> {
+    if (!authorization?.trim()) return undefined;
+    try {
+      const { userId, user } = await this.verifiedUser(authorization);
+      const email = emailFromPrivyUser(user);
+      return email ? { userId, email } : { userId };
+    } catch {
+      return undefined;
+    }
   }
 
   /** Browser OTP session identity for OAuth consent; never returns the token. */
@@ -240,4 +273,27 @@ export class PrivyWalletAuth {
       });
     }
   }
+}
+
+function emailFromPrivyUser(user: unknown): string | undefined {
+  if (!user || typeof user !== 'object') return undefined;
+  const record = user as {
+    email?: { address?: unknown };
+    linked_accounts?: unknown;
+  };
+  const direct = record.email?.address;
+  if (typeof direct === 'string' && direct.includes('@')) return direct.trim();
+  if (!Array.isArray(record.linked_accounts)) return undefined;
+  for (const account of record.linked_accounts) {
+    if (!account || typeof account !== 'object') continue;
+    const linked = account as { type?: unknown; address?: unknown };
+    if (
+      linked.type === 'email' &&
+      typeof linked.address === 'string' &&
+      linked.address.includes('@')
+    ) {
+      return linked.address.trim();
+    }
+  }
+  return undefined;
 }
