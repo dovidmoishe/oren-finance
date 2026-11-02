@@ -69,7 +69,6 @@ services:
         required: false
     environment:
       DEPLOYMENT_ENV: production
-      SIGNER_GATE_ENABLED: ${SIGNER_GATE_ENABLED:-false}
     depends_on:
       db:
         condition: service_healthy

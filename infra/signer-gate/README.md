@@ -28,8 +28,10 @@ another host before broadening beyond the owner allowlist.
    public key and gate private key must belong to the same reviewed 2-of-2
    Privy quorum; the policy owner must be a separate key. Put the policy's
    normalized semantic fingerprint in `SIGNER_GATE_POLICY_HASH`.
-5. Start the `delegated-trades` Compose profile with the API execution flag
-   and gate buy/sell flags off.
+5. Create `.env.signer-gate` only after its credentials and restricted role are
+   ready. Production deployment detects this file and includes the
+   `delegated-trades` Compose profile on every release. Start it with the API
+   execution flag and gate buy/sell flags off.
    Confirm `/health` from inside the API network and confirm there is no host
    port for the gate. The regular production deployment leaves this profile off.
 
