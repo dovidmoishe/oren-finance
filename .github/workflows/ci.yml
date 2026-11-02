@@ -22,6 +22,9 @@ jobs:
       - run: for script in infra/preview/*.sh; do bash -n "$script"; done
       - run: bash -n infra/mcp/enable-oauth.sh
       - run: bash -n infra/signer-gate/provision-roles.sh
+      - run: bash -n infra/signer-gate/bootstrap-disabled-gate.sh && node --check infra/signer-gate/bootstrap-keys.mjs
+      - run: bash -n infra/signer-gate/enable-owner-buy.sh && bash -n infra/signer-gate/kill-owner-buy.sh && node --check infra/signer-gate/verify-owner-buy.mjs
+      - run: bash -n infra/signer-gate/diagnose-grant.sh
       - name: Validate preview Compose configuration
         env:
           PR_NUMBER: '42'

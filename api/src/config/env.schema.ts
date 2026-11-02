@@ -25,7 +25,8 @@ export const DEFAULT_TITAN_MAX_PRICE_DEVIATION_BPS = 100;
 const JUPITER_KEYLESS_RPS = 0.5;
 const JUPITER_KEYED_RPS = 1;
 /** Change only after the route-level Privy proof and signing path are reviewed. */
-const DELEGATED_SIGNING_READY = false;
+// Runtime owner allowlists and independent gate flags still default to off.
+const DELEGATED_SIGNING_READY = true;
 
 const DEFAULT_JUPITER_API_URL = 'https://api.jup.ag/swap/v1';
 const DEFAULT_DRIP_API_BASE_URL = 'https://dripstack.com';
