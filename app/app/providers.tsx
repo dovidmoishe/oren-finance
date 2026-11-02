@@ -156,9 +156,9 @@ function DeferredPrivy({
       {restoreTimedOut && !current.auth.ready ? (
         <div
           className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950"
-          role="status"
+          role="alert"
         >
-          <span>Sign-in is taking longer than usual. Reload this page if it does not finish soon.</span>
+          <span>Sign-in could not finish loading. Reload this page or ask the team to check this preview&apos;s login setup.</span>
           <button className="font-semibold underline" onClick={() => window.location.reload()} type="button">
             Reload
           </button>
