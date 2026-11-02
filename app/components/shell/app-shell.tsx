@@ -1,8 +1,6 @@
 "use client";
 
 import {
-  Activity01Icon,
-  Calendar03Icon,
   Home01Icon,
   MarketAnalysisIcon,
   RankingIcon,
@@ -26,10 +24,8 @@ const DepositModal = dynamic(() => import("@/components/portfolio/deposit-dashbo
 const navItems = [
   { href: "/app", label: "Dashboard", icon: Home01Icon },
   { href: "/app/markets", label: "Market", icon: MarketAnalysisIcon },
-  { href: "/app/calendar", label: "Calendar", icon: Calendar03Icon },
   { href: "/app/leaderboard", label: "Leaderboard", icon: RankingIcon },
   { href: "/app/vault", label: "Vault", icon: SafeIcon },
-  { href: "/app/activity", label: "Activity", icon: Activity01Icon },
 ];
 
 function Icon({ icon, className, size = 18 }: { icon: IconSvgElement; className?: string; size?: number }) {
