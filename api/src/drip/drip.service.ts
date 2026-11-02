@@ -36,13 +36,13 @@ import {
 
 const FAILURE_MESSAGE: Record<DripFailureReason, string> = {
   DRIP_UNSET:
-    'Drip is not configured, so writer and podcast opinions could not be fetched.',
+    'Drip is not configured, so writer opinions could not be fetched.',
   DRIP_TIMEOUT:
-    'Drip did not respond in time, so writer and podcast opinions could not be fetched.',
+    'Drip did not respond in time, so writer opinions could not be fetched.',
   DRIP_RATE_LIMITED:
-    'Drip request allowance is exhausted, so writer and podcast opinions could not be fetched.',
+    'Drip request allowance is exhausted, so writer opinions could not be fetched.',
   DRIP_FORBIDDEN:
-    'Drip refused this request, so writer and podcast opinions could not be fetched.',
+    'Drip refused this request, so writer opinions could not be fetched.',
   DRIP_UNAVAILABLE:
     'Drip opinions could not be fetched. Continue without them.',
   DRIP_BAD_TICKER: 'That symbol could not be mapped to a Drip equity ticker.',

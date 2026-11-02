@@ -8,19 +8,33 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 
 const require = createRequire(import.meta.url);
+function loadLocal(file) {
+  const exports = {};
+  vm.runInNewContext(ts.transpileModule(readFileSync(new URL(file, import.meta.url), 'utf8'), {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX },
+  }).outputText, { exports, URL, require(id) {
+    if (id === './agent-markdown') return loadLocal('../components/agent/agent-markdown.ts');
+    if (id === 'react/jsx-runtime') return require('react/jsx-runtime');
+    return require(id);
+  } });
+  return exports;
+}
 function loadComponent(file) {
   const exports = {};
   vm.runInNewContext(ts.transpileModule(readFileSync(new URL(file, import.meta.url), 'utf8'), {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX },
-  }).outputText, { exports, require(id) {
+  }).outputText, { exports, URL, require(id) {
     if (id === './agent-artifacts') return { AgentArtifacts: () => createElement('div', { 'data-artifacts': true }, 'Analysis card') };
     if (id === './agent-conversation') return {};
     if (id === './agent-composer-view') return {};
     if (id === './agent-utils') return { toolLabel: () => 'Running Oren analysis' };
+    if (id === './agent-message-body') return loadLocal('../components/agent/agent-message-body.tsx');
+    if (id === './agent-markdown') return loadLocal('../components/agent/agent-markdown.ts');
     if (id === '@/components/ui') return { cn: (...values) => values.filter(Boolean).join(' ') };
     if (id === '@/components/auth/auth-context') return {};
     if (id === '@hugeicons/core-free-icons') return {};
     if (id === '@hugeicons/react') return { HugeiconsIcon: () => null };
+    if (id === 'react/jsx-runtime') return require('react/jsx-runtime');
     return require(id);
   } });
   return exports;

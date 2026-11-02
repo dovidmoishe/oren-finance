@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import type { ResearchSource, StockResearch } from '../../types/research';
 import { DripService } from '../drip/drip.service';
+import { DRIP_OPINION_RESEARCH_LIMIT } from '../drip/drip.types';
 import { IntelligenceService } from '../intelligence/intelligence.service';
 import { MarketService } from '../market/market.service';
 import { NewsService } from '../news/news.service';
@@ -63,7 +64,7 @@ export class ResearchService {
             async () => {
               const result = await this.drip.getOpinions(
                 stock.ticker,
-                12,
+                DRIP_OPINION_RESEARCH_LIMIT,
                 caller,
               );
               if (!result.available) throw new Error(result.reason);

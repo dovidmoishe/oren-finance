@@ -1,7 +1,7 @@
+import { dedupeCitations, selectHighlights } from './drip-dedupe';
+import { classifyDripSource, dripLinkLabel, sourceLabel } from './drip-source';
 import {
   DRIP_DISCLAIMER,
-  DRIP_OPINION_RETURN_MAX,
-  DRIP_PICKS_RETURN_MAX,
   type CachedDripOpinions,
   type CachedDripPicks,
   type DripCitation,
@@ -9,6 +9,7 @@ import {
   type DripOpinions,
   type DripPick,
   type DripPicks,
+  type DripSourceKind,
   type DripStance,
 } from './drip.types';
 
@@ -24,16 +25,15 @@ export function compactTickerCoverage(
   const ticker = text(meta.ticker)?.toUpperCase();
   if (!ticker) return null;
 
-  const opinions = flattenMentions(body.authors);
-  const summary = compactSummary(body.summary, opinions.length);
+  const opinions = dedupeCitations(flattenMentions(body.authors));
   const upstreamTruncated = meta.truncated === true;
   return {
     ticker,
     window: windowFrom(meta.from, meta.to),
     asOf: text(meta.asOf),
-    summary,
-    truncated: upstreamTruncated || opinions.length > DRIP_OPINION_RETURN_MAX,
-    opinions: opinions.slice(0, DRIP_OPINION_RETURN_MAX),
+    summary: summarizeCitations(opinions),
+    truncated: upstreamTruncated,
+    opinions,
   };
 }
 
@@ -41,15 +41,17 @@ export function compactPicks(body: unknown): CachedDripPicks | null {
   if (!isRecord(body) || !Array.isArray(body.picks)) return null;
   const meta = isRecord(body.meta) ? body.meta : {};
   const applied = isRecord(meta.appliedRange) ? meta.appliedRange : {};
-  const picks = body.picks
-    .map(compactPick)
-    .filter((pick): pick is DripPick => pick !== null)
-    .sort((left, right) => timeValue(right.date) - timeValue(left.date));
+  const pagination = isRecord(body.pagination) ? body.pagination : {};
+  const picks = dedupeCitations(
+    body.picks
+      .map(compactPick)
+      .filter((pick): pick is DripPick => pick !== null),
+  );
   return {
     window: windowFrom(applied.from, applied.to),
     asOf: text(meta.asOf),
-    truncated: picks.length > DRIP_PICKS_RETURN_MAX,
-    picks: picks.slice(0, DRIP_PICKS_RETURN_MAX),
+    truncated: meta.truncated === true || pagination.nextCursor != null,
+    picks,
   };
 }
 
@@ -69,7 +71,9 @@ export function presentOpinions(
     window: cached.window,
     asOf: cached.asOf,
     summary: cached.summary,
-    truncated: cached.truncated || opinions.length < cached.opinions.length,
+    truncated: cached.truncated,
+    windowComplete: !cached.truncated,
+    highlights: selectHighlights(cached.opinions, 4),
     opinions,
     disclaimer: DRIP_DISCLAIMER,
   });
@@ -85,7 +89,8 @@ export function presentPicks(
     source: 'drip' as const,
     window: cached.window,
     asOf: cached.asOf,
-    truncated: cached.truncated || picks.length < cached.picks.length,
+    truncated: cached.truncated,
+    windowComplete: !cached.truncated,
     picks,
     disclaimer: DRIP_DISCLAIMER,
   });
@@ -113,46 +118,66 @@ function flattenMentions(authors: unknown[]): DripCitation[] {
     if (!isRecord(group) || !Array.isArray(group.mentions)) continue;
     const author = clip(group.author, LABEL_LIMIT);
     if (!author) continue;
+    const groupPlatform = firstText(
+      group.platform,
+      group.sourcePlatform,
+      group.publicationPlatform,
+    );
+    const groupSlug = firstText(group.publicationSlug, group.sourceSlug);
     for (const mention of group.mentions) {
-      const citation = compactMention(author, mention);
+      const citation = compactMention(author, mention, {
+        platform: groupPlatform,
+        slug: groupSlug,
+      });
       if (citation) citations.push(citation);
     }
   }
-  const sorted = citations.sort(
-    (left, right) => timeValue(right.date) - timeValue(left.date),
+  return citations.filter(
+    (item) =>
+      Boolean(item.url) &&
+      Boolean(item.date) &&
+      Number.isFinite(Date.parse(item.date ?? '')),
   );
-  const seen = new Set<string>();
-  const perAuthor = new Map<string, number>();
-  return sorted.filter((item) => {
-    if (!item.url || !item.date || !Number.isFinite(Date.parse(item.date)))
-      return false;
-    const author = item.author.toLowerCase();
-    const key = `${author}|${(item.summary ?? item.quote ?? '').toLowerCase().replace(/\W+/g, '')}`;
-    if (seen.has(key) || (perAuthor.get(author) ?? 0) >= 2) return false;
-    seen.add(key);
-    perAuthor.set(author, (perAuthor.get(author) ?? 0) + 1);
-    return true;
-  });
 }
 
-function compactMention(author: string, mention: unknown): DripCitation | null {
+function compactMention(
+  author: string,
+  mention: unknown,
+  group: { platform?: string; slug?: string },
+): DripCitation | null {
   if (!isRecord(mention)) return null;
   const summary =
     clip(mention.thesis, SUMMARY_LIMIT) ??
     clip(mention.rationaleSnippet, SUMMARY_LIMIT);
   const quote = clip(mention.evidenceQuote, QUOTE_LIMIT);
   if (!summary && !quote) return null;
-  return defined({
-    author,
-    source: clip(mention.articleTitle, LABEL_LIMIT),
-    date: text(mention.publishedAt),
-    stance: stanceOf(mention.sentiment),
-    action: text(mention.action),
-    summary,
-    quote,
-    url: safeUrl(mention.articleUrl),
-    guest: mention.speakerIsGuest === true ? true : undefined,
+  const url = safeUrl(mention.articleUrl);
+  const guest = mention.speakerIsGuest === true;
+  const kind = classifyDripSource({
+    platform:
+      firstText(
+        mention.platform,
+        mention.sourcePlatform,
+        mention.publicationPlatform,
+      ) ?? group.platform,
+    url,
+    slug: firstText(mention.publicationSlug, mention.sourceSlug) ?? group.slug,
+    guest,
   });
+  return withSource(
+    defined({
+      author,
+      source: clip(mention.articleTitle, LABEL_LIMIT),
+      date: text(mention.publishedAt),
+      stance: stanceOf(mention.sentiment),
+      action: text(mention.action),
+      summary,
+      quote,
+      url,
+      guest: guest ? true : undefined,
+    }),
+    kind,
+  );
 }
 
 function compactPick(pick: unknown): DripPick | null {
@@ -168,48 +193,78 @@ function compactPick(pick: unknown): DripPick | null {
     clip(pick.rationaleSnippet, SUMMARY_LIMIT);
   const quote = clip(pick.evidenceQuote, QUOTE_LIMIT);
   if (!summary && !quote) return null;
-  return defined({
-    ticker,
-    author,
-    source:
-      clip(pick.publicationTitle, LABEL_LIMIT) ??
-      clip(pick.publicationSlug, LABEL_LIMIT),
-    date,
-    stance: stanceOf(pick.sentiment),
-    action: text(pick.action),
-    summary,
-    quote,
+  const guest = pick.speakerIsGuest === true;
+  const kind = classifyDripSource({
+    platform: firstText(
+      pick.platform,
+      pick.sourcePlatform,
+      pick.publicationPlatform,
+    ),
     url,
-    guest: pick.speakerIsGuest === true ? true : undefined,
+    slug: text(pick.publicationSlug),
+    guest,
   });
+  return withSource(
+    defined({
+      ticker,
+      author,
+      source:
+        clip(pick.publicationTitle, LABEL_LIMIT) ??
+        clip(pick.publicationSlug, LABEL_LIMIT),
+      date,
+      stance: stanceOf(pick.sentiment),
+      action: text(pick.action),
+      summary,
+      quote,
+      url,
+      guest: guest ? true : undefined,
+    }),
+    kind,
+  );
 }
 
-function compactSummary(value: unknown, returned: number): DripOpinionSummary {
-  const summary = isRecord(value) ? value : {};
-  const calls = count(summary.calls) ?? returned;
-  const bullish = count(summary.bullish) ?? 0;
-  const bearish = count(summary.bearish) ?? 0;
-  const neutral = count(summary.neutral) ?? 0;
-  const unstated = Math.max(0, calls - bullish - bearish - neutral);
+function withSource<T extends DripCitation>(
+  citation: T,
+  kind: DripSourceKind,
+): T {
+  return {
+    ...citation,
+    sourceKind: kind,
+    sourceLabel: sourceLabel(kind),
+    linkLabel: dripLinkLabel(citation.author, citation.url),
+  };
+}
+
+function summarizeCitations(opinions: DripCitation[]): DripOpinionSummary {
+  let bullish = 0;
+  let bearish = 0;
+  let neutral = 0;
+  let unstated = 0;
+  const byAction: Record<string, number> = {};
+  const bySource: Record<string, number> = {};
+  const authors = new Set<string>();
+  for (const item of opinions) {
+    authors.add(item.author.trim().toLowerCase());
+    if (item.stance === 'BULLISH') bullish += 1;
+    else if (item.stance === 'BEARISH') bearish += 1;
+    else if (item.stance === 'NEUTRAL') neutral += 1;
+    else unstated += 1;
+    const action = item.action?.trim() || 'UNSTATED';
+    byAction[action] = (byAction[action] ?? 0) + 1;
+    const label = item.sourceLabel ?? 'Post';
+    bySource[label] = (bySource[label] ?? 0) + 1;
+  }
+  if (!byAction.UNSTATED) delete byAction.UNSTATED;
   return defined({
-    calls,
-    analysts: count(summary.analysts) ?? 0,
+    calls: opinions.length,
+    analysts: authors.size,
     bullish,
     bearish,
     neutral,
     unstated: unstated > 0 ? unstated : undefined,
-    byAction: actionCounts(summary.byAction),
+    byAction,
+    bySource,
   });
-}
-
-function actionCounts(value: unknown): Record<string, number> {
-  if (!isRecord(value)) return {};
-  const counts: Record<string, number> = {};
-  for (const [key, raw] of Object.entries(value)) {
-    const parsed = count(raw);
-    if (parsed !== undefined && parsed > 0) counts[key] = parsed;
-  }
-  return counts;
 }
 
 function windowFrom(
@@ -248,16 +303,12 @@ function text(value: unknown): string | undefined {
   return trimmed || undefined;
 }
 
-function count(value: unknown): number | undefined {
-  return typeof value === 'number' && Number.isFinite(value)
-    ? value
-    : undefined;
-}
-
-function timeValue(value: string | undefined): number {
-  if (!value) return 0;
-  const ms = Date.parse(value);
-  return Number.isNaN(ms) ? 0 : ms;
+function firstText(...values: unknown[]): string | undefined {
+  for (const value of values) {
+    const parsed = text(value);
+    if (parsed) return parsed;
+  }
+  return undefined;
 }
 
 function defined<T extends object>(value: T): T {
