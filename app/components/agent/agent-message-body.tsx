@@ -14,6 +14,11 @@ export function AgentMessageBody({ content }: { content: string }) {
     <div className="space-y-3 text-[15px] leading-7 text-foreground">
       {blocks.map((block, index) => {
         if (block.type === "details") {
+          const lines = block.text
+            .split("\n")
+            .map((line) => line.trim())
+            .filter((line) => /[\p{L}\p{N}]/u.test(line));
+          if (!lines.length) return null;
           return (
             <details
               className="rounded-[15px] border border-border bg-panel-subtle px-3 py-2"
@@ -22,14 +27,10 @@ export function AgentMessageBody({ content }: { content: string }) {
               <summary className="cursor-pointer text-xs font-medium text-muted">
                 Show details
               </summary>
-              <div className="mt-2 space-y-1 text-xs leading-5 text-muted">
-                {block.text
-                  .split("\n")
-                  .map((line) => line.trim())
-                  .filter(Boolean)
-                  .map((line, lineIndex) => (
-                    <p key={lineIndex}>{renderInlines(parseInlines(line))}</p>
-                  ))}
+              <div className="mt-2 space-y-1 break-words text-xs leading-5 text-foreground/80">
+                {lines.map((line, lineIndex) => (
+                  <p key={lineIndex}>{renderInlines(parseInlines(line))}</p>
+                ))}
               </div>
             </details>
           );
