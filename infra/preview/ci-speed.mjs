@@ -108,7 +108,7 @@ export async function collect({limit = 10, since = '2026-11-01T00:00:00Z', until
       const runJobs = await jobs(run.id);
       result.failures.push({kind, run: run.id, workflowSha: run.head_sha, conclusion: run.conclusion, url: run.html_url,
         failedJobs: runJobs.filter(j => j.conclusion === 'failure').map(j => ({name: j.name, steps: j.steps?.filter(s => s.conclusion === 'failure').map(s => s.name)})),
-        actualDeployment: kind === 'preview-workflow' ? runJobs.some(j => j.name === 'deploy') : undefined});
+        hasDeployJob: kind === 'preview-workflow' ? runJobs.some(j => j.name === 'deploy') : undefined});
     }
   }
   try {
