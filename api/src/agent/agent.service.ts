@@ -275,7 +275,9 @@ export class AgentService {
               toolName,
               artifact: result.artifact,
             };
-            input.push(functionOutput(call, result.output));
+            input.push(
+              functionOutput(call, result.modelOutput ?? result.output),
+            );
           } catch (error) {
             const message =
               error instanceof Error ? error.message : String(error);

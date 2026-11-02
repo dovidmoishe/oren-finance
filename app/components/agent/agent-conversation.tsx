@@ -21,6 +21,7 @@ import type {
 import { Button, cn } from '@/components/ui';
 import { useOrenAuth } from '@/components/auth/auth-context';
 import { AgentArtifacts } from './agent-artifacts';
+import { AgentMessageBody } from './agent-message-body';
 import { toolLabel } from './agent-utils';
 import { AgentComposerView } from './agent-composer-view';
 
@@ -58,7 +59,7 @@ export function AgentMessage({
     <article>
       {message.activities?.length ? <ToolTrace activities={message.activities} /> : null}
       {message.content ? (
-        <p className="whitespace-pre-wrap text-[15px] leading-7 text-foreground">{message.content}</p>
+        <AgentMessageBody content={message.content} />
       ) : message.streaming ? (
         <span className="t-shimmer text-sm" data-text="Oren is thinking">
           Oren is thinking
@@ -295,6 +296,11 @@ export function AgentConversationThread({
                 </button>
               </div>
             </div>
+          ) : null}
+          {messages.some((message) => message.role === 'assistant' && message.content) ? (
+            <p className="pt-2 text-[11px] leading-4 text-muted">
+              Not financial advice. Writer opinions are not facts.
+            </p>
           ) : null}
         </div>
       )}

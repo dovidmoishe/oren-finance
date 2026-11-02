@@ -22,9 +22,17 @@ import {
   DRIP_PICKS_RETURN_DEFAULT,
   DRIP_PICKS_RETURN_MAX,
 } from '../../drip/drip.types';
+import {
+  analysisModelOutput,
+  dripOpinionsModelOutput,
+  dripPicksModelOutput,
+  researchModelOutput,
+} from '../agent-reply';
 
 export interface AgentToolResult {
   output: unknown;
+  /** Concise view for the model. The full `output` is what gets persisted. */
+  modelOutput?: unknown;
   artifact?: AgentArtifact;
 }
 
@@ -182,6 +190,7 @@ export class AgentToolRegistry {
         const analysis = await this.intelligence.getAnalysis(stock.id);
         return {
           output: analysis,
+          modelOutput: analysisModelOutput(analysis),
           artifact: { type: 'analysis', data: analysis },
         };
       }
@@ -407,16 +416,18 @@ export class AgentToolRegistry {
 
       case 'getDripOpinions': {
         const drip = this.dripFor(context, name);
-        return {
-          output: await drip.getOpinions(
-            required(input, 'assetIdOrTicker'),
-            clampLimit(
-              optionalNumber(input, 'limit'),
-              DRIP_OPINION_RETURN_DEFAULT,
-              DRIP_OPINION_RETURN_MAX,
-            ),
-            context,
+        const opinions = await drip.getOpinions(
+          required(input, 'assetIdOrTicker'),
+          clampLimit(
+            optionalNumber(input, 'limit'),
+            DRIP_OPINION_RETURN_DEFAULT,
+            DRIP_OPINION_RETURN_MAX,
           ),
+          context,
+        );
+        return {
+          output: opinions,
+          modelOutput: dripOpinionsModelOutput(opinions),
         };
       }
 
@@ -432,20 +443,26 @@ export class AgentToolRegistry {
             email: context.email,
           },
         );
-        return { output: report, artifact: { type: 'research', data: report } };
+        return {
+          output: report,
+          modelOutput: researchModelOutput(report),
+          artifact: { type: 'research', data: report },
+        };
       }
 
       case 'getDripPicks': {
         const drip = this.dripFor(context, name);
-        return {
-          output: await drip.getPicks(
-            clampLimit(
-              optionalNumber(input, 'limit'),
-              DRIP_PICKS_RETURN_DEFAULT,
-              DRIP_PICKS_RETURN_MAX,
-            ),
-            context,
+        const picks = await drip.getPicks(
+          clampLimit(
+            optionalNumber(input, 'limit'),
+            DRIP_PICKS_RETURN_DEFAULT,
+            DRIP_PICKS_RETURN_MAX,
           ),
+          context,
+        );
+        return {
+          output: picks,
+          modelOutput: dripPicksModelOutput(picks),
         };
       }
 
@@ -535,7 +552,7 @@ const TOOL_SCHEMAS: ToolDefinition[] = [
   }),
   tool(
     'analyzeStock',
-    'Get deterministic Oren Score plus a full technical-analysis brief (regime, setup, support/resistance, multi-timeframe indicators, summary, and news overlay) for a stock.',
+    'Get a plain-English technical read for a stock plus a details block of the deterministic numbers (score, RSI, MACD, levels, limit zones). Explain the plain read. Do not invent prices or a buy/sell call.',
     {
       assetIdOrTicker: stringSchema,
     },
@@ -641,7 +658,7 @@ const TOOL_SCHEMAS: ToolDefinition[] = [
 const DRIP_TOOL_SCHEMAS: ToolDefinition[] = [
   tool(
     'getDripOpinions',
-    'Look up recent Substack and podcast opinions about one stock from Drip. Pass an Oren ticker, asset id, or xStock symbol such as TSLAx; the server maps xStocks to the underlying equity ticker. Returns a short cited list (author, source, date, stance, action, quote, link) plus a stance summary. These are opinions, not facts or financial advice. If the result is unavailable, say opinions could not be fetched and continue without inventing quotes.',
+    'Look up recent writer opinions about one stock from Drip. Sources can be X posts, Substack, podcasts, or other posts — use each item source label, and do not call the feed Substack or podcast opinions. Pass an Oren ticker, asset id, or xStock symbol such as TSLAx. Returns a plain summary whose counts cover the deduped window, plus a few linked highlights. These are opinions, not facts or financial advice. If the result is unavailable, say opinions could not be fetched and continue without inventing quotes.',
     {
       assetIdOrTicker: stringSchema,
       limit: nullableNumberSchema,
@@ -649,7 +666,7 @@ const DRIP_TOOL_SCHEMAS: ToolDefinition[] = [
   ),
   tool(
     'getDripPicks',
-    'Get the latest Drip stock-pick feed from Substack writers and podcasters. Use when the user asks what writers are picking, what the desk is saying, or wants fresh ideas before a trade. Returns a short cited list. These are opinions, not facts or financial advice. If the result is unavailable, say the feed could not be fetched and continue.',
+    'Get the latest Drip writer stock-pick feed. Each pick has its own source label (X post, Substack, podcast, or other). Use when the user asks what writers are picking or wants fresh ideas. Returns a short cited list. These are opinions, not facts or financial advice. If the result is unavailable, say the feed could not be fetched and continue.',
     {
       limit: nullableNumberSchema,
     },

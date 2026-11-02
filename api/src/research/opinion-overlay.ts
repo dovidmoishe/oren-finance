@@ -24,7 +24,9 @@ export function opinionOverlay(
     seen.add(key);
     items.push({
       author: citation.author,
-      source: citation.source ?? citation.author,
+      source: citation.source ?? citation.sourceLabel ?? citation.author,
+      sourceLabel: citation.sourceLabel,
+      linkLabel: citation.linkLabel,
       date: citation.date,
       url: citation.url,
       stance: citation.stance,

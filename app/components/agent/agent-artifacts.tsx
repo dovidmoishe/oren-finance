@@ -163,48 +163,50 @@ function AgentArtifactCard({
       const analysis = artifact.data;
       return (
         <ArtifactShell icon={ChartLineData01Icon} label="Oren analysis" tone="lavender">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <p className="font-display text-xl font-semibold">{analysis.ticker}</p>
-              <p className="mt-1 text-xs capitalize text-muted">
-                {analysis.riskLabel ? `${analysis.riskLabel} risk` : 'Risk profile unavailable'}
-              </p>
-            </div>
-            <div className="grid h-14 w-14 place-items-center rounded-full bg-foreground text-white">
-              <span className="font-display text-lg font-semibold">{Math.round(analysis.opportunityScore)}</span>
-            </div>
+          <div>
+            <p className="font-display text-xl font-semibold">{analysis.ticker}</p>
+            <p className="mt-1 text-xs capitalize text-muted">
+              {analysis.riskLabel ? `${analysis.riskLabel} risk` : 'Risk profile unavailable'}
+            </p>
           </div>
           {analysis.summary ? (
             <p className="mt-3 text-xs leading-5 text-muted">{analysis.summary}</p>
           ) : null}
-          {analysis.technicalBrief ? (
-            <div className="mt-3 border-t border-black/8 pt-3">
-              <TechnicalBriefPanel brief={analysis.technicalBrief} compact={density !== 'rail'} />
+          <details className="mt-3 rounded-[15px] border border-black/8 bg-white/40 px-3 py-2">
+            <summary className="cursor-pointer text-xs font-medium text-muted">Show details</summary>
+            <div className="mt-3 flex items-center justify-between gap-3">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted">Oren Score</p>
+              <span className="font-display text-lg font-semibold">{Math.round(analysis.opportunityScore)}</span>
             </div>
-          ) : (
-            <div className="mt-3 grid grid-cols-3 gap-2">
-              <Metric label="RSI" value={formatSignal(analysis.signals.rsi14)} />
-              <Metric label="30d momentum" value={formatPercentSignal(analysis.signals.momentum30d)} />
-              <Metric label="30d volatility" value={formatPercentSignal(analysis.signals.volatility30d)} />
-            </div>
-          )}
-          {analysis.highlights.length ? (
-            <div className="mt-3 border-t border-black/8 pt-3">
-              <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted">
-                Signals &amp; strengths
-              </p>
-              <ul className="space-y-1.5 text-xs leading-5">
-              {analysis.highlights.slice(0, 3).map((highlight) => (
-                <li className="flex gap-2" key={highlight}>
-                  <span aria-hidden>•</span><span>{highlight}</span>
-                </li>
-              ))}
-              </ul>
-            </div>
-          ) : null}
-          <p className="mt-3 rounded-[13px] bg-white/55 px-3 py-2 text-[11px] leading-4 text-muted">
-            Risk: {analysis.riskLabel ?? 'unclassified'}. Scores are deterministic signals, not a guarantee of returns.
-          </p>
+            {analysis.technicalBrief ? (
+              <div className="mt-3 border-t border-black/8 pt-3">
+                <TechnicalBriefPanel brief={analysis.technicalBrief} compact={density !== 'rail'} />
+              </div>
+            ) : (
+              <div className="mt-3 grid grid-cols-3 gap-2">
+                <Metric label="RSI" value={formatSignal(analysis.signals.rsi14)} />
+                <Metric label="30d momentum" value={formatPercentSignal(analysis.signals.momentum30d)} />
+                <Metric label="30d volatility" value={formatPercentSignal(analysis.signals.volatility30d)} />
+              </div>
+            )}
+            {analysis.highlights.length ? (
+              <div className="mt-3 border-t border-black/8 pt-3">
+                <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted">
+                  Signals &amp; strengths
+                </p>
+                <ul className="space-y-1.5 text-xs leading-5">
+                {analysis.highlights.slice(0, 3).map((highlight) => (
+                  <li className="flex gap-2" key={highlight}>
+                    <span aria-hidden>•</span><span>{highlight}</span>
+                  </li>
+                ))}
+                </ul>
+              </div>
+            ) : null}
+            <p className="mt-3 text-[11px] leading-4 text-muted">
+              Risk: {analysis.riskLabel ?? 'unclassified'}. Scores are deterministic signals, not a guarantee of returns.
+            </p>
+          </details>
         </ArtifactShell>
       );
     }

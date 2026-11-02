@@ -217,8 +217,7 @@ export function StockResearchPanel({ assetId }: { assetId: string }) {
             <h3 className="text-sm font-semibold">Writer views</h3>
             {!report.opinions.available ? (
               <p className="mt-2 text-sm text-muted">
-                Writer and podcast opinions are unavailable for this research
-                view.
+                Writer opinions are unavailable for this research view.
               </p>
             ) : null}
             {report.opinions.data ? (
@@ -242,13 +241,18 @@ export function StockResearchPanel({ assetId }: { assetId: string }) {
                       key={`${item.author}-${item.url}`}
                     >
                       <a
-                        className="text-sm font-medium underline-offset-2 hover:underline"
+                        className="text-sm font-medium text-sky-700 underline-offset-2 hover:underline"
                         href={item.url}
                         onClick={recordSource}
                         rel="noopener noreferrer"
                         target="_blank"
                       >
-                        {item.author} · {item.source}
+                        {item.linkLabel ?? item.author}
+                        {item.sourceLabel ? (
+                          <span className="font-normal text-muted"> · {item.sourceLabel}</span>
+                        ) : (
+                          <span className="font-normal text-muted"> · {item.source}</span>
+                        )}
                       </a>
                       <p className="mt-1 text-xs text-muted">
                         {item.stance ?? "Unstated"}

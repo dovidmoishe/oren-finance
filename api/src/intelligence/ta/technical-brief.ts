@@ -49,19 +49,25 @@ export function buildTechnicalBrief(input: {
         sma50: primaryTimeframe.sma50,
       });
 
+  const levelBars =
+    dailyBars.length >= TA_MIN_DAILY_BARS ? dailyBars : hourlyBars;
+  const levels = swingLevels(levelBars, input.price);
+  const support = levels.find((level) => level.label === 'support');
+  const resistance = levels.find((level) => level.label === 'resistance');
+
   const setup = setupClass({
     regime,
     rsi14: structureSnapshot?.rsi14 ?? primaryTimeframe.rsi14,
     price: input.price,
     sma20: structureSnapshot?.sma20 ?? primaryTimeframe.sma20,
     bollinger: structureSnapshot?.bollinger ?? primaryTimeframe.bollinger,
-    volumeTrend: structureSnapshot?.volumeTrend ?? primaryTimeframe.volumeTrend ?? 1,
+    volumeTrend:
+      structureSnapshot?.volumeTrend ?? primaryTimeframe.volumeTrend ?? 1,
+    atr14: structureSnapshot?.atr14 ?? primaryTimeframe.atr14,
+    resistanceDistancePct: resistance?.distancePct,
+    supportDistancePct: support?.distancePct,
     limitedHistory: insufficientData,
   });
-
-  const levelBars =
-    dailyBars.length >= TA_MIN_DAILY_BARS ? dailyBars : hourlyBars;
-  const levels = swingLevels(levelBars, input.price);
   const limitZones = buildLimitZones({
     price: input.price,
     levels,
@@ -121,7 +127,10 @@ function buildRisks(input: {
   if (input.setup === 'breakout') {
     risks.push('Breakout setups can fail if volume does not follow through.');
   }
-  if (input.primaryTimeframe.rsi14 >= 70 || input.primaryTimeframe.rsi14 <= 30) {
+  if (
+    input.primaryTimeframe.rsi14 >= 70 ||
+    input.primaryTimeframe.rsi14 <= 30
+  ) {
     risks.push('RSI is at an extreme — reversals are more likely.');
   }
   return risks.slice(0, 4);
