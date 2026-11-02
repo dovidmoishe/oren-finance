@@ -53,7 +53,7 @@ denials. Keep the execution flag off until the revised gate below is proven.
    that either key alone is denied, both keys plus one validated route are
    accepted, and the signer gate refuses two routes before producing its
    signature. Confirm the SDK/request construction and signer-override policy
-   work together; this integration has **not** been tested yet.
+   work together; this sign-only integration passed on an unfunded wallet.
    Build the exact Privy request once, including its wallet URL, transaction,
    idempotency key and request expiry. Both services should authorize the same
    canonical bytes using Privy's
@@ -79,9 +79,18 @@ condition, or design and audit an on-chain swap guard. Neither is currently
 proven. Do not use simulation, tight compute limits, short expiry, one-time
 policy updates, or server-only checks as substitutes for that requirement.
 
-> **Status:** browser buy/sell intents, delegation/reservation schema, exact-mint fresh quote path and disabled execution-scope consent foundations are implemented on PR #18. The disposable-wallet signer proof found a whole-transaction cap gap; the owner revoked that signer. Live delegated signing remains disabled pending the independent signer-gate proof above. Updated 2 Nov 2026 (WAT, UTC+1).
+> **Status:** The unfunded 2-of-2 Jupiter buy proof passed: either key alone was denied, both signed the same canonical request, and the gate rejected two routes before signing. The owner removed the signer and Privy read-back shows zero signers. PR #18 now contains the separate signer-gate service, browser grant settings, atomic reservation/request storage, and reconciliation behind disabled flags. Live delegated signing remains disabled pending Linux CI, restricted VPS role installation, funded disposable Jupiter buy/sell trials, and revoke/kill-switch drills. Titan remains on browser approval. Updated 2 Nov 2026 (WAT, UTC+1).
 > **Audience:** Codex, implementing in this repo. Read `AGENTS.md` (money-move rule, line 39) and `MCP_PRIVY_AUTH.md` §6.6 first; this plan implements that contract.
 > **Legend:** **[doc]** = read on the cited docs.privy.io page on 1 Nov 2026. **[unverified]** = my understanding, not confirmed on a primary source; Phase 0 must prove it. **[code]** = read in this repo.
+
+---
+
+## Implementation update (2 Nov 2026)
+
+- The unfunded disposable-wallet 2-of-2 proof passed for one real Jupiter Token-2022 buy with an address lookup table. Privy denied each key alone, transfer/message methods, and trade-key policy updates. The gate rejected two routes before producing its signature. The owner removed the proof signer; Privy read-back reports zero signers and the wallet still has zero SOL. No broadcast occurred.
+- Migration `0011` records the exact canonical Privy request, unsigned transaction, signed bytes, chain signature, and reconciliation state. The gate commits intent claim, budget reservation, and request storage together in Postgres. An unused expired challenge can be released; uncertain Privy signing and broadcast remain pending without replacement bytes.
+- The production-only gate has private Compose networks and a restricted Postgres role. The API runtime has a separate role that cannot change delegation limits, reservations, or delegated execution records. `infra/signer-gate/README.md` covers provisioning and reconciliation. The temporary proof page has been removed.
+- Browser settings prepare, verify, activate, cancel and revoke grants. `execute_trade` and gate-owned Jupiter build are implemented with buy/sell flags disabled. The compile-time release block remains set until funded provider acceptance. Jupiter requires pre-existing source and destination token accounts; Titan stays on browser approval.
 
 ---
 
