@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { MarketChart, type MarketChartMode, type MarketChartRange } from "@/components/charts";
 import { StockMarketOutlook } from "@/components/stock/stock-market-outlook";
+import { StockResearchPanel } from "@/components/stock/stock-research";
 import { StockTradeTicket } from "@/components/trading";
 import {
   Button,
@@ -124,6 +125,7 @@ export function StockDetail({ assetId }: { assetId: string }) {
       </div>
 
       <StockMarketOutlook analysis={analysis} news={news} stock={stock} />
+      <StockResearchPanel assetId={stock.assetId} />
     </div>
   );
 }

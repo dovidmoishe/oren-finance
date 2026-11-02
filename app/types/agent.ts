@@ -60,6 +60,7 @@ export interface AgentVaultSummary {
 }
 
 export type AgentArtifact =
+  | { type: 'research'; data: import('./research').StockResearch }
   | { type: 'portfolio'; data: PortfolioSummary }
   | { type: 'stock'; data: StockDetail }
   | { type: 'bitget_market'; data: BitgetMarketContext }

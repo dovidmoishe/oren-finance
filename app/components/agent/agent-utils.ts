@@ -17,6 +17,7 @@ export function promptSuggestions(context: AgentPageContext, ticker?: string): s
   switch (context.page) {
     case 'stock':
       return [
+        `Research ${ticker ?? 'this stock'} with sources`,
         `Analyze ${ticker ?? 'this stock'} for me`,
         `What is the latest news on ${ticker ?? 'this stock'}?`,
         `What are the main risks here?`,
@@ -81,6 +82,7 @@ export function contextLabel(context: AgentPageContext, ticker?: string): string
 
 export function toolLabel(toolName: string) {
   const labels: Record<string, string> = {
+    getStockResearch: 'Building cited stock research',
     getPortfolio: 'Checking your portfolio',
     getPortfolioActivity: 'Reading portfolio activity',
     getTradingCalendar: 'Reading trading calendar',
