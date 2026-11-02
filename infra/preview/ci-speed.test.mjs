@@ -16,4 +16,7 @@ test('cache evidence requires the pnpm layer itself and distinguishes materializ
   assert.equal(cacheEvidence(log.replace('#14 CACHED', '#14 DONE 60.0s')).dependencyCacheHit, false);
   assert.equal(cacheEvidence(log.replace('load: true', 'load: false')).materialized, false);
   assert.equal(cacheEvidence('#12 CACHED\nimporting cache manifest').dependencyCacheHit, null);
+  const probe = 'no-cache-filters: dependency-probe\n#20 [dependency-probe 1/1] RUN node -e "resolve"\n#20 DONE 0.2s';
+  assert.equal(cacheEvidence(probe).materialized, true);
+  assert.equal(cacheEvidence(probe.replace('#20 DONE 0.2s', '#20 CACHED')).materialized, false);
 });

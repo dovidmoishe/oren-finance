@@ -29,15 +29,24 @@ jobs:
         with:
           persist-credentials: false
       - uses: docker/setup-buildx-action@v3
+      - name: Prepare dependency consumer probe
+        run: |
+          cp app/Dockerfile "$RUNNER_TEMP/Dockerfile.web-deps"
+          cat >> "$RUNNER_TEMP/Dockerfile.web-deps" <<'DOCKERFILE'
+
+          FROM dependencies AS dependency-probe
+          RUN node -e "console.log(require.resolve('next/package.json'))"
+          DOCKERFILE
       - name: Build dependency layer
         id: build
         uses: docker/build-push-action@v6
         with:
           context: ./app
-          target: dependencies
+          file: ${{ runner.temp }}/Dockerfile.web-deps
+          target: dependency-probe
+          # Re-run a tiny consumer to force dependency-layer restoration.
+          no-cache-filters: dependency-probe
           push: false
-          # Force cache layers to materialize, as a real downstream build needs them.
-          load: true
           cache-from: ${{ matrix.profile == 'gha' && format('type=gha,scope=web-deps-bench-{0}-{1}', github.run_id, hashFiles('app/Dockerfile', 'app/package.json', 'app/pnpm-lock.yaml', 'app/pnpm-workspace.yaml')) || '' }}
           cache-to: ${{ matrix.profile == 'gha' && format('type=gha,mode=max,scope=web-deps-bench-{0}-{1}', github.run_id, hashFiles('app/Dockerfile', 'app/package.json', 'app/pnpm-lock.yaml', 'app/pnpm-workspace.yaml')) || '' }}
       - name: Record experiment context
@@ -63,15 +72,24 @@ jobs:
         with:
           persist-credentials: false
       - uses: docker/setup-buildx-action@v3
+      - name: Prepare dependency consumer probe
+        run: |
+          cp app/Dockerfile "$RUNNER_TEMP/Dockerfile.web-deps"
+          cat >> "$RUNNER_TEMP/Dockerfile.web-deps" <<'DOCKERFILE'
+
+          FROM dependencies AS dependency-probe
+          RUN node -e "console.log(require.resolve('next/package.json'))"
+          DOCKERFILE
       - name: Build dependency layer
         id: build
         uses: docker/build-push-action@v6
         with:
           context: ./app
-          target: dependencies
+          file: ${{ runner.temp }}/Dockerfile.web-deps
+          target: dependency-probe
+          # Re-run a tiny consumer to force dependency-layer restoration.
+          no-cache-filters: dependency-probe
           push: false
-          # Force cache layers to materialize, as a real downstream build needs them.
-          load: true
           cache-from: ${{ matrix.profile == 'gha' && format('type=gha,scope=web-deps-bench-{0}-{1}', github.run_id, hashFiles('app/Dockerfile', 'app/package.json', 'app/pnpm-lock.yaml', 'app/pnpm-workspace.yaml')) || '' }}
           cache-to: ${{ matrix.profile == 'gha' && format('type=gha,mode=max,scope=web-deps-bench-{0}-{1}', github.run_id, hashFiles('app/Dockerfile', 'app/package.json', 'app/pnpm-lock.yaml', 'app/pnpm-workspace.yaml')) || '' }}
       - name: Record experiment context
@@ -97,15 +115,24 @@ jobs:
         with:
           persist-credentials: false
       - uses: docker/setup-buildx-action@v3
+      - name: Prepare dependency consumer probe
+        run: |
+          cp app/Dockerfile "$RUNNER_TEMP/Dockerfile.web-deps"
+          cat >> "$RUNNER_TEMP/Dockerfile.web-deps" <<'DOCKERFILE'
+
+          FROM dependencies AS dependency-probe
+          RUN node -e "console.log(require.resolve('next/package.json'))"
+          DOCKERFILE
       - name: Build dependency layer
         id: build
         uses: docker/build-push-action@v6
         with:
           context: ./app
-          target: dependencies
+          file: ${{ runner.temp }}/Dockerfile.web-deps
+          target: dependency-probe
+          # Re-run a tiny consumer to force dependency-layer restoration.
+          no-cache-filters: dependency-probe
           push: false
-          # Force cache layers to materialize, as a real downstream build needs them.
-          load: true
           cache-from: ${{ matrix.profile == 'gha' && format('type=gha,scope=web-deps-bench-{0}-{1}', github.run_id, hashFiles('app/Dockerfile', 'app/package.json', 'app/pnpm-lock.yaml', 'app/pnpm-workspace.yaml')) || '' }}
           cache-to: ${{ matrix.profile == 'gha' && format('type=gha,mode=max,scope=web-deps-bench-{0}-{1}', github.run_id, hashFiles('app/Dockerfile', 'app/package.json', 'app/pnpm-lock.yaml', 'app/pnpm-workspace.yaml')) || '' }}
       - name: Record experiment context
@@ -131,15 +158,24 @@ jobs:
         with:
           persist-credentials: false
       - uses: docker/setup-buildx-action@v3
+      - name: Prepare dependency consumer probe
+        run: |
+          cp app/Dockerfile "$RUNNER_TEMP/Dockerfile.web-deps"
+          cat >> "$RUNNER_TEMP/Dockerfile.web-deps" <<'DOCKERFILE'
+
+          FROM dependencies AS dependency-probe
+          RUN node -e "console.log(require.resolve('next/package.json'))"
+          DOCKERFILE
       - name: Build dependency layer
         id: build
         uses: docker/build-push-action@v6
         with:
           context: ./app
-          target: dependencies
+          file: ${{ runner.temp }}/Dockerfile.web-deps
+          target: dependency-probe
+          # Re-run a tiny consumer to force dependency-layer restoration.
+          no-cache-filters: dependency-probe
           push: false
-          # Force cache layers to materialize, as a real downstream build needs them.
-          load: true
           cache-from: ${{ matrix.profile == 'gha' && format('type=gha,scope=web-deps-bench-{0}-{1}', github.run_id, hashFiles('app/Dockerfile', 'app/package.json', 'app/pnpm-lock.yaml', 'app/pnpm-workspace.yaml')) || '' }}
           cache-to: ${{ matrix.profile == 'gha' && format('type=gha,mode=max,scope=web-deps-bench-{0}-{1}', github.run_id, hashFiles('app/Dockerfile', 'app/package.json', 'app/pnpm-lock.yaml', 'app/pnpm-workspace.yaml')) || '' }}
       - name: Record experiment context
@@ -165,15 +201,24 @@ jobs:
         with:
           persist-credentials: false
       - uses: docker/setup-buildx-action@v3
+      - name: Prepare dependency consumer probe
+        run: |
+          cp app/Dockerfile "$RUNNER_TEMP/Dockerfile.web-deps"
+          cat >> "$RUNNER_TEMP/Dockerfile.web-deps" <<'DOCKERFILE'
+
+          FROM dependencies AS dependency-probe
+          RUN node -e "console.log(require.resolve('next/package.json'))"
+          DOCKERFILE
       - name: Build dependency layer
         id: build
         uses: docker/build-push-action@v6
         with:
           context: ./app
-          target: dependencies
+          file: ${{ runner.temp }}/Dockerfile.web-deps
+          target: dependency-probe
+          # Re-run a tiny consumer to force dependency-layer restoration.
+          no-cache-filters: dependency-probe
           push: false
-          # Force cache layers to materialize, as a real downstream build needs them.
-          load: true
           cache-from: ${{ matrix.profile == 'gha' && format('type=gha,scope=web-deps-bench-{0}-{1}', github.run_id, hashFiles('app/Dockerfile', 'app/package.json', 'app/pnpm-lock.yaml', 'app/pnpm-workspace.yaml')) || '' }}
           cache-to: ${{ matrix.profile == 'gha' && format('type=gha,mode=max,scope=web-deps-bench-{0}-{1}', github.run_id, hashFiles('app/Dockerfile', 'app/package.json', 'app/pnpm-lock.yaml', 'app/pnpm-workspace.yaml')) || '' }}
       - name: Record experiment context
@@ -199,15 +244,24 @@ jobs:
         with:
           persist-credentials: false
       - uses: docker/setup-buildx-action@v3
+      - name: Prepare dependency consumer probe
+        run: |
+          cp app/Dockerfile "$RUNNER_TEMP/Dockerfile.web-deps"
+          cat >> "$RUNNER_TEMP/Dockerfile.web-deps" <<'DOCKERFILE'
+
+          FROM dependencies AS dependency-probe
+          RUN node -e "console.log(require.resolve('next/package.json'))"
+          DOCKERFILE
       - name: Build dependency layer
         id: build
         uses: docker/build-push-action@v6
         with:
           context: ./app
-          target: dependencies
+          file: ${{ runner.temp }}/Dockerfile.web-deps
+          target: dependency-probe
+          # Re-run a tiny consumer to force dependency-layer restoration.
+          no-cache-filters: dependency-probe
           push: false
-          # Force cache layers to materialize, as a real downstream build needs them.
-          load: true
           cache-from: ${{ matrix.profile == 'gha' && format('type=gha,scope=web-deps-bench-{0}-{1}', github.run_id, hashFiles('app/Dockerfile', 'app/package.json', 'app/pnpm-lock.yaml', 'app/pnpm-workspace.yaml')) || '' }}
           cache-to: ${{ matrix.profile == 'gha' && format('type=gha,mode=max,scope=web-deps-bench-{0}-{1}', github.run_id, hashFiles('app/Dockerfile', 'app/package.json', 'app/pnpm-lock.yaml', 'app/pnpm-workspace.yaml')) || '' }}
       - name: Record experiment context

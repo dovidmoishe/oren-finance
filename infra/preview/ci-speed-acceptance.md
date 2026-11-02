@@ -54,7 +54,7 @@ it does not publish an image, use production credentials or deploy. Six rounds e
 compare an uncached runner with a GHA remote cache in an isolated PR/run + input-hash
 scope. Each run has its own cache namespace and is not cancelled by later PR updates. Every sample gets a new runner and BuildKit builder. Round 1 seeds a cold
 cache; rounds 2-6 provide five warm candidates. No local builder cache survives
-between rounds. The dependency image is loaded into the disposable runner to force cached layers to materialize; a metadata-only cache hit is insufficient. Save full logs and verify that the pnpm install layer says `CACHED`
+between rounds. A tiny uncached consumer stage resolves the installed Next package to force dependency-layer restoration; a metadata-only cache hit is insufficient. The probe avoids Docker image packaging overhead. Save full logs and verify that the pnpm install layer says `CACHED`
 before counting a warm hit; a completed cache import alone is not proof of a hit.
 
 Use total image-job duration, including import, export and post-job cleanup, and

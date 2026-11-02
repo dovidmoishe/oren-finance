@@ -17,7 +17,9 @@ export function cacheEvidence(raw) {
   const install = log.split('\n').find(line => /#\d+ \[dependencies [^\]]+\] RUN pnpm install --frozen-lockfile/.test(line));
   const id = install?.match(/#(\d+)/)?.[1];
   const hit = id ? log.split('\n').find(line => new RegExp(`#${id} CACHED\\s*$`).test(line)) : null;
-  return {materialized: /\bload: true\b/.test(log), dependencyCacheHit: id ? Boolean(hit) : null,
+  const probe = log.match(/#(\d+) \[dependency-probe [^\]]+\] RUN node -e/);
+  const probeRan = probe && new RegExp(`#${probe[1]} DONE `).test(log) && /no-cache-filters: dependency-probe/.test(log);
+  return {materialized: /\bload: true\b/.test(log) || Boolean(probeRan), dependencyCacheHit: id ? Boolean(hit) : null,
     evidence: [install, hit].filter(Boolean)};
 }
 async function benchmarkJobs(id) {
