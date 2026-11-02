@@ -30,18 +30,21 @@ export function selectHighlights<T extends DripCitation>(
   );
   const chosen: T[] = [];
   const authors = new Set<string>();
-  const take = (matches: (item: T) => boolean) => {
+  const take = (matches: (item: T) => boolean, max = limit) => {
+    let taken = 0;
     for (const item of newest) {
-      if (chosen.length >= limit) return;
+      if (chosen.length >= limit || taken >= max) return;
       const author = item.author.trim().toLowerCase();
       if (authors.has(author) || !matches(item)) continue;
       authors.add(author);
       chosen.push(item);
+      taken += 1;
     }
   };
-  take((item) => item.stance === 'BULLISH');
-  take((item) => item.stance === 'BEARISH');
-  take((item) => item.stance === 'NEUTRAL' || !item.stance);
+  // One per stance first, so a run of bullish posts cannot hide bearish ones.
+  take((item) => item.stance === 'BULLISH', 1);
+  take((item) => item.stance === 'BEARISH', 1);
+  take((item) => item.stance === 'NEUTRAL' || !item.stance, 1);
   take(() => true);
   return chosen.sort(
     (left, right) => timeValue(right.date) - timeValue(left.date),

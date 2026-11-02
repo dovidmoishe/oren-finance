@@ -9,6 +9,47 @@ import { plainTechnicalRead } from '../intelligence/ta/plain-read';
 import type { TechnicalBrief } from '../../types/analysis';
 
 describe('agent reply shaping', () => {
+  it('shows both sides when the newest opinions are all positive', () => {
+    const post = (
+      author: string,
+      stance: 'BULLISH' | 'BEARISH',
+      day: number,
+    ) => ({
+      author,
+      stance,
+      url: `https://x.com/${author}/status/${day}`,
+      date: `2026-10-${String(day).padStart(2, '0')}T00:00:00.000Z`,
+    });
+    const shaped = dripOpinionsModelOutput(
+      presentOpinions(
+        {
+          ticker: 'NVDA',
+          summary: {
+            calls: 5,
+            analysts: 5,
+            bullish: 4,
+            bearish: 1,
+            neutral: 0,
+            byAction: {},
+          },
+          truncated: false,
+          opinions: [
+            post('bull-a', 'BULLISH', 20),
+            post('bull-b', 'BULLISH', 19),
+            post('bull-c', 'BULLISH', 18),
+            post('bull-d', 'BULLISH', 17),
+            post('bear-a', 'BEARISH', 10),
+          ],
+        },
+        'NVDA',
+        undefined,
+        4,
+      ),
+    );
+    if (!shaped.available) throw new Error('expected opinions');
+    expect(shaped.speak.bullets.join('\n')).toContain('negative');
+  });
+
   it('turns a deduped Drip window into a short linked answer', () => {
     const opinions: DripOpinions = {
       available: true,

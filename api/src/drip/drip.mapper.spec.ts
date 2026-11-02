@@ -1,8 +1,57 @@
+import { selectHighlights } from './drip-dedupe';
 import {
   compactPicks,
   compactTickerCoverage,
   presentOpinions,
 } from './drip.mapper';
+import type { DripCitation, DripStance } from './drip.types';
+
+function dated(
+  author: string,
+  stance: DripStance | undefined,
+  day: number,
+): DripCitation {
+  return {
+    author,
+    stance,
+    date: `2026-10-${String(day).padStart(2, '0')}T00:00:00.000Z`,
+  };
+}
+
+describe('selectHighlights', () => {
+  it('keeps a bearish view when newer bullish posts could fill every slot', () => {
+    const highlights = selectHighlights(
+      [
+        dated('bull-a', 'BULLISH', 20),
+        dated('bull-b', 'BULLISH', 19),
+        dated('bull-c', 'BULLISH', 18),
+        dated('bull-d', 'BULLISH', 17),
+        dated('bear-a', 'BEARISH', 10),
+        dated('bear-b', 'BEARISH', 9),
+      ],
+      4,
+    );
+    expect(highlights).toHaveLength(4);
+    expect(highlights.map((item) => item.stance)).toContain('BEARISH');
+  });
+
+  it('fills remaining slots with the newest posts from new authors', () => {
+    const highlights = selectHighlights(
+      [
+        dated('bull-a', 'BULLISH', 20),
+        dated('bull-b', 'BULLISH', 19),
+        dated('bull-a', 'BULLISH', 18),
+        dated('bear-a', 'BEARISH', 10),
+      ],
+      4,
+    );
+    expect(highlights.map((item) => item.author)).toEqual([
+      'bull-a',
+      'bull-b',
+      'bear-a',
+    ]);
+  });
+});
 
 describe('Drip response mapping', () => {
   it('keeps a short cited opinion and the stance summary', () => {
