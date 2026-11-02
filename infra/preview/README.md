@@ -66,6 +66,18 @@ Manual production deployments accept a full Git SHA and load its matching deploy
 
 ## Image build speed rollout
 
+Production starts on the same `master` push as CI. The existing API/web image jobs and
+the exact-SHA CI gate run concurrently; deployment requires the gate and both image
+jobs to succeed. Failed, cancelled, missing or timed-out CI never authorizes deployment.
+The gate only accepts the newest `ci.yml` push run from this repository on `master`
+for the release SHA, and waits at most 30 minutes. CI reruns do not implicitly redeploy:
+after a failed gate, rerun the production workflow once CI succeeds.
+
+Manual deployment/rollback still uses existing images for the selected full SHA and
+its matching deployment configuration. It must run from `master` and now requires
+successful master CI for that selected SHA too. Public readiness, environment/SHA,
+media checksum verification and running-image digest release records remain required.
+
 Production and preview API/web images build in parallel. The production web build runs without the previous large GitHub Actions cache; previews remain uncached. Keep the exact SHA tags and the existing CI, deployment and health gates.
 
 Baseline image-job times from 2026-11-01: production runs 41284434443, 41281655445 and 41280080809 took about 4m31s, 4m25s and 5m06s; preview run 41228180240 took about 3m21s. Compare at least two new production image jobs and two warm preview image jobs using their Actions start/end timestamps. A preview cache experiment should use a separate scope per PR and service; keep it only if its warm total job time beats the uncached preview baseline. Likewise, restore a production web cache only if total image-job time improves. Do not judge a cache by the `next build` line alone: include layer import, export and builder cleanup.
@@ -73,6 +85,14 @@ Baseline image-job times from 2026-11-01: production runs 41284434443, 412816554
 API image reuse is implemented but off by default. After the timing comparison, set repository Actions variable `API_IMAGE_REUSE_ENABLED=true` to enable it. A recent successful production release or same-PR preview deployment must record an API digest, be no older than seven days, and have the same `api/` Git tree as the target commit. The workflow copies that image by digest to the new exact-SHA tag; missing records, API changes or registry failures trigger a normal build. Preview success records the API digest for later runs. The web image always rebuilds because its public preview banner embeds PR/commit metadata. The API reads the new commit SHA from deployment environment variables, including when its image is reused.
 
 ## Verification commands
+
+Web tests, lint and production build run in three independent CI matrix jobs with
+`fail-fast: false`, separate clean installs and the same `/api` build origin. All
+three must succeed. The aggregate **App test, lint, and build** check retains the
+existing branch-protection name and fails if any matrix job fails, skips or is
+cancelled. Preview still requires the entire exact-head CI workflow to succeed.
+This trades additional runner minutes and two dependency installs for lower wall
+time; do not infer a speedup until comparable PR-to-preview samples exist.
 
 ```sh
 node --test infra/preview/*.test.mjs

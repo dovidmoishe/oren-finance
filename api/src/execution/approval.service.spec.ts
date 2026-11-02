@@ -97,7 +97,7 @@ function fixture(status = 'prepared') {
     findByOrderKey: jest.fn(),
   };
   const service = new ApprovalService(
-    auth,
+    auth as never,
     approvals as never,
     rpc as never,
     execution as never,

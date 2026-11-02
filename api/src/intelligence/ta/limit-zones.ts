@@ -1,5 +1,8 @@
-import type { LimitZone, PriceLevel } from '../../../types/analysis';
-import type { BollingerSnapshot } from '../../../types/analysis';
+import type {
+  BollingerSnapshot,
+  LimitZone,
+  PriceLevel,
+} from '../../../types/analysis';
 
 const ATR_BUFFER_FRACTION = 0.25;
 
@@ -13,9 +16,45 @@ function distancePct(price: number, level: number): number {
 }
 
 /**
+ * Buy ladder: conservative < preferred < aggressive < price.
+ * Sell ladder: price < aggressive < preferred < conservative.
+ * Both wings use the same ATR offset. A wing that would cross the
+ * market is omitted — clamping it to the live price makes that side
+ * a few cents wide while the other side keeps the full offset.
+ */
+function offsetLevel(
+  preferred: number,
+  offset: number,
+  price: number,
+  side: 'buy' | 'sell',
+  wing: 'toward' | 'away',
+): number | undefined {
+  if (!(offset > 0)) return undefined;
+  const signed =
+    side === 'buy'
+      ? wing === 'toward'
+        ? offset
+        : -offset
+      : wing === 'toward'
+        ? -offset
+        : offset;
+  const level = round(preferred + signed);
+  if (side === 'buy' && wing === 'away') {
+    return level > 0 && level < preferred ? level : undefined;
+  }
+  if (side === 'buy' && wing === 'toward') {
+    return level > preferred && level < price ? level : undefined;
+  }
+  if (wing === 'away') {
+    return level > preferred ? level : undefined;
+  }
+  return level < preferred && level > price ? level : undefined;
+}
+
+/**
  * Deterministic limit-order zones from swing S/R, with Bollinger fallback.
- * ATR is used only as a small buffer around the preferred level.
- * LLM explains these — never invents them.
+ * ATR is only a buffer around the preferred level.
+ * The model explains these — it does not invent them.
  */
 export function buildLimitZones(input: {
   price: number;
@@ -39,22 +78,13 @@ export function buildLimitZones(input: {
         : undefined;
 
   if (buyPreferred !== undefined) {
-    const basis = support && support.price < price ? 'swing_support' : 'bollinger_lower';
-    const conservative = round(Math.max(0, buyPreferred - buffer));
-    const aggressive = round(
-      Math.min(price * 0.999, buyPreferred + buffer),
-    );
+    const basis =
+      support && support.price < price ? 'swing_support' : 'bollinger_lower';
     zones.push({
       side: 'buy',
       preferredUsd: round(buyPreferred),
-      conservativeUsd:
-        conservative > 0 && conservative < buyPreferred
-          ? conservative
-          : undefined,
-      aggressiveUsd:
-        aggressive > buyPreferred && aggressive < price
-          ? aggressive
-          : undefined,
+      conservativeUsd: offsetLevel(buyPreferred, buffer, price, 'buy', 'away'),
+      aggressiveUsd: offsetLevel(buyPreferred, buffer, price, 'buy', 'toward'),
       basis,
       distancePct: round(distancePct(price, buyPreferred)),
     });
@@ -72,19 +102,23 @@ export function buildLimitZones(input: {
       resistance && resistance.price > price
         ? 'swing_resistance'
         : 'bollinger_upper';
-    const conservative = round(sellPreferred + buffer);
-    const aggressive = round(
-      Math.max(price * 1.001, sellPreferred - buffer),
-    );
     zones.push({
       side: 'sell',
       preferredUsd: round(sellPreferred),
-      conservativeUsd:
-        conservative > sellPreferred ? conservative : undefined,
-      aggressiveUsd:
-        aggressive < sellPreferred && aggressive > price
-          ? aggressive
-          : undefined,
+      conservativeUsd: offsetLevel(
+        sellPreferred,
+        buffer,
+        price,
+        'sell',
+        'away',
+      ),
+      aggressiveUsd: offsetLevel(
+        sellPreferred,
+        buffer,
+        price,
+        'sell',
+        'toward',
+      ),
       basis,
       distancePct: round(distancePct(price, sellPreferred)),
     });

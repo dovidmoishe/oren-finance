@@ -55,6 +55,9 @@ describe('Drip response mapping', () => {
       {
         author: 'Example Analyst',
         source: 'Example Finance Newsletter',
+        sourceKind: 'other',
+        sourceLabel: 'Post',
+        linkLabel: 'Example Analyst',
         date: '2026-10-30T11:24:07.000Z',
         stance: 'BULLISH',
         action: 'ADD',
@@ -69,11 +72,14 @@ describe('Drip response mapping', () => {
       queried: 'NVDAx',
       ticker: 'NVDA',
       mappedFrom: 'NVDAx',
+      windowComplete: true,
       summary: {
-        calls: 2,
+        calls: 1,
+        analysts: 1,
         bullish: 1,
-        bearish: 1,
-        byAction: { ADD: 1, EXIT: 1 },
+        bearish: 0,
+        byAction: { ADD: 1 },
+        bySource: { Post: 1 },
       },
     });
     expect(presented.disclaimer).toContain('not financial advice');
@@ -144,7 +150,163 @@ describe('Drip response mapping', () => {
         },
       ],
     });
-    expect(result?.summary.calls).toBe(4);
+    expect(result?.summary.calls).toBe(1);
+    expect(result?.summary.bullish).toBe(1);
+    expect(result?.summary.byAction).toEqual({ UNSTATED: 1 });
     expect(result?.opinions).toHaveLength(1);
+  });
+
+  it('labels X posts, Substack, and podcasts from the payload', () => {
+    const result = compactTickerCoverage({
+      meta: { ticker: 'TSLA', truncated: false },
+      authors: [
+        {
+          author: 'BowTied Bull',
+          platform: 'TWITTER',
+          mentions: [
+            {
+              sentiment: 'BULLISH',
+              action: 'ADD',
+              thesis: 'Still adding on weakness.',
+              articleUrl: 'https://x.com/BowTiedBull/status/10',
+              publishedAt: '2026-11-01T12:00:00.000Z',
+            },
+          ],
+        },
+        {
+          author: 'TheLongInvest',
+          mentions: [
+            {
+              sentiment: 'BEARISH',
+              action: 'OPINION',
+              thesis: 'Too extended for me.',
+              articleUrl: 'https://x.com/TheLongInvest/status/11',
+              publishedAt: '2026-11-01T13:00:00.000Z',
+            },
+          ],
+        },
+        {
+          author: 'Letter Writer',
+          mentions: [
+            {
+              platform: 'SUBSTACK',
+              sentiment: 'BULLISH',
+              thesis: 'The letter stays long.',
+              articleUrl: 'https://example.substack.com/p/tsla',
+              publishedAt: '2026-11-01T14:00:00.000Z',
+            },
+          ],
+        },
+        {
+          author: 'Podcast Host',
+          mentions: [
+            {
+              sentiment: 'NEUTRAL',
+              thesis: 'Waiting for the next print.',
+              articleUrl: 'https://example.com/episode',
+              publishedAt: '2026-11-01T15:00:00.000Z',
+              speakerIsGuest: true,
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(
+      result?.opinions.map((item) => [item.linkLabel, item.sourceKind]),
+    ).toEqual([
+      ['Podcast Host', 'podcast'],
+      ['Letter Writer', 'substack'],
+      ['@TheLongInvest', 'x_post'],
+      ['BowTied Bull', 'x_post'],
+    ]);
+    expect(result?.summary.bySource).toEqual({
+      'X post': 2,
+      Substack: 1,
+      Podcast: 1,
+    });
+  });
+
+  it('drops near-duplicate posts and keeps action and stance counts on that set', () => {
+    const result = compactTickerCoverage({
+      meta: { ticker: 'TSLA', truncated: true },
+      summary: {
+        calls: 4,
+        analysts: 2,
+        bullish: 3,
+        bearish: 1,
+        neutral: 0,
+        byAction: { OPINION: 3, EXIT: 1 },
+      },
+      authors: [
+        {
+          author: 'cantonmeow',
+          mentions: [
+            {
+              sentiment: 'BULLISH',
+              action: 'OPINION',
+              thesis: 'TSLA robotaxi timeline still looks intact to me',
+              articleUrl: 'https://x.com/cantonmeow/status/2117284934335553894',
+              publishedAt: '2026-11-01T16:00:36.000Z',
+            },
+            {
+              sentiment: 'BULLISH',
+              action: 'OPINION',
+              thesis: 'TSLA robotaxi timeline still looks intact to me!',
+              articleUrl: 'https://x.com/cantonmeow/status/2117284781243388167',
+              publishedAt: '2026-11-01T16:00:00.000Z',
+            },
+            {
+              sentiment: 'BULLISH',
+              action: 'ADD',
+              thesis: 'Adding a little after the delivery miss.',
+              articleUrl: 'https://x.com/cantonmeow/status/99',
+              publishedAt: '2026-10-20T12:00:00.000Z',
+            },
+          ],
+        },
+        {
+          author: 'Other Writer',
+          mentions: [
+            {
+              sentiment: 'BEARISH',
+              action: 'EXIT',
+              thesis: 'Closed the long.',
+              articleUrl: 'https://x.com/other/status/5',
+              publishedAt: '2026-11-01T10:00:00.000Z',
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(result?.opinions).toHaveLength(3);
+    expect(result?.summary).toMatchObject({
+      calls: 3,
+      analysts: 2,
+      bullish: 2,
+      bearish: 1,
+      neutral: 0,
+      byAction: { OPINION: 1, ADD: 1, EXIT: 1 },
+    });
+    const summary = result?.summary;
+    expect(
+      (summary?.bullish ?? 0) +
+        (summary?.bearish ?? 0) +
+        (summary?.neutral ?? 0),
+    ).toBe(summary?.calls);
+    expect(
+      Object.values(result!.summary.byAction).reduce(
+        (sum, value) => sum + value,
+        0,
+      ),
+    ).toBe(result?.summary.calls);
+    expect(result?.truncated).toBe(true);
+    const presented = presentOpinions(result!, 'TSLA', undefined, 1);
+    expect(presented.opinions).toHaveLength(1);
+    expect(presented.summary.calls).toBe(3);
+    expect(presented.windowComplete).toBe(false);
+    expect(presented.truncated).toBe(true);
+    expect(presented.highlights?.length).toBeGreaterThan(1);
   });
 });

@@ -176,6 +176,69 @@ describe('AgentService', () => {
     });
   });
 
+  it('sends the concise tool view to the model and persists the full output', async () => {
+    openai.responses.create
+      .mockResolvedValueOnce(
+        responseStream({
+          output: [
+            {
+              type: 'function_call',
+              name: 'analyzeStock',
+              call_id: 'call-1',
+              arguments: '{"assetIdOrTicker":"NVDA"}',
+            },
+          ],
+        }),
+      )
+      .mockResolvedValueOnce(
+        responseStream({
+          output_text: 'NVIDIA has been climbing.',
+          output: [],
+        }),
+      );
+    tools.dispatch.mockResolvedValue({
+      output: {
+        ticker: 'NVDA',
+        opportunityScore: 90,
+        technicalBrief: { regime: 'uptrend' },
+      },
+      modelOutput: {
+        speak: {
+          lead: 'NVIDIA has been climbing.',
+          bullets: ['The trend is up.'],
+        },
+      },
+      artifact: {
+        type: 'analysis',
+        data: { ticker: 'NVDA', opportunityScore: 90 },
+      },
+    });
+
+    const events: AgentStreamEvent[] = [];
+    for await (const event of service.streamMessage({
+      walletAddress: 'wallet-1',
+      message: 'Analyze NVDA',
+    })) {
+      events.push(event);
+    }
+    expect(events.at(-1)?.type).toBe('turn_completed');
+
+    const inserts = repository.insertMessage.mock.calls as unknown as Array<
+      [{ role: string; content: string }]
+    >;
+    const toolSave = inserts
+      .map((call) => call[0])
+      .find((message) => message.role === 'tool');
+    expect(JSON.parse(toolSave?.content ?? '{}')).toMatchObject({
+      opportunityScore: 90,
+    });
+    const creates = openai.responses.create.mock
+      .calls as unknown as unknown[][];
+    const modelInput = JSON.stringify(creates[1]?.[0]);
+    expect(modelInput).toContain('NVIDIA has been climbing.');
+    expect(modelInput).not.toContain('opportunityScore');
+  });
+
   it('keeps the JSON endpoint in parity with the streaming runner', async () => {
     openai.responses.create.mockResolvedValue(
       responseStream({ output_text: 'Hello', output: [] }, ['Hel', 'lo']),
@@ -209,7 +272,7 @@ describe('AgentService', () => {
       responseStream({ output_text: 'MU is ready.', output: [] }),
     );
 
-    const events = [];
+    const events: AgentStreamEvent[] = [];
     for await (const event of service.streamMessage({
       walletAddress: 'wallet-1',
       threadId: 'thread-1',
@@ -252,7 +315,7 @@ describe('AgentService', () => {
       );
     tools.dispatch.mockRejectedValue(new Error('Unknown stock'));
 
-    const events = [];
+    const events: AgentStreamEvent[] = [];
     for await (const event of service.streamMessage({
       walletAddress: 'wallet-1',
       message: 'Analyze NOPE',

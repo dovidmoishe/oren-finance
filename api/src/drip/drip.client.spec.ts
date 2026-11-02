@@ -38,7 +38,7 @@ describe('DripClient', () => {
 
     const [url, init] = fetchImpl.mock.calls[0] as [URL, RequestInit];
     expect(url.pathname).toBe('/api/v2/tickers/NVDA');
-    expect(url.searchParams.get('limit')).toBe('40');
+    expect(url.searchParams.get('limit')).toBe('200');
     expect(url.searchParams.get('sort')).toBe('newest');
     expect(url.toString()).not.toContain(API_KEY);
     expect(init.headers).toMatchObject({

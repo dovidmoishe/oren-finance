@@ -1,15 +1,19 @@
-export const DRIP_OPINION_FETCH_LIMIT = 40;
+export const DRIP_OPINION_FETCH_LIMIT = 200;
 export const DRIP_OPINION_RETURN_DEFAULT = 8;
-export const DRIP_OPINION_RETURN_MAX = 12;
+export const DRIP_OPINION_RETURN_MAX = 40;
+/** Research overlay reads the deduped window, not the chat highlight list. */
+export const DRIP_OPINION_RESEARCH_LIMIT = 40;
 export const DRIP_PICKS_FETCH_LIMIT = 15;
 export const DRIP_PICKS_FETCH_DAYS = 2;
 export const DRIP_PICKS_RETURN_DEFAULT = 8;
 export const DRIP_PICKS_RETURN_MAX = 12;
 
-export const DRIP_DISCLAIMER =
-  'Drip opinions from Substack writers and podcasters. They are opinions, not facts, and not financial advice.';
+export const DRIP_DISCLAIMER = 'Opinions, not facts, and not financial advice.';
 
 export type DripStance = 'BULLISH' | 'BEARISH' | 'NEUTRAL';
+
+export type DripSourceKind =
+  'x_post' | 'substack' | 'podcast' | 'newsletter' | 'video' | 'other';
 
 export type DripFailureReason =
   | 'DRIP_UNSET'
@@ -21,7 +25,13 @@ export type DripFailureReason =
 
 export interface DripCitation {
   author: string;
+  /** Publication or episode title when Drip has one. */
   source?: string;
+  /** Where the take was published, from the payload — not a feed-wide guess. */
+  sourceKind?: DripSourceKind;
+  sourceLabel?: string;
+  /** Short name for a chat link, such as "BowTied Bull" or "@TheLongInvest". */
+  linkLabel?: string;
   date?: string;
   stance?: DripStance;
   action?: string;
@@ -39,6 +49,8 @@ export interface DripOpinionSummary {
   neutral: number;
   unstated?: number;
   byAction: Record<string, number>;
+  /** sourceLabel → count, over the same deduped rows as the other counts. */
+  bySource?: Record<string, number>;
 }
 
 export interface DripOpinions {
@@ -50,7 +62,12 @@ export interface DripOpinions {
   window?: { from?: string; to?: string };
   asOf?: string;
   summary: DripOpinionSummary;
+  /** True only when Drip said the window itself was cut off. */
   truncated: boolean;
+  /** False when `truncated` is set. Counts then describe the fetched sample. */
+  windowComplete?: boolean;
+  /** Diverse cites chosen from the full deduped window, not only the page. */
+  highlights?: DripCitation[];
   opinions: DripCitation[];
   disclaimer: string;
 }
@@ -65,6 +82,7 @@ export interface DripPicks {
   window?: { from?: string; to?: string };
   asOf?: string;
   truncated: boolean;
+  windowComplete?: boolean;
   picks: DripPick[];
   disclaimer: string;
 }
