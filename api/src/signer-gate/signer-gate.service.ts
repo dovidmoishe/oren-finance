@@ -113,7 +113,9 @@ export class SignerGateService {
     if (
       policy.owner_id !== this.config.policyOwnerId ||
       policy.chain_type !== 'solana' ||
-      policy.rules?.length !== 3 ||
+      policy.rules?.length !== (this.config.sellsEnabled ? 4 : 3) ||
+      (this.config.sellsEnabled &&
+        !policy.rules.some((rule) => rule.name === 'allow bounded jupiter sell')) ||
       policy.rules.some((rule) => rule.method !== 'signTransaction') ||
       gatePolicyFingerprint(policy) !== this.config.policyHash
     )
@@ -400,7 +402,9 @@ export class SignerGateService {
       policy.owner_id !== this.config.policyOwnerId ||
       policy.chain_type !== 'solana' ||
       gatePolicyFingerprint(policy) !== this.config.policyHash ||
-      policy.rules?.length !== 3 ||
+      policy.rules?.length !== (this.config.sellsEnabled ? 4 : 3) ||
+      (this.config.sellsEnabled &&
+        !policy.rules.some((rule) => rule.name === 'allow bounded jupiter sell')) ||
       policy.rules.some((rule) => rule.method !== 'signTransaction')
     )
       throw new Error('Privy signer policy changed');

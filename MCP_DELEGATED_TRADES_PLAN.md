@@ -93,6 +93,7 @@ policy updates, or server-only checks as substitutes for that requirement.
 - Migration `0011` records the exact canonical Privy request, unsigned transaction, signed bytes, chain signature, and reconciliation state. The gate commits intent claim, budget reservation, and request storage together in Postgres. An unused expired challenge can be released; uncertain Privy signing and broadcast remain pending without replacement bytes.
 - The production-only gate has private Compose networks and a restricted Postgres role. The API runtime has a separate role that cannot change delegation limits, reservations, or delegated execution records. `infra/signer-gate/README.md` covers provisioning and reconciliation. The temporary proof page has been removed.
 - Browser settings prepare, verify, activate, cancel and revoke grants. `execute_trade` and gate-owned Jupiter build are implemented with buy/sell flags disabled. The compile-time release block remains set until funded provider acceptance. Jupiter requires pre-existing source and destination token accounts; Titan stays on browser approval.
+- Privy currently allows one override policy per additional signer ([add-signers docs](https://docs.privy.io/wallets/using-wallets/signers/add-signers)). The existing owner-protected policy is buy-only. The gate requires an owner-reviewed policy with a fourth bounded Jupiter sell rule before its sell flag can be enabled. The buy and sell rules must fit Privy's aggregate IDL limit and pass positive/negative Privy proof; until then sells use browser approval.
 
 ---
 

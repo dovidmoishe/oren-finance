@@ -79,6 +79,10 @@ the route guard and RPC simulation with the existing token accounts. The sell
 charged the larger of its independent reference value ($0.400408) and quoted
 USDC proceeds ($0.400978). These checks did not ask Privy to sign or broadcast.
 They do not establish a funded two-key execution or a sell-side Privy policy.
+Privy currently permits one override policy per additional signer. The live
+proof policy contains only a buy rule, so a sell grant remains unavailable
+until a combined owner-reviewed buy/sell policy fits the IDL size limit and
+passes the same Privy positive and negative tests.
 
 ## Reproduce the sign-only checks
 
