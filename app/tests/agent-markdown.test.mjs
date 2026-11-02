@@ -52,6 +52,23 @@ test('renders short names as links and parks numbers behind details', () => {
   assert.doesNotMatch(JSON.stringify(blocks), /Summarize the quotes/);
 });
 
+test('does not render an empty details toggle', () => {
+  for (const sample of [
+    'Hello\n\n:::details\n:::\n',
+    'Hello\n\n:::details\n\n:::\n',
+    'Hello\n\n:::details\n\u200b\n:::\n',
+    "Hello\n\n:::details\n(the tool's details, unchanged)\n:::\n",
+  ]) {
+    const blocks = parseAgentMessage(sample);
+    assert.equal(blocks.some((block) => block.type === 'details'), false, sample);
+    assert.equal(blocks[0].lines[0][0].text, 'Hello');
+  }
+
+  const shown = parseAgentMessage('Hello\n\n:::details\nPositive 31, negative 9.\n:::');
+  assert.equal(shown.at(-1).type, 'details');
+  assert.match(shown.at(-1).text, /negative 9/);
+});
+
 test('linkifies a raw X url as the handle and ignores unsafe schemes', () => {
   assert.equal(linkTextForUrl('https://x.com/TheLongInvest/status/2'), '@TheLongInvest');
   const blocks = parseAgentMessage('See https://x.com/BowTiedBull/status/9 and [bad](javascript:alert(1)).');

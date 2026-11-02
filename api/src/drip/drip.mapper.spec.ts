@@ -55,8 +55,8 @@ describe('Drip response mapping', () => {
       {
         author: 'Example Analyst',
         source: 'Example Finance Newsletter',
-        sourceKind: 'other',
-        sourceLabel: 'Post',
+        sourceKind: 'article',
+        sourceLabel: 'Article',
         linkLabel: 'Example Analyst',
         date: '2026-10-30T11:24:07.000Z',
         stance: 'BULLISH',
@@ -79,7 +79,7 @@ describe('Drip response mapping', () => {
         bullish: 1,
         bearish: 0,
         byAction: { ADD: 1 },
-        bySource: { Post: 1 },
+        bySource: { Article: 1 },
       },
     });
     expect(presented.disclaimer).toContain('not financial advice');
@@ -309,4 +309,106 @@ describe('Drip response mapping', () => {
     expect(presented.truncated).toBe(true);
     expect(presented.highlights?.length).toBeGreaterThan(1);
   });
+
+  it('labels zastocks.com as a newsletter and other sites as articles', () => {
+    const result = compactTickerCoverage({
+      meta: { ticker: 'SPCX', truncated: false },
+      authors: [
+        {
+          author: 'Za',
+          mentions: [
+            {
+              sentiment: 'BULLISH',
+              action: 'OPINION',
+              thesis: 'SPCX still has room if the rollout lands.',
+              articleUrl: 'https://zastocks.com/spcx-note',
+              publishedAt: '2026-10-28T12:00:00.000Z',
+            },
+          ],
+        },
+        {
+          author: 'Blog Writer',
+          mentions: [
+            {
+              sentiment: 'BEARISH',
+              thesis: 'The valuation assumes a flawless launch.',
+              articleUrl: 'https://example.com/spcx',
+              publishedAt: '2026-10-27T12:00:00.000Z',
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(result?.opinions.map((item) => item.sourceLabel)).toEqual([
+      'Newsletter',
+      'Article',
+    ]);
+  });
+
+  it('filters the full window by stance, author, and action before the page slice', () => {
+    const opinions = [
+      citation('Ada', 'BULLISH', 'ADD', 'Still adding.'),
+      citation('Bea', 'BEARISH', 'OPINION', 'Dilution is the risk.'),
+      citation('Cal', 'BEARISH', 'EXIT', 'I am out.'),
+      citation('Bea Long', 'BULLISH', 'HOLD', 'Holding the core.'),
+    ];
+    const cached = {
+      ticker: 'SPCX',
+      truncated: false,
+      summary: {
+        calls: 99,
+        analysts: 99,
+        bullish: 99,
+        bearish: 0,
+        neutral: 0,
+        byAction: { OPINION: 99 },
+      },
+      opinions,
+    };
+
+    const bears = presentOpinions(cached, 'SPCX', undefined, 40, {
+      stance: 'BEARISH',
+    });
+    expect(bears.opinions.map((item) => item.author)).toEqual(['Bea', 'Cal']);
+    expect(bears.summary).toMatchObject({
+      calls: 2,
+      bearish: 2,
+      bullish: 0,
+    });
+    expect(bears.appliedFilter).toEqual({ stance: 'BEARISH' });
+    expect(bears.opinions[0]?.quote).toBe('Dilution is the risk.');
+
+    const byAuthor = presentOpinions(cached, 'SPCX', undefined, 40, {
+      author: 'bea',
+    });
+    expect(byAuthor.opinions.map((item) => item.author)).toEqual([
+      'Bea',
+      'Bea Long',
+    ]);
+
+    const exits = presentOpinions(cached, 'SPCX', undefined, 1, {
+      action: 'exit',
+    });
+    expect(exits.summary.calls).toBe(1);
+    expect(exits.opinions).toHaveLength(1);
+    expect(exits.opinions[0]?.action).toBe('EXIT');
+  });
 });
+
+function citation(
+  author: string,
+  stance: 'BULLISH' | 'BEARISH' | 'NEUTRAL',
+  action: string,
+  quote: string,
+) {
+  return {
+    author,
+    stance,
+    action,
+    quote,
+    date: '2026-10-30T00:00:00.000Z',
+    url: `https://example.com/${author}`,
+    sourceLabel: 'Article',
+  };
+}

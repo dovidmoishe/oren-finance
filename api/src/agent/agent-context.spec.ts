@@ -64,6 +64,10 @@ describe('agent-context', () => {
 
     expect(instructions).toContain('wallet-1');
     expect(instructions).toContain('Never ask them to paste a wallet address');
+    expect(instructions).toContain('Ask before acting only');
+    expect(instructions).toContain('Any short agreement');
+    expect(instructions).toContain('any wording or language');
+    expect(instructions).not.toMatch(/\byh\b/);
     expect(instructions).toContain('Top holdings: NVDA 20.0%');
     expect(instructions).toContain('currently on the dashboard page');
     expect(instructions).not.toContain('getDripOpinions');
@@ -78,6 +82,9 @@ describe('agent-context', () => {
     expect(instructions).toContain('getDripPicks');
     expect(instructions).toContain('financial advice');
     expect(instructions).toContain('could not be fetched');
+    expect(instructions).toContain('stance');
+    expect(instructions).toContain('one-line quote');
+    expect(instructions).toContain('Do not ask whether to fetch');
   });
 
   it('tells the model to fetch portfolio when snapshot is unavailable', () => {

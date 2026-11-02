@@ -6,6 +6,7 @@ import {
   type CachedDripPicks,
   type DripCitation,
   type DripOpinionSummary,
+  type DripOpinionFilter,
   type DripOpinions,
   type DripPick,
   type DripPicks,
@@ -60,8 +61,13 @@ export function presentOpinions(
   queried: string,
   mappedFrom: string | undefined,
   limit: number,
+  filter?: DripOpinionFilter,
 ): DripOpinions {
-  const opinions = cached.opinions.slice(0, limit);
+  const applied = normalizeFilter(filter);
+  const matched = applied
+    ? filterCitations(cached.opinions, applied)
+    : cached.opinions;
+  const opinions = matched.slice(0, limit);
   return defined({
     available: true as const,
     source: 'drip' as const,
@@ -70,13 +76,43 @@ export function presentOpinions(
     mappedFrom,
     window: cached.window,
     asOf: cached.asOf,
-    summary: cached.summary,
+    summary: applied ? summarizeCitations(matched) : cached.summary,
     truncated: cached.truncated,
     windowComplete: !cached.truncated,
-    highlights: selectHighlights(cached.opinions, 4),
+    highlights: selectHighlights(matched, 4),
     opinions,
+    appliedFilter: applied,
     disclaimer: DRIP_DISCLAIMER,
   });
+}
+
+export function filterCitations<T extends DripCitation>(
+  items: T[],
+  filter: DripOpinionFilter,
+): T[] {
+  const author = filter.author?.trim().toLowerCase();
+  const action = filter.action?.trim().toUpperCase();
+  return items.filter((item) => {
+    if (filter.stance && item.stance !== filter.stance) return false;
+    if (author && !item.author.toLowerCase().includes(author)) return false;
+    if (action && (item.action?.trim().toUpperCase() ?? '') !== action) {
+      return false;
+    }
+    return true;
+  });
+}
+
+function normalizeFilter(
+  filter: DripOpinionFilter | undefined,
+): DripOpinionFilter | undefined {
+  if (!filter) return undefined;
+  const author = filter.author?.trim();
+  const action = filter.action?.trim();
+  const next: DripOpinionFilter = {};
+  if (filter.stance) next.stance = filter.stance;
+  if (author) next.author = author;
+  if (action) next.action = action;
+  return next.stance || next.author || next.action ? next : undefined;
 }
 
 export function presentPicks(
