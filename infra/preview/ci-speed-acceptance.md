@@ -52,9 +52,9 @@ Retain the committed baseline snapshot; the rolling API window is not an archive
 PR, or manually after merge. It builds only the Dockerfile's `dependencies` target;
 it does not publish an image, use production credentials or deploy. Six rounds each
 compare an uncached runner with a GHA remote cache in an isolated PR/run + input-hash
-scope. Every sample gets a new runner and BuildKit builder. Round 1 seeds a cold
+scope. Each run has its own cache namespace and is not cancelled by later PR updates. Every sample gets a new runner and BuildKit builder. Round 1 seeds a cold
 cache; rounds 2-6 provide five warm candidates. No local builder cache survives
-between rounds. Save full logs and verify that the pnpm install layer says `CACHED`
+between rounds. The dependency image is loaded into the disposable runner to force cached layers to materialize; a metadata-only cache hit is insufficient. Save full logs and verify that the pnpm install layer says `CACHED`
 before counting a warm hit; a completed cache import alone is not proof of a hit.
 
 Use total image-job duration, including import, export and post-job cleanup, and

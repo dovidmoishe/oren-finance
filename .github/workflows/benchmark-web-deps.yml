@@ -36,6 +36,8 @@ jobs:
           context: ./app
           target: dependencies
           push: false
+          # Force cache layers to materialize, as a real downstream build needs them.
+          load: true
           cache-from: ${{ matrix.profile == 'gha' && format('type=gha,scope=web-deps-bench-{0}-{1}', github.run_id, hashFiles('app/Dockerfile', 'app/package.json', 'app/pnpm-lock.yaml', 'app/pnpm-workspace.yaml')) || '' }}
           cache-to: ${{ matrix.profile == 'gha' && format('type=gha,mode=max,scope=web-deps-bench-{0}-{1}', github.run_id, hashFiles('app/Dockerfile', 'app/package.json', 'app/pnpm-lock.yaml', 'app/pnpm-workspace.yaml')) || '' }}
       - name: Record experiment context
@@ -68,6 +70,8 @@ jobs:
           context: ./app
           target: dependencies
           push: false
+          # Force cache layers to materialize, as a real downstream build needs them.
+          load: true
           cache-from: ${{ matrix.profile == 'gha' && format('type=gha,scope=web-deps-bench-{0}-{1}', github.run_id, hashFiles('app/Dockerfile', 'app/package.json', 'app/pnpm-lock.yaml', 'app/pnpm-workspace.yaml')) || '' }}
           cache-to: ${{ matrix.profile == 'gha' && format('type=gha,mode=max,scope=web-deps-bench-{0}-{1}', github.run_id, hashFiles('app/Dockerfile', 'app/package.json', 'app/pnpm-lock.yaml', 'app/pnpm-workspace.yaml')) || '' }}
       - name: Record experiment context
@@ -100,6 +104,8 @@ jobs:
           context: ./app
           target: dependencies
           push: false
+          # Force cache layers to materialize, as a real downstream build needs them.
+          load: true
           cache-from: ${{ matrix.profile == 'gha' && format('type=gha,scope=web-deps-bench-{0}-{1}', github.run_id, hashFiles('app/Dockerfile', 'app/package.json', 'app/pnpm-lock.yaml', 'app/pnpm-workspace.yaml')) || '' }}
           cache-to: ${{ matrix.profile == 'gha' && format('type=gha,mode=max,scope=web-deps-bench-{0}-{1}', github.run_id, hashFiles('app/Dockerfile', 'app/package.json', 'app/pnpm-lock.yaml', 'app/pnpm-workspace.yaml')) || '' }}
       - name: Record experiment context
@@ -132,6 +138,8 @@ jobs:
           context: ./app
           target: dependencies
           push: false
+          # Force cache layers to materialize, as a real downstream build needs them.
+          load: true
           cache-from: ${{ matrix.profile == 'gha' && format('type=gha,scope=web-deps-bench-{0}-{1}', github.run_id, hashFiles('app/Dockerfile', 'app/package.json', 'app/pnpm-lock.yaml', 'app/pnpm-workspace.yaml')) || '' }}
           cache-to: ${{ matrix.profile == 'gha' && format('type=gha,mode=max,scope=web-deps-bench-{0}-{1}', github.run_id, hashFiles('app/Dockerfile', 'app/package.json', 'app/pnpm-lock.yaml', 'app/pnpm-workspace.yaml')) || '' }}
       - name: Record experiment context
@@ -164,6 +172,8 @@ jobs:
           context: ./app
           target: dependencies
           push: false
+          # Force cache layers to materialize, as a real downstream build needs them.
+          load: true
           cache-from: ${{ matrix.profile == 'gha' && format('type=gha,scope=web-deps-bench-{0}-{1}', github.run_id, hashFiles('app/Dockerfile', 'app/package.json', 'app/pnpm-lock.yaml', 'app/pnpm-workspace.yaml')) || '' }}
           cache-to: ${{ matrix.profile == 'gha' && format('type=gha,mode=max,scope=web-deps-bench-{0}-{1}', github.run_id, hashFiles('app/Dockerfile', 'app/package.json', 'app/pnpm-lock.yaml', 'app/pnpm-workspace.yaml')) || '' }}
       - name: Record experiment context
@@ -196,6 +206,8 @@ jobs:
           context: ./app
           target: dependencies
           push: false
+          # Force cache layers to materialize, as a real downstream build needs them.
+          load: true
           cache-from: ${{ matrix.profile == 'gha' && format('type=gha,scope=web-deps-bench-{0}-{1}', github.run_id, hashFiles('app/Dockerfile', 'app/package.json', 'app/pnpm-lock.yaml', 'app/pnpm-workspace.yaml')) || '' }}
           cache-to: ${{ matrix.profile == 'gha' && format('type=gha,mode=max,scope=web-deps-bench-{0}-{1}', github.run_id, hashFiles('app/Dockerfile', 'app/package.json', 'app/pnpm-lock.yaml', 'app/pnpm-workspace.yaml')) || '' }}
       - name: Record experiment context
