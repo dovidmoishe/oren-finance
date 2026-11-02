@@ -22,6 +22,20 @@ gate_token_hash=$("${compose[@]}" --profile delegated-trades exec -T signer-gate
 ')
 test "$api_token_hash" = "$gate_token_hash"
 echo 'API and gate authorization tokens match.'
+"${compose[@]}" exec -T api node -e '
+  fetch("http://signer-gate:3001/health", { signal: AbortSignal.timeout(5000) })
+    .then(async response => {
+      const body = await response.json();
+      console.log(JSON.stringify({
+        apiCanReachGate: response.ok && body.ok === true,
+        gateSigningEnabled: body.signingEnabled === true,
+      }));
+    })
+    .catch(error => {
+      console.log(JSON.stringify({ apiCanReachGate: false, errorClass: error?.name || "Unknown" }));
+      process.exitCode = 1;
+    });
+'
 
 proof_wallet_id=$(jq -r '.walletId // empty' .signer-gate-bootstrap/keys.json)
 proof_user_id=$(jq -r '.userId // empty' .signer-gate-bootstrap/keys.json)
@@ -66,3 +80,6 @@ test -n "$proof_user_id"
 echo 'Recent grant rejection classes:'
 docker logs --since 90m --tail 500 oren-signer-gate-1 2>&1 |
   grep -F 'Signer gate request rejected' | tail -n 20 || true
+echo 'Recent API grant rejection codes:'
+docker logs --since 90m --tail 500 oren-api-1 2>&1 |
+  grep -F 'MCP grant preparation rejected' | tail -n 20 || true
