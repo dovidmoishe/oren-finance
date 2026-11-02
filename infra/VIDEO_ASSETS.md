@@ -34,3 +34,10 @@ The Titan changelog entry uses `/videos/oren-powered-by-titan-lift.mp4` and
 1080p60 export and its poster in the same local/production video directories.
 Both are included in `videos.sha256`; upload and verify them before deploying
 the changelog reference. Earlier token-page assets remain required.
+
+The draft Drip changelog entry uses `/videos/oren-drip-continuous-v4.mp4` and
+`/videos/oren-drip-poster-v4.jpg`. These are the reviewed 17-second 1080p60 film
+and its poster. Keep them under `app/public/videos/` locally; the source export
+is `oren-drip-motion/renders/oren-drip-continuous-v4.mp4` in the main checkout.
+The manifest includes both assets. Upload and verify them before publishing
+the entry; adding this draft does not upload media or activate a release.
