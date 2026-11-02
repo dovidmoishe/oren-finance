@@ -67,6 +67,13 @@ test('does not render an empty details toggle', () => {
   const shown = parseAgentMessage('Hello\n\n:::details\nPositive 31, negative 9.\n:::');
   assert.equal(shown.at(-1).type, 'details');
   assert.match(shown.at(-1).text, /negative 9/);
+
+  const padded = parseAgentMessage(
+    ['Hello', '', ':::details', '', '', 'Sources: X post 28.', '', '', ':::'].join('\n'),
+  );
+  assert.equal(padded.at(-1).type, 'details');
+  assert.equal(padded.at(-1).text, 'Sources: X post 28.');
+  assert.doesNotMatch(padded.at(-1).text, /\n\n/);
 });
 
 test('linkifies a raw X url as the handle and ignores unsafe schemes', () => {

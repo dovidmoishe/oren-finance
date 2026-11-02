@@ -19,7 +19,7 @@ test('stock research renders distinct evidence, sources, saved thesis and change
     changes: [{ kind: 'score', text: 'Oren Score rose 5 points.' }],
   };
   let state = 0;
-  const values = [report, 'owned', 'Watch valuation.', false, false, undefined];
+  const values = [report, 'owned', false, undefined];
   const react = { useState() { return [values[state++], () => {}]; }, useRef: () => ({ current: 0 }), useEffect() {}, useCallback: (fn) => fn };
   const exports = {};
   const code = ts.transpileModule(readFileSync(new URL('../components/stock/stock-research.tsx', import.meta.url), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX } }).outputText;
@@ -30,8 +30,11 @@ test('stock research renders distinct evidence, sources, saved thesis and change
     return require(id);
   } });
   const html = renderToStaticMarkup(require('react').createElement(exports.StockResearchPanel, { assetId: 'nvda' }));
-  for (const label of ['Oren read', 'Recent cited news', 'Chip demand rises', 'Covered', 'Writer views', 'Where they disagree', 'Your view', 'What changed', 'View saved sources']) assert.ok(html.includes(label), label);
+  for (const label of ['Oren read', 'Recent cited news', 'Chip demand rises', 'Covered', 'Writer views', 'Where they disagree']) assert.ok(html.includes(label), label);
+  for (const hidden of ['Your view', 'Save view', 'What changed', 'View saved sources', 'Watch valuation.']) {
+    assert.equal(html.includes(hidden), false, hidden);
+  }
   assert.ok(html.includes('https://example.com/view'));
   assert.ok(html.includes('lg:grid-cols-2'));
-  assert.ok(html.includes('Watch valuation.'));
+  assert.ok(html.includes('lg:col-span-2'));
 });
