@@ -9,13 +9,26 @@ another host before broadening beyond the owner allowlist.
 
 ## Prepare the VPS while execution is disabled
 
+Production access is through GitHub Actions. After the disabled release is
+healthy, dispatch **Provision signer gate database roles** on `master` with
+confirmation `provision-signer-gate-roles`, or push a one-time
+`signer-gate-roles-*` tag pointing at that deployed master commit. The workflow pins the deployed SHA,
+applies `roles.sql`, creates `.env.api` and a private
+`.env.signer-gate.pending` database URL, restarts only the API, and verifies it
+connects as `oren_api_runtime`. It never starts the gate or enables signing.
+It refuses to overwrite existing runtime files; inspect the VPS before
+retrying a failed run. The pending file is incomplete by design and must not be
+renamed until the gate quorum, policy, owner allowlist and API token are set.
+
 1. Apply all API migrations with the existing admin-only `.env` through
    `api-migrate`. Keep `MCP_DELEGATED_TRADES_ENABLED=false` and
    `SIGNER_GATE_ENABLED=false`.
 2. Generate independent random passwords for `oren_api_runtime` and
    `oren_signer_gate`. Run `roles.sql` as the migration owner with psql variables
    `api_password` and `gate_password`. Do not place either on a command line or
-   in a log. Re-run the grants after future schema migrations.
+   in a log. The provisioning workflow performs this step and stores the gate
+   role URL only in the private pending file. Re-run the grants after future
+   schema migrations.
 3. Create `/opt/oren/.env.api` with the `oren_api_runtime` `POSTGRES_URL` and,
    when ready for the owner trial, only the API quorum key and gate URL/token.
    The later `.env.api` overrides `.env` in Compose. The API service blanks

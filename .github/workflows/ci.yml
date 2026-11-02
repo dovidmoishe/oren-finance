@@ -21,6 +21,7 @@ jobs:
       - run: node --test infra/preview/*.test.mjs
       - run: for script in infra/preview/*.sh; do bash -n "$script"; done
       - run: bash -n infra/mcp/enable-oauth.sh
+      - run: bash -n infra/signer-gate/provision-roles.sh
       - name: Validate preview Compose configuration
         env:
           PR_NUMBER: '42'
