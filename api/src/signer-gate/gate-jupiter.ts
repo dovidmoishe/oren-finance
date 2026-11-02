@@ -3,13 +3,14 @@ import {
   TOKEN_2022_PROGRAM_ID,
   TOKEN_PROGRAM_ID,
 } from '@solana/spl-token';
-import { Connection, PublicKey } from '@solana/web3.js';
+import { ComputeBudgetProgram, Connection, PublicKey } from '@solana/web3.js';
 import type { mcpTradeIntents } from '../database/schema';
 import { USDC_MINT } from '../config/constants';
 import type { JupiterClient } from '../execution/jupiter/jupiter.client';
 import type { TokensService } from '../tokens/tokens.service';
 import type { ApprovalRpc } from '../execution/approval-rpc.service';
 import { inspectDelegatedJupiterTransaction } from '../mcp-auth/delegated-jupiter-guard';
+import { staticJupiterAccounts } from './static-jupiter-accounts';
 
 type Intent = typeof mcpTradeIntents.$inferSelect;
 
@@ -120,8 +121,23 @@ export async function buildGateJupiterRoute(
     trackingAccount: null,
   });
   if (!swap.swapTransaction) throw new Error('Jupiter returned no transaction');
-  await inspectDelegatedJupiterTransaction(
+  const protectedKeys = new Set([
+    intent.wallet,
+    inputMint,
+    outputMint,
+    sourceAta.toBase58(),
+    destinationAta.toBase58(),
+    ComputeBudgetProgram.programId.toBase58(),
+  ]);
+  const resolve = async (key: PublicKey) =>
+    (await deps.connection.getAddressLookupTable(key)).value;
+  const transaction = await staticJupiterAccounts(
     swap.swapTransaction,
+    protectedKeys,
+    resolve,
+  );
+  await inspectDelegatedJupiterTransaction(
+    transaction,
     {
       wallet: intent.wallet,
       inputMint,
@@ -133,9 +149,9 @@ export async function buildGateJupiterRoute(
       quotedOutputRaw: quote.outAmount,
       maxSlippageBps: intent.slippageBps,
     },
-    async (key) => (await deps.connection.getAddressLookupTable(key)).value,
+    resolve,
   );
-  await deps.rpc.inspect(swap.swapTransaction, intent.wallet, {
+  await deps.rpc.inspect(transaction, intent.wallet, {
     inputMint,
     outputMint,
     maxInRaw: intent.maxInRaw,
@@ -155,7 +171,7 @@ export async function buildGateJupiterRoute(
     quotedProceedsUsd = usdSix(Number(quote.outAmount) / 1_000_000);
   }
   return {
-    transaction: swap.swapTransaction,
+    transaction,
     rawInput: quote.inAmount,
     quotedOutputRaw: quote.outAmount,
     minimumOutputRaw: quote.otherAmountThreshold,
