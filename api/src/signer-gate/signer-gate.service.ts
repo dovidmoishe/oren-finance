@@ -190,29 +190,32 @@ export class SignerGateService {
       throw new Error('Wallet has other signers; enrollment is unavailable');
     await this.verifyPolicy();
     const expiresAt = new Date(Date.now() + settings.durationHours * 3_600_000);
-    const [delegation] = await this.deps.db
-      .insert(mcpTradeDelegations)
-      .values({
+    const delegation = await this.deps.db.transaction(async (tx) => {
+      const [saved] = await tx
+        .insert(mcpTradeDelegations)
+        .values({
+          userId: owner.userId,
+          walletId: owner.walletId,
+          wallet: owner.wallet,
+          signerId: this.config.signerQuorumId,
+          policyId: this.config.policyId,
+          policyHash: this.config.policyHash,
+          policyTier: settings.allowSell ? 2 : 1,
+          allowSell: settings.allowSell,
+          perTradeLimitUsd: settings.perTradeUsd.toFixed(6),
+          dailyLimitUsd: settings.dailyUsd.toFixed(6),
+          maxSlippageBps: settings.maxSlippageBps,
+          expiresAt,
+        })
+        .returning();
+      await tx.insert(mcpAuditEvents).values({
         userId: owner.userId,
         walletId: owner.walletId,
-        wallet: owner.wallet,
-        signerId: this.config.signerQuorumId,
-        policyId: this.config.policyId,
-        policyHash: this.config.policyHash,
-        policyTier: settings.allowSell ? 2 : 1,
-        allowSell: settings.allowSell,
-        perTradeLimitUsd: settings.perTradeUsd.toFixed(6),
-        dailyLimitUsd: settings.dailyUsd.toFixed(6),
-        maxSlippageBps: settings.maxSlippageBps,
-        expiresAt,
-      })
-      .returning();
-    await this.deps.db.insert(mcpAuditEvents).values({
-      userId: owner.userId,
-      walletId: owner.walletId,
-      delegationId: delegation.id,
-      eventType: 'delegation_prepared',
-      details: { allowSell: settings.allowSell },
+        delegationId: saved.id,
+        eventType: 'delegation_prepared',
+        details: { allowSell: settings.allowSell },
+      });
+      return saved;
     });
     return {
       delegationId: delegation.id,
@@ -249,23 +252,26 @@ export class SignerGateService {
     )
       throw new Error('Pending delegation unavailable');
     await this.verifyPrivySigner(delegation);
-    const [updated] = await this.deps.db
-      .update(mcpTradeDelegations)
-      .set({ status: 'active', activatedAt: new Date() })
-      .where(
-        and(
-          eq(mcpTradeDelegations.id, delegation.id),
-          eq(mcpTradeDelegations.status, 'pending_signer'),
-        ),
-      )
-      .returning();
-    if (!updated) throw new Error('Delegation activation changed');
-    await this.deps.db.insert(mcpAuditEvents).values({
-      userId: owner.userId,
-      walletId: owner.walletId,
-      delegationId,
-      eventType: 'delegation_activated',
-      details: {},
+    const updated = await this.deps.db.transaction(async (tx) => {
+      const [active] = await tx
+        .update(mcpTradeDelegations)
+        .set({ status: 'active', activatedAt: new Date() })
+        .where(
+          and(
+            eq(mcpTradeDelegations.id, delegation.id),
+            eq(mcpTradeDelegations.status, 'pending_signer'),
+          ),
+        )
+        .returning();
+      if (!active) throw new Error('Delegation activation changed');
+      await tx.insert(mcpAuditEvents).values({
+        userId: owner.userId,
+        walletId: owner.walletId,
+        delegationId,
+        eventType: 'delegation_activated',
+        details: {},
+      });
+      return active;
     });
     return {
       active: true,
@@ -276,30 +282,32 @@ export class SignerGateService {
 
   async revokeGrant(userToken: string, delegationId: string) {
     const owner = await this.browserOwner(userToken, false);
-    const [updated] = await this.deps.db
-      .update(mcpTradeDelegations)
-      .set({
-        status: 'revoked',
-        revokedAt: new Date(),
-        revokeReason: 'browser_owner',
-      })
-      .where(
-        and(
-          eq(mcpTradeDelegations.id, delegationId),
-          eq(mcpTradeDelegations.userId, owner.userId),
-          eq(mcpTradeDelegations.walletId, owner.walletId),
-          eq(mcpTradeDelegations.wallet, owner.wallet),
-          inArray(mcpTradeDelegations.status, ['pending_signer', 'active']),
-        ),
-      )
-      .returning();
-    if (!updated) throw new Error('Delegation unavailable');
-    await this.deps.db.insert(mcpAuditEvents).values({
-      userId: owner.userId,
-      walletId: owner.walletId,
-      delegationId,
-      eventType: 'delegation_revoked',
-      details: {},
+    await this.deps.db.transaction(async (tx) => {
+      const [updated] = await tx
+        .update(mcpTradeDelegations)
+        .set({
+          status: 'revoked',
+          revokedAt: new Date(),
+          revokeReason: 'browser_owner',
+        })
+        .where(
+          and(
+            eq(mcpTradeDelegations.id, delegationId),
+            eq(mcpTradeDelegations.userId, owner.userId),
+            eq(mcpTradeDelegations.walletId, owner.walletId),
+            eq(mcpTradeDelegations.wallet, owner.wallet),
+            inArray(mcpTradeDelegations.status, ['pending_signer', 'active']),
+          ),
+        )
+        .returning({ id: mcpTradeDelegations.id });
+      if (!updated) throw new Error('Delegation unavailable');
+      await tx.insert(mcpAuditEvents).values({
+        userId: owner.userId,
+        walletId: owner.walletId,
+        delegationId,
+        eventType: 'delegation_revoked',
+        details: {},
+      });
     });
     return { revoked: true, removeAllWalletSignersInBrowser: true };
   }
