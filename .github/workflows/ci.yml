@@ -34,6 +34,20 @@ jobs:
           sudo touch /opt/oren/preview/provider.env /opt/oren/preview/access.env /opt/oren/preview/stacks/pr-42/oauth.env
           docker compose -f infra/preview/compose.yml config --quiet
           docker compose -f infra/preview/access.compose.yml config --quiet
+      - name: Validate production signer-gate Compose profile
+        env:
+          GHCR_OWNER: example
+          IMAGE_TAG: test-image
+          POSTGRES_USER: oren_test
+          POSTGRES_PASSWORD: test-password
+          POSTGRES_DB: oren_mcp_test
+          DOMAIN: production.example.com
+          API_DOMAIN: api.production.example.com
+        run: |
+          printf 'POSTGRES_URL=postgres://oren_test:test-password@db:5432/oren_mcp_test\n' > .env
+          docker compose -f deploy.yml config --quiet
+          printf 'POSTGRES_URL=postgres://oren_test:test-password@db:5432/oren_mcp_test\n' > .env.api
+          docker compose --profile delegated-trades -f deploy.yml config --quiet
       - name: Verify two disposable preview databases are isolated
         run: bash infra/preview/isolation.sh
       - name: Validate Caddy with a generated preview route
@@ -45,6 +59,22 @@ jobs:
   api:
     name: API test and build
     runs-on: ubuntu-24.04
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: oren_test
+          POSTGRES_PASSWORD: oren_test
+          POSTGRES_DB: oren_mcp_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U oren_test -d oren_mcp_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      MCP_TEST_POSTGRES_URL: postgres://oren_test:oren_test@127.0.0.1:5432/oren_mcp_test
     defaults:
       run:
         working-directory: api
@@ -61,9 +91,20 @@ jobs:
           cache-dependency-path: api/pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
       - run: pnpm test --runInBand
+      - run: pnpm run test:mcp:guard
       - run: pnpm run test:approval:crypto
       - run: pnpm build
+      - run: pnpm run test:mcp:gate
       - run: pnpm run test:mcp:registration
+      - name: Apply restricted signer-gate roles to disposable Postgres
+        run: |
+          docker run --rm --network host \
+            -v "$PWD/../infra/signer-gate/roles.sql:/roles.sql:ro" \
+            -e PGPASSWORD=oren_test postgres:16-alpine \
+            psql -h 127.0.0.1 -U oren_test -d oren_mcp_test \
+            -v api_password=api_test_password \
+            -v gate_password=gate_test_password -f /roles.sql
+          node scripts/test-signer-gate-roles.mjs
 
   app:
     name: App test, lint, and build

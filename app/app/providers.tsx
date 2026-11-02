@@ -1,11 +1,17 @@
 "use client";
 
-import { WalletContext, type WalletContextState } from "@solana/wallet-adapter-react";
+import {
+  WalletContext,
+  type WalletContextState,
+} from "@solana/wallet-adapter-react";
 import dynamic from "next/dynamic";
 import { useEffect, useState } from "react";
 import { AuthContext, type OrenAuth } from "@/components/auth/auth-context";
 import type { PublishedSession } from "@/components/auth/privy-auth";
-import { WalletModalContext, type WalletModalContextState } from "@/components/auth/wallet-modal-context";
+import {
+  WalletModalContext,
+  type WalletModalContextState,
+} from "@/components/auth/wallet-modal-context";
 
 const appId = process.env.NEXT_PUBLIC_PRIVY_APP_ID?.trim();
 
@@ -16,21 +22,42 @@ const PrivyAuth = dynamic(
   { ssr: false },
 );
 
-const REVIEW_IN_OREN = "Review and confirm this trade in Oren before submission.";
+const REVIEW_IN_OREN =
+  "Review and confirm this trade in Oren before submission.";
 
 /** Matches what `PrivySession` provides while signed out or not ready. */
-function signedOutWallet(connecting: boolean, connect: () => void): WalletContextState {
+function signedOutWallet(
+  connecting: boolean,
+  connect: () => void,
+): WalletContextState {
   return {
-    autoConnect: false, wallets: [], wallet: null, publicKey: null,
-    connected: false, connecting, disconnecting: false, select() {},
-    async connect() { connect(); }, async disconnect() {},
-    async sendTransaction() { throw new Error(REVIEW_IN_OREN); },
-    signTransaction: undefined, signAllTransactions: undefined, signMessage: undefined, signIn: undefined,
+    autoConnect: false,
+    wallets: [],
+    wallet: null,
+    publicKey: null,
+    connected: false,
+    connecting,
+    disconnecting: false,
+    select() {},
+    async connect() {
+      connect();
+    },
+    async disconnect() {},
+    async sendTransaction() {
+      throw new Error(REVIEW_IN_OREN);
+    },
+    signTransaction: undefined,
+    signAllTransactions: undefined,
+    signMessage: undefined,
+    signIn: undefined,
   };
 }
 
 const unconfiguredWallet = signedOutWallet(false, () => {});
-const unconfiguredModal: WalletModalContextState = { visible: false, setVisible() {} };
+const unconfiguredModal: WalletModalContextState = {
+  visible: false,
+  setVisible() {},
+};
 
 export function AppProviders({ children }: { children: React.ReactNode }) {
   return (
@@ -51,16 +78,46 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
 /** Auth while Privy loads: not ready, signed out, with sign-in/deposit requests queued. */
 function createLoadingSession() {
   const queued = { signIn: false, deposit: false };
-  const signIn = () => { queued.signIn = true; };
-  const auth: OrenAuth = {
-    configured: true, ready: false, authenticated: false, wallets: [], busy: false,
-    walletPreparing: false, depositOpen: false,
-    openDeposit() { queued.deposit = true; }, closeDeposit() { queued.deposit = false; },
-    open: signIn, async signOut() {}, selectWallet() {}, async createWallet() {},
-    async getAccessToken() { return null; },
-    async authorizeTrade() { throw new Error("Sign in before approving a trade."); },
+  const signIn = () => {
+    queued.signIn = true;
   };
-  const modal: WalletModalContextState = { visible: false, setVisible(next) { if (next) signIn(); } };
+  const auth: OrenAuth = {
+    configured: true,
+    ready: false,
+    authenticated: false,
+    wallets: [],
+    busy: false,
+    walletPreparing: false,
+    depositOpen: false,
+    openDeposit() {
+      queued.deposit = true;
+    },
+    closeDeposit() {
+      queued.deposit = false;
+    },
+    open: signIn,
+    async signOut() {},
+    selectWallet() {},
+    async createWallet() {},
+    async getAccessToken() {
+      return null;
+    },
+    async authorizeTrade() {
+      throw new Error("Sign in before approving a trade.");
+    },
+    async addTradeSigner() {
+      throw new Error("Sign in before granting a trade signer.");
+    },
+    async removeTradeSigners() {
+      throw new Error("Sign in before removing trade signers.");
+    },
+  };
+  const modal: WalletModalContextState = {
+    visible: false,
+    setVisible(next) {
+      if (next) signIn();
+    },
+  };
   /** Replays queued requests into the loaded session, once. */
   function replay(session: PublishedSession) {
     const { signIn: wantsSignIn, deposit } = queued;
@@ -72,7 +129,13 @@ function createLoadingSession() {
   return { auth, wallet: signedOutWallet(true, signIn), modal, replay };
 }
 
-function DeferredPrivy({ appId, children }: { appId: string; children: React.ReactNode }) {
+function DeferredPrivy({
+  appId,
+  children,
+}: {
+  appId: string;
+  children: React.ReactNode;
+}) {
   const [session, setSession] = useState<PublishedSession>();
   const [loading] = useState(createLoadingSession);
 

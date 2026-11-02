@@ -12,7 +12,10 @@ type Intent = {
   id: string;
   assetId: string;
   ticker: string;
-  amountUsd: number;
+  side: 'buy' | 'sell';
+  stockMint?: string;
+  amountUsd?: number;
+  amountShares?: number;
   slippageBps: number;
   wallet: string;
   expiresAt: string;
@@ -63,18 +66,23 @@ export function BrowserTradeReview({ intentId }: { intentId: string }) {
       if (new Date(intent.expiresAt).getTime() <= Date.now())
         throw new Error('This request expired. Ask the agent for a new one.');
       const result = await getExecutionQuote({
-        side: 'buy',
+        side: intent.side,
         assetId: intent.assetId,
         ticker: intent.ticker,
         amountUsd: intent.amountUsd,
+        amount: intent.amountShares,
+        preferredMint: intent.stockMint,
         slippageBps: intent.slippageBps,
         wallet: address,
       });
       if (
-        result.side !== 'buy' ||
+        result.side !== intent.side ||
         result.assetId !== intent.assetId ||
-        result.inputMint !== USDC_MINT ||
-        Math.abs(result.amountUsd - intent.amountUsd) > 0.000001 ||
+        (intent.stockMint && result.variant.mint !== intent.stockMint) ||
+        (intent.side === 'buy' &&
+          (result.inputMint !== USDC_MINT || Math.abs(result.amountUsd - (intent.amountUsd ?? 0)) > 0.000001)) ||
+        (intent.side === 'sell' &&
+          (result.outputMint !== USDC_MINT || Math.abs(result.inputAmount - (intent.amountShares ?? 0)) > 0.000000001)) ||
         result.slippageBps > intent.slippageBps
       )
         throw new Error('The quote does not match this request.');
@@ -103,12 +111,12 @@ export function BrowserTradeReview({ intentId }: { intentId: string }) {
   }
 
   return <main className="mx-auto max-w-xl px-5 py-12">
-    <h1 className="text-3xl font-semibold">Review agent buy request</h1>
+    <h1 className="text-3xl font-semibold">Review agent {intent?.side ?? 'trade'} request</h1>
     <p className="mt-3 text-muted">Oren will show a fresh quote and ask you to authorize the exact transaction in your wallet.</p>
     {!authenticated && <button className="mt-6 rounded-xl bg-foreground px-5 py-3 text-white" onClick={open} type="button">Sign in with email code</button>}
     {intent && <div className="mt-6 rounded-2xl border border-border bg-panel p-5">
       <p>Stock: {intent.assetId}</p>
-      <p>Spend: ${intent.amountUsd.toFixed(2)} USDC</p>
+      <p>{intent.side === 'buy' ? `Spend: $${intent.amountUsd?.toFixed(2)} USDC` : `Sell: ${intent.amountShares} shares`}</p>
       <p>Maximum slippage: {(intent.slippageBps / 100).toFixed(2)}%</p>
       <p className="mt-3 text-sm text-muted">Expires {new Date(intent.expiresAt).toLocaleTimeString()}</p>
     </div>}

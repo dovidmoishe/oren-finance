@@ -6,14 +6,29 @@ import Link from 'next/link';
 import { mcpApiOrigin } from '@/services/mcp-api-origin';
 
 type Interaction = { clientId: string; scope: string; resource: string };
+type Delegation = {
+  enabled: boolean;
+  delegationId?: string;
+  perTradeUsd?: string;
+  dailyUsd?: string;
+  usedTodayUsd?: string;
+  maxSlippageBps?: number;
+  sides?: string[];
+  expiresAt?: string;
+};
 
 /** OAuth consent uses Oren's existing Privy email OTP sign-in dialog. */
 export function McpConnect({ uid }: { uid: string }) {
   const auth = useOrenAuth();
+  const { authenticated, getAccessToken } = auth;
   const [details, setDetails] = useState<Interaction>();
   const [error, setError] = useState<string>();
   const [busy, setBusy] = useState(false);
+  const [allowExecute, setAllowExecute] = useState(false);
+  const [delegation, setDelegation] = useState<Delegation>();
+  const [delegationError, setDelegationError] = useState<string>();
   const apiOrigin = mcpApiOrigin();
+  const requestsExecute = details?.scope.split(/\s+/).includes('oren.trade.execute') ?? false;
 
   useEffect(() => {
     if (!uid || !apiOrigin) return;
@@ -34,8 +49,31 @@ export function McpConnect({ uid }: { uid: string }) {
     return () => controller.abort();
   }, [uid, apiOrigin]);
 
+  useEffect(() => {
+    if (!requestsExecute || !authenticated || !apiOrigin) return;
+    const controller = new AbortController();
+    void (async () => {
+      try {
+        const token = await getAccessToken();
+        if (!token) throw new Error('Sign in again to view your trading limits.');
+        const response = await fetch(`${apiOrigin}/mcp/delegation`, {
+          headers: { Authorization: `Bearer ${token}` },
+          cache: 'no-store',
+          signal: controller.signal,
+        });
+        if (!response.ok) throw new Error('Unable to verify your chat trading permission.');
+        const value = (await response.json()) as Delegation;
+        if (!controller.signal.aborted) setDelegation(value);
+      } catch {
+        if (!controller.signal.aborted)
+          setDelegationError('Unable to verify your chat trading permission.');
+      }
+    })();
+    return () => controller.abort();
+  }, [requestsExecute, authenticated, getAccessToken, apiOrigin]);
+
   async function authorize() {
-    if (!apiOrigin || !uid || !details || !auth.authenticated || !auth.address) return;
+    if (!apiOrigin || !uid || !details || !auth.authenticated || !auth.address || (requestsExecute && (!allowExecute || !delegation?.enabled || !delegation.delegationId))) return;
     setBusy(true);
     setError(undefined);
     try {
@@ -44,7 +82,10 @@ export function McpConnect({ uid }: { uid: string }) {
       const response = await fetch(`${apiOrigin}/oauth/interaction/${encodeURIComponent(uid)}`, {
         method: 'POST',
         credentials: 'include',
-        headers: { Authorization: `Bearer ${token}` },
+        headers: {
+          Authorization: `Bearer ${token}`,
+          ...(requestsExecute ? { 'X-Oren-Trade-Execute-Consent': 'true', 'X-Oren-Delegation-Id': delegation!.delegationId! } : {}),
+        },
       });
       if (!response.ok) throw new Error('Unable to authorize this connection. Start again in your agent.');
       const body = (await response.json()) as { redirect?: string };
@@ -68,18 +109,29 @@ export function McpConnect({ uid }: { uid: string }) {
         <p className="mt-5 text-sm text-muted">Access requested</p>
         <p className="mt-1">
           {details.scope.includes('oren.read') ? 'Read your portfolio and stock market data. ' : ''}
-          {details.scope.includes('oren.trade.prepare') ? 'Prepare a buy request and open Oren for your review and signature. ' : ''}
-          The agent cannot sign or submit a trade with this connection.
+          {details.scope.includes('oren.trade.prepare') ? 'Prepare stock buys and sells for review. ' : ''}
+          {requestsExecute
+            ? 'If you grant chat trading below, Claude can execute trades within your active limits while this connection and delegation remain active.'
+            : 'The agent cannot sign or submit a trade with this connection.'}
         </p>
+        {requestsExecute && delegation?.enabled && <>
+          <p className="mt-5 text-sm">Up to ${delegation.perTradeUsd} per trade and ${delegation.dailyUsd} in any rolling 24 hours. Used: ${delegation.usedTodayUsd}. {delegation.sides?.join(' and ')} only. Maximum slippage: {delegation.maxSlippageBps} bps. Expires {delegation.expiresAt ? new Date(delegation.expiresAt).toLocaleString() : 'soon'}.</p>
+          <label className="mt-4 flex items-start gap-3 text-sm">
+            <input checked={allowExecute} className="mt-1" onChange={(event) => setAllowExecute(event.target.checked)} type="checkbox" />
+            <span>I allow this Claude connection to execute trades within these limits. I can revoke it in settings.</span>
+          </label>
+        </>}
+        {requestsExecute && delegation && !delegation.enabled && <p className="mt-5 text-sm">Chat trading is not active. Enable it in <Link className="underline" href="/settings/mcp">Agent connections</Link> before connecting Claude.</p>}
       </div>}
       {error && <p className="mt-5 text-sm text-red-700" role="alert">{error}</p>}
+      {delegationError && <p className="mt-5 text-sm text-red-700" role="alert">{delegationError}</p>}
       {!auth.configured && <p className="mt-5 text-sm text-red-700" role="alert">Email sign-in is temporarily unavailable.</p>}
       {!auth.authenticated ? (
         <button className="mt-6 rounded-xl bg-foreground px-5 py-3 text-white disabled:opacity-50" disabled={!auth.configured || !auth.ready} onClick={auth.open} type="button">
           {auth.ready ? 'Sign in with email code' : 'Loading sign-in…'}
         </button>
       ) : (
-        <button className="mt-6 rounded-xl bg-foreground px-5 py-3 text-white disabled:opacity-50" disabled={!details || !auth.address || busy} onClick={() => void authorize()} type="button">
+        <button className="mt-6 rounded-xl bg-foreground px-5 py-3 text-white disabled:opacity-50" disabled={!details || !auth.address || busy || (requestsExecute && (!allowExecute || !delegation?.enabled || !delegation.delegationId))} onClick={() => void authorize()} type="button">
           {busy ? 'Connecting…' : auth.address ? 'Allow connection' : 'Preparing your wallet…'}
         </button>
       )}

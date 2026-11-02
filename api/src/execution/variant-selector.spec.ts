@@ -56,6 +56,11 @@ describe('VariantSelector.pickCandidates', () => {
     const picked = selector.pickCandidates(equity, 'mintDead');
     expect(picked.map((v) => v.mint)).toEqual(['mintHigh', 'mintLow']);
   });
+
+  it('fails closed when an exact prepared mint is no longer tradable', () => {
+    expect(selector.pickCandidates(equity, 'mintDead', true)).toEqual([]);
+    expect(selector.pickCandidates(equity, 'missingMint', true)).toEqual([]);
+  });
 });
 
 describe('VariantSelector.selectAndQuote routing', () => {

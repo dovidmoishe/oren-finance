@@ -44,7 +44,7 @@ function session(createWallet) {
     exports, URL, window: { location: { href: 'https://oren.finance/app' }, localStorage: { getItem: () => null } },
     require(id) {
       if (id === 'react') return react;
-      if (id === '@privy-io/react-auth') return { useAuthorizationSignature: () => ({ generateAuthorizationSignature: async () => ({ signature: 'request-signature' }) }), usePrivy: () => sdk, useLogin: ({ onComplete }) => { loginComplete = onComplete; return { login() {} }; } };
+      if (id === '@privy-io/react-auth') return { useAuthorizationSignature: () => ({ generateAuthorizationSignature: async () => ({ signature: 'request-signature' }) }), useSigners: () => ({ addSigners: async () => {}, removeSigners: async () => {} }), usePrivy: () => sdk, useLogin: ({ onComplete }) => { loginComplete = onComplete; return { login() {} }; } };
       if (id === '@privy-io/react-auth/solana') return { useWallets: () => walletSdk, useCreateWallet: () => ({ createWallet }), useSignMessage: () => ({}), useSignTransaction: () => ({}) };
       if (id === 'next/navigation') return { usePathname: () => '/app' };
       if (id === '@/store') return Object.fromEntries(['useAgentStore','useExecutionStore','usePortfolioStore','useSocialStore','useVaultStore','useWalletStore'].map(k => [k, store]));

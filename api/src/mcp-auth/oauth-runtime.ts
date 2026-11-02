@@ -55,12 +55,16 @@ export function clientMayPrepareTrades(
   );
 }
 
+/** Only the exact Claude callback may request execution permission. */
+export const clientMayExecuteTrades = clientMayPrepareTrades;
+
 /** Disabled by default; partial configuration must fail startup, not weaken auth. */
 export async function createMcpOAuthRuntime(
   db: Database,
   env: NodeJS.ProcessEnv = process.env,
 ): Promise<McpOAuthRuntime | undefined> {
   if (env.MCP_OAUTH_ENABLED !== 'true') return undefined;
+  const executeScopeEnabled = env.MCP_DELEGATED_TRADES_ENABLED === 'true';
   const issuer = env.MCP_OAUTH_ISSUER?.trim();
   const appOrigin = env.MCP_APP_ORIGIN?.trim();
   const storageKey = Buffer.from(env.MCP_OAUTH_STORAGE_KEY ?? '', 'base64');
@@ -114,7 +118,13 @@ export async function createMcpOAuthRuntime(
     // Claude includes MCP permissions in dynamic client metadata. The provider
     // validates that metadata against this list and also checks these scopes
     // against the OP grant during consent.
-    scopes: ['openid', 'oren.read', 'oren.trade.prepare', 'offline_access'],
+    scopes: [
+      'openid',
+      'oren.read',
+      'oren.trade.prepare',
+      ...(executeScopeEnabled ? ['oren.trade.execute'] : []),
+      'offline_access',
+    ],
     clientAuthMethods: ['none'],
     rotateRefreshToken: true,
     issueRefreshToken: () => true,
@@ -139,7 +149,7 @@ export async function createMcpOAuthRuntime(
         getResourceServerInfo: (_context, requested) => {
           if (requested !== resource) throw new errors.InvalidTarget();
           return {
-            scope: 'oren.read oren.trade.prepare',
+            scope: `oren.read oren.trade.prepare${executeScopeEnabled ? ' oren.trade.execute' : ''}`,
             audience: resource,
             accessTokenTTL: 600,
           };

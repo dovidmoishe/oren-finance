@@ -64,6 +64,27 @@
       "breakpoints": true,
       "tag": "0008_mcp_trade_intents",
       "idx": 8
+    },
+    {
+      "version": "7",
+      "when": 1793556000000,
+      "breakpoints": true,
+      "tag": "0009_mcp_trade_sides",
+      "idx": 9
+    },
+    {
+      "version": "7",
+      "when": 1793559600000,
+      "breakpoints": true,
+      "tag": "0010_mcp_delegated_trades",
+      "idx": 10
+    },
+    {
+      "version": "7",
+      "when": 1793577600000,
+      "breakpoints": true,
+      "tag": "0011_mcp_delegated_execution",
+      "idx": 11
     }
   ]
 }
