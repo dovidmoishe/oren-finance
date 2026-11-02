@@ -2,7 +2,7 @@ import { config } from 'dotenv';
 import { PrivyClient } from '@privy-io/node';
 import { fileURLToPath } from 'node:url';
 
-config({ path: fileURLToPath(new URL('../.env', import.meta.url)), quiet: true });
+config({ path: process.env.PROOF_ENV_PATH ?? fileURLToPath(new URL('../.env', import.meta.url)), quiet: true });
 
 const email = process.env.PROOF_WALLET_EMAIL;
 const expectedWallet = process.env.PROOF_WALLET_ADDRESS;
