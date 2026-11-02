@@ -353,6 +353,7 @@ export function StockResearchPanel({ assetId }: { assetId: string }) {
                         <a
                           className="hover:underline"
                           href={item.url}
+                          onClick={recordSource}
                           rel="noopener noreferrer"
                           target="_blank"
                         >
@@ -365,6 +366,7 @@ export function StockResearchPanel({ assetId }: { assetId: string }) {
                         <a
                           className="hover:underline"
                           href={item.url}
+                          onClick={recordSource}
                           rel="noopener noreferrer"
                           target="_blank"
                         >
@@ -395,6 +397,7 @@ export function StockResearchPanel({ assetId }: { assetId: string }) {
                         <a
                           className="underline-offset-2 hover:underline"
                           href={change.url}
+                          onClick={recordSource}
                           rel="noopener noreferrer"
                           target="_blank"
                         >
