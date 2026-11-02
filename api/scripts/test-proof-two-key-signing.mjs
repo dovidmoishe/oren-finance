@@ -3,7 +3,8 @@ import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { isDeepStrictEqual } from 'node:util';
-import { PrivyClient } from '@privy-io/node';
+import { PrivyClient, formatRequestForAuthorizationSignature,
+  generateAuthorizationSignature } from '@privy-io/node';
 import {
   AddressLookupTableAccount, Connection, Keypair, PublicKey,
   TransactionMessage, VersionedTransaction,
@@ -151,5 +152,31 @@ for (const [label, auth, shouldSign] of [
     attempts.push({ label, signed: false, status: error?.status ?? null });
   }
 }
+const requestId = randomUUID();
+const requestExpiry = Date.now() + 30_000;
+const canonicalRequest = {
+  version: 1, method: 'POST',
+  url: `https://api.privy.io/v1/wallets/${linked[0].id}/rpc`,
+  body: { method: 'signTransaction', chain_type: 'solana',
+    params: { transaction, encoding: 'base64' } },
+  headers: { 'privy-app-id': appId, 'privy-idempotency-key': requestId,
+    'privy-request-expiry': String(requestExpiry) },
+};
+const canonicalBytes = formatRequestForAuthorizationSignature(canonicalRequest);
+const manualSignatures = [keys.twoKey.api.privateKeyDerBase64,
+  keys.twoKey.gate.privateKeyDerBase64].map((authorizationPrivateKey) =>
+  generateAuthorizationSignature({ authorizationPrivateKey, input: canonicalBytes }));
+const manual = await privy.wallets().solana().signTransaction(linked[0].id, {
+  transaction,
+  authorization_context: { signatures: manualSignatures },
+  idempotency_key: requestId,
+  request_expiry: requestExpiry,
+});
+const manuallySigned = VersionedTransaction.deserialize(
+  Buffer.from(manual.signed_transaction, 'base64'));
+if (!Buffer.from(manuallySigned.message.serialize()).equals(Buffer.from(
+  VersionedTransaction.deserialize(Buffer.from(transaction, 'base64')).message.serialize())))
+  throw new Error('Manual canonical signatures authorized different bytes');
+attempts.push({ label: 'both_manual_signatures_same_request', signed: true });
 console.log(JSON.stringify({ unfunded: true, broadcast: false, gateRejectedDoubleRoute: true,
   quorumThreshold: 2, lookupTables: tables.length, attempts }));

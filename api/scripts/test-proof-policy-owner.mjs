@@ -18,10 +18,14 @@ const result = JSON.parse(readFileSync(
 const candidate = JSON.parse(readFileSync(
   fileURLToPath(new URL('../.proof/jupiter-buy.policy.json', import.meta.url)), 'utf8',
 ));
+const signer = process.env.PROOF_TWO_KEY === 'true' ? keys.twoKey : keys.signer;
+const signerKeys = process.env.PROOF_TWO_KEY === 'true'
+  ? [signer?.api?.privateKeyDerBase64, signer?.gate?.privateKeyDerBase64]
+  : [signer?.privateKeyDerBase64];
 if (
   !keys.admin?.quorumId ||
-  !keys.signer?.quorumId ||
-  keys.admin.quorumId === keys.signer.quorumId ||
+  !signer?.quorumId || signerKeys.some((key) => !key) ||
+  keys.admin.quorumId === signer.quorumId ||
   candidate.owner_id !== keys.admin.quorumId ||
   !result.policyId
 ) throw new Error('Proof owner/signer policy identity is inconsistent');
@@ -37,7 +41,7 @@ const attempts = [];
 for (const [name, authorizationContext] of [
   ['app_secret_only', undefined],
   ['trade_signer', {
-    authorization_private_keys: [keys.signer.privateKeyDerBase64],
+    authorization_private_keys: signerKeys,
   }],
 ]) {
   try {

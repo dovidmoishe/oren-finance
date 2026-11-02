@@ -19,7 +19,11 @@ if (!email || !address || !process.env.PRIVY_APP_ID || !process.env.PRIVY_APP_SE
 
 const keys = JSON.parse(readFileSync(fileURLToPath(new URL('../.proof/quorum-keys.json', import.meta.url)), 'utf8'));
 const created = JSON.parse(readFileSync(fileURLToPath(new URL('../.proof/jupiter-buy.created.json', import.meta.url)), 'utf8'));
-if (keys.proofWalletAddress !== address || !keys.signer?.privateKeyDerBase64 || !created.policyId)
+const signer = process.env.PROOF_TWO_KEY === 'true' ? keys.twoKey : keys.signer;
+const signerKeys = process.env.PROOF_TWO_KEY === 'true'
+  ? [signer?.api?.privateKeyDerBase64, signer?.gate?.privateKeyDerBase64]
+  : [signer?.privateKeyDerBase64];
+if (keys.proofWalletAddress !== address || signerKeys.some((key) => !key) || !created.policyId)
   throw new Error('Local proof signer, wallet and policy do not match');
 
 const privy = new PrivyClient({ appId: process.env.PRIVY_APP_ID, appSecret: process.env.PRIVY_APP_SECRET });
@@ -34,7 +38,7 @@ if (linked.length !== 1 || typeof linked[0].id !== 'string')
 const wallet = await privy.wallets().get(linked[0].id);
 const signers = wallet.additional_signers;
 if (wallet.address !== address || !Array.isArray(signers) || signers.length !== 1 ||
-    signers[0].signer_id !== keys.signer.quorumId ||
+    signers[0].signer_id !== signer.quorumId ||
     !signers[0].override_policy_ids?.includes(created.policyId))
   throw new Error('Owner must first attach only the expected signer and policy in the browser');
 const policy = await privy.policies().get(created.policyId);
@@ -61,7 +65,7 @@ const attacks = [
     instructions: [createTransferCheckedInstruction(sourceAta, usdc, destinationAta, owner, 1n, 6, [], TOKEN_PROGRAM_ID)],
   },
 ];
-const authorization_context = { authorization_private_keys: [keys.signer.privateKeyDerBase64] };
+const authorization_context = { authorization_private_keys: signerKeys };
 const attempts = [];
 async function expectDenial(name, run) {
   try {
