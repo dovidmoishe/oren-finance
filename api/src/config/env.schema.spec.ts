@@ -114,7 +114,13 @@ describe('validateEnv — delegated MCP trading', () => {
       SIGNER_GATE_URL: 'http://signer-gate:3001',
       SIGNER_GATE_API_TOKEN: 'test-token-not-for-production',
     };
-    expect(() => validateEnv(configured)).toThrow(/funded Jupiter proof/);
+    expect(() => validateEnv(configured)).toThrow(/restricted API database role/);
+    expect(
+      validateEnv({
+        ...configured,
+        POSTGRES_URL: 'postgres://oren_api_runtime:test@localhost:5432/oren',
+      }).MCP_DELEGATED_TRADES_ENABLED,
+    ).toBe(true);
     expect(() =>
       validateEnv({
         ...configured,
