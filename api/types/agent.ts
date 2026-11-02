@@ -93,6 +93,7 @@ export interface AgentPageContext {
 }
 
 export type AgentArtifact =
+  | { type: 'research'; data: import('./research').StockResearch }
   | { type: 'portfolio'; data: Portfolio }
   | { type: 'stock'; data: Equity }
   | { type: 'bitget_market'; data: BitgetMarketContext }

@@ -121,4 +121,30 @@ describe('Drip response mapping', () => {
     expect(compactTickerCoverage({ picks: [] })).toBeNull();
     expect(compactPicks({ authors: [] })).toBeNull();
   });
+
+  it('drops uncitable and duplicate opinions before selecting the visible sample', () => {
+    const mention = {
+      thesis: 'Same thesis',
+      articleUrl: 'https://example.com/a',
+      publishedAt: '2026-11-01',
+      sentiment: 'BULLISH',
+    };
+    const result = compactTickerCoverage({
+      meta: { ticker: 'NVDA' },
+      summary: { calls: 4 },
+      authors: [
+        {
+          author: 'Alice',
+          mentions: [
+            mention,
+            { ...mention, articleUrl: 'https://example.com/b' },
+            { ...mention, thesis: 'No link', articleUrl: undefined },
+            { ...mention, thesis: 'Bad date', publishedAt: 'not a date' },
+          ],
+        },
+      ],
+    });
+    expect(result?.summary.calls).toBe(4);
+    expect(result?.opinions).toHaveLength(1);
+  });
 });

@@ -696,6 +696,63 @@ export const agentMessages = pgTable(
   ],
 );
 
+/** Saved research is user-owned app memory, not a financial position record. */
+export const savedResearch = pgTable(
+  'saved_research',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    userId: text('user_id').notNull(),
+    assetId: text('asset_id').notNull(),
+    note: text('note').notNull(),
+    snapshot: jsonb('snapshot')
+      .$type<import('../../types/research').ResearchSnapshot>()
+      .notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    uniqueIndex('saved_research_user_asset_idx').on(
+      table.userId,
+      table.assetId,
+    ),
+  ],
+);
+
+export const researchUsage = pgTable(
+  'research_usage',
+  {
+    bucket: text('bucket').notNull(),
+    windowStart: timestamp('window_start', { withTimezone: true }).notNull(),
+    count: integer('count').notNull().default(0),
+  },
+  (table) => [
+    uniqueIndex('research_usage_bucket_window_idx').on(
+      table.bucket,
+      table.windowStart,
+    ),
+  ],
+);
+
+export const researchEvents = pgTable(
+  'research_events',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    userId: text('user_id').notNull(),
+    assetId: text('asset_id').notNull(),
+    kind: text('kind').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index('research_events_kind_created_idx').on(table.kind, table.createdAt),
+  ],
+);
+
 /** Optional short-lived news cache — not a Tokens API mirror. */
 export const cachedNews = pgTable(
   'cached_news',

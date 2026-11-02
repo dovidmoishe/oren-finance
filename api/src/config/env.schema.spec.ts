@@ -140,7 +140,7 @@ describe('validateEnv — Drip', () => {
     expect(env.DRIP_API_BASE_URL).toBe('https://dripstack.com');
     expect(env.DRIP_ALLOWED_USER_IDS).toEqual([]);
     expect(env.DRIP_ALLOWED_EMAILS).toEqual([]);
-    expect(env.DRIP_ALLOWED_WALLETS).toEqual([]);
+    expect(env.DRIP_PUBLIC_RESEARCH_ENABLED).toBe(false);
     expect(env.DRIP_REQUEST_TIMEOUT_MS).toBe(12_000);
   });
 
@@ -151,7 +151,7 @@ describe('validateEnv — Drip', () => {
       DRIP_API_KEY: 'pk_drip_test',
       DRIP_ALLOWED_USER_IDS: ' did:privy:owner , ',
       DRIP_ALLOWED_EMAILS: 'Owner@Example.com, other@example.com',
-      DRIP_ALLOWED_WALLETS: 'wallet-owner',
+      DRIP_PUBLIC_RESEARCH_ENABLED: 'true',
       DRIP_API_BASE_URL: 'https://dripstack.test/',
       DRIP_REQUEST_TIMEOUT_MS: '9000',
     });
@@ -162,7 +162,7 @@ describe('validateEnv — Drip', () => {
       'owner@example.com',
       'other@example.com',
     ]);
-    expect(env.DRIP_ALLOWED_WALLETS).toEqual(['wallet-owner']);
+    expect(env.DRIP_PUBLIC_RESEARCH_ENABLED).toBe(true);
     expect(env.DRIP_API_BASE_URL).toBe('https://dripstack.test');
     expect(env.DRIP_REQUEST_TIMEOUT_MS).toBe(9000);
   });

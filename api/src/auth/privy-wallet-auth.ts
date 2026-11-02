@@ -64,6 +64,22 @@ export class PrivyWalletAuth {
     return userId;
   }
 
+  async requireResearchIdentity(
+    authorization: string | undefined,
+    wallet: string,
+  ) {
+    const { userId, user } = await this.verifiedUser(authorization);
+    const linked = user.linked_accounts.some(
+      (account) =>
+        account.type === 'wallet' &&
+        account.chain_type === 'solana' &&
+        account.address === wallet,
+    );
+    if (!linked)
+      throw new ForbiddenException('Wallet is not linked to this account');
+    return { userId, walletAddress: wallet, email: emailFromPrivyUser(user) };
+  }
+
   async requireMcpUser(authorization: string | undefined): Promise<string> {
     return (await this.verifiedUser(authorization)).userId;
   }

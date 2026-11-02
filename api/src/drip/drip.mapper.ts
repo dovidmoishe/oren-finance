@@ -118,9 +118,21 @@ function flattenMentions(authors: unknown[]): DripCitation[] {
       if (citation) citations.push(citation);
     }
   }
-  return citations.sort(
+  const sorted = citations.sort(
     (left, right) => timeValue(right.date) - timeValue(left.date),
   );
+  const seen = new Set<string>();
+  const perAuthor = new Map<string, number>();
+  return sorted.filter((item) => {
+    if (!item.url || !item.date || !Number.isFinite(Date.parse(item.date)))
+      return false;
+    const author = item.author.toLowerCase();
+    const key = `${author}|${(item.summary ?? item.quote ?? '').toLowerCase().replace(/\W+/g, '')}`;
+    if (seen.has(key) || (perAuthor.get(author) ?? 0) >= 2) return false;
+    seen.add(key);
+    perAuthor.set(author, (perAuthor.get(author) ?? 0) + 1);
+    return true;
+  });
 }
 
 function compactMention(author: string, mention: unknown): DripCitation | null {
@@ -148,6 +160,9 @@ function compactPick(pick: unknown): DripPick | null {
   const ticker = text(pick.ticker)?.toUpperCase();
   const author = clip(pick.author, LABEL_LIMIT);
   if (!ticker || !author) return null;
+  const url = safeUrl(pick.articleUrl);
+  const date = text(pick.publishedAt) ?? text(pick.date);
+  if (!url || !date || !Number.isFinite(Date.parse(date))) return null;
   const summary =
     clip(pick.thesis, SUMMARY_LIMIT) ??
     clip(pick.rationaleSnippet, SUMMARY_LIMIT);
@@ -159,12 +174,12 @@ function compactPick(pick: unknown): DripPick | null {
     source:
       clip(pick.publicationTitle, LABEL_LIMIT) ??
       clip(pick.publicationSlug, LABEL_LIMIT),
-    date: text(pick.publishedAt) ?? text(pick.date),
+    date,
     stance: stanceOf(pick.sentiment),
     action: text(pick.action),
     summary,
     quote,
-    url: safeUrl(pick.articleUrl),
+    url,
     guest: pick.speakerIsGuest === true ? true : undefined,
   });
 }
@@ -216,7 +231,7 @@ function stanceOf(value: unknown): DripStance | undefined {
 function safeUrl(value: unknown): string | undefined {
   const url = text(value);
   if (!url) return undefined;
-  if (/^https?:\/\//i.test(url) || /^mailto:/i.test(url)) return url;
+  if (/^https?:\/\//i.test(url)) return url;
   return undefined;
 }
 

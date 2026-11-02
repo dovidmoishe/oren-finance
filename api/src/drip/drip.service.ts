@@ -18,6 +18,7 @@ import {
   presentPicks,
 } from './drip.mapper';
 import { resolveDripTicker } from './drip-symbols';
+import { DripQuotaService } from './drip-quota.service';
 import type {
   CachedDripOpinions,
   CachedDripPicks,
@@ -56,6 +57,7 @@ export class DripService {
   constructor(
     @Inject(APP_ENV) private readonly env: AppEnv,
     private readonly market: MarketService,
+    private readonly quota?: DripQuotaService,
   ) {
     this.client = new DripClient({
       apiKey: env.DRIP_API_KEY,
@@ -68,9 +70,9 @@ export class DripService {
     return dripToolsEnabled(
       {
         enabled: this.env.DRIP_ENABLED,
+        publicResearch: this.env.DRIP_PUBLIC_RESEARCH_ENABLED,
         userIds: this.env.DRIP_ALLOWED_USER_IDS,
         emails: this.env.DRIP_ALLOWED_EMAILS,
-        wallets: this.env.DRIP_ALLOWED_WALLETS,
       },
       caller,
     );
@@ -79,6 +81,7 @@ export class DripService {
   async getOpinions(
     queried: string,
     limit = DRIP_OPINION_RETURN_DEFAULT,
+    caller?: DripCaller,
   ): Promise<DripOpinionResult> {
     const bounded = clampLimit(
       limit,
@@ -94,7 +97,15 @@ export class DripService {
       const cached = await this.cache.getOrLoad(
         `ticker:${resolved.ticker}`,
         DRIP_TICKER_TTL_MS,
-        () => this.loadTicker(resolved.ticker),
+        async () => {
+          if (caller?.userId && !(await this.claim(caller.userId))) {
+            throw new DripRequestError(
+              'Drip request allowance is exhausted',
+              'rate_limit',
+            );
+          }
+          return this.loadTicker(resolved.ticker);
+        },
       );
       return presentOpinions(cached, queried, resolved.mappedFrom, bounded);
     } catch (error) {
@@ -103,7 +114,10 @@ export class DripService {
     }
   }
 
-  async getPicks(limit = DRIP_PICKS_RETURN_DEFAULT): Promise<DripPicksResult> {
+  async getPicks(
+    limit = DRIP_PICKS_RETURN_DEFAULT,
+    caller?: DripCaller,
+  ): Promise<DripPicksResult> {
     const bounded = clampLimit(
       limit,
       DRIP_PICKS_RETURN_DEFAULT,
@@ -114,7 +128,15 @@ export class DripService {
       const cached = await this.cache.getOrLoad(
         'picks:latest',
         DRIP_PICKS_TTL_MS,
-        () => this.loadPicks(),
+        async () => {
+          if (caller?.userId && !(await this.claim(caller.userId))) {
+            throw new DripRequestError(
+              'Drip request allowance is exhausted',
+              'rate_limit',
+            );
+          }
+          return this.loadPicks();
+        },
       );
       return presentPicks(cached, bounded);
     } catch (error) {
@@ -139,6 +161,15 @@ export class DripService {
         return emptyOpinions(ticker);
       }
       throw error;
+    }
+  }
+
+  private async claim(userId: string): Promise<boolean> {
+    if (!this.quota) return true;
+    try {
+      return await this.quota.claim(userId);
+    } catch {
+      return false;
     }
   }
 

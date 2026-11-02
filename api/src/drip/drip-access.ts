@@ -7,9 +7,9 @@ export interface DripCaller {
 
 export interface DripAccessConfig {
   enabled: boolean;
+  publicResearch?: boolean;
   userIds: readonly string[];
   emails: readonly string[];
-  wallets: readonly string[];
 }
 
 /**
@@ -21,18 +21,14 @@ export function dripToolsEnabled(
   caller: DripCaller,
 ): boolean {
   if (!config.enabled) return false;
-  if (
-    config.userIds.length + config.emails.length + config.wallets.length ===
-    0
-  ) {
+  if (config.publicResearch && caller.userId) return true;
+  if (config.userIds.length + config.emails.length === 0) {
     return false;
   }
 
   const userId = caller.userId?.trim();
   const email = caller.email?.trim().toLowerCase();
-  const wallet = caller.walletAddress?.trim();
   if (userId && config.userIds.includes(userId)) return true;
   if (email && config.emails.includes(email)) return true;
-  if (wallet && config.wallets.includes(wallet)) return true;
   return false;
 }

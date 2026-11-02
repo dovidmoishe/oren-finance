@@ -92,6 +92,8 @@ export interface AppEnv {
    * An empty allowlist still denies every caller.
    */
   DRIP_ENABLED: boolean;
+  /** Requires provider permission before enabling for all verified users. */
+  DRIP_PUBLIC_RESEARCH_ENABLED: boolean;
   /** Server-only. Sent as `Authorization: Bearer`. Never returned to clients. */
   DRIP_API_KEY?: string;
   DRIP_API_BASE_URL: string;
@@ -99,11 +101,6 @@ export interface AppEnv {
   DRIP_ALLOWED_USER_IDS: string[];
   /** Compared case-insensitively. */
   DRIP_ALLOWED_EMAILS: string[];
-  /**
-   * Solana wallets. The in-app agent request carries the wallet today, so this
-   * is how an owner is recognized before a session token is on the request.
-   */
-  DRIP_ALLOWED_WALLETS: string[];
   DRIP_REQUEST_TIMEOUT_MS: number;
   VAULT_PROGRAM_ID: string;
   /** When false, vault prepare/confirm routes return 503. Defaults to false until the program is deployed. */
@@ -273,8 +270,12 @@ export function validateEnv(env: EnvSource = process.env): AppEnv {
       throw new Error(
         'Delegated signing is blocked pending funded Jupiter proof and rollout',
       );
-    if (new URL(requireEnv(env, 'POSTGRES_URL')).username !== 'oren_api_runtime')
-      throw new Error('Delegated trades require the restricted API database role');
+    if (
+      new URL(requireEnv(env, 'POSTGRES_URL')).username !== 'oren_api_runtime'
+    )
+      throw new Error(
+        'Delegated trades require the restricted API database role',
+      );
   }
   return {
     DEPLOYMENT_ENV: deployment.environment,
@@ -355,13 +356,17 @@ export function validateEnv(env: EnvSource = process.env): AppEnv {
       8000,
     ),
     DRIP_ENABLED: readBool(env, 'DRIP_ENABLED', false),
+    DRIP_PUBLIC_RESEARCH_ENABLED: readBool(
+      env,
+      'DRIP_PUBLIC_RESEARCH_ENABLED',
+      false,
+    ),
     DRIP_API_KEY: readEnv(env, 'DRIP_API_KEY'),
     DRIP_API_BASE_URL: (
       readEnv(env, 'DRIP_API_BASE_URL') ?? DEFAULT_DRIP_API_BASE_URL
     ).replace(/\/$/, ''),
     DRIP_ALLOWED_USER_IDS: readList(env, 'DRIP_ALLOWED_USER_IDS'),
     DRIP_ALLOWED_EMAILS: readEmailList(env, 'DRIP_ALLOWED_EMAILS'),
-    DRIP_ALLOWED_WALLETS: readList(env, 'DRIP_ALLOWED_WALLETS'),
     DRIP_REQUEST_TIMEOUT_MS: readPositiveInt(
       env,
       'DRIP_REQUEST_TIMEOUT_MS',

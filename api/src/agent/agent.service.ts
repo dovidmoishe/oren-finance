@@ -389,9 +389,14 @@ export class AgentService {
     authorization?: string,
   ): Promise<AgentToolContext> {
     const caller: AgentToolContext = { walletAddress };
-    const identity = await this.auth?.tryIdentify(authorization);
-    if (identity?.userId) caller.userId = identity.userId;
-    if (identity?.email) caller.email = identity.email;
+    if (authorization && this.auth) {
+      const identity = await this.auth.requireResearchIdentity(
+        authorization,
+        walletAddress,
+      );
+      caller.userId = identity.userId;
+      if (identity.email) caller.email = identity.email;
+    }
     return caller;
   }
 
@@ -546,6 +551,8 @@ function artifactFromToolOutput(
   data: unknown,
 ): AgentArtifact | undefined {
   switch (toolName) {
+    case 'getStockResearch':
+      return { type: 'research', data: data as never };
     case 'getPortfolio':
       return { type: 'portfolio', data: data as never };
     case 'getTradingCalendar':

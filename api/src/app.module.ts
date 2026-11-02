@@ -14,6 +14,7 @@ import { IntelligenceModule } from './intelligence/intelligence.module';
 import { MarketModule } from './market/market.module';
 import { NewsModule } from './news/news.module';
 import { PortfolioModule } from './portfolio/portfolio.module';
+import { ResearchModule } from './research/research.module';
 import { SocialModule } from './social/social.module';
 import { TokensModule } from './tokens/tokens.module';
 import { VaultModule } from './vault/vault.module';
@@ -30,6 +31,7 @@ import { VaultModule } from './vault/vault.module';
     AnalyticsModule,
     HealthModule,
     PortfolioModule,
+    ResearchModule,
     IntelligenceModule,
     MarketModule,
     NewsModule,

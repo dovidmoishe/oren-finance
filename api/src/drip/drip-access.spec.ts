@@ -4,7 +4,6 @@ const open: DripAccessConfig = {
   enabled: true,
   userIds: ['did:privy:owner'],
   emails: ['owner@example.com'],
-  wallets: ['So11111111111111111111111111111111111111112'],
 };
 
 describe('dripToolsEnabled', () => {
@@ -20,20 +19,20 @@ describe('dripToolsEnabled', () => {
   it('denies everyone when the allowlists are empty', () => {
     expect(
       dripToolsEnabled(
-        { enabled: true, userIds: [], emails: [], wallets: [] },
+        { enabled: true, userIds: [], emails: [] },
         { userId: 'did:privy:owner', walletAddress: 'wallet' },
       ),
     ).toBe(false);
   });
 
-  it('matches a Privy user id, an email, or the connected wallet', () => {
+  it('matches verified user identities but not a submitted wallet', () => {
     expect(dripToolsEnabled(open, { userId: 'did:privy:owner' })).toBe(true);
     expect(dripToolsEnabled(open, { email: ' Owner@Example.com ' })).toBe(true);
     expect(
       dripToolsEnabled(open, {
         walletAddress: 'So11111111111111111111111111111111111111112',
       }),
-    ).toBe(true);
+    ).toBe(false);
   });
 
   it('denies a caller who matches none of the lists', () => {
@@ -43,6 +42,21 @@ describe('dripToolsEnabled', () => {
         email: 'other@example.com',
         walletAddress: 'not-the-owner',
       }),
+    ).toBe(false);
+  });
+
+  it('opens free research only to a verified user when the separate provider gate is enabled', () => {
+    const publicConfig = {
+      ...open,
+      publicResearch: true,
+      userIds: [],
+      emails: [],
+    };
+    expect(dripToolsEnabled(publicConfig, { userId: 'did:privy:anyone' })).toBe(
+      true,
+    );
+    expect(
+      dripToolsEnabled(publicConfig, { walletAddress: 'wallet-owner' }),
     ).toBe(false);
   });
 });

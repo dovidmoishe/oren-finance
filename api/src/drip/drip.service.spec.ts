@@ -11,7 +11,6 @@ function env(overrides: Partial<AppEnv> = {}): AppEnv {
     DRIP_API_BASE_URL: 'https://dripstack.test',
     DRIP_ALLOWED_USER_IDS: ['did:privy:owner'],
     DRIP_ALLOWED_EMAILS: ['owner@example.com'],
-    DRIP_ALLOWED_WALLETS: ['wallet-owner'],
     DRIP_REQUEST_TIMEOUT_MS: 12_000,
     ...overrides,
   } as AppEnv;
@@ -144,7 +143,7 @@ describe('DripService', () => {
 
   it('gates tool registration on the flag and allowlist', () => {
     const service = new DripService(env(), market as never);
-    expect(service.enabledFor({ walletAddress: 'wallet-owner' })).toBe(true);
+    expect(service.enabledFor({ walletAddress: 'wallet-owner' })).toBe(false);
     expect(service.enabledFor({ email: 'OWNER@example.com' })).toBe(true);
     expect(service.enabledFor({ userId: 'did:privy:owner' })).toBe(true);
     expect(service.enabledFor({ walletAddress: 'someone-else' })).toBe(false);
@@ -153,6 +152,15 @@ describe('DripService', () => {
       market as never,
     );
     expect(disabled.enabledFor({ userId: 'did:privy:owner' })).toBe(false);
+  });
+
+  it('returns a rate-limit result before contacting Drip when quota is exhausted', async () => {
+    const quota = { claim: jest.fn().mockResolvedValue(false) };
+    const service = new DripService(env(), market as never, quota as never);
+    await expect(
+      service.getOpinions('NVDA', 8, { userId: 'did:privy:owner' }),
+    ).resolves.toMatchObject({ available: false, reason: 'DRIP_RATE_LIMITED' });
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });
 

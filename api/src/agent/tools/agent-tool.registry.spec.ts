@@ -517,7 +517,9 @@ describe('AgentToolRegistry Drip gating', () => {
       { assetIdOrTicker: 'TSLAx', limit: 100 },
       { walletAddress: 'wallet-owner' },
     );
-    expect(drip.getOpinions).toHaveBeenCalledWith('TSLAx', 12);
+    expect(drip.getOpinions).toHaveBeenCalledWith('TSLAx', 12, {
+      walletAddress: 'wallet-owner',
+    });
 
     await expect(
       registry.dispatch(
@@ -528,6 +530,52 @@ describe('AgentToolRegistry Drip gating', () => {
     ).resolves.toEqual({
       output: { available: false, reason: 'DRIP_UNSET' },
     });
-    expect(drip.getPicks).toHaveBeenCalledWith(8);
+    expect(drip.getPicks).toHaveBeenCalledWith(8, {
+      email: 'owner@example.com',
+    });
+  });
+});
+
+describe('AgentToolRegistry research identity', () => {
+  const research = {
+    getStock: jest.fn().mockResolvedValue({ assetId: 'nvda', ticker: 'NVDA' }),
+  };
+  const registry = new AgentToolRegistry(
+    {} as never,
+    {} as never,
+    {} as never,
+    {} as never,
+    {} as never,
+    {} as never,
+    {} as never,
+    {} as never,
+    {} as never,
+    undefined,
+    research as never,
+  );
+
+  it('registers and dispatches stock research only with a server-bound user and wallet', async () => {
+    expect(
+      registry
+        .getSchemas({ walletAddress: 'submitted' })
+        .map((item) => item.name),
+    ).not.toContain('getStockResearch');
+    await expect(
+      registry.dispatch(
+        'getStockResearch',
+        { assetId: 'nvda' },
+        { walletAddress: 'submitted' },
+      ),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    const caller = { userId: 'did:privy:user', walletAddress: 'owned' };
+    expect(registry.getSchemas(caller).map((item) => item.name)).toContain(
+      'getStockResearch',
+    );
+    await expect(
+      registry.dispatch('getStockResearch', { assetId: 'nvda' }, caller),
+    ).resolves.toMatchObject({
+      artifact: { type: 'research', data: { assetId: 'nvda' } },
+    });
+    expect(research.getStock).toHaveBeenCalledWith('nvda', caller);
   });
 });

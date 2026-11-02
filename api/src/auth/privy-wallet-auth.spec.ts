@@ -76,6 +76,17 @@ describe('PrivyWalletAuth', () => {
     );
     expect(getUser).toHaveBeenCalledWith('did:privy:user');
   });
+  it('binds research identity to the verified linked wallet', async () => {
+    await expect(
+      auth.requireResearchIdentity('Bearer token', 'owned'),
+    ).resolves.toMatchObject({
+      userId: 'did:privy:user',
+      walletAddress: 'owned',
+    });
+    await expect(
+      auth.requireResearchIdentity('Bearer token', 'unlinked'),
+    ).rejects.toMatchObject({ status: 403 });
+  });
   it('requires an embedded wallet ID and matches its canonical address', async () => {
     await expect(
       auth.requireSigner('Bearer token', 'owned'),
