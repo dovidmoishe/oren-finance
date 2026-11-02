@@ -53,7 +53,12 @@ import { LimitOrderCache } from './limit-order-cache';
 import { LimitOrderRepository } from './limit-order.repository';
 import { QuoteCache } from './quote-cache';
 import { SwapRouter } from './swap-router';
-import { publicQuote, type SwapExpectation } from './swap-terms';
+import {
+  publicQuote,
+  rawIn,
+  type ReviewedTerms,
+  type SwapExpectation,
+} from './swap-terms';
 import { VariantSelector } from './variant-selector';
 
 @Injectable()
@@ -98,6 +103,87 @@ export class ExecutionService {
     const { quote } = await this.selector.selectAndQuote(intent);
     this.cache.set(quote);
     return quote;
+  }
+
+  /** Fresh route for the mint fixed in an MCP intent; never reads QuoteCache. */
+  async getQuoteForMint(
+    intent: TradeIntent & { preferredMint: string },
+  ): Promise<Quote> {
+    if (!intent.assetId || !intent.preferredMint)
+      throw new BadRequestException('Exact stock and mint are required');
+    const { quote } = await this.selector.selectAndQuote(intent, true);
+    if (
+      quote.assetId !== intent.assetId ||
+      quote.variant.mint !== intent.preferredMint
+    )
+      throw new BadRequestException('Prepared stock variant is unavailable');
+    return quote;
+  }
+
+  /** Build from a fresh quote under the immutable reviewed floor and input cap. */
+  async prepareFreshQuote(input: {
+    quote: Quote;
+    wallet: string;
+    assetId: string;
+    stockMint: string;
+    side: 'buy' | 'sell';
+    maxInRaw: string;
+    reviewed: ReviewedTerms;
+    quoteMaxAgeMs: number;
+  }): Promise<{
+    prepared: PreparedTransaction;
+    quote: Quote;
+    expectation?: SwapExpectation;
+  }> {
+    assertFinancialExecutionEnabled();
+    const wallet = assertWallet(input.wallet);
+    if (
+      input.quote.assetId !== input.assetId ||
+      input.quote.variant.mint !== input.stockMint ||
+      input.quote.side !== input.side ||
+      input.quote.expiresAt <= new Date() ||
+      Date.now() - input.quote.quotedAt.getTime() > input.quoteMaxAgeMs ||
+      !/^\d+$/.test(input.maxInRaw) ||
+      !rawIn(input.quote) ||
+      BigInt(rawIn(input.quote)!) > BigInt(input.maxInRaw)
+    )
+      throw new BadRequestException('Prepared trade terms changed');
+    const routed = await this.router.prepare(
+      input.quote,
+      wallet,
+      input.reviewed,
+    );
+    const actualIn = rawIn(routed.quote);
+    if (
+      routed.quote.assetId !== input.assetId ||
+      routed.quote.variant.mint !== input.stockMint ||
+      routed.quote.side !== input.side ||
+      !actualIn ||
+      BigInt(actualIn) > BigInt(input.maxInRaw)
+    )
+      throw new BadRequestException('Prepared trade terms changed');
+    const row = await this.repository.insert({
+      walletAddress: wallet,
+      type: routed.quote.side === 'buy' ? 'stock_purchase' : 'stock_sale',
+      assetId: routed.quote.assetId,
+      ticker: routed.quote.ticker,
+      tokenMint: routed.quote.variant.mint,
+      inputAsset: routed.quote.inputMint,
+      outputAsset: routed.quote.outputMint,
+      amount:
+        routed.quote.side === 'buy'
+          ? routed.quote.outputAmount
+          : routed.quote.inputAmount,
+      amountUsd: routed.quote.amountUsd,
+      provider: routed.quote.provider,
+      featureSource: 'agent',
+      status: 'awaiting_signature',
+    });
+    return {
+      prepared: { ...routed.prepared, executionId: row.id },
+      quote: routed.quote,
+      expectation: routed.expectation,
+    };
   }
 
   async createBasket(input: {
@@ -382,7 +468,8 @@ export class ExecutionService {
 
   async getExecutionStatus(executionId: string) {
     const row = await this.repository.findById(executionId);
-    if (!row) throw new ExecutionNotFoundError(`Execution not found: ${executionId}`);
+    if (!row)
+      throw new ExecutionNotFoundError(`Execution not found: ${executionId}`);
     return {
       executionId: row.id,
       signature: row.transactionSignature ?? undefined,
@@ -400,10 +487,7 @@ export class ExecutionService {
     if (!intent.ticker && !intent.assetId) {
       throw new BadRequestException('ticker or assetId is required');
     }
-    if (
-      !Number.isFinite(intent.limitPriceUsd) ||
-      intent.limitPriceUsd <= 0
-    ) {
+    if (!Number.isFinite(intent.limitPriceUsd) || intent.limitPriceUsd <= 0) {
       throw new BadRequestException('limitPriceUsd must be > 0');
     }
 
@@ -630,7 +714,10 @@ export class ExecutionService {
     const address = assertWallet(wallet);
     const indexed = await this.limitOrderRepository.listByWallet(address);
     const byKey = new Map(
-      indexed.map((row) => [row.orderKey, this.limitOrderRepository.toRecord(row)]),
+      indexed.map((row) => [
+        row.orderKey,
+        this.limitOrderRepository.toRecord(row),
+      ]),
     );
 
     try {
@@ -641,8 +728,7 @@ export class ExecutionService {
       for (const order of active.orders ?? []) {
         const existing = byKey.get(order.orderKey);
         const side: 'buy' | 'sell' =
-          existing?.side ??
-          (order.inputMint === USDC_MINT ? 'buy' : 'sell');
+          existing?.side ?? (order.inputMint === USDC_MINT ? 'buy' : 'sell');
         byKey.set(order.orderKey, {
           id: existing?.id ?? order.orderKey,
           walletAddress: address,
@@ -656,7 +742,11 @@ export class ExecutionService {
           takingAmount: Number(order.takingAmount),
           limitPriceUsd:
             existing?.limitPriceUsd ??
-            inferLimitPriceUsd(side, Number(order.makingAmount), Number(order.takingAmount)),
+            inferLimitPriceUsd(
+              side,
+              Number(order.makingAmount),
+              Number(order.takingAmount),
+            ),
           amountUsd: existing?.amountUsd,
           status: 'open',
           basis: existing?.basis,
@@ -678,8 +768,7 @@ export class ExecutionService {
         for (const order of history.orders ?? []) {
           const existing = byKey.get(order.orderKey);
           const side: 'buy' | 'sell' =
-            existing?.side ??
-            (order.inputMint === USDC_MINT ? 'buy' : 'sell');
+            existing?.side ?? (order.inputMint === USDC_MINT ? 'buy' : 'sell');
           const status = mapJupiterOrderStatus(order.status);
           byKey.set(order.orderKey, {
             id: existing?.id ?? order.orderKey,

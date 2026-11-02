@@ -21,13 +21,39 @@ export interface OrenAuth {
   createWallet: () => Promise<void>;
   getAccessToken: () => Promise<string | null>;
   authorizeTrade: (id: string, token: string | null) => Promise<string>;
+  addTradeSigner: (
+    wallet: string,
+    signerId: string,
+    policyId: string,
+  ) => Promise<void>;
+  removeTradeSigners: (wallet: string) => Promise<void>;
 }
 
 export const AuthContext = createContext<OrenAuth>({
-  configured: false, ready: true, authenticated: false, wallets: [], busy: false,
-  walletPreparing: false, depositOpen: false, openDeposit() {}, closeDeposit() {},
-  open() {}, async signOut() {}, selectWallet() {}, async createWallet() {},
-  async getAccessToken() { return null; },
-  async authorizeTrade() { throw new Error('Sign in before approving a trade.'); },
+  configured: false,
+  ready: true,
+  authenticated: false,
+  wallets: [],
+  busy: false,
+  walletPreparing: false,
+  depositOpen: false,
+  openDeposit() {},
+  closeDeposit() {},
+  open() {},
+  async signOut() {},
+  selectWallet() {},
+  async createWallet() {},
+  async getAccessToken() {
+    return null;
+  },
+  async authorizeTrade() {
+    throw new Error("Sign in before approving a trade.");
+  },
+  async addTradeSigner() {
+    throw new Error("Sign in before granting a trade signer.");
+  },
+  async removeTradeSigners() {
+    throw new Error("Sign in before removing trade signers.");
+  },
 });
 export const useOrenAuth = () => useContext(AuthContext);

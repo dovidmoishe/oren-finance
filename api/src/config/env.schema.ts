@@ -24,6 +24,8 @@ export const DEFAULT_TITAN_MAX_PRICE_DEVIATION_BPS = 100;
 /** Keyless api.jup.ag is limited to 0.5 rps; a free key gets 1 rps. */
 const JUPITER_KEYLESS_RPS = 0.5;
 const JUPITER_KEYED_RPS = 1;
+/** Change only after the route-level Privy proof and signing path are reviewed. */
+const DELEGATED_SIGNING_READY = false;
 
 const DEFAULT_JUPITER_API_URL = 'https://api.jup.ag/swap/v1';
 
@@ -40,6 +42,17 @@ export interface AppEnv {
   SOLANA_NETWORK: SolanaNetwork;
   PRIVY_APP_ID?: string;
   PRIVY_APP_SECRET?: string;
+  MCP_DELEGATED_TRADES_ENABLED: boolean;
+  MCP_DELEGATED_BUYS_ENABLED: boolean;
+  MCP_DELEGATED_SELLS_ENABLED: boolean;
+  MCP_DELEGATED_TRADES_ALLOWED_USERS: string[];
+  MCP_DELEGATED_MAX_PER_TRADE_USD: number;
+  MCP_DELEGATED_MAX_DAILY_USD: number;
+  PRIVY_MCP_SIGNER_QUORUM_ID?: string;
+  PRIVY_MCP_SIGNER_PRIVATE_KEY?: string;
+  SIGNER_GATE_URL?: string;
+  SIGNER_GATE_API_TOKEN?: string;
+  PRIVY_POLICY_ADMIN_QUORUM_ID?: string;
   ALCHEMY_SOLANA_WS_URL?: string;
   JUPITER_API_URL?: string;
   JUPITER_TRIGGER_API_URL?: string;
@@ -213,6 +226,32 @@ export function validateEnv(env: EnvSource = process.env): AppEnv {
   }
 
   const deployment = deploymentCapabilities(env);
+  const delegatedEnabled = readBool(env, 'MCP_DELEGATED_TRADES_ENABLED', false);
+  const delegatedUsers = readList(env, 'MCP_DELEGATED_TRADES_ALLOWED_USERS');
+  if (delegatedEnabled) {
+    if (deployment.environment === 'preview')
+      throw new Error('Delegated trades cannot be enabled in a PR preview');
+    if (readEnv(env, 'MCP_OAUTH_ENABLED') !== 'true')
+      throw new Error('Delegated trades require MCP OAuth');
+    if (delegatedUsers.length === 0)
+      throw new Error('Delegated trades require an explicit user allowlist');
+    if (delegatedUsers.includes('*'))
+      throw new Error('Delegated trades require named owner user IDs');
+    for (const key of [
+      'PRIVY_MCP_SIGNER_QUORUM_ID',
+      'PRIVY_MCP_SIGNER_PRIVATE_KEY',
+      'PRIVY_POLICY_ADMIN_QUORUM_ID',
+      'SIGNER_GATE_URL',
+      'SIGNER_GATE_API_TOKEN',
+    ])
+      requireEnv(env, key);
+    if (!DELEGATED_SIGNING_READY)
+      throw new Error(
+        'Delegated signing is blocked pending funded Jupiter proof and rollout',
+      );
+    if (new URL(requireEnv(env, 'POSTGRES_URL')).username !== 'oren_api_runtime')
+      throw new Error('Delegated trades require the restricted API database role');
+  }
   return {
     DEPLOYMENT_ENV: deployment.environment,
     PREVIEW_PR_NUMBER: deployment.prNumber,
@@ -228,6 +267,27 @@ export function validateEnv(env: EnvSource = process.env): AppEnv {
     SOLANA_NETWORK: network,
     PRIVY_APP_ID: readEnv(env, 'PRIVY_APP_ID'),
     PRIVY_APP_SECRET: readEnv(env, 'PRIVY_APP_SECRET'),
+    MCP_DELEGATED_TRADES_ENABLED: delegatedEnabled,
+    MCP_DELEGATED_BUYS_ENABLED:
+      delegatedEnabled && readBool(env, 'MCP_DELEGATED_BUYS_ENABLED', false),
+    MCP_DELEGATED_SELLS_ENABLED:
+      delegatedEnabled && readBool(env, 'MCP_DELEGATED_SELLS_ENABLED', false),
+    MCP_DELEGATED_TRADES_ALLOWED_USERS: delegatedUsers,
+    MCP_DELEGATED_MAX_PER_TRADE_USD: readPositiveNumber(
+      env,
+      'MCP_DELEGATED_MAX_PER_TRADE_USD',
+      25,
+    ),
+    MCP_DELEGATED_MAX_DAILY_USD: readPositiveNumber(
+      env,
+      'MCP_DELEGATED_MAX_DAILY_USD',
+      50,
+    ),
+    PRIVY_MCP_SIGNER_QUORUM_ID: readEnv(env, 'PRIVY_MCP_SIGNER_QUORUM_ID'),
+    PRIVY_MCP_SIGNER_PRIVATE_KEY: readEnv(env, 'PRIVY_MCP_SIGNER_PRIVATE_KEY'),
+    SIGNER_GATE_URL: readEnv(env, 'SIGNER_GATE_URL'),
+    SIGNER_GATE_API_TOKEN: readEnv(env, 'SIGNER_GATE_API_TOKEN'),
+    PRIVY_POLICY_ADMIN_QUORUM_ID: readEnv(env, 'PRIVY_POLICY_ADMIN_QUORUM_ID'),
     ALCHEMY_SOLANA_WS_URL: readEnv(env, 'ALCHEMY_SOLANA_WS_URL'),
     JUPITER_API_URL:
       migrateJupiterUrl(readEnv(env, 'JUPITER_API_URL')) ??

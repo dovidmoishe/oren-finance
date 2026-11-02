@@ -30,9 +30,16 @@ export class VariantSelector {
     private readonly router: SwapRouter,
   ) {}
 
-  async selectAndQuote(intent: TradeIntent): Promise<VariantSelectionResult> {
+  async selectAndQuote(
+    intent: TradeIntent,
+    requirePreferredMint = false,
+  ): Promise<VariantSelectionResult> {
     const equity = await this.resolveEquity(intent);
-    const candidates = this.pickCandidates(equity, intent.preferredMint);
+    const candidates = this.pickCandidates(
+      equity,
+      intent.preferredMint,
+      requirePreferredMint,
+    );
 
     if (candidates.length === 0) {
       throw new TokensNotFoundError(
@@ -59,11 +66,13 @@ export class VariantSelector {
   pickCandidates(
     equity: Equity,
     preferredMint?: string,
+    requirePreferredMint = false,
   ): TokenizedEquity[] {
     const tradable = equity.variants.filter((v) => v.tradable && v.mint);
     if (preferredMint) {
       const preferred = tradable.find((v) => v.mint === preferredMint);
       if (preferred) return [preferred];
+      if (requirePreferredMint) return [];
     }
     return [...tradable]
       .sort((a, b) => (b.liquidity ?? 0) - (a.liquidity ?? 0))

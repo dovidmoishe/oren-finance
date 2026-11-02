@@ -5,6 +5,8 @@ import { NodeStreamableHTTPServerTransport } from '@modelcontextprotocol/node';
 import { z } from 'zod';
 import {
   mcpConnections,
+  mcpDelegatedExecutions,
+  mcpTradeDelegations,
   mcpTradeIntents,
   tradeApprovals,
 } from '../database/schema';
@@ -12,14 +14,25 @@ import type { Database } from '../database/database.provider';
 import type { PrivyWalletAuth } from '../auth/privy-wallet-auth';
 import type { MarketService } from '../market/market.service';
 import type { PortfolioService } from '../portfolio/portfolio.service';
+import type { ExecutionService } from '../execution/execution.service';
+import {
+  enforcedMinimumOut,
+  rawIn,
+  reviewedTermsFor,
+} from '../execution/swap-terms';
 import type { McpOAuthRuntime } from './oauth-runtime';
+import type { SignerGateClient } from './signer-gate.client';
+import { SignerGateRejection } from './signer-gate.errors';
 
 export interface McpResourceDeps {
   db: Database;
   auth: PrivyWalletAuth;
   market: MarketService;
   portfolio: PortfolioService;
+  execution: ExecutionService;
   oauth: McpOAuthRuntime;
+  gate?: SignerGateClient;
+  delegatedSides?: { buy: boolean; sell: boolean };
 }
 
 /** Opaque OAuth access tokens are checked against current grant and wallet state. */
@@ -31,7 +44,7 @@ export async function requireMcpAccess(req: Request, deps: McpResourceDeps) {
     !token?.isValid ||
     token.aud !== deps.oauth.resource ||
     ![...token.scopes].some((scope) =>
-      ['oren.read', 'oren.trade.prepare'].includes(scope),
+      ['oren.read', 'oren.trade.prepare', 'oren.trade.execute'].includes(scope),
     ) ||
     !token.accountId ||
     !token.clientId ||
@@ -136,6 +149,166 @@ export async function handleMcpRequest(
     );
   if (connection.tokenScopes.has('oren.trade.prepare')) {
     server.registerTool(
+      'prepare_trade',
+      {
+        title: 'Prepare stock trade',
+        description:
+          'Prepare a USDC stock buy or stock sell for review and signature in Oren.',
+        inputSchema: z.object({
+          assetId: z.string().trim().min(1).max(80),
+          side: z.enum(['buy', 'sell']),
+          amountUsd: z.number().finite().min(0.01).max(100000).optional(),
+          amountShares: z
+            .number()
+            .finite()
+            .positive()
+            .max(1_000_000_000)
+            .optional(),
+          slippageBps: z.number().int().min(1).max(50).default(50),
+        }),
+        annotations: { destructiveHint: false },
+      },
+      async ({ assetId, side, amountUsd, amountShares, slippageBps }) => {
+        if (
+          (side === 'buy' &&
+            (amountUsd === undefined || amountShares !== undefined)) ||
+          (side === 'sell' &&
+            (amountShares === undefined || amountUsd !== undefined))
+        )
+          return {
+            content: [
+              {
+                type: 'text',
+                text: 'Use amountUsd for buys or amountShares for sells.',
+              },
+            ],
+            isError: true,
+          };
+        const quote = await deps.execution.getQuote({
+          assetId,
+          ticker: '',
+          side,
+          amountUsd,
+          amount: amountShares,
+          slippageBps,
+          wallet: connection.wallet,
+        });
+        const maxIn = rawIn(quote);
+        const minOut = enforcedMinimumOut(quote);
+        const reviewed = reviewedTermsFor(quote);
+        if (!maxIn || minOut === undefined || !reviewed)
+          return {
+            content: [
+              {
+                type: 'text',
+                text: 'The route has no verifiable trade amounts.',
+              },
+            ],
+            isError: true,
+          };
+        const stock =
+          side === 'sell'
+            ? await deps.market.getStock(quote.assetId)
+            : undefined;
+        const referenceValueUsd =
+          side === 'sell' &&
+          stock?.price &&
+          Number.isFinite(stock.price) &&
+          stock.price > 0 &&
+          Number.isFinite(amountShares! * stock.price)
+            ? (
+                Math.ceil(amountShares! * stock.price * 1_000_000) / 1_000_000
+              ).toFixed(6)
+            : null;
+        const quotedProceedsUsd =
+          side === 'sell' &&
+          Number.isFinite(quote.outputAmount) &&
+          quote.outputAmount > 0
+            ? (Math.ceil(quote.outputAmount * 1_000_000) / 1_000_000).toFixed(6)
+            : null;
+        const [delegation] =
+          deps.gate &&
+          deps.delegatedSides?.[side] &&
+          connection.tokenScopes.has('oren.trade.execute') &&
+          quote.provider === 'jupiter'
+            ? await deps.db
+                .select()
+                .from(mcpTradeDelegations)
+                .where(
+                  and(
+                    eq(mcpTradeDelegations.userId, connection.userId),
+                    eq(mcpTradeDelegations.walletId, connection.walletId),
+                    eq(mcpTradeDelegations.wallet, connection.wallet),
+                    eq(mcpTradeDelegations.status, 'active'),
+                    gt(mcpTradeDelegations.expiresAt, new Date()),
+                  ),
+                )
+                .limit(1)
+            : [];
+        const delegated = Boolean(
+          delegation?.activatedAt &&
+          connection.createdAt > delegation.activatedAt &&
+          slippageBps <= delegation.maxSlippageBps &&
+          (side === 'buy' || Boolean(referenceValueUsd && quotedProceedsUsd)) &&
+          (side === 'buy' || delegation.allowSell),
+        );
+        const [intent] = await deps.db
+          .insert(mcpTradeIntents)
+          .values({
+            grantId: connection.grantId,
+            clientId: connection.clientId,
+            userId: connection.userId,
+            wallet: connection.wallet,
+            assetId: quote.assetId,
+            ticker: quote.ticker,
+            side,
+            stockMint: quote.variant.mint,
+            amountUsd: side === 'buy' ? amountUsd!.toFixed(6) : null,
+            amountShares: side === 'sell' ? amountShares!.toFixed(12) : null,
+            maxInRaw: maxIn,
+            minOutRaw: minOut.toString(),
+            referenceValueUsd,
+            quotedProceedsUsd,
+            mode: delegated ? 'delegated' : 'browser',
+            delegationId: delegated ? delegation.id : null,
+            reviewedTerms: { ...reviewed },
+            slippageBps,
+            expiresAt: new Date(Date.now() + 5 * 60_000),
+          })
+          .returning({
+            id: mcpTradeIntents.id,
+            expiresAt: mcpTradeIntents.expiresAt,
+          });
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({
+                intentId: intent.id,
+                side,
+                ticker: quote.ticker,
+                stockMint: quote.variant.mint,
+                amountUsd,
+                amountShares,
+                minOutRaw: minOut.toString(),
+                referenceValueUsd,
+                quotedProceedsUsd,
+                maxInRaw: maxIn,
+                slippageBps,
+                expiresAt: intent.expiresAt.toISOString(),
+                mode: delegated ? 'delegated' : 'browser',
+                ...(delegated
+                  ? {}
+                  : {
+                      approvalUrl: `${deps.oauth.appOrigin}/app/trades/review/${intent.id}`,
+                    }),
+              }),
+            },
+          ],
+        };
+      },
+    );
+    server.registerTool(
       'prepare_buy',
       {
         title: 'Prepare buy request',
@@ -183,48 +356,173 @@ export async function handleMcpRequest(
         return { content: [{ type: 'text', text: JSON.stringify(result) }] };
       },
     );
+    const openTradeReview = async ({ intentId }: { intentId: string }) => {
+      const [intent] = await deps.db
+        .select({ id: mcpTradeIntents.id })
+        .from(mcpTradeIntents)
+        .where(
+          and(
+            eq(mcpTradeIntents.id, intentId),
+            eq(mcpTradeIntents.grantId, connection.grantId),
+            eq(mcpTradeIntents.clientId, connection.clientId),
+            eq(mcpTradeIntents.userId, connection.userId),
+            eq(mcpTradeIntents.wallet, connection.wallet),
+            gt(mcpTradeIntents.expiresAt, new Date()),
+            eq(mcpTradeIntents.mode, 'browser'),
+            eq(mcpTradeIntents.status, 'prepared'),
+          ),
+        )
+        .limit(1);
+      if (!intent)
+        return {
+          content: [
+            { type: 'text' as const, text: 'Intent expired or unavailable.' },
+          ],
+          isError: true,
+        };
+      const result = {
+        intentId,
+        status: 'browser_approval_required',
+        approvalUrl: `${deps.oauth.appOrigin}/app/trades/review/${intentId}`,
+      };
+      return {
+        content: [{ type: 'text' as const, text: JSON.stringify(result) }],
+      };
+    };
+    server.registerTool(
+      'review_trade',
+      {
+        title: 'Open trade review',
+        description:
+          'Get the Oren browser review link for a prepared buy or sell intent. The user signs there.',
+        inputSchema: z.object({ intentId: z.uuid() }),
+      },
+      openTradeReview,
+    );
     server.registerTool(
       'execute_buy',
       {
-        title: 'Open buy review',
+        title: 'Open trade review',
         description:
-          'Get the Oren browser review link for a prepared buy intent. The user signs there.',
+          'Get the Oren browser review link for a prepared buy or sell intent. The user signs there.',
         inputSchema: z.object({ intentId: z.uuid() }),
       },
-      async ({ intentId }) => {
-        const [intent] = await deps.db
-          .select({ id: mcpTradeIntents.id })
-          .from(mcpTradeIntents)
-          .where(
-            and(
-              eq(mcpTradeIntents.id, intentId),
-              eq(mcpTradeIntents.grantId, connection.grantId),
-              eq(mcpTradeIntents.clientId, connection.clientId),
-              eq(mcpTradeIntents.userId, connection.userId),
-              eq(mcpTradeIntents.wallet, connection.wallet),
-              gt(mcpTradeIntents.expiresAt, new Date()),
-            ),
-          )
-          .limit(1);
-        if (!intent)
-          return {
-            content: [{ type: 'text', text: 'Intent expired or unavailable.' }],
-            isError: true,
-          };
-        const result = {
-          intentId,
-          status: 'browser_approval_required',
-          approvalUrl: `${deps.oauth.appOrigin}/app/trades/review/${intentId}`,
-        };
-        return { content: [{ type: 'text', text: JSON.stringify(result) }] };
-      },
+      openTradeReview,
     );
+    if (deps.gate && connection.tokenScopes.has('oren.trade.execute'))
+      server.registerTool(
+        'execute_trade',
+        {
+          title: 'Execute a prepared stock trade',
+          description:
+            'Execute one immutable trade under an active browser-granted signer delegation.',
+          inputSchema: z.object({
+            intentId: z.uuid(),
+            idempotencyKey: z.string().regex(/^[A-Za-z0-9_-]{16,64}$/),
+          }),
+          annotations: { destructiveHint: true },
+        },
+        async ({ intentId, idempotencyKey }) => {
+          const [intent] = await deps.db
+            .select()
+            .from(mcpTradeIntents)
+            .where(
+              and(
+                eq(mcpTradeIntents.id, intentId),
+                eq(mcpTradeIntents.grantId, connection.grantId),
+                eq(mcpTradeIntents.clientId, connection.clientId),
+                eq(mcpTradeIntents.userId, connection.userId),
+                eq(mcpTradeIntents.wallet, connection.wallet),
+              ),
+            )
+            .limit(1);
+          if (!intent)
+            return {
+              content: [{ type: 'text' as const, text: 'Intent unavailable.' }],
+              isError: true,
+            };
+          const browser = () => ({
+            content: [
+              {
+                type: 'text' as const,
+                text: JSON.stringify({
+                  intentId,
+                  status: 'browser_approval_required',
+                  approvalUrl: `${deps.oauth.appOrigin}/app/trades/review/${intentId}`,
+                }),
+              },
+            ],
+          });
+          if (
+            intent.mode === 'browser' &&
+            intent.status === 'prepared' &&
+            intent.expiresAt > new Date()
+          )
+            return browser();
+          if (intent.mode !== 'delegated')
+            return {
+              content: [{ type: 'text' as const, text: 'Intent unavailable.' }],
+              isError: true,
+            };
+          try {
+            const result = await deps.gate!.execute(intentId, idempotencyKey);
+            return {
+              content: [
+                {
+                  type: 'text' as const,
+                  text: JSON.stringify({
+                    intentId,
+                    status: result.state,
+                    signature: result.chainSignature,
+                  }),
+                },
+              ],
+            };
+          } catch (error) {
+            if (
+              error instanceof SignerGateRejection &&
+              [
+                'over_budget',
+                'inactive_delegation',
+                'unsupported_route',
+              ].includes(error.code) &&
+              intent.status === 'prepared' &&
+              intent.expiresAt > new Date()
+            ) {
+              const [converted] = await deps.db
+                .update(mcpTradeIntents)
+                .set({ mode: 'browser', delegationId: null })
+                .where(
+                  and(
+                    eq(mcpTradeIntents.id, intentId),
+                    eq(mcpTradeIntents.status, 'prepared'),
+                    eq(mcpTradeIntents.mode, 'delegated'),
+                  ),
+                )
+                .returning({ id: mcpTradeIntents.id });
+              if (converted) return browser();
+            }
+            return {
+              content: [
+                {
+                  type: 'text' as const,
+                  text: JSON.stringify({
+                    intentId,
+                    status: 'pending_or_unavailable',
+                  }),
+                },
+              ],
+              isError: true,
+            };
+          }
+        },
+      );
     server.registerTool(
       'trade_status',
       {
-        title: 'Get buy request status',
+        title: 'Get trade request status',
         description:
-          'Read the status of an Oren buy intent and its browser approval, if one exists.',
+          'Read the status of an Oren buy or sell intent and its browser approval, if one exists.',
         inputSchema: z.object({ intentId: z.uuid() }),
         annotations: { readOnlyHint: true },
       },
@@ -233,6 +531,8 @@ export async function handleMcpRequest(
           .select({
             id: mcpTradeIntents.id,
             approvalId: mcpTradeIntents.approvalId,
+            mode: mcpTradeIntents.mode,
+            status: mcpTradeIntents.status,
             expiresAt: mcpTradeIntents.expiresAt,
           })
           .from(mcpTradeIntents)
@@ -252,10 +552,26 @@ export async function handleMcpRequest(
             isError: true,
           };
         let status =
-          intent.expiresAt <= new Date()
+          intent.status === 'prepared' && intent.expiresAt <= new Date()
             ? 'expired'
-            : 'browser_approval_required';
+            : intent.mode === 'delegated' || intent.status !== 'prepared'
+              ? intent.status
+              : 'browser_approval_required';
         let signature: string | undefined;
+        if (intent.mode === 'delegated') {
+          const [execution] = await deps.db
+            .select({
+              state: mcpDelegatedExecutions.state,
+              chainSignature: mcpDelegatedExecutions.chainSignature,
+            })
+            .from(mcpDelegatedExecutions)
+            .where(eq(mcpDelegatedExecutions.intentId, intentId))
+            .limit(1);
+          if (execution) {
+            status = execution.state;
+            signature = execution.chainSignature ?? undefined;
+          }
+        }
         if (intent.approvalId) {
           const [approval] = await deps.db
             .select({
