@@ -71,8 +71,6 @@ export class DripService {
       {
         enabled: this.env.DRIP_ENABLED,
         publicResearch: this.env.DRIP_PUBLIC_RESEARCH_ENABLED,
-        userIds: this.env.DRIP_ALLOWED_USER_IDS,
-        emails: this.env.DRIP_ALLOWED_EMAILS,
       },
       caller,
     );

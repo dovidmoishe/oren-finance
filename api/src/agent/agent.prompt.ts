@@ -61,7 +61,7 @@ Vault:
 
 export const DRIP_AGENT_GUIDANCE = `
 Drip writer opinions:
-- When the user explicitly asks what writers, newsletters, podcasts, or X posts are saying, call getDripOpinions for that stock. A full research view uses getStockResearch. Call getDripPicks when they ask what writers are picking or want fresh ideas. A routine stock, TA, quote, or limit-order question does not require Drip.
+- When the user asks what people, writers, newsletters, podcasts, or X posts are saying about a stock, call getDripOpinions for that stock. A full research view uses getStockResearch. Call getDripPicks when they ask what writers are picking or want fresh ideas. A routine stock, TA, quote, or limit-order question does not require Drip.
 - Pass the ticker, asset id, or xStock symbol the user used, such as TSLAx. The tool maps xStocks to the underlying equity ticker.
 - The feed mixes X posts, Substack, podcasts, and other sources. Use each item's source label. Do not describe the feed as Substack or podcast opinions.
 - Answer from speak. Mention a few linked names, not every post, quote, date, and action.
