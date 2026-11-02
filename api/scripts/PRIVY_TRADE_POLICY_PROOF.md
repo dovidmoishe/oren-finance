@@ -69,6 +69,17 @@ and about 0.001876 SOL remain. Privy still reports zero additional signers.
 This prepares the wallet for a small headless buy/sell trial but does not
 establish that the deployed gate or sell policy works.
 
+The funded wallet then passed unsigned gate-owned Jupiter route checks on
+2026-11-02. Jupiter initially loaded policy-protected accounts through an
+address lookup table, which the guard rejected. The gate now recompiles the
+transaction with those accounts static, verifies that every instruction,
+account privilege and blockhash is unchanged, and checks the rebuilt bytes.
+A fresh 1 USDC buy (579 bytes) and a 0.001 TSLA sell (809 bytes) each passed
+the route guard and RPC simulation with the existing token accounts. The sell
+charged the larger of its independent reference value ($0.400408) and quoted
+USDC proceeds ($0.400978). These checks did not ask Privy to sign or broadcast.
+They do not establish a funded two-key execution or a sell-side Privy policy.
+
 ## Reproduce the sign-only checks
 
 The scripts use `PROOF_WALLET_EMAIL`, `PROOF_WALLET_ADDRESS`, the Privy app
@@ -90,3 +101,7 @@ For the two-key proof, use `PROOF_TWO_KEY=true` with
 `test-proof-policy-owner.mjs`. These require the exact new signer/policy
 read-back and an unfunded wallet. The gate's real transaction validator is
 also exercised by `check-jupiter-gate-transaction.mjs` and its focused tests.
+For a funded, unsigned rehearsal, use `PROOF_CHECK_FUNDED_ROUTE=true` and the
+public `PROOF_WALLET_ADDRESS`/`PROOF_STOCK_MINT` values with
+`check-funded-gate-route.mjs`; set `PROOF_SIDE=sell` for the sell path. The
+script only quotes, inspects and simulates.
