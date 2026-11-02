@@ -153,7 +153,7 @@ export async function handleMcpRequest(
       {
         title: 'Prepare stock trade',
         description:
-          'Prepare a USDC stock buy or stock sell for review and signature in Oren.',
+          'Prepare a USDC stock buy or stock sell. For delegated mode, call execute_trade with the returned intent ID; for browser mode, give the user the approval link.',
         inputSchema: z.object({
           assetId: z.string().trim().min(1).max(80),
           side: z.enum(['buy', 'sell']),
@@ -308,54 +308,58 @@ export async function handleMcpRequest(
         };
       },
     );
-    server.registerTool(
-      'prepare_buy',
-      {
-        title: 'Prepare buy request',
-        description:
-          'Save a USDC stock buy request for browser review. This does not sign or submit a trade.',
-        inputSchema: z.object({
-          assetId: z.string().trim().min(1).max(80),
-          amountUsd: z.number().finite().min(0.01).max(100000),
-          slippageBps: z.number().int().min(1).max(50).default(50),
-        }),
-      },
-      async ({ assetId, amountUsd, slippageBps }) => {
-        const stock = await deps.market.getStock(assetId);
-        if (!stock.variants.some((variant) => variant.tradable))
-          return {
-            content: [
-              { type: 'text', text: 'No tradable stock variant is available.' },
-            ],
-            isError: true,
-          };
-        const [intent] = await deps.db
-          .insert(mcpTradeIntents)
-          .values({
-            grantId: connection.grantId,
-            clientId: connection.clientId,
-            userId: connection.userId,
-            wallet: connection.wallet,
-            assetId: stock.id,
+    if (!connection.tokenScopes.has('oren.trade.execute'))
+      server.registerTool(
+        'prepare_buy',
+        {
+          title: 'Prepare buy request',
+          description:
+            'Save a USDC stock buy request for browser review. This does not sign or submit a trade.',
+          inputSchema: z.object({
+            assetId: z.string().trim().min(1).max(80),
+            amountUsd: z.number().finite().min(0.01).max(100000),
+            slippageBps: z.number().int().min(1).max(50).default(50),
+          }),
+        },
+        async ({ assetId, amountUsd, slippageBps }) => {
+          const stock = await deps.market.getStock(assetId);
+          if (!stock.variants.some((variant) => variant.tradable))
+            return {
+              content: [
+                {
+                  type: 'text',
+                  text: 'No tradable stock variant is available.',
+                },
+              ],
+              isError: true,
+            };
+          const [intent] = await deps.db
+            .insert(mcpTradeIntents)
+            .values({
+              grantId: connection.grantId,
+              clientId: connection.clientId,
+              userId: connection.userId,
+              wallet: connection.wallet,
+              assetId: stock.id,
+              ticker: stock.ticker,
+              amountUsd: amountUsd.toFixed(6),
+              slippageBps,
+              expiresAt: new Date(Date.now() + 10 * 60_000),
+            })
+            .returning({
+              id: mcpTradeIntents.id,
+              expiresAt: mcpTradeIntents.expiresAt,
+            });
+          const result = {
+            intentId: intent.id,
             ticker: stock.ticker,
-            amountUsd: amountUsd.toFixed(6),
+            amountUsd,
             slippageBps,
-            expiresAt: new Date(Date.now() + 10 * 60_000),
-          })
-          .returning({
-            id: mcpTradeIntents.id,
-            expiresAt: mcpTradeIntents.expiresAt,
-          });
-        const result = {
-          intentId: intent.id,
-          ticker: stock.ticker,
-          amountUsd,
-          slippageBps,
-          expiresAt: intent.expiresAt.toISOString(),
-        };
-        return { content: [{ type: 'text', text: JSON.stringify(result) }] };
-      },
-    );
+            expiresAt: intent.expiresAt.toISOString(),
+          };
+          return { content: [{ type: 'text', text: JSON.stringify(result) }] };
+        },
+      );
     const openTradeReview = async ({ intentId }: { intentId: string }) => {
       const [intent] = await deps.db
         .select({ id: mcpTradeIntents.id })
@@ -399,23 +403,24 @@ export async function handleMcpRequest(
       },
       openTradeReview,
     );
-    server.registerTool(
-      'execute_buy',
-      {
-        title: 'Open trade review',
-        description:
-          'Get the Oren browser review link for a prepared buy or sell intent. The user signs there.',
-        inputSchema: z.object({ intentId: z.uuid() }),
-      },
-      openTradeReview,
-    );
+    if (!connection.tokenScopes.has('oren.trade.execute'))
+      server.registerTool(
+        'execute_buy',
+        {
+          title: 'Open trade review',
+          description:
+            'Get the Oren browser review link for a prepared buy or sell intent. The user signs there.',
+          inputSchema: z.object({ intentId: z.uuid() }),
+        },
+        openTradeReview,
+      );
     if (deps.gate && connection.tokenScopes.has('oren.trade.execute'))
       server.registerTool(
         'execute_trade',
         {
           title: 'Execute a prepared stock trade',
           description:
-            'Execute one immutable trade under an active browser-granted signer delegation.',
+            'Execute an intent returned in delegated mode by prepare_trade under the active browser-granted signer delegation.',
           inputSchema: z.object({
             intentId: z.uuid(),
             idempotencyKey: z.string().regex(/^[A-Za-z0-9_-]{16,64}$/),
