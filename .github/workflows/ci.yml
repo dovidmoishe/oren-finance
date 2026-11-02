@@ -110,9 +110,13 @@ jobs:
             -v gate_password=gate_test_password -f /roles.sql
           node scripts/test-signer-gate-roles.mjs
 
-  app:
-    name: App test, lint, and build
+  app-check:
+    name: App ${{ matrix.check }}
     runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        check: [test, lint, build]
     defaults:
       run:
         working-directory: app
@@ -132,6 +136,16 @@ jobs:
           cache: pnpm
           cache-dependency-path: app/pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
-      - run: pnpm test
-      - run: pnpm lint
-      - run: pnpm build
+      - run: pnpm run ${{ matrix.check }}
+
+  # Preserve the required-check name used by preview setup and branch protection.
+  app:
+    name: App test, lint, and build
+    needs: app-check
+    if: always()
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Require all web checks
+        env:
+          RESULT: ${{ needs.app-check.result }}
+        run: test "$RESULT" = success
