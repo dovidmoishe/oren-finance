@@ -66,6 +66,18 @@ Manual production deployments accept a full Git SHA and load its matching deploy
 
 ## Image build speed rollout
 
+Production starts on the same `master` push as CI. The existing API/web image jobs and
+the exact-SHA CI gate run concurrently; deployment requires the gate and both image
+jobs to succeed. Failed, cancelled, missing or timed-out CI never authorizes deployment.
+The gate only accepts the newest `ci.yml` push run from this repository on `master`
+for the release SHA, and waits at most 30 minutes. CI reruns do not implicitly redeploy:
+after a failed gate, rerun the production workflow once CI succeeds.
+
+Manual deployment/rollback still uses existing images for the selected full SHA and
+its matching deployment configuration. It must run from `master` and now requires
+successful master CI for that selected SHA too. Public readiness, environment/SHA,
+media checksum verification and running-image digest release records remain required.
+
 Production and preview API/web images build in parallel. The production web build runs without the previous large GitHub Actions cache; previews remain uncached. Keep the exact SHA tags and the existing CI, deployment and health gates.
 
 Baseline image-job times from 2026-11-01: production runs 41284434443, 41281655445 and 41280080809 took about 4m31s, 4m25s and 5m06s; preview run 41228180240 took about 3m21s. Compare at least two new production image jobs and two warm preview image jobs using their Actions start/end timestamps. A preview cache experiment should use a separate scope per PR and service; keep it only if its warm total job time beats the uncached preview baseline. Likewise, restore a production web cache only if total image-job time improves. Do not judge a cache by the `next build` line alone: include layer import, export and builder cleanup.
