@@ -39,6 +39,7 @@ function fixture() {
       if (id === '@hugeicons/react') return {};
       if (id === '@/components/auth/auth-context') return { useOrenAuth: () => auth };
       if (id === '@/components/ui') return { Button: 'button' };
+      if (id === '@/components/stock/stock-logo-assets') return { stockLogos: { TSLA: '/landing/tesla.png' } };
       if (id === '@/hooks/use-funding') return { useFunding: () => ({ snapshot: { usdc: '5', sol: '0.1' } }) };
       if (id === '@/hooks/use-portfolio-refresh') return { usePortfolioRefresh: () => async () => {} };
       if (id === '@/services/api-client') return { ApiError: class ApiError extends Error {} };

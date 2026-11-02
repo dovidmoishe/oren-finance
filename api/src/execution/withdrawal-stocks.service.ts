@@ -45,6 +45,7 @@ export interface WithdrawalStock {
   symbol: string;
   name: string;
   issuer?: string;
+  logoUrl?: string;
   decimals: number;
   balance: string;
 }
@@ -127,6 +128,7 @@ export class WithdrawalStocksService {
       symbol: variant.symbol || equity.ticker,
       name: variant.name || equity.name,
       issuer: variant.issuer,
+      logoUrl: equity.logo,
     };
   }
 

@@ -17,6 +17,7 @@ export interface WithdrawalStock {
   symbol: string;
   name: string;
   issuer?: string;
+  logoUrl?: string;
   decimals: number;
   balance: string;
 }

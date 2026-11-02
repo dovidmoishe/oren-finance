@@ -5,6 +5,7 @@ import { Cancel01Icon } from '@hugeicons/core-free-icons';
 import { HugeiconsIcon } from '@hugeicons/react';
 import { useOrenAuth } from '@/components/auth/auth-context';
 import { Button } from '@/components/ui';
+import { stockLogos } from '@/components/stock/stock-logo-assets';
 import { useFunding } from '@/hooks/use-funding';
 import { usePortfolioRefresh } from '@/hooks/use-portfolio-refresh';
 import { ApiError } from '@/services/api-client';
@@ -12,6 +13,15 @@ import { approveServerTrade, forgetApproval, getServerApproval, type TradeApprov
 import { financialExecutionEnabled } from '@/services/environment';
 import { getWithdrawalStocks, prepareWithdrawal, recoverWithdrawal, solCost, type WithdrawalStock } from '@/services/withdrawal-service';
 import { walletSessionIsCurrent } from '@/services/wallet-session';
+
+function AssetLogo({ symbol, src }: { symbol: string; src?: string }) {
+  const [failed, setFailed] = useState(false);
+  const url = src?.startsWith('ipfs://') ? `https://ipfs.io/ipfs/${src.slice(7)}` : src;
+  return <span aria-hidden="true" className="grid h-6 w-6 shrink-0 place-items-center overflow-hidden rounded-full bg-panel text-[10px] font-semibold">
+    {url && !failed ? /* eslint-disable-next-line @next/next/no-img-element */
+      <img src={url} alt="" width={24} height={24} className="h-6 w-6 object-contain" onError={() => setFailed(true)} /> : symbol.slice(0, 2)}
+  </span>;
+}
 
 export function WithdrawalModal({ onClose }: { onClose: () => void }) {
   const auth = useOrenAuth();
@@ -65,6 +75,7 @@ function WithdrawalForm({ wallet }: { wallet: string }) {
   const [recoveryRevision, setRecoveryRevision] = useState(0);
   const stock = stocks.find(item => item.mint === asset);
   const symbol = stock?.symbol ?? asset;
+  const logo = stock ? stockLogos[stock.ticker.toUpperCase() as keyof typeof stockLogos] ?? stock.logoUrl : asset === 'USDC' ? '/usdc.svg' : '/integrations/solana.svg';
   useEffect(() => {
     let active = true;
     const current = walletSessionIsCurrent();
@@ -196,14 +207,14 @@ function WithdrawalForm({ wallet }: { wallet: string }) {
   }
 
   const expired = approval ? Date.parse(approval.expiresAt) <= now : false;
-  const inputClass = 'mt-2 w-full rounded-xl border border-border bg-background px-3 py-3 text-sm outline-offset-2';
+  const inputClass = 'w-full rounded-xl border border-border bg-background px-3 py-3 text-sm outline-offset-2';
   return <div className="mt-6">
     {stage === 'loading' ? <p className="text-sm text-muted" role="status">Checking pending withdrawals…</p> : stage === 'recovery-error' ? <Button className="w-full" onClick={() => { setStage('loading'); setError(undefined); setRecoveryRevision(value => value + 1); }}>Check pending withdrawals</Button> : stage === 'edit' ? <form onSubmit={event => void prepare(event)} className="space-y-5">
-      <label className="block text-sm font-medium">Asset<select className={inputClass} disabled={busy} value={asset} onChange={event => { edited(); setAsset(event.target.value); setAmount(''); }}><optgroup label="Cash"><option value="USDC">USDC</option><option value="SOL">SOL</option></optgroup>{stocks.length > 0 ? <optgroup label="Your stocks">{stocks.map(item => <option key={item.mint} value={item.mint}>{item.symbol} · {item.name}{item.issuer ? ` · ${item.issuer}` : ''} · {item.mint.slice(0, 4)}…{item.mint.slice(-4)}</option>)}</optgroup> : null}</select></label>
+      <label className="block text-sm font-medium">Asset<span className="relative mt-2 block"><span className="pointer-events-none absolute inset-y-0 left-3 flex items-center"><AssetLogo key={asset} symbol={symbol} src={logo} /></span><select className={`${inputClass} mt-0 pl-12`} disabled={busy} value={asset} onChange={event => { edited(); setAsset(event.target.value); setAmount(''); }}><optgroup label="Cash"><option value="USDC">USDC</option><option value="SOL">SOL</option></optgroup>{stocks.length > 0 ? <optgroup label="Your stocks">{stocks.map(item => <option key={item.mint} value={item.mint}>{item.symbol} · {item.name}{item.issuer ? ` · ${item.issuer}` : ''} · {item.mint.slice(0, 4)}…{item.mint.slice(-4)}</option>)}</optgroup> : null}</select></span></label>
       <p className="text-xs text-muted" role="status">{stock ? `Available: ${stock.balance} ${stock.symbol}` : snapshot ? `Available: ${asset === 'USDC' ? snapshot.usdc : snapshot.sol} ${asset}` : balanceError || 'Loading balance…'}</p>
       {stocksLoading ? <p className="text-xs text-muted" role="status">Loading your stocks…</p> : stocksError ? <div className="text-xs text-muted" role="status"><p>{stocksError}</p><button type="button" className="mt-1 underline" disabled={busy} onClick={() => { setStocksLoading(true); setStocksRevision(value => value + 1); }}>Retry stock balances</button></div> : stocks.length === 0 ? <p className="text-xs text-muted">No unlocked stock tokens found in this wallet.</p> : null}
-      <label className="block text-sm font-medium">Receiving wallet<input className={inputClass} disabled={busy} required autoComplete="off" autoCapitalize="none" spellCheck={false} minLength={32} maxLength={44} placeholder="Solana wallet address" value={recipient} onChange={event => { edited(); setRecipient(event.target.value); }} /></label>
-      <label className="block text-sm font-medium">{stock ? 'Shares' : 'Amount'}<input className={inputClass} disabled={busy} required inputMode="decimal" autoComplete="off" maxLength={30} placeholder="0.00" value={amount} onChange={event => { edited(); setAmount(event.target.value); }} /></label>
+      <label className="block text-sm font-medium">Receiving wallet<input className={`${inputClass} mt-2`} disabled={busy} required autoComplete="off" autoCapitalize="none" spellCheck={false} minLength={32} maxLength={44} placeholder="Solana wallet address" value={recipient} onChange={event => { edited(); setRecipient(event.target.value); }} /></label>
+      <label className="block text-sm font-medium">Amount<span className="relative mt-2 block"><span className="pointer-events-none absolute inset-y-0 left-3 flex items-center"><AssetLogo key={asset} symbol={symbol} src={logo} /></span><input className={`${inputClass} mt-0 pl-12 pr-20`} disabled={busy} required inputMode="decimal" autoComplete="off" maxLength={30} placeholder="0.00" value={amount} onChange={event => { edited(); setAmount(event.target.value); }} /><span aria-hidden="true" className="pointer-events-none absolute inset-y-0 right-3 flex max-w-16 items-center truncate text-xs text-muted">{symbol}</span></span></label>
       {stock ? <p className="text-xs leading-5 text-muted">Only unlocked shares in your wallet can be sent. The receiving wallet must support this exact {stock.symbol} token.</p> : null}
       <p className="text-xs leading-5 text-muted">Use a wallet that supports {symbol} on Solana. A small SOL balance covers network fees{asset !== 'SOL' ? ' and the receiving token account if needed' : ''}.</p>
       <Button className="w-full" variant="primary" disabled={busy} type="submit">{busy ? 'Preparing withdrawal…' : 'Review withdrawal'}</Button>
