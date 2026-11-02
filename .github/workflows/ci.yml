@@ -95,6 +95,15 @@ jobs:
       - run: pnpm build
       - run: pnpm run test:mcp:gate
       - run: pnpm run test:mcp:registration
+      - name: Apply restricted signer-gate roles to disposable Postgres
+        run: |
+          docker run --rm --network host \
+            -v "$PWD/../infra/signer-gate/roles.sql:/roles.sql:ro" \
+            -e PGPASSWORD=oren_test postgres:16-alpine \
+            psql -h 127.0.0.1 -U oren_test -d oren_mcp_test \
+            -v api_password=api_test_password \
+            -v gate_password=gate_test_password -f /roles.sql
+          node scripts/test-signer-gate-roles.mjs
 
   app:
     name: App test, lint, and build
