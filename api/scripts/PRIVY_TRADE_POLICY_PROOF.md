@@ -59,6 +59,16 @@ preview proof page was removed. The unfunded key-quorum proof does **not**
 establish a funded buy, sell, or Titan route. The compile-time and runtime
 headless execution flags remain off.
 
+## Funded browser preparation; headless trial pending
+
+The owner funded the same disposable wallet with 2 USDC and 0.005 SOL and
+approved a normal 1 USDC TSLA browser buy. The Tokens provider reported one
+tradable TSLA mint, matching the proof policy. Public mainnet RPC then showed
+the wallet's exact Token-2022 TSLAx ATA exists with 2,493 raw shares; 1 USDC
+and about 0.001876 SOL remain. Privy still reports zero additional signers.
+This prepares the wallet for a small headless buy/sell trial but does not
+establish that the deployed gate or sell policy works.
+
 ## Reproduce the sign-only checks
 
 The scripts use `PROOF_WALLET_EMAIL`, `PROOF_WALLET_ADDRESS`, the Privy app
