@@ -257,7 +257,8 @@ function speakBullets(
   result: DripOpinions,
   opinions: DripCitation[],
 ): string[] {
-  const pool = (opinions.length ? opinions : result.highlights) ?? [];
+  // Opinions are only the newest few; highlights keep a view from each side.
+  const pool = new Set([...opinions, ...(result.highlights ?? [])]);
   const newest = [...pool].sort(
     (left, right) => timeValue(right.date) - timeValue(left.date),
   );
