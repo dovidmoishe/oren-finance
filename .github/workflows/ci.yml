@@ -9,6 +9,11 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  # Replace stale PR checks while each master push retains its own CI run.
+  group: ci-${{ github.event_name == 'pull_request' && github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   preview-infra:
     name: Preview infrastructure tests
