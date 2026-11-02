@@ -1,6 +1,6 @@
 # Privy delegated trade policy proof
 
-## Current result: live headless gate failed
+## Single-key policy result: whole-transaction cap failed
 
 On 2026-11-02, the owner granted a proof-only signer to an unfunded disposable
 embedded Solana wallet. Privy read-back confirmed exactly one additional signer
@@ -24,17 +24,40 @@ instruction is evaluated against the rules. It does not cap the sum of input
 across a transaction, so it cannot satisfy Oren's per-trade input bound.
 [Stateful policy aggregations](https://docs.privy.io/controls/policies/stateful-policies)
 currently list Ethereum signing methods only and are not a proven Solana fix.
-A server check of instruction count is necessary but does not repair the Privy
-signer policy if the trade signer key is misused. Do not fund this wallet
-for a delegated trial or enable headless execution with this policy. Keep
-Jupiter and Titan on browser approval until a Privy-enforced aggregate input or
-single-route constraint is proven, including Token-2022 and lookup-table cases.
+A server check of instruction count in the same process as a single trade key
+does not protect against that process misusing the key. The revised design uses
+a separate signer gate and a Privy 2-of-2 key quorum. Keep headless execution
+disabled until the funded Jupiter trial and deployment gates pass. Titan stays
+on browser approval until its own route proof passes.
 
 The owner revoked the proof signer in the browser after the failed gate.
 Privy read-back showed zero additional signers and no delegation; the wallet
 still held zero SOL. Privy's removal operation removes every signer on the
 wallet. The temporary browser proof page was removed from the PR after this
 drill.
+
+## Two-key sign-only result: unfunded Jupiter buy passed
+
+On 2026-11-02, new API and gate P-256 keys were registered as a 2-of-2 Privy
+signer quorum. The policy-owner quorum remained separate. The owner granted the
+new quorum and the exact reviewed Jupiter buy policy to the same unfunded
+disposable wallet using the preview browser. Privy read-back confirmed one
+additional signer and the expected policy. The wallet held 0 SOL.
+
+The gate decoded a fresh real Jupiter shared-account USDC to Token-2022 TSLAx
+buy, including its address lookup table, and rejected a transaction with two
+routes before either key signed. Privy denied the API key alone and gate key
+alone with 401. Both keys signed one reviewed sign-only buy. Independently
+generated signatures over the same canonical Privy request also signed the
+identical message. Privy denied message signing, SOL and SPL transfers, and
+policy updates by the trade keys; a separate policy-owner key passed a no-op
+control update. No trade was broadcast.
+
+The owner then removed the proof signer in the browser. Privy read-back showed
+zero signers and no delegation; public RPC still showed 0 SOL. The temporary
+preview proof page was removed. The unfunded key-quorum proof does **not**
+establish a funded buy, sell, or Titan route. The compile-time and runtime
+headless execution flags remain off.
 
 ## Reproduce the sign-only checks
 
@@ -51,3 +74,9 @@ run when the wallet has a SOL balance.
 The second script intentionally exits nonzero when Privy signs the two-route
 transaction. Its JSON result reports `proofPassed: false`. Retain that check
 in any revised policy proof.
+
+For the two-key proof, use `PROOF_TWO_KEY=true` with
+`test-proof-two-key-signing.mjs`, `test-proof-signer-denials.mjs`, and
+`test-proof-policy-owner.mjs`. These require the exact new signer/policy
+read-back and an unfunded wallet. The gate's real transaction validator is
+also exercised by `check-jupiter-gate-transaction.mjs` and its focused tests.
