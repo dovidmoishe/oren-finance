@@ -89,10 +89,18 @@ export function TradeGrant() {
       },
       body: JSON.stringify(body),
     });
-    if (!response.ok)
+    if (!response.ok) {
+      const body = (await response.json().catch(() => null)) as {
+        error?: unknown;
+      } | null;
+      const code =
+        typeof body?.error === "string" && /^[a-z_]{1,40}$/.test(body.error)
+          ? `, ${body.error}`
+          : "";
       throw new Error(
-        "The signer grant could not be verified. Check your wallet and try again.",
+        `The signer grant could not be verified (HTTP ${response.status}${code}). Check your wallet and try again.`,
       );
+    }
     return response.json() as Promise<T>;
   }
 

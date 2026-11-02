@@ -20,6 +20,7 @@ import { PortfolioService } from './portfolio/portfolio.service';
 import { ExecutionService } from './execution/execution.service';
 import { handleMcpRequest } from './mcp-auth/mcp-resource';
 import { SignerGateClient } from './mcp-auth/signer-gate.client';
+import { SignerGateRejection } from './mcp-auth/signer-gate.errors';
 import {
   clientMayPrepareTrades,
   clientMayExecuteTrades,
@@ -222,8 +223,14 @@ async function bootstrap() {
         if (!parsed.success) return res.sendStatus(400);
         try {
           return res.json(await mcpDeps.gate.prepareGrant(token, parsed.data));
-        } catch {
-          return res.sendStatus(409);
+        } catch (error) {
+          const code =
+            error instanceof SignerGateRejection &&
+            /^[a-z_]{1,40}$/.test(error.code)
+              ? error.code
+              : 'gate_unreachable';
+          console.error('MCP grant preparation rejected', code);
+          return res.status(409).json({ error: code });
         }
       },
     );
