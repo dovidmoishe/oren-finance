@@ -58,7 +58,7 @@ export function dripOpinionsModelOutput(result: DripOpinionResult) {
       reason: result.reason,
       message: result.message,
       instruction:
-        'Say writer opinions could not be fetched, in one sentence, then continue with Oren data. Do not invent authors, quotes, or links. Do not write a disclaimer.',
+        'Say plainly that Drip is not available or returned no writer opinions, using the message. Do not invent authors, quotes, or links. Do not describe Oren technical analysis, prices, or headlines as Drip or Drip Stack. Do not write a disclaimer.',
     };
   }
   const spoken = speakOpinions(result);
@@ -110,7 +110,7 @@ export function dripPicksModelOutput(result: DripPicksResult) {
       reason: result.reason,
       message: result.message,
       instruction:
-        'Say the writer feed could not be fetched, in one sentence. Do not invent picks. Do not write a disclaimer.',
+        'Say plainly that the Drip writer feed is not available, using the message. Do not invent picks. Do not describe Oren analysis as Drip. Do not write a disclaimer.',
     };
   }
   const complete = result.windowComplete ?? !result.truncated;
@@ -167,19 +167,37 @@ export function researchModelOutput(report: StockResearch) {
         : `Recent headline: ${headline.headline}.`,
     );
   }
+  const details = [
+    read?.details,
+    opinions ? opinionOverlayDetail(opinions) : '',
+  ]
+    .filter((part): part is string =>
+      Boolean(part && detailBodyIsVisible(part)),
+    )
+    .join('\n\n');
   return {
     ticker: report.ticker,
     name: report.name,
-    instruction: AGENT_REPLY_INSTRUCTION,
+    attribution:
+      "The speak lead and any technical details are Oren's own deterministic read. They are not Drip, Drip Stack, or writer opinions.",
+    writerOpinions: opinions
+      ? { available: true as const, summary: opinionOverlayDetail(opinions) }
+      : {
+          available: false as const,
+          reason: report.opinions?.reason,
+          say:
+            report.opinions?.reason === 'not_enabled'
+              ? 'Drip writer opinions are not available on this turn.'
+              : 'Drip writer opinions could not be loaded for this stock.',
+        },
+    instruction: `${AGENT_REPLY_INSTRUCTION} Never attribute this technical read to Drip or Drip Stack. If writerOpinions.available is false, say writerOpinions.say before any Oren read.`,
     speak: {
       lead:
         read?.lead ??
         `${speechName(report.name, report.ticker)} only has a partial research read right now.`,
       bullets: bullets.slice(0, 5),
     },
-    details: [read?.details, opinions ? opinionOverlayDetail(opinions) : '']
-      .filter(Boolean)
-      .join('\n\n'),
+    ...(details ? { details } : {}),
   };
 }
 
@@ -403,10 +421,13 @@ export function detailBodyIsVisible(body: string): boolean {
 export function cleanDetailBody(body: string): string | undefined {
   const cleaned = body
     .replace(/[\u200B-\u200D\uFEFF]/g, '')
+    .replace(/\u2028|\u2029/g, '\n')
     .replace(/\(the tool's details, unchanged\)/gi, '')
-    .trim();
-  if (!/[\p{L}\p{N}]/u.test(cleaned)) return undefined;
-  return cleaned;
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => /[\p{L}\p{N}]/u.test(line))
+    .join('\n');
+  return cleaned || undefined;
 }
 
 export function stripEmptyDetailsFences(text: string): string {

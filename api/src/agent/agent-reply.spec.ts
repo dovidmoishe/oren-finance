@@ -3,6 +3,7 @@ import { presentOpinions } from '../drip/drip.mapper';
 import {
   dripOpinionsModelOutput,
   priorDripToolNote,
+  researchModelOutput,
   stripEmptyDetailsFences,
 } from './agent-reply';
 import { plainTechnicalRead } from '../intelligence/ta/plain-read';
@@ -281,6 +282,33 @@ describe('agent reply shaping', () => {
     expect(note).toContain('Do not ask permission');
     expect(note).not.toContain('not financial advice');
     expect(note).not.toContain('"speak"');
+  });
+
+  it('marks a research read as Oren and states when Drip opinions are off', () => {
+    const shaped = researchModelOutput({
+      assetId: 'nvda',
+      ticker: 'NVDA',
+      name: 'NVIDIA',
+      generatedAt: '2026-11-02T00:00:00.000Z',
+      analysis: {
+        available: true,
+        data: {
+          summary: 'NVIDIA has been in a downtrend.',
+          opportunityScore: 53,
+        },
+      },
+      news: { available: true, data: [] },
+      portfolio: { available: true, data: null },
+      opinions: { available: false, reason: 'not_enabled' },
+    } as never);
+    expect(shaped.attribution).toMatch(/not Drip/);
+    expect(shaped.writerOpinions).toEqual({
+      available: false,
+      reason: 'not_enabled',
+      say: 'Drip writer opinions are not available on this turn.',
+    });
+    expect(shaped.instruction).toMatch(/Never attribute/);
+    expect(JSON.stringify(shaped.speak)).not.toMatch(/Drip Stack/);
   });
 });
 
