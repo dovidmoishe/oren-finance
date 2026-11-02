@@ -12,8 +12,8 @@ permissions:
 
 # Isolated dependency-only experiment: never publishes or deploys an image.
 concurrency:
-  group: web-deps-benchmark-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  group: web-deps-benchmark-${{ github.run_id }}
+  cancel-in-progress: false
 
 jobs:
   sample-1:
@@ -36,8 +36,8 @@ jobs:
           context: ./app
           target: dependencies
           push: false
-          cache-from: ${{ matrix.profile == 'gha' && format('type=gha,scope=web-deps-bench-{0}-{1}', github.event.pull_request.number || github.run_id, hashFiles('app/Dockerfile', 'app/package.json', 'app/pnpm-lock.yaml', 'app/pnpm-workspace.yaml')) || '' }}
-          cache-to: ${{ matrix.profile == 'gha' && format('type=gha,mode=max,scope=web-deps-bench-{0}-{1}', github.event.pull_request.number || github.run_id, hashFiles('app/Dockerfile', 'app/package.json', 'app/pnpm-lock.yaml', 'app/pnpm-workspace.yaml')) || '' }}
+          cache-from: ${{ matrix.profile == 'gha' && format('type=gha,scope=web-deps-bench-{0}-{1}', github.run_id, hashFiles('app/Dockerfile', 'app/package.json', 'app/pnpm-lock.yaml', 'app/pnpm-workspace.yaml')) || '' }}
+          cache-to: ${{ matrix.profile == 'gha' && format('type=gha,mode=max,scope=web-deps-bench-{0}-{1}', github.run_id, hashFiles('app/Dockerfile', 'app/package.json', 'app/pnpm-lock.yaml', 'app/pnpm-workspace.yaml')) || '' }}
       - name: Record experiment context
         env:
           PROFILE: ${{ matrix.profile }}
@@ -68,8 +68,8 @@ jobs:
           context: ./app
           target: dependencies
           push: false
-          cache-from: ${{ matrix.profile == 'gha' && format('type=gha,scope=web-deps-bench-{0}-{1}', github.event.pull_request.number || github.run_id, hashFiles('app/Dockerfile', 'app/package.json', 'app/pnpm-lock.yaml', 'app/pnpm-workspace.yaml')) || '' }}
-          cache-to: ${{ matrix.profile == 'gha' && format('type=gha,mode=max,scope=web-deps-bench-{0}-{1}', github.event.pull_request.number || github.run_id, hashFiles('app/Dockerfile', 'app/package.json', 'app/pnpm-lock.yaml', 'app/pnpm-workspace.yaml')) || '' }}
+          cache-from: ${{ matrix.profile == 'gha' && format('type=gha,scope=web-deps-bench-{0}-{1}', github.run_id, hashFiles('app/Dockerfile', 'app/package.json', 'app/pnpm-lock.yaml', 'app/pnpm-workspace.yaml')) || '' }}
+          cache-to: ${{ matrix.profile == 'gha' && format('type=gha,mode=max,scope=web-deps-bench-{0}-{1}', github.run_id, hashFiles('app/Dockerfile', 'app/package.json', 'app/pnpm-lock.yaml', 'app/pnpm-workspace.yaml')) || '' }}
       - name: Record experiment context
         env:
           PROFILE: ${{ matrix.profile }}
@@ -100,8 +100,8 @@ jobs:
           context: ./app
           target: dependencies
           push: false
-          cache-from: ${{ matrix.profile == 'gha' && format('type=gha,scope=web-deps-bench-{0}-{1}', github.event.pull_request.number || github.run_id, hashFiles('app/Dockerfile', 'app/package.json', 'app/pnpm-lock.yaml', 'app/pnpm-workspace.yaml')) || '' }}
-          cache-to: ${{ matrix.profile == 'gha' && format('type=gha,mode=max,scope=web-deps-bench-{0}-{1}', github.event.pull_request.number || github.run_id, hashFiles('app/Dockerfile', 'app/package.json', 'app/pnpm-lock.yaml', 'app/pnpm-workspace.yaml')) || '' }}
+          cache-from: ${{ matrix.profile == 'gha' && format('type=gha,scope=web-deps-bench-{0}-{1}', github.run_id, hashFiles('app/Dockerfile', 'app/package.json', 'app/pnpm-lock.yaml', 'app/pnpm-workspace.yaml')) || '' }}
+          cache-to: ${{ matrix.profile == 'gha' && format('type=gha,mode=max,scope=web-deps-bench-{0}-{1}', github.run_id, hashFiles('app/Dockerfile', 'app/package.json', 'app/pnpm-lock.yaml', 'app/pnpm-workspace.yaml')) || '' }}
       - name: Record experiment context
         env:
           PROFILE: ${{ matrix.profile }}
@@ -132,8 +132,8 @@ jobs:
           context: ./app
           target: dependencies
           push: false
-          cache-from: ${{ matrix.profile == 'gha' && format('type=gha,scope=web-deps-bench-{0}-{1}', github.event.pull_request.number || github.run_id, hashFiles('app/Dockerfile', 'app/package.json', 'app/pnpm-lock.yaml', 'app/pnpm-workspace.yaml')) || '' }}
-          cache-to: ${{ matrix.profile == 'gha' && format('type=gha,mode=max,scope=web-deps-bench-{0}-{1}', github.event.pull_request.number || github.run_id, hashFiles('app/Dockerfile', 'app/package.json', 'app/pnpm-lock.yaml', 'app/pnpm-workspace.yaml')) || '' }}
+          cache-from: ${{ matrix.profile == 'gha' && format('type=gha,scope=web-deps-bench-{0}-{1}', github.run_id, hashFiles('app/Dockerfile', 'app/package.json', 'app/pnpm-lock.yaml', 'app/pnpm-workspace.yaml')) || '' }}
+          cache-to: ${{ matrix.profile == 'gha' && format('type=gha,mode=max,scope=web-deps-bench-{0}-{1}', github.run_id, hashFiles('app/Dockerfile', 'app/package.json', 'app/pnpm-lock.yaml', 'app/pnpm-workspace.yaml')) || '' }}
       - name: Record experiment context
         env:
           PROFILE: ${{ matrix.profile }}
@@ -164,8 +164,8 @@ jobs:
           context: ./app
           target: dependencies
           push: false
-          cache-from: ${{ matrix.profile == 'gha' && format('type=gha,scope=web-deps-bench-{0}-{1}', github.event.pull_request.number || github.run_id, hashFiles('app/Dockerfile', 'app/package.json', 'app/pnpm-lock.yaml', 'app/pnpm-workspace.yaml')) || '' }}
-          cache-to: ${{ matrix.profile == 'gha' && format('type=gha,mode=max,scope=web-deps-bench-{0}-{1}', github.event.pull_request.number || github.run_id, hashFiles('app/Dockerfile', 'app/package.json', 'app/pnpm-lock.yaml', 'app/pnpm-workspace.yaml')) || '' }}
+          cache-from: ${{ matrix.profile == 'gha' && format('type=gha,scope=web-deps-bench-{0}-{1}', github.run_id, hashFiles('app/Dockerfile', 'app/package.json', 'app/pnpm-lock.yaml', 'app/pnpm-workspace.yaml')) || '' }}
+          cache-to: ${{ matrix.profile == 'gha' && format('type=gha,mode=max,scope=web-deps-bench-{0}-{1}', github.run_id, hashFiles('app/Dockerfile', 'app/package.json', 'app/pnpm-lock.yaml', 'app/pnpm-workspace.yaml')) || '' }}
       - name: Record experiment context
         env:
           PROFILE: ${{ matrix.profile }}
@@ -196,8 +196,8 @@ jobs:
           context: ./app
           target: dependencies
           push: false
-          cache-from: ${{ matrix.profile == 'gha' && format('type=gha,scope=web-deps-bench-{0}-{1}', github.event.pull_request.number || github.run_id, hashFiles('app/Dockerfile', 'app/package.json', 'app/pnpm-lock.yaml', 'app/pnpm-workspace.yaml')) || '' }}
-          cache-to: ${{ matrix.profile == 'gha' && format('type=gha,mode=max,scope=web-deps-bench-{0}-{1}', github.event.pull_request.number || github.run_id, hashFiles('app/Dockerfile', 'app/package.json', 'app/pnpm-lock.yaml', 'app/pnpm-workspace.yaml')) || '' }}
+          cache-from: ${{ matrix.profile == 'gha' && format('type=gha,scope=web-deps-bench-{0}-{1}', github.run_id, hashFiles('app/Dockerfile', 'app/package.json', 'app/pnpm-lock.yaml', 'app/pnpm-workspace.yaml')) || '' }}
+          cache-to: ${{ matrix.profile == 'gha' && format('type=gha,mode=max,scope=web-deps-bench-{0}-{1}', github.run_id, hashFiles('app/Dockerfile', 'app/package.json', 'app/pnpm-lock.yaml', 'app/pnpm-workspace.yaml')) || '' }}
       - name: Record experiment context
         env:
           PROFILE: ${{ matrix.profile }}
