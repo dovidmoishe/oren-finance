@@ -114,7 +114,13 @@ describe('validateEnv — delegated MCP trading', () => {
       SIGNER_GATE_URL: 'http://signer-gate:3001',
       SIGNER_GATE_API_TOKEN: 'test-token-not-for-production',
     };
-    expect(() => validateEnv(configured)).toThrow(/route-level Privy proof/);
+    expect(() => validateEnv(configured)).toThrow(/funded Jupiter proof/);
+    expect(() =>
+      validateEnv({
+        ...configured,
+        MCP_DELEGATED_TRADES_ALLOWED_USERS: '*',
+      }),
+    ).toThrow(/named owner user IDs/);
     expect(() =>
       validateEnv({
         ...configured,

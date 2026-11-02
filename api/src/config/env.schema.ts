@@ -235,6 +235,8 @@ export function validateEnv(env: EnvSource = process.env): AppEnv {
       throw new Error('Delegated trades require MCP OAuth');
     if (delegatedUsers.length === 0)
       throw new Error('Delegated trades require an explicit user allowlist');
+    if (delegatedUsers.includes('*'))
+      throw new Error('Delegated trades require named owner user IDs');
     for (const key of [
       'PRIVY_MCP_SIGNER_QUORUM_ID',
       'PRIVY_MCP_SIGNER_PRIVATE_KEY',
@@ -245,7 +247,7 @@ export function validateEnv(env: EnvSource = process.env): AppEnv {
       requireEnv(env, key);
     if (!DELEGATED_SIGNING_READY)
       throw new Error(
-        'Delegated signing is blocked pending route-level Privy proof',
+        'Delegated signing is blocked pending funded Jupiter proof and rollout',
       );
   }
   return {

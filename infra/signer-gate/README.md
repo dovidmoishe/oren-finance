@@ -71,3 +71,6 @@ gate buy/sell flags for a kill switch; keep the gate container available for
 revoke and reconcile requests. Privy `removeSigners` removes **all** signers on
 that wallet; only enroll wallets with zero existing signers, and warn the owner
 before browser revocation.
+If Privy removal fails after the gate revokes a grant, retry removal from the
+same settings session or use the wallet's Privy signer controls. The gate stays
+revoked, and a fresh grant cannot enroll until Privy reports zero signers.
