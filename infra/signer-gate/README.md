@@ -33,6 +33,23 @@ response. A failure after environment changes restores the prior API runtime
 file and stops the gate. A created but unattached quorum may remain in Privy
 after a failure; inspect the private bootstrap state before any retry.
 
+Once the disabled gate passes its VPS checks, deploy the owner-trial release
+with API and gate runtime flags still off. The **Enable owner-only delegated buy
+trial** workflow or a one-time `signer-gate-owner-buy-*` tag rechecks Privy
+policy, exact two-key quorum, zero wallet signers, owner allowlist and zero
+reserved budget before changing flags. It enables buys only and rolls both
+services back if activation fails. The owner must then add the signer from
+browser settings and create a newly consented Claude execute connection. Keep
+the first grant to 1 day, 1 USDC per trade and a small rolling cap because the
+reviewed Privy policy itself caps each buy instruction at 1 USDC.
+
+**Kill delegated buy trial** can be dispatched with confirmation
+`kill-owner-buy` or a `signer-gate-kill-*` tag. It stops gate signing first,
+turns API and gate flags off, and restarts the gate disabled so browser revoke
+and reconciliation remain available. After a kill, remove the signer in the
+browser; Privy removes every wallet signer. Check for unresolved reservations
+and reconcile them before any new grant.
+
 1. Apply all API migrations with the existing admin-only `.env` through
    `api-migrate`. Keep `MCP_DELEGATED_TRADES_ENABLED=false` and
    `SIGNER_GATE_ENABLED=false`.
