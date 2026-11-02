@@ -20,6 +20,19 @@ It refuses to overwrite existing runtime files; inspect the VPS before
 retrying a failed run. The pending file is incomplete by design and must not be
 renamed until the gate quorum, policy, owner allowlist and API token are set.
 
+After that role workflow passes, **Bootstrap disabled signer gate** can be
+dispatched with confirmation `bootstrap-signer-gate` or triggered once by a
+`signer-gate-bootstrap-*` tag pointing at the deployed master commit. It
+identifies the disposable wallet from the reviewed buy policy's exact token
+accounts and a recent browser approval, verifies Privy has zero signers,
+creates new independent P-256 API/gate keys and a 2-of-2 quorum, then stores
+the keys only on the VPS. The API receives only its key; the gate receives only
+its key and a separate database role. It starts the private gate with all
+signing flags off and checks both database identities and the gate health
+response. A failure after environment changes restores the prior API runtime
+file and stops the gate. A created but unattached quorum may remain in Privy
+after a failure; inspect the private bootstrap state before any retry.
+
 1. Apply all API migrations with the existing admin-only `.env` through
    `api-migrate`. Keep `MCP_DELEGATED_TRADES_ENABLED=false` and
    `SIGNER_GATE_ENABLED=false`.
