@@ -78,6 +78,13 @@
       "breakpoints": true,
       "tag": "0010_mcp_delegated_trades",
       "idx": 10
+    },
+    {
+      "version": "7",
+      "when": 1793577600000,
+      "breakpoints": true,
+      "tag": "0011_mcp_delegated_execution",
+      "idx": 11
     }
   ]
 }

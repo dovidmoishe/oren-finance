@@ -111,6 +111,8 @@ describe('validateEnv — delegated MCP trading', () => {
       PRIVY_MCP_SIGNER_QUORUM_ID: 'quorum-test',
       PRIVY_MCP_SIGNER_PRIVATE_KEY: 'key-test',
       PRIVY_POLICY_ADMIN_QUORUM_ID: 'quorum-admin',
+      SIGNER_GATE_URL: 'http://signer-gate:3001',
+      SIGNER_GATE_API_TOKEN: 'test-token-not-for-production',
     };
     expect(() => validateEnv(configured)).toThrow(/route-level Privy proof/);
     expect(() =>

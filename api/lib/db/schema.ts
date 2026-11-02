@@ -208,6 +208,50 @@ export const mcpBudgetReservations = pgTable(
   ],
 );
 
+/** Exact Privy request and signed bytes retained for idempotent reconciliation. */
+export const mcpDelegatedExecutions = pgTable(
+  'mcp_delegated_executions',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    intentId: uuid('intent_id')
+      .notNull()
+      .references(() => mcpTradeIntents.id),
+    idempotencyKey: text('idempotency_key').notNull(),
+    state: text('state')
+      .$type<
+        | 'challenged'
+        | 'signing'
+        | 'signed'
+        | 'broadcast'
+        | 'confirmed'
+        | 'failed'
+        | 'pending'
+      >()
+      .notNull()
+      .default('challenged'),
+    unsignedTransaction: text('unsigned_transaction').notNull(),
+    privyRequest: jsonb('privy_request')
+      .$type<Record<string, unknown>>()
+      .notNull(),
+    requestExpiresAt: timestamp('request_expires_at', {
+      withTimezone: true,
+    }).notNull(),
+    signedTransaction: text('signed_transaction'),
+    chainSignature: text('chain_signature'),
+    lastValidBlockHeight: integer('last_valid_block_height'),
+    errorCode: text('error_code'),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    uniqueIndex('mcp_delegated_execution_intent_idx').on(table.intentId),
+  ],
+);
+
 /** Redacted lifecycle records; no token, raw error, or transaction bytes. */
 export const mcpAuditEvents = pgTable(
   'mcp_audit_events',

@@ -1,7 +1,8 @@
 import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import type { Express, Request, Response, NextFunction } from 'express';
-import { and, eq, gt, isNull, or, sql } from 'drizzle-orm';
+import { and, eq, gt, inArray, isNull, or, sql } from 'drizzle-orm';
+import { z } from 'zod';
 import { AppModule } from './app.module';
 import { PrivyWalletAuth } from './auth/privy-wallet-auth';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
@@ -18,6 +19,7 @@ import { MarketService } from './market/market.service';
 import { PortfolioService } from './portfolio/portfolio.service';
 import { ExecutionService } from './execution/execution.service';
 import { handleMcpRequest } from './mcp-auth/mcp-resource';
+import { SignerGateClient } from './mcp-auth/signer-gate.client';
 import {
   clientMayPrepareTrades,
   clientMayExecuteTrades,
@@ -45,12 +47,25 @@ async function bootstrap() {
     const expressApp = app.getHttpAdapter().getInstance() as Express;
     const db = app.get(DatabaseService).db;
     const identity = app.get(PrivyWalletAuth, { strict: false });
+    const grantGate =
+      env.SIGNER_GATE_URL && env.SIGNER_GATE_API_TOKEN
+        ? new SignerGateClient(
+            env.SIGNER_GATE_URL,
+            env.SIGNER_GATE_API_TOKEN,
+            env.PRIVY_MCP_SIGNER_PRIVATE_KEY ?? '',
+          )
+        : undefined;
     const mcpDeps = {
       db,
       auth: identity,
       market: app.get(MarketService, { strict: false }),
       portfolio: app.get(PortfolioService, { strict: false }),
       execution: app.get(ExecutionService, { strict: false }),
+      gate: env.MCP_DELEGATED_TRADES_ENABLED ? grantGate : undefined,
+      delegatedSides: {
+        buy: env.MCP_DELEGATED_BUYS_ENABLED,
+        sell: env.MCP_DELEGATED_SELLS_ENABLED,
+      },
       oauth,
     };
     expressApp.get(
@@ -93,8 +108,11 @@ async function bootstrap() {
           return res.sendStatus(403);
         if (req.headers.origin === oauth.appOrigin) {
           res.setHeader('Access-Control-Allow-Origin', oauth.appOrigin);
-          res.setHeader('Access-Control-Allow-Headers', 'Authorization');
-          res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+          res.setHeader(
+            'Access-Control-Allow-Headers',
+            'Authorization, Content-Type',
+          );
+          res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
           res.setHeader('Vary', 'Origin');
         }
         if (req.method === 'OPTIONS') return res.sendStatus(204);
@@ -107,14 +125,6 @@ async function bootstrap() {
           req.headers.authorization,
         );
         res.setHeader('Cache-Control', 'no-store');
-        if (
-          !env.MCP_DELEGATED_TRADES_ENABLED ||
-          !(
-            env.MCP_DELEGATED_TRADES_ALLOWED_USERS.includes('*') ||
-            env.MCP_DELEGATED_TRADES_ALLOWED_USERS.includes(owner.userId)
-          )
-        )
-          return res.json({ enabled: false });
         const [delegation] = await db
           .select()
           .from(mcpTradeDelegations)
@@ -123,12 +133,39 @@ async function bootstrap() {
               eq(mcpTradeDelegations.userId, owner.userId),
               eq(mcpTradeDelegations.walletId, owner.walletId),
               eq(mcpTradeDelegations.wallet, owner.wallet),
-              eq(mcpTradeDelegations.status, 'active'),
-              gt(mcpTradeDelegations.expiresAt, new Date()),
+              inArray(mcpTradeDelegations.status, ['pending_signer', 'active']),
             ),
           )
           .limit(1);
-        if (!delegation) return res.json({ enabled: false });
+        if (!delegation)
+          return res.json({
+            enabled: false,
+            canEnroll:
+              env.MCP_DELEGATED_TRADES_ENABLED &&
+              env.MCP_DELEGATED_BUYS_ENABLED &&
+              (env.MCP_DELEGATED_TRADES_ALLOWED_USERS.includes('*') ||
+                env.MCP_DELEGATED_TRADES_ALLOWED_USERS.includes(owner.userId)),
+            sellAvailable: env.MCP_DELEGATED_SELLS_ENABLED,
+          });
+        if (delegation.status === 'pending_signer')
+          return res.json({
+            enabled: false,
+            canEnroll:
+              env.MCP_DELEGATED_TRADES_ENABLED &&
+              env.MCP_DELEGATED_BUYS_ENABLED,
+            sellAvailable: env.MCP_DELEGATED_SELLS_ENABLED,
+            pendingGrant: {
+              delegationId: delegation.id,
+              wallet: delegation.wallet,
+              signerId: delegation.signerId,
+              policyId: delegation.policyId,
+              perTradeUsd: delegation.perTradeLimitUsd,
+              dailyUsd: delegation.dailyLimitUsd,
+              maxSlippageBps: delegation.maxSlippageBps,
+              allowSell: delegation.allowSell,
+              expiresAt: delegation.expiresAt.toISOString(),
+            },
+          });
         const [usage] = await db
           .select({
             total: sql<string>`COALESCE(SUM(${mcpBudgetReservations.amountUsd}), 0)`,
@@ -151,6 +188,7 @@ async function bootstrap() {
           );
         return res.json({
           enabled: true,
+          sellAvailable: env.MCP_DELEGATED_SELLS_ENABLED,
           delegationId: delegation.id,
           wallet: delegation.wallet,
           perTradeUsd: delegation.perTradeLimitUsd,
@@ -164,6 +202,65 @@ async function bootstrap() {
         return res.sendStatus(401);
       }
     });
+    const browserToken = (req: Request) =>
+      /^Bearer\s+(\S+)$/i.exec(req.headers.authorization ?? '')?.[1];
+    expressApp.post(
+      '/mcp/delegation/prepare',
+      async (req: Request, res: Response) => {
+        if (!mcpDeps.gate) return res.sendStatus(503);
+        const token = browserToken(req);
+        if (!token) return res.sendStatus(401);
+        const parsed = z
+          .object({
+            allowSell: z.boolean(),
+            perTradeUsd: z.number().finite().min(0.01).max(25),
+            dailyUsd: z.number().finite().min(0.01).max(50),
+            maxSlippageBps: z.number().int().min(1).max(50),
+            durationHours: z.number().int().min(1).max(24),
+          })
+          .safeParse(req.body);
+        if (!parsed.success) return res.sendStatus(400);
+        try {
+          return res.json(await mcpDeps.gate.prepareGrant(token, parsed.data));
+        } catch {
+          return res.sendStatus(409);
+        }
+      },
+    );
+    expressApp.post(
+      '/mcp/delegation/activate',
+      async (req: Request, res: Response) => {
+        if (!mcpDeps.gate) return res.sendStatus(503);
+        const token = browserToken(req);
+        const parsed = z.object({ delegationId: z.uuid() }).safeParse(req.body);
+        if (!token) return res.sendStatus(401);
+        if (!parsed.success) return res.sendStatus(400);
+        try {
+          return res.json(
+            await mcpDeps.gate.activateGrant(token, parsed.data.delegationId),
+          );
+        } catch {
+          return res.sendStatus(409);
+        }
+      },
+    );
+    expressApp.post(
+      '/mcp/delegation/revoke',
+      async (req: Request, res: Response) => {
+        if (!grantGate) return res.sendStatus(503);
+        const token = browserToken(req);
+        const parsed = z.object({ delegationId: z.uuid() }).safeParse(req.body);
+        if (!token) return res.sendStatus(401);
+        if (!parsed.success) return res.sendStatus(400);
+        try {
+          return res.json(
+            await grantGate.revokeGrant(token, parsed.data.delegationId),
+          );
+        } catch {
+          return res.sendStatus(409);
+        }
+      },
+    );
     expressApp.use(
       '/mcp/intents',
       (req: Request, res: Response, next: NextFunction) => {

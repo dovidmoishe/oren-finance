@@ -43,11 +43,15 @@ export interface AppEnv {
   PRIVY_APP_ID?: string;
   PRIVY_APP_SECRET?: string;
   MCP_DELEGATED_TRADES_ENABLED: boolean;
+  MCP_DELEGATED_BUYS_ENABLED: boolean;
+  MCP_DELEGATED_SELLS_ENABLED: boolean;
   MCP_DELEGATED_TRADES_ALLOWED_USERS: string[];
   MCP_DELEGATED_MAX_PER_TRADE_USD: number;
   MCP_DELEGATED_MAX_DAILY_USD: number;
   PRIVY_MCP_SIGNER_QUORUM_ID?: string;
   PRIVY_MCP_SIGNER_PRIVATE_KEY?: string;
+  SIGNER_GATE_URL?: string;
+  SIGNER_GATE_API_TOKEN?: string;
   PRIVY_POLICY_ADMIN_QUORUM_ID?: string;
   ALCHEMY_SOLANA_WS_URL?: string;
   JUPITER_API_URL?: string;
@@ -235,6 +239,8 @@ export function validateEnv(env: EnvSource = process.env): AppEnv {
       'PRIVY_MCP_SIGNER_QUORUM_ID',
       'PRIVY_MCP_SIGNER_PRIVATE_KEY',
       'PRIVY_POLICY_ADMIN_QUORUM_ID',
+      'SIGNER_GATE_URL',
+      'SIGNER_GATE_API_TOKEN',
     ])
       requireEnv(env, key);
     if (!DELEGATED_SIGNING_READY)
@@ -258,19 +264,25 @@ export function validateEnv(env: EnvSource = process.env): AppEnv {
     PRIVY_APP_ID: readEnv(env, 'PRIVY_APP_ID'),
     PRIVY_APP_SECRET: readEnv(env, 'PRIVY_APP_SECRET'),
     MCP_DELEGATED_TRADES_ENABLED: delegatedEnabled,
+    MCP_DELEGATED_BUYS_ENABLED:
+      delegatedEnabled && readBool(env, 'MCP_DELEGATED_BUYS_ENABLED', false),
+    MCP_DELEGATED_SELLS_ENABLED:
+      delegatedEnabled && readBool(env, 'MCP_DELEGATED_SELLS_ENABLED', false),
     MCP_DELEGATED_TRADES_ALLOWED_USERS: delegatedUsers,
     MCP_DELEGATED_MAX_PER_TRADE_USD: readPositiveNumber(
       env,
       'MCP_DELEGATED_MAX_PER_TRADE_USD',
-      100,
+      25,
     ),
     MCP_DELEGATED_MAX_DAILY_USD: readPositiveNumber(
       env,
       'MCP_DELEGATED_MAX_DAILY_USD',
-      250,
+      50,
     ),
     PRIVY_MCP_SIGNER_QUORUM_ID: readEnv(env, 'PRIVY_MCP_SIGNER_QUORUM_ID'),
     PRIVY_MCP_SIGNER_PRIVATE_KEY: readEnv(env, 'PRIVY_MCP_SIGNER_PRIVATE_KEY'),
+    SIGNER_GATE_URL: readEnv(env, 'SIGNER_GATE_URL'),
+    SIGNER_GATE_API_TOKEN: readEnv(env, 'SIGNER_GATE_API_TOKEN'),
     PRIVY_POLICY_ADMIN_QUORUM_ID: readEnv(env, 'PRIVY_POLICY_ADMIN_QUORUM_ID'),
     ALCHEMY_SOLANA_WS_URL: readEnv(env, 'ALCHEMY_SOLANA_WS_URL'),
     JUPITER_API_URL:

@@ -8,6 +8,7 @@ import type { Database } from '../database/database.provider';
 import {
   mcpBudgetReservations,
   mcpConnections,
+  mcpDelegatedExecutions,
   mcpTradeDelegations,
   mcpTradeIntents,
 } from '../database/schema';
@@ -175,6 +176,46 @@ describeDatabase('MCP budget reservations in Postgres', () => {
       ).status,
     ).toBe('reserved');
     await settleTradeBudget(db, secondId, 'confirmed');
+  }, 90_000);
+
+  it('stores the exact execution with the reservation and rolls both back on error', async () => {
+    const owner = await fixture();
+    const intentId = await owner.intent();
+    const idempotencyKey = randomUUID();
+    const execution = {
+      id: randomUUID(),
+      intentId,
+      idempotencyKey,
+      unsignedTransaction: 'test-unsigned-bytes',
+      privyRequest: { url: 'https://api.privy.io/test', body: {} },
+      requestExpiresAt: new Date(Date.now() + 30_000),
+    };
+    const input = {
+      ...owner,
+      intentId,
+      rawInput: '10000000',
+      idempotencyKey,
+      execution,
+    };
+    await expect(
+      reserveTradeBudget(db, {
+        ...input,
+        execution: { ...execution, idempotencyKey: randomUUID() },
+      }),
+    ).rejects.toThrow('Execution does not match');
+    expect(
+      await db
+        .select()
+        .from(mcpBudgetReservations)
+        .where(eq(mcpBudgetReservations.intentId, intentId)),
+    ).toHaveLength(0);
+    expect((await reserveTradeBudget(db, input)).status).toBe('reserved');
+    expect(
+      await db
+        .select()
+        .from(mcpDelegatedExecutions)
+        .where(eq(mcpDelegatedExecutions.intentId, intentId)),
+    ).toMatchObject([execution]);
   }, 90_000);
 
   it('refuses revoked grants and delegations before reserving', async () => {

@@ -3,6 +3,7 @@ import type { Database } from '../database/database.provider';
 import {
   mcpBudgetReservations,
   mcpConnections,
+  mcpDelegatedExecutions,
   mcpTradeDelegations,
   mcpTradeIntents,
 } from '../database/schema';
@@ -96,6 +97,8 @@ export async function reserveTradeBudget(
     referenceValueUsd?: string;
     /** Fresh USDC output quote at execution time. */
     quotedProceedsUsd?: string;
+    /** Stored in the same transaction as the reservation and intent claim. */
+    execution?: typeof mcpDelegatedExecutions.$inferInsert;
   },
 ): Promise<ReserveResult> {
   if (!/^[A-Za-z0-9_-]{16,64}$/.test(input.idempotencyKey))
@@ -223,6 +226,14 @@ export async function reserveTradeBudget(
         id: mcpBudgetReservations.id,
         amountUsd: mcpBudgetReservations.amountUsd,
       });
+    if (input.execution) {
+      if (
+        input.execution.intentId !== intent.id ||
+        input.execution.idempotencyKey !== input.idempotencyKey
+      )
+        throw new Error('Execution does not match the claimed intent');
+      await tx.insert(mcpDelegatedExecutions).values(input.execution);
+    }
     return {
       status: 'reserved',
       reservationId: reservation.id,
