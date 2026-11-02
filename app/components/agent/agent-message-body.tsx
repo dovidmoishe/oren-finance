@@ -1,7 +1,11 @@
-import { parseAgentMessage, parseInlines, type AgentInline } from './agent-markdown';
+import {
+  parseAgentMessage,
+  parseInlines,
+  type AgentInline,
+} from "./agent-markdown";
 
 const linkClass =
-  'text-sky-700 underline-offset-2 hover:underline focus-visible:underline focus-visible:outline-none';
+  "text-sky-700 underline-offset-2 hover:underline focus-visible:underline focus-visible:outline-none";
 
 export function AgentMessageBody({ content }: { content: string }) {
   const blocks = parseAgentMessage(content);
@@ -9,26 +13,36 @@ export function AgentMessageBody({ content }: { content: string }) {
   return (
     <div className="space-y-3 text-[15px] leading-7 text-foreground">
       {blocks.map((block, index) => {
-        if (block.type === 'details') {
+        if (block.type === "details") {
           return (
             <details
               className="rounded-[15px] border border-border bg-panel-subtle px-3 py-2"
               key={`details-${index}`}
             >
-              <summary className="cursor-pointer text-xs font-medium text-muted">Show details</summary>
+              <summary className="cursor-pointer text-xs font-medium text-muted">
+                Show details
+              </summary>
               <div className="mt-2 space-y-1 text-xs leading-5 text-muted">
-                {block.text.split('\n').map((line, lineIndex) => (
-                  <p key={lineIndex}>{renderInlines(parseInlines(line))}</p>
-                ))}
+                {block.text
+                  .split("\n")
+                  .map((line) => line.trim())
+                  .filter(Boolean)
+                  .map((line, lineIndex) => (
+                    <p key={lineIndex}>{renderInlines(parseInlines(line))}</p>
+                  ))}
               </div>
             </details>
           );
         }
-        if (block.type === 'list') {
-          const ListTag = block.ordered ? 'ol' : 'ul';
+        if (block.type === "list") {
+          const ListTag = block.ordered ? "ol" : "ul";
           return (
             <ListTag
-              className={block.ordered ? 'list-decimal space-y-1 pl-5' : 'list-disc space-y-1 pl-5'}
+              className={
+                block.ordered
+                  ? "list-decimal space-y-1 pl-5"
+                  : "list-disc space-y-1 pl-5"
+              }
               key={`list-${index}`}
             >
               {block.items.map((item, itemIndex) => (
@@ -54,7 +68,7 @@ export function AgentMessageBody({ content }: { content: string }) {
 
 function renderInlines(inlines: AgentInline[]) {
   return inlines.map((inline, index) => {
-    if (inline.type === 'link') {
+    if (inline.type === "link") {
       return (
         <a
           className={linkClass}
@@ -67,7 +81,8 @@ function renderInlines(inlines: AgentInline[]) {
         </a>
       );
     }
-    if (inline.type === 'strong') return <strong key={index}>{inline.text}</strong>;
+    if (inline.type === "strong")
+      return <strong key={index}>{inline.text}</strong>;
     return <span key={index}>{inline.text}</span>;
   });
 }

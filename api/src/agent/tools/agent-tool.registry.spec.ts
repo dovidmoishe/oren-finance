@@ -538,6 +538,42 @@ describe('AgentToolRegistry Drip gating', () => {
       email: 'owner@example.com',
     });
   });
+
+  it('passes stance, author, and action filters and defaults the window to 40', async () => {
+    drip.enabledFor.mockReturnValue(true);
+    drip.getOpinions.mockResolvedValue({
+      available: true,
+      opinions: [],
+      summary: {
+        calls: 0,
+        analysts: 0,
+        bullish: 0,
+        bearish: 0,
+        neutral: 0,
+        byAction: {},
+      },
+      truncated: false,
+    });
+
+    await registry.dispatch(
+      'getDripOpinions',
+      {
+        assetIdOrTicker: 'SPCX',
+        limit: null,
+        stance: 'BEARISH',
+        author: 'Za',
+        action: null,
+      },
+      { walletAddress: 'wallet-owner' },
+    );
+
+    expect(drip.getOpinions).toHaveBeenCalledWith(
+      'SPCX',
+      40,
+      { walletAddress: 'wallet-owner' },
+      { stance: 'BEARISH', author: 'Za' },
+    );
+  });
 });
 
 describe('AgentToolRegistry research identity', () => {

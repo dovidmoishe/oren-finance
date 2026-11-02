@@ -13,7 +13,19 @@ export const DRIP_DISCLAIMER = 'Opinions, not facts, and not financial advice.';
 export type DripStance = 'BULLISH' | 'BEARISH' | 'NEUTRAL';
 
 export type DripSourceKind =
-  'x_post' | 'substack' | 'podcast' | 'newsletter' | 'video' | 'other';
+  | 'x_post'
+  | 'substack'
+  | 'podcast'
+  | 'newsletter'
+  | 'video'
+  | 'article'
+  | 'other';
+
+export interface DripOpinionFilter {
+  stance?: DripStance;
+  author?: string;
+  action?: string;
+}
 
 export type DripFailureReason =
   | 'DRIP_UNSET'
@@ -69,6 +81,8 @@ export interface DripOpinions {
   /** Diverse cites chosen from the full deduped window, not only the page. */
   highlights?: DripCitation[];
   opinions: DripCitation[];
+  /** Set when the caller asked for one stance, author, or action. */
+  appliedFilter?: DripOpinionFilter;
   disclaimer: string;
 }
 

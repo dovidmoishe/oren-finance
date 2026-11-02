@@ -1,18 +1,21 @@
-'use client';
+"use client";
 
-import { create } from 'zustand';
-import { sessionSetter, walletSessionIsCurrent } from "@/services/wallet-session";
-import { getAgentThreadMessages, streamAgentMessage } from '@/services';
+import { create } from "zustand";
+import {
+  sessionSetter,
+  walletSessionIsCurrent,
+} from "@/services/wallet-session";
+import { getAgentThreadMessages, streamAgentMessage } from "@/services";
 import type {
   AgentDisplayMessage,
   AgentPageContext,
   AgentRecentThread,
   AgentRequest,
   AgentStreamEvent,
-} from '@/types';
+} from "@/types";
 
-const RECENTS_KEY = 'oren-agent-recents-v1';
-const PANEL_KEY = 'oren-agent-panel-v1';
+const RECENTS_KEY = "oren-agent-recents-v1";
+const PANEL_KEY = "oren-agent-panel-v1";
 const MAX_RECENTS = 12;
 let activeController: AbortController | undefined;
 
@@ -60,7 +63,8 @@ export const useAgentStore = create<AgentState>((set, get) => ({
     const panelPreference = readPanelPreference(walletAddress);
     const panelOpen = panelPreference
       ? panelPreference.open
-      : typeof window !== 'undefined' && window.matchMedia('(min-width: 1024px)').matches;
+      : typeof window !== "undefined" &&
+        window.matchMedia("(min-width: 1024px)").matches;
     if (!panelPreference) writePanelPreference(walletAddress, panelOpen);
 
     if (!walletAddress) {
@@ -108,7 +112,12 @@ export const useAgentStore = create<AgentState>((set, get) => ({
 
   newChat() {
     if (get().isSending) return;
-    set({ threadId: undefined, messages: [], error: undefined, lastRequest: undefined });
+    set({
+      threadId: undefined,
+      messages: [],
+      error: undefined,
+      lastRequest: undefined,
+    });
   },
 
   async loadThread(threadId) {
@@ -128,9 +137,17 @@ export const useAgentStore = create<AgentState>((set, get) => ({
       touchRecent(update, walletAddress, threadId);
     } catch (error) {
       if (!isCurrent()) return;
-      const message = error instanceof Error ? error.message : 'Unable to load this conversation';
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Unable to load this conversation";
       removeRecent(update, walletAddress, threadId);
-      update({ threadId: undefined, messages: [], isLoadingHistory: false, error: message });
+      update({
+        threadId: undefined,
+        messages: [],
+        isLoadingHistory: false,
+        error: message,
+      });
     }
   },
 
@@ -154,11 +171,11 @@ export const useAgentStore = create<AgentState>((set, get) => ({
     update((state) => ({
       messages: [
         ...state.messages.map((item) => ({ ...item, interrupted: false })),
-        { id: optimisticUserId, role: 'user', content, createdAt: now },
+        { id: optimisticUserId, role: "user", content, createdAt: now },
         {
           id: streamingAssistantId,
-          role: 'assistant',
-          content: '',
+          role: "assistant",
+          content: "",
           createdAt: now,
           streaming: true,
           activities: [],
@@ -174,12 +191,20 @@ export const useAgentStore = create<AgentState>((set, get) => ({
       await streamAgentMessage(
         request,
         (event) => {
-          if (isCurrent()) applyStreamEvent(update, get, event, optimisticUserId, streamingAssistantId, content);
+          if (isCurrent())
+            applyStreamEvent(
+              update,
+              get,
+              event,
+              optimisticUserId,
+              streamingAssistantId,
+              content,
+            );
         },
         controller.signal,
       );
     } catch (error) {
-      if (error instanceof Error && error.name === 'AbortError') {
+      if (error instanceof Error && error.name === "AbortError") {
         update((state) => ({
           isSending: false,
           messages: state.messages
@@ -191,7 +216,8 @@ export const useAgentStore = create<AgentState>((set, get) => ({
             ),
         }));
       } else {
-        const errorMessage = error instanceof Error ? error.message : 'Unable to reach Oren';
+        const errorMessage =
+          error instanceof Error ? error.message : "Unable to reach Oren";
         update((state) => ({
           isSending: false,
           error: errorMessage,
@@ -217,7 +243,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
     if (!request || get().isSending) return;
     update((state) => {
       const unansweredIndex = state.messages.findLastIndex(
-        (item) => item.role === 'user' && item.content === request.message,
+        (item) => item.role === "user" && item.content === request.message,
       );
       return {
         messages:
@@ -227,19 +253,25 @@ export const useAgentStore = create<AgentState>((set, get) => ({
         error: undefined,
       };
     });
-    await get().sendMessage(request.message, request.walletAddress, request.context);
+    await get().sendMessage(
+      request.message,
+      request.walletAddress,
+      request.context,
+    );
   },
 }));
 
 function applyStreamEvent(
-  set: Parameters<typeof useAgentStore.setState>[0] extends never ? never : typeof useAgentStore.setState,
+  set: Parameters<typeof useAgentStore.setState>[0] extends never
+    ? never
+    : typeof useAgentStore.setState,
   get: typeof useAgentStore.getState,
   event: AgentStreamEvent,
   optimisticUserId: string,
   streamingAssistantId: string,
   titleSource: string,
 ) {
-  if (event.type === 'turn_started') {
+  if (event.type === "turn_started") {
     set((state) => ({
       threadId: event.threadId,
       messages: state.messages.map((item) =>
@@ -250,59 +282,94 @@ function applyStreamEvent(
     return;
   }
 
-  if (event.type === 'assistant_delta') {
+  if (event.type === "assistant_reset") {
     set((state) => ({
-      messages: updateMessage(state.messages, streamingAssistantId, (message) => ({
-        ...message,
-        content: message.content + event.delta,
-      })),
+      messages: updateMessage(
+        state.messages,
+        streamingAssistantId,
+        (message) => ({
+          ...message,
+          content: "",
+        }),
+      ),
     }));
     return;
   }
 
-  if (event.type === 'tool_started') {
+  if (event.type === "assistant_delta") {
     set((state) => ({
-      messages: updateMessage(state.messages, streamingAssistantId, (message) => ({
-        ...message,
-        activities: [
-          ...(message.activities ?? []),
-          { callId: event.callId, toolName: event.toolName, status: 'running' },
-        ],
-      })),
+      messages: updateMessage(
+        state.messages,
+        streamingAssistantId,
+        (message) => ({
+          ...message,
+          content: message.content + event.delta,
+        }),
+      ),
     }));
     return;
   }
 
-  if (event.type === 'tool_completed' || event.type === 'tool_failed') {
+  if (event.type === "tool_started") {
     set((state) => ({
-      messages: updateMessage(state.messages, streamingAssistantId, (message) => ({
-        ...message,
-        activities: (message.activities ?? []).map((activity) =>
-          activity.callId === event.callId
-            ? {
-                ...activity,
-                status: event.type === 'tool_completed' ? 'completed' : 'failed',
-                error: event.type === 'tool_failed' ? event.error : undefined,
-              }
-            : activity,
-        ),
-        artifacts:
-          event.type === 'tool_completed' && event.artifact
-            ? [...(message.artifacts ?? []), event.artifact]
-            : message.artifacts,
-      })),
+      messages: updateMessage(
+        state.messages,
+        streamingAssistantId,
+        (message) => ({
+          ...message,
+          activities: [
+            ...(message.activities ?? []),
+            {
+              callId: event.callId,
+              toolName: event.toolName,
+              status: "running",
+            },
+          ],
+        }),
+      ),
     }));
     return;
   }
 
-  if (event.type === 'turn_completed') {
+  if (event.type === "tool_completed" || event.type === "tool_failed") {
+    set((state) => ({
+      messages: updateMessage(
+        state.messages,
+        streamingAssistantId,
+        (message) => ({
+          ...message,
+          activities: (message.activities ?? []).map((activity) =>
+            activity.callId === event.callId
+              ? {
+                  ...activity,
+                  status:
+                    event.type === "tool_completed" ? "completed" : "failed",
+                  error: event.type === "tool_failed" ? event.error : undefined,
+                }
+              : activity,
+          ),
+          artifacts:
+            event.type === "tool_completed" && event.artifact
+              ? [...(message.artifacts ?? []), event.artifact]
+              : message.artifacts,
+        }),
+      ),
+    }));
+    return;
+  }
+
+  if (event.type === "turn_completed") {
     set((state) => ({
       threadId: event.threadId,
       isSending: false,
       error: undefined,
       messages: state.messages.map((item) =>
         item.id === streamingAssistantId
-          ? { ...event.message, streaming: false, artifacts: event.artifacts ?? event.message.artifacts }
+          ? {
+              ...event.message,
+              streaming: false,
+              artifacts: event.artifacts ?? event.message.artifacts,
+            }
           : item,
       ),
     }));
@@ -310,7 +377,7 @@ function applyStreamEvent(
     return;
   }
 
-  if (event.type === 'turn_failed') {
+  if (event.type === "turn_failed") {
     set((state) => ({
       isSending: false,
       error: event.error.message,
@@ -328,7 +395,9 @@ function updateMessage(
   id: string,
   update: (message: AgentDisplayMessage) => AgentDisplayMessage,
 ) {
-  return messages.map((message) => (message.id === id ? update(message) : message));
+  return messages.map((message) =>
+    message.id === id ? update(message) : message,
+  );
 }
 
 function touchRecent(
@@ -340,7 +409,7 @@ function touchRecent(
   const all = readRecents();
   const current = all[walletAddress] ?? [];
   const existing = current.find((item) => item.id === threadId);
-  const title = existing?.title ?? makeTitle(titleSource ?? 'New conversation');
+  const title = existing?.title ?? makeTitle(titleSource ?? "New conversation");
   const recent = [
     { id: threadId, title, updatedAt: new Date().toISOString() },
     ...current.filter((item) => item.id !== threadId),
@@ -356,51 +425,51 @@ function removeRecent(
   threadId: string,
 ) {
   const all = readRecents();
-  const recent = (all[walletAddress] ?? []).filter((item) => item.id !== threadId);
+  const recent = (all[walletAddress] ?? []).filter(
+    (item) => item.id !== threadId,
+  );
   all[walletAddress] = recent;
   writeRecents(all);
   set({ recentThreads: recent });
 }
 
 function makeTitle(message: string) {
-  const normalized = message.replace(/\s+/g, ' ').trim();
+  const normalized = message.replace(/\s+/g, " ").trim();
   return normalized.length > 46 ? `${normalized.slice(0, 45)}…` : normalized;
 }
 
 function readRecents(): Record<string, AgentRecentThread[]> {
-  if (typeof window === 'undefined') return {};
+  if (typeof window === "undefined") return {};
   try {
-    return JSON.parse(window.localStorage.getItem(RECENTS_KEY) ?? '{}') as Record<
-      string,
-      AgentRecentThread[]
-    >;
+    return JSON.parse(
+      window.localStorage.getItem(RECENTS_KEY) ?? "{}",
+    ) as Record<string, AgentRecentThread[]>;
   } catch {
     return {};
   }
 }
 
 function writeRecents(value: Record<string, AgentRecentThread[]>) {
-  if (typeof window !== 'undefined') {
+  if (typeof window !== "undefined") {
     window.localStorage.setItem(RECENTS_KEY, JSON.stringify(value));
   }
 }
 
 function panelPreferenceKey(walletAddress?: string) {
-  return walletAddress ?? 'disconnected';
+  return walletAddress ?? "disconnected";
 }
 
 function readPanelPreference(
   walletAddress?: string,
 ): { open: boolean } | undefined {
-  if (typeof window === 'undefined') return undefined;
+  if (typeof window === "undefined") return undefined;
   try {
     const value = window.localStorage.getItem(PANEL_KEY);
     if (!value) return undefined;
     const parsed = JSON.parse(value) as
-      | { open: boolean }
-      | Record<string, { open: boolean }>;
+      { open: boolean } | Record<string, { open: boolean }>;
     const legacyOpen = (parsed as { open?: unknown }).open;
-    if (typeof legacyOpen === 'boolean') {
+    if (typeof legacyOpen === "boolean") {
       return { open: legacyOpen };
     }
     return (parsed as Record<string, { open: boolean }>)[
@@ -411,16 +480,18 @@ function readPanelPreference(
   }
 }
 
-function writePanelPreference(walletAddress: string | undefined, open: boolean) {
-  if (typeof window === 'undefined') return;
+function writePanelPreference(
+  walletAddress: string | undefined,
+  open: boolean,
+) {
+  if (typeof window === "undefined") return;
   let current: Record<string, { open: boolean }> = {};
   try {
     const value = window.localStorage.getItem(PANEL_KEY);
     if (value) {
       const parsed = JSON.parse(value) as
-        | { open: boolean }
-        | Record<string, { open: boolean }>;
-      if (typeof (parsed as { open?: unknown }).open !== 'boolean') {
+        { open: boolean } | Record<string, { open: boolean }>;
+      if (typeof (parsed as { open?: unknown }).open !== "boolean") {
         current = parsed as Record<string, { open: boolean }>;
       }
     }

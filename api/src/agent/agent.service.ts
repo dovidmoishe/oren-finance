@@ -21,7 +21,9 @@ import { PrivyWalletAuth } from '../auth/privy-wallet-auth';
 import { AgentUnavailableError } from '../common/errors/provider.errors';
 import { APP_ENV } from '../config/constants';
 import type { AppEnv } from '../config/env.schema';
+import { isSameReply, previousAssistantContent } from './agent-followup';
 import { buildInstructions, portfolioToContext } from './agent-context';
+import { priorDripToolNote, stripEmptyDetailsFences } from './agent-reply';
 import { AgentRepository } from './agent.repository';
 import { OPENAI_CLIENT, type OpenAIClient } from './openai.provider';
 import { PortfolioService } from '../portfolio/portfolio.service';
@@ -132,20 +134,26 @@ export class AgentService {
       let assistantContent = '';
       const portfolioContext = await this.loadPortfolioContext(walletAddress);
       const caller = await this.callerFor(walletAddress, authorization);
+      const schemas = this.tools.getSchemas(caller);
+      let instructions = buildInstructions(
+        walletAddress,
+        body.context,
+        portfolioContext,
+        { includeDrip: this.tools.dripEnabledFor(caller) },
+      );
+      const priorDrip = priorDripToolNote(history);
+      if (priorDrip) instructions += `\n\n${priorDrip}`;
+      let echoRetries = 0;
+      let toolsRan = false;
 
       for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
         throwIfAborted(signal);
         const stream = (await this.openai.responses.create(
           {
             model: this.env.OPENAI_MODEL,
-            instructions: buildInstructions(
-              walletAddress,
-              body.context,
-              portfolioContext,
-              { includeDrip: this.tools.dripEnabledFor(caller) },
-            ),
+            instructions,
             input,
-            tools: this.tools.getSchemas(caller) as never,
+            tools: schemas as never,
             tool_choice: 'auto',
             stream: true,
           } as never,
@@ -154,6 +162,7 @@ export class AgentService {
 
         let completedResponse: Record<string, unknown> | undefined;
         let roundStreamedText = '';
+        const contentBeforeRound = assistantContent;
 
         for await (const event of stream) {
           throwIfAborted(signal);
@@ -200,6 +209,7 @@ export class AgentService {
         );
         const missingText = missingStreamedSuffix(roundText, roundStreamedText);
         if (missingText) {
+          roundStreamedText += missingText;
           assistantContent += missingText;
           yield {
             type: 'assistant_delta',
@@ -211,7 +221,49 @@ export class AgentService {
         }
 
         const functionCalls = output.filter(isFunctionCall);
-        if (functionCalls.length === 0) {
+        if (functionCalls.length > 0) {
+          if (roundStreamedText) {
+            assistantContent = contentBeforeRound;
+            yield {
+              type: 'assistant_reset',
+              turnId,
+              sequence: sequence++,
+              timestamp: timestamp(),
+            };
+          }
+          input = [...input, ...output];
+          toolsRan = true;
+        } else {
+          const previous = previousAssistantContent(history);
+          if (
+            echoRetries < 1 &&
+            previous &&
+            isSameReply(assistantContent, previous)
+          ) {
+            echoRetries += 1;
+            const streamedEcho = assistantContent !== contentBeforeRound;
+            assistantContent = contentBeforeRound;
+            if (streamedEcho) {
+              yield {
+                type: 'assistant_reset',
+                turnId,
+                sequence: sequence++,
+                timestamp: timestamp(),
+              };
+            }
+            input = [
+              ...input,
+              ...output,
+              {
+                role: 'developer',
+                content: toolsRan
+                  ? 'You repeated your previous message verbatim. Write a new answer from the tool results already in this turn. Do not repeat that message.'
+                  : 'You repeated your previous message verbatim. Call a read-only tool if the question still needs data, then write a new answer. Do not repeat that message.',
+              },
+            ];
+            continue;
+          }
+
           if (!assistantContent.trim()) {
             assistantContent = 'I could not produce a response.';
             yield {
@@ -222,9 +274,12 @@ export class AgentService {
               delta: assistantContent,
             };
           }
+          const finalText =
+            stripEmptyDetailsFences(assistantContent) ||
+            'I could not produce a response.';
           const assistant = await this.saveAssistantMessage(
             thread.id,
-            assistantContent.trim(),
+            finalText,
           );
           yield {
             type: 'turn_completed',
@@ -238,7 +293,6 @@ export class AgentService {
           return;
         }
 
-        input = [...input, ...output];
         for (const call of functionCalls) {
           throwIfAborted(signal);
           const toolName = String(call.name);
@@ -320,7 +374,7 @@ export class AgentService {
       };
       const assistant = await this.saveAssistantMessage(
         thread.id,
-        assistantContent.trim(),
+        stripEmptyDetailsFences(assistantContent),
       );
       yield {
         type: 'turn_completed',

@@ -7,10 +7,9 @@ const API_KEY = 'pk_drip_test_secret';
 function env(overrides: Partial<AppEnv> = {}): AppEnv {
   return {
     DRIP_ENABLED: true,
+    DRIP_PUBLIC_RESEARCH_ENABLED: true,
     DRIP_API_KEY: API_KEY,
     DRIP_API_BASE_URL: 'https://dripstack.test',
-    DRIP_ALLOWED_USER_IDS: ['did:privy:owner'],
-    DRIP_ALLOWED_EMAILS: ['owner@example.com'],
     DRIP_REQUEST_TIMEOUT_MS: 12_000,
     ...overrides,
   } as AppEnv;
@@ -141,17 +140,38 @@ describe('DripService', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it('gates tool registration on the flag and allowlist', () => {
+  it('gates tool registration on both flags and verified caller identity', () => {
     const service = new DripService(env(), market as never);
     expect(service.enabledFor({ walletAddress: 'wallet-owner' })).toBe(false);
-    expect(service.enabledFor({ email: 'OWNER@example.com' })).toBe(true);
-    expect(service.enabledFor({ userId: 'did:privy:owner' })).toBe(true);
+    expect(service.enabledFor({ email: 'OWNER@example.com' })).toBe(false);
+    expect(service.enabledFor({ userId: 'did:privy:owner' })).toBe(false);
+    expect(
+      service.enabledFor({
+        userId: 'did:privy:owner',
+        walletAddress: 'wallet-owner',
+      }),
+    ).toBe(true);
     expect(service.enabledFor({ walletAddress: 'someone-else' })).toBe(false);
     const disabled = new DripService(
       env({ DRIP_ENABLED: false }),
       market as never,
     );
-    expect(disabled.enabledFor({ userId: 'did:privy:owner' })).toBe(false);
+    expect(
+      disabled.enabledFor({
+        userId: 'did:privy:owner',
+        walletAddress: 'wallet-owner',
+      }),
+    ).toBe(false);
+    const privateResearch = new DripService(
+      env({ DRIP_PUBLIC_RESEARCH_ENABLED: false }),
+      market as never,
+    );
+    expect(
+      privateResearch.enabledFor({
+        userId: 'did:privy:owner',
+        walletAddress: 'wallet-owner',
+      }),
+    ).toBe(false);
   });
 
   it('returns a rate-limit result before contacting Drip when quota is exhausted', async () => {
