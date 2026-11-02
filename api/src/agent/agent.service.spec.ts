@@ -214,7 +214,7 @@ describe('AgentService', () => {
       },
     });
 
-    const events = [];
+    const events: AgentStreamEvent[] = [];
     for await (const event of service.streamMessage({
       walletAddress: 'wallet-1',
       message: 'Analyze NVDA',
@@ -272,7 +272,7 @@ describe('AgentService', () => {
       responseStream({ output_text: 'MU is ready.', output: [] }),
     );
 
-    const events = [];
+    const events: AgentStreamEvent[] = [];
     for await (const event of service.streamMessage({
       walletAddress: 'wallet-1',
       threadId: 'thread-1',
@@ -315,7 +315,7 @@ describe('AgentService', () => {
       );
     tools.dispatch.mockRejectedValue(new Error('Unknown stock'));
 
-    const events = [];
+    const events: AgentStreamEvent[] = [];
     for await (const event of service.streamMessage({
       walletAddress: 'wallet-1',
       message: 'Analyze NOPE',

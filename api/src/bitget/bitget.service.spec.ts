@@ -1,7 +1,7 @@
 import type { AppEnv } from '../config/env.schema';
 import { BitgetService } from './bitget.service';
 
-const env: AppEnv = {
+const env = {
   PORT: 3000,
   CORS_ORIGIN: '*',
   POSTGRES_URL: 'postgresql://test',
@@ -19,7 +19,7 @@ const env: AppEnv = {
   DRIP_REQUEST_TIMEOUT_MS: 12_000,
   VAULT_PROGRAM_ID: 'test',
   VAULT_PROGRAM_LIVE: false,
-};
+} as unknown as AppEnv;
 
 describe('BitgetService', () => {
   const originalFetch = global.fetch;

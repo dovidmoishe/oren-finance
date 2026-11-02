@@ -1,5 +1,6 @@
 import { FundingController } from './funding.controller';
 import { FundingService } from './funding.service';
+import type { PrivyWalletAuth } from '../auth/privy-wallet-auth';
 import type { Request, Response } from 'express';
 jest.mock('@privy-io/node', () => ({ PrivyClient: jest.fn() }));
 
@@ -7,7 +8,11 @@ describe('funding ownership boundary', () => {
   const requireWallet = jest.fn();
   const snapshot = jest.fn();
   const controller = new FundingController(
-    { requireWallet, requireSigner: jest.fn(), signTransaction: jest.fn() },
+    {
+      requireWallet,
+      requireSigner: jest.fn(),
+      signTransaction: jest.fn(),
+    } as unknown as PrivyWalletAuth,
     {
       snapshot,
     } as unknown as FundingService,
