@@ -1,0 +1,65 @@
+name: Enable owner-only delegated buy trial
+
+on:
+  push:
+    tags:
+      - signer-gate-owner-buy-*
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: Type enable-owner-buy to activate the bounded production trial
+        required: true
+        type: string
+
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  enable:
+    if: >-
+      (github.event_name == 'workflow_dispatch' && inputs.confirm == 'enable-owner-buy') ||
+      (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/signer-gate-owner-buy-'))
+    runs-on: ubuntu-24.04
+    environment: production
+    env:
+      VPS_HOST: ${{ secrets.VPS_HOST }}
+      VPS_PORT: ${{ secrets.VPS_PORT }}
+      VPS_USER: ${{ secrets.VPS_USER }}
+      VPS_SSH_KNOWN_HOSTS: ${{ secrets.VPS_SSH_KNOWN_HOSTS }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Check owner-trial scripts and VPS configuration
+        run: |
+          test -n "$VPS_HOST"
+          test -n "$VPS_USER"
+          test -n "$VPS_SSH_KNOWN_HOSTS"
+          bash -n infra/signer-gate/enable-owner-buy.sh
+          node --check infra/signer-gate/verify-owner-buy.mjs
+      - uses: webfactory/ssh-agent@v0.9.1
+        with:
+          ssh-private-key: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
+      - name: Pin the verified VPS host key
+        run: |
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$VPS_SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+      - name: Verify and activate bounded owner buy trial
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          release_sha=$(git rev-parse HEAD)
+          [[ "$release_sha" =~ ^[a-f0-9]{40}$ ]]
+          test "$(gh api "repos/$GITHUB_REPOSITORY/branches/master" --jq .commit.sha)" = "$release_sha"
+          scp -P "${VPS_PORT:-22}" -o StrictHostKeyChecking=yes \
+            infra/signer-gate/enable-owner-buy.sh infra/signer-gate/verify-owner-buy.mjs \
+            "$VPS_USER@$VPS_HOST:/opt/oren/infra/signer-gate/"
+          ssh -p "${VPS_PORT:-22}" -o StrictHostKeyChecking=yes \
+            "$VPS_USER@$VPS_HOST" \
+            "bash /opt/oren/infra/signer-gate/enable-owner-buy.sh '$release_sha'"
