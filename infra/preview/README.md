@@ -86,6 +86,14 @@ API image reuse is implemented but off by default. After the timing comparison, 
 
 ## Verification commands
 
+Web tests, lint and production build run in three independent CI matrix jobs with
+`fail-fast: false`, separate clean installs and the same `/api` build origin. All
+three must succeed. The aggregate **App test, lint, and build** check retains the
+existing branch-protection name and fails if any matrix job fails, skips or is
+cancelled. Preview still requires the entire exact-head CI workflow to succeed.
+This trades additional runner minutes and two dependency installs for lower wall
+time; do not infer a speedup until comparable PR-to-preview samples exist.
+
 ```sh
 node --test infra/preview/*.test.mjs
 for script in infra/preview/*.sh; do bash -n "$script"; done
