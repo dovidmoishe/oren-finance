@@ -28,6 +28,8 @@ const JUPITER_KEYED_RPS = 1;
 const DELEGATED_SIGNING_READY = false;
 
 const DEFAULT_JUPITER_API_URL = 'https://api.jup.ag/swap/v1';
+const DEFAULT_DRIP_API_BASE_URL = 'https://dripstack.com';
+const DEFAULT_DRIP_REQUEST_TIMEOUT_MS = 12_000;
 
 export interface AppEnv {
   DEPLOYMENT_ENV?: 'production' | 'development' | 'preview';
@@ -85,6 +87,24 @@ export interface AppEnv {
   ANTHROPIC_API_KEY?: string;
   BITGET_API_BASE_URL: string;
   BITGET_REQUEST_TIMEOUT_MS: number;
+  /**
+   * In-app agent access to Drip writer/podcast opinions. Off unless true.
+   * An empty allowlist still denies every caller.
+   */
+  DRIP_ENABLED: boolean;
+  /** Server-only. Sent as `Authorization: Bearer`. Never returned to clients. */
+  DRIP_API_KEY?: string;
+  DRIP_API_BASE_URL: string;
+  /** Privy user ids (`did:privy:…`), comma-separated. */
+  DRIP_ALLOWED_USER_IDS: string[];
+  /** Compared case-insensitively. */
+  DRIP_ALLOWED_EMAILS: string[];
+  /**
+   * Solana wallets. The in-app agent request carries the wallet today, so this
+   * is how an owner is recognized before a session token is on the request.
+   */
+  DRIP_ALLOWED_WALLETS: string[];
+  DRIP_REQUEST_TIMEOUT_MS: number;
   VAULT_PROGRAM_ID: string;
   /** When false, vault prepare/confirm routes return 503. Defaults to false until the program is deployed. */
   VAULT_PROGRAM_LIVE: boolean;
@@ -174,6 +194,10 @@ function readList(env: EnvSource, key: string): string[] {
     .split(',')
     .map((item) => item.trim())
     .filter(Boolean);
+}
+
+function readEmailList(env: EnvSource, key: string): string[] {
+  return readList(env, key).map((item) => item.toLowerCase());
 }
 
 /**
@@ -329,6 +353,19 @@ export function validateEnv(env: EnvSource = process.env): AppEnv {
       env,
       'BITGET_REQUEST_TIMEOUT_MS',
       8000,
+    ),
+    DRIP_ENABLED: readBool(env, 'DRIP_ENABLED', false),
+    DRIP_API_KEY: readEnv(env, 'DRIP_API_KEY'),
+    DRIP_API_BASE_URL: (
+      readEnv(env, 'DRIP_API_BASE_URL') ?? DEFAULT_DRIP_API_BASE_URL
+    ).replace(/\/$/, ''),
+    DRIP_ALLOWED_USER_IDS: readList(env, 'DRIP_ALLOWED_USER_IDS'),
+    DRIP_ALLOWED_EMAILS: readEmailList(env, 'DRIP_ALLOWED_EMAILS'),
+    DRIP_ALLOWED_WALLETS: readList(env, 'DRIP_ALLOWED_WALLETS'),
+    DRIP_REQUEST_TIMEOUT_MS: readPositiveInt(
+      env,
+      'DRIP_REQUEST_TIMEOUT_MS',
+      DEFAULT_DRIP_REQUEST_TIMEOUT_MS,
     ),
     VAULT_PROGRAM_ID:
       readEnv(env, 'VAULT_PROGRAM_ID') || DEFAULT_VAULT_PROGRAM_ID,

@@ -131,3 +131,39 @@ describe('validateEnv — delegated MCP trading', () => {
     ).toThrow(/PR preview/);
   });
 });
+
+describe('validateEnv — Drip', () => {
+  it('keeps Drip off with an empty allowlist and documented defaults', () => {
+    const env = validateEnv(required);
+    expect(env.DRIP_ENABLED).toBe(false);
+    expect(env.DRIP_API_KEY).toBeUndefined();
+    expect(env.DRIP_API_BASE_URL).toBe('https://dripstack.com');
+    expect(env.DRIP_ALLOWED_USER_IDS).toEqual([]);
+    expect(env.DRIP_ALLOWED_EMAILS).toEqual([]);
+    expect(env.DRIP_ALLOWED_WALLETS).toEqual([]);
+    expect(env.DRIP_REQUEST_TIMEOUT_MS).toBe(12_000);
+  });
+
+  it('parses the flag, key, and allowlists', () => {
+    const env = validateEnv({
+      ...required,
+      DRIP_ENABLED: 'true',
+      DRIP_API_KEY: 'pk_drip_test',
+      DRIP_ALLOWED_USER_IDS: ' did:privy:owner , ',
+      DRIP_ALLOWED_EMAILS: 'Owner@Example.com, other@example.com',
+      DRIP_ALLOWED_WALLETS: 'wallet-owner',
+      DRIP_API_BASE_URL: 'https://dripstack.test/',
+      DRIP_REQUEST_TIMEOUT_MS: '9000',
+    });
+    expect(env.DRIP_ENABLED).toBe(true);
+    expect(env.DRIP_API_KEY).toBe('pk_drip_test');
+    expect(env.DRIP_ALLOWED_USER_IDS).toEqual(['did:privy:owner']);
+    expect(env.DRIP_ALLOWED_EMAILS).toEqual([
+      'owner@example.com',
+      'other@example.com',
+    ]);
+    expect(env.DRIP_ALLOWED_WALLETS).toEqual(['wallet-owner']);
+    expect(env.DRIP_API_BASE_URL).toBe('https://dripstack.test');
+    expect(env.DRIP_REQUEST_TIMEOUT_MS).toBe(9000);
+  });
+});

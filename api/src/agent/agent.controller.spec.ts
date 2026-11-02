@@ -1,6 +1,8 @@
 import { BadRequestException } from '@nestjs/common';
 import { AgentController } from './agent.controller';
 
+jest.mock('@privy-io/node', () => ({ PrivyClient: jest.fn() }));
+
 describe('AgentController', () => {
   it('returns thread, message, artifacts, and events', async () => {
     const agent = {

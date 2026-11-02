@@ -68,6 +68,23 @@ export class PrivyWalletAuth {
     return (await this.verifiedUser(authorization)).userId;
   }
 
+  /**
+   * Best-effort session identity for feature allowlists. A missing or invalid
+   * token returns undefined so public agent chat keeps working.
+   */
+  async tryIdentify(
+    authorization: string | undefined,
+  ): Promise<{ userId: string; email?: string } | undefined> {
+    if (!authorization?.trim()) return undefined;
+    try {
+      const { userId, user } = await this.verifiedUser(authorization);
+      const email = emailFromPrivyUser(user);
+      return email ? { userId, email } : { userId };
+    } catch {
+      return undefined;
+    }
+  }
+
   /** Browser OTP session identity for OAuth consent; never returns the token. */
   async requireMcpIdentity(authorization: string | undefined) {
     const { userId, user } = await this.verifiedUser(authorization);
@@ -240,4 +257,27 @@ export class PrivyWalletAuth {
       });
     }
   }
+}
+
+function emailFromPrivyUser(user: unknown): string | undefined {
+  if (!user || typeof user !== 'object') return undefined;
+  const record = user as {
+    email?: { address?: unknown };
+    linked_accounts?: unknown;
+  };
+  const direct = record.email?.address;
+  if (typeof direct === 'string' && direct.includes('@')) return direct.trim();
+  if (!Array.isArray(record.linked_accounts)) return undefined;
+  for (const account of record.linked_accounts) {
+    if (!account || typeof account !== 'object') continue;
+    const linked = account as { type?: unknown; address?: unknown };
+    if (
+      linked.type === 'email' &&
+      typeof linked.address === 'string' &&
+      linked.address.includes('@')
+    ) {
+      return linked.address.trim();
+    }
+  }
+  return undefined;
 }

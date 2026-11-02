@@ -1,8 +1,17 @@
-import type { AgentMessage, AgentThread } from '../../types/agent';
+import type {
+  AgentMessage,
+  AgentStreamEvent,
+  AgentThread,
+} from '../../types/agent';
 import { AgentService } from './agent.service';
 
-function responseStream(response: Record<string, unknown>, deltas: string[] = []) {
-  return (async function* () {
+jest.mock('@privy-io/node', () => ({ PrivyClient: jest.fn() }));
+
+function responseStream(
+  response: Record<string, unknown>,
+  deltas: string[] = [],
+) {
+  return (function* () {
     for (const delta of deltas) {
       yield { type: 'response.output_text.delta', delta };
     }
@@ -27,6 +36,7 @@ describe('AgentService', () => {
   const tools = {
     getSchemas: jest.fn(),
     dispatch: jest.fn(),
+    dripEnabledFor: jest.fn(),
   };
   const portfolioService = {
     getPortfolio: jest.fn(),
@@ -62,6 +72,7 @@ describe('AgentService', () => {
       },
     ]);
     tools.getSchemas.mockReturnValue([]);
+    tools.dripEnabledFor.mockReturnValue(false);
     portfolioService.getPortfolio.mockResolvedValue({
       walletAddress: 'wallet-1',
       totalValueUsd: 10_000,
@@ -122,7 +133,7 @@ describe('AgentService', () => {
       },
     });
 
-    const streamed = [];
+    const streamed: AgentStreamEvent[] = [];
     for await (const event of service.streamMessage({
       walletAddress: 'wallet-1',
       message: 'Analyze NVDA',
@@ -135,7 +146,9 @@ describe('AgentService', () => {
     expect(portfolioService.getPortfolio).toHaveBeenCalledWith('wallet-1');
     expect(openai.responses.create).toHaveBeenCalledWith(
       expect.objectContaining({
-        instructions: expect.stringContaining('Top holdings: NVDA 20.0%'),
+        instructions: expect.stringContaining(
+          'Top holdings: NVDA 20.0%',
+        ) as string,
       }),
       expect.any(Object),
     );
@@ -144,6 +157,9 @@ describe('AgentService', () => {
       { assetIdOrTicker: 'NVDA' },
       { walletAddress: 'wallet-1' },
     );
+    expect(tools.dripEnabledFor).toHaveBeenCalledWith({
+      walletAddress: 'wallet-1',
+    });
     expect(streamed.map((event) => event.type)).toEqual([
       'turn_started',
       'tool_started',
@@ -229,7 +245,10 @@ describe('AgentService', () => {
         }),
       )
       .mockResolvedValueOnce(
-        responseStream({ output_text: 'I could not load that stock.', output: [] }),
+        responseStream({
+          output_text: 'I could not load that stock.',
+          output: [],
+        }),
       );
     tools.dispatch.mockRejectedValue(new Error('Unknown stock'));
 

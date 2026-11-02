@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, Optional } from '@nestjs/common';
 import type { AgentArtifact } from '../../../types/agent';
 import type { TradeIntent } from '../../../types/execution';
 import type { ChartRange } from '../../../types/market';
@@ -13,6 +13,14 @@ import { SocialService } from '../../social/social.service';
 import { publicQuote } from '../../execution/swap-terms';
 import { PriceMovedError } from '../../common/errors/provider.errors';
 import { VaultService } from '../../vault/vault.service';
+import type { DripCaller } from '../../drip/drip-access';
+import { DripService } from '../../drip/drip.service';
+import {
+  DRIP_OPINION_RETURN_DEFAULT,
+  DRIP_OPINION_RETURN_MAX,
+  DRIP_PICKS_RETURN_DEFAULT,
+  DRIP_PICKS_RETURN_MAX,
+} from '../../drip/drip.types';
 
 export interface AgentToolResult {
   output: unknown;
@@ -20,7 +28,7 @@ export interface AgentToolResult {
 }
 
 /** Server-side facts about the conversation, never taken from model args. */
-export interface AgentToolContext {
+export interface AgentToolContext extends DripCaller {
   walletAddress?: string;
 }
 
@@ -44,10 +52,23 @@ export class AgentToolRegistry {
     private readonly vault: VaultService,
     private readonly social: SocialService,
     private readonly calendar: PortfolioCalendarService,
+    @Optional() private readonly drip?: DripService,
   ) {}
 
-  getSchemas(): ToolDefinition[] {
-    return TOOL_SCHEMAS;
+  getSchemas(caller: DripCaller = {}): ToolDefinition[] {
+    if (!this.dripEnabledFor(caller)) return TOOL_SCHEMAS;
+    return [...TOOL_SCHEMAS, ...DRIP_TOOL_SCHEMAS];
+  }
+
+  dripEnabledFor(caller: DripCaller = {}): boolean {
+    return this.drip?.enabledFor(caller) ?? false;
+  }
+
+  private dripFor(caller: DripCaller, name: string): DripService {
+    if (!this.drip || !this.drip.enabledFor(caller)) {
+      throw new BadRequestException(`Unknown agent tool: ${name}`);
+    }
+    return this.drip;
   }
 
   async dispatch(
@@ -58,16 +79,15 @@ export class AgentToolRegistry {
     const input = asRecord(args);
 
     switch (name) {
-      case 'getPortfolio':
-        {
-          const portfolio = await this.portfolio.getPortfolio(
-            required(input, 'wallet'),
-          );
-          return {
-            output: portfolio,
-            artifact: { type: 'portfolio', data: portfolio },
-          };
-        }
+      case 'getPortfolio': {
+        const portfolio = await this.portfolio.getPortfolio(
+          required(input, 'wallet'),
+        );
+        return {
+          output: portfolio,
+          artifact: { type: 'portfolio', data: portfolio },
+        };
+      }
 
       case 'getPortfolioActivity':
         return {
@@ -75,12 +95,15 @@ export class AgentToolRegistry {
         };
 
       case 'getTradingCalendar': {
-        const calendar = await this.calendar.getCalendar(required(input, 'wallet'), {
-          month: optionalString(input, 'month'),
-          start: optionalString(input, 'start'),
-          end: optionalString(input, 'end'),
-          timeZone: optionalString(input, 'timeZone'),
-        });
+        const calendar = await this.calendar.getCalendar(
+          required(input, 'wallet'),
+          {
+            month: optionalString(input, 'month'),
+            start: optionalString(input, 'start'),
+            end: optionalString(input, 'end'),
+            timeZone: optionalString(input, 'timeZone'),
+          },
+        );
         return {
           output: calendar,
           artifact: { type: 'trading_calendar', data: calendar },
@@ -290,16 +313,13 @@ export class AgentToolRegistry {
         };
       }
 
-      case 'getVaults':
-        {
-          const vaults = await this.vault.listVaults(
-            required(input, 'wallet'),
-          );
-          return {
-            output: vaults,
-            artifact: { type: 'vaults', data: vaults },
-          };
-        }
+      case 'getVaults': {
+        const vaults = await this.vault.listVaults(required(input, 'wallet'));
+        return {
+          output: vaults,
+          artifact: { type: 'vaults', data: vaults },
+        };
+      }
 
       case 'prepareLock': {
         const prepared = await this.vault.prepareLock({
@@ -378,6 +398,33 @@ export class AgentToolRegistry {
         };
       }
 
+      case 'getDripOpinions': {
+        const drip = this.dripFor(context, name);
+        return {
+          output: await drip.getOpinions(
+            required(input, 'assetIdOrTicker'),
+            clampLimit(
+              optionalNumber(input, 'limit'),
+              DRIP_OPINION_RETURN_DEFAULT,
+              DRIP_OPINION_RETURN_MAX,
+            ),
+          ),
+        };
+      }
+
+      case 'getDripPicks': {
+        const drip = this.dripFor(context, name);
+        return {
+          output: await drip.getPicks(
+            clampLimit(
+              optionalNumber(input, 'limit'),
+              DRIP_PICKS_RETURN_DEFAULT,
+              DRIP_PICKS_RETURN_MAX,
+            ),
+          ),
+        };
+      }
+
       default:
         throw new BadRequestException(`Unknown agent tool: ${name}`);
     }
@@ -452,17 +499,13 @@ const TOOL_SCHEMAS: ToolDefinition[] = [
       },
     },
   ),
-  tool(
-    'getStockChart',
-    'Get normalized stock chart candles.',
-    {
-      assetIdOrTicker: stringSchema,
-      range: {
-        type: ['string', 'null'],
-        enum: ['1D', '1W', '1M', '3M', '1Y', 'ALL', null],
-      },
+  tool('getStockChart', 'Get normalized stock chart candles.', {
+    assetIdOrTicker: stringSchema,
+    range: {
+      type: ['string', 'null'],
+      enum: ['1D', '1W', '1M', '3M', '1Y', 'ALL', null],
     },
-  ),
+  }),
   tool('getStockNews', 'Get recent news for a canonical stock.', {
     assetIdOrTicker: stringSchema,
   }),
@@ -476,30 +519,22 @@ const TOOL_SCHEMAS: ToolDefinition[] = [
   tool('searchStocks', 'Search canonical stocks by ticker or company name.', {
     query: stringSchema,
   }),
-  tool(
-    'findOpportunities',
-    'Find ranked Oren opportunities.',
-    {
-      minScore: nullableNumberSchema,
-      limit: nullableNumberSchema,
-    },
-  ),
+  tool('findOpportunities', 'Find ranked Oren opportunities.', {
+    minScore: nullableNumberSchema,
+    limit: nullableNumberSchema,
+  }),
   tool('getSignals', 'Get deterministic quantitative signals for a stock.', {
     assetIdOrTicker: stringSchema,
   }),
-  tool(
-    'getSwapQuote',
-    'Get a Jupiter quote for buying or selling a stock.',
-    {
-      side: { type: 'string', enum: ['buy', 'sell'] },
-      ticker: nullableStringSchema,
-      assetId: nullableStringSchema,
-      amountUsd: nullableNumberSchema,
-      amount: nullableNumberSchema,
-      preferredMint: nullableStringSchema,
-      slippageBps: nullableNumberSchema,
-    },
-  ),
+  tool('getSwapQuote', 'Get a Jupiter quote for buying or selling a stock.', {
+    side: { type: 'string', enum: ['buy', 'sell'] },
+    ticker: nullableStringSchema,
+    assetId: nullableStringSchema,
+    amountUsd: nullableNumberSchema,
+    amount: nullableNumberSchema,
+    preferredMint: nullableStringSchema,
+    slippageBps: nullableNumberSchema,
+  }),
   tool(
     'proposeLimitOrder',
     'Propose a Jupiter Trigger V1 limit order at a USD price. If limitPriceUsd is omitted, uses the deterministic TA limit zone from analyzeStock. Returns a reviewable proposal — never prepares or signs.',
@@ -524,29 +559,25 @@ const TOOL_SCHEMAS: ToolDefinition[] = [
       includeHistory: nullableBooleanSchema,
     },
   ),
-  tool(
-    'createBasket',
-    'Planned basket creation tool.',
-    {
-      amountUsd: numberSchema,
-      prompt: stringSchema,
-      wallet: nullableStringSchema,
-      candidates: {
-        type: ['array', 'null'],
-        items: {
-          type: 'object',
-          properties: {
-            assetId: stringSchema,
-            ticker: stringSchema,
-            name: nullableStringSchema,
-            opportunityScore: numberSchema,
-          },
-          required: ['assetId', 'ticker', 'name', 'opportunityScore'],
-          additionalProperties: false,
+  tool('createBasket', 'Planned basket creation tool.', {
+    amountUsd: numberSchema,
+    prompt: stringSchema,
+    wallet: nullableStringSchema,
+    candidates: {
+      type: ['array', 'null'],
+      items: {
+        type: 'object',
+        properties: {
+          assetId: stringSchema,
+          ticker: stringSchema,
+          name: nullableStringSchema,
+          opportunityScore: numberSchema,
         },
+        required: ['assetId', 'ticker', 'name', 'opportunityScore'],
+        additionalProperties: false,
       },
     },
-  ),
+  }),
   tool('getVaults', 'List indexed Oren timelock vault positions.', {
     wallet: stringSchema,
   }),
@@ -579,6 +610,24 @@ const TOOL_SCHEMAS: ToolDefinition[] = [
       sourceSlug: stringSchema,
       wallet: stringSchema,
       amountUsd: numberSchema,
+    },
+  ),
+];
+
+const DRIP_TOOL_SCHEMAS: ToolDefinition[] = [
+  tool(
+    'getDripOpinions',
+    'Look up recent Substack and podcast opinions about one stock from Drip. Pass an Oren ticker, asset id, or xStock symbol such as TSLAx; the server maps xStocks to the underlying equity ticker. Returns a short cited list (author, source, date, stance, action, quote, link) plus a stance summary. These are opinions, not facts or financial advice. If the result is unavailable, say opinions could not be fetched and continue without inventing quotes.',
+    {
+      assetIdOrTicker: stringSchema,
+      limit: nullableNumberSchema,
+    },
+  ),
+  tool(
+    'getDripPicks',
+    'Get the latest Drip stock-pick feed from Substack writers and podcasters. Use when the user asks what writers are picking, what the desk is saying, or wants fresh ideas before a trade. Returns a short cited list. These are opinions, not facts or financial advice. If the result is unavailable, say the feed could not be fetched and continue.',
+    {
+      limit: nullableNumberSchema,
     },
   ),
 ];
@@ -636,6 +685,17 @@ function requiredNumber(input: Record<string, unknown>, key: string): number {
     throw new BadRequestException(`${key} is required`);
   }
   return value;
+}
+
+function clampLimit(
+  value: number | undefined,
+  fallback: number,
+  max: number,
+): number {
+  if (value === undefined || !Number.isFinite(value)) return fallback;
+  const floored = Math.floor(value);
+  if (floored < 1) return fallback;
+  return Math.min(max, floored);
 }
 
 function optionalString(

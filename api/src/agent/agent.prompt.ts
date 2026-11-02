@@ -40,3 +40,13 @@ Vault:
 - If the user asks to lock or unlock assets, explain that Vault UI is available as a preview at /vault, and that signing stays disabled until the program is deployed.
 - Never prepare vault transactions. Money-moving vault actions stay user-reviewed later when the program is live.
 `.trim();
+
+export const DRIP_AGENT_GUIDANCE = `
+Drip writer and podcast opinions:
+- When the user asks about a stock, what people are saying, a writer, a podcast, or whether to buy, sell, or set a limit, call getDripOpinions for that stock before you answer. Call getDripPicks when they ask what writers are picking or want fresh ideas.
+- Pass the ticker, asset id, or xStock symbol the user used, such as TSLAx. The tool maps xStocks to the underlying equity ticker.
+- Cite each opinion with its author, source, date, and link. Keep quotes short.
+- Treat every item as a Substack writer's or podcaster's opinion. Sentiment is a stance label. Read action beside it, because an EXIT can be a closed position.
+- These opinions are not prices, news, Oren signals, or financial advice. Do not tell the user to buy or sell because a writer did.
+- If a tool returns available: false, say writer and podcast opinions could not be fetched and continue with Oren's data. Do not invent authors, quotes, stances, or links.
+`.trim();

@@ -1,4 +1,10 @@
-import { BadRequestException, Inject, Injectable, Logger } from '@nestjs/common';
+import {
+  BadRequestException,
+  Inject,
+  Injectable,
+  Logger,
+  Optional,
+} from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import type {
   AgentArtifact,
@@ -10,6 +16,8 @@ import type {
   AgentThreadMessagesResponse,
   AgentToolActivity,
 } from '../../types/agent';
+import type { AgentToolContext } from './tools/agent-tool.registry';
+import { PrivyWalletAuth } from '../auth/privy-wallet-auth';
 import { AgentUnavailableError } from '../common/errors/provider.errors';
 import { APP_ENV } from '../config/constants';
 import type { AppEnv } from '../config/env.schema';
@@ -36,14 +44,26 @@ export class AgentService {
     private readonly portfolioService: PortfolioService,
     @Inject(APP_ENV) private readonly env: AppEnv,
     @Inject(OPENAI_CLIENT) private readonly openai: OpenAIClient,
+    @Optional() private readonly auth?: PrivyWalletAuth,
   ) {}
 
-  async message(body: AgentChatRequest): Promise<AgentChatResponse> {
+  async message(
+    body: AgentChatRequest,
+    authorization?: string,
+  ): Promise<AgentChatResponse> {
     const events: AgentStreamEvent[] = [];
-    let completed: Extract<AgentStreamEvent, { type: 'turn_completed' }> | null = null;
-    let failed: Extract<AgentStreamEvent, { type: 'turn_failed' }> | null = null;
+    let completed: Extract<
+      AgentStreamEvent,
+      { type: 'turn_completed' }
+    > | null = null;
+    let failed: Extract<AgentStreamEvent, { type: 'turn_failed' }> | null =
+      null;
 
-    for await (const event of this.streamMessage(body)) {
+    for await (const event of this.streamMessage(
+      body,
+      undefined,
+      authorization,
+    )) {
       if (event.type !== 'assistant_delta') events.push(event);
       if (event.type === 'turn_completed') completed = event;
       if (event.type === 'turn_failed') failed = event;
@@ -66,6 +86,7 @@ export class AgentService {
   async *streamMessage(
     body: AgentChatRequest,
     signal?: AbortSignal,
+    authorization?: string,
   ): AsyncGenerator<AgentStreamEvent> {
     const turnId = randomUUID();
     let sequence = 0;
@@ -110,6 +131,7 @@ export class AgentService {
       const activities: AgentToolActivity[] = [];
       let assistantContent = '';
       const portfolioContext = await this.loadPortfolioContext(walletAddress);
+      const caller = await this.callerFor(walletAddress, authorization);
 
       for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
         throwIfAborted(signal);
@@ -120,9 +142,10 @@ export class AgentService {
               walletAddress,
               body.context,
               portfolioContext,
+              { includeDrip: this.tools.dripEnabledFor(caller) },
             ),
             input,
-            tools: this.tools.getSchemas() as never,
+            tools: this.tools.getSchemas(caller) as never,
             tool_choice: 'auto',
             stream: true,
           } as never,
@@ -152,13 +175,18 @@ export class AgentService {
             isRecord(event.response)
           ) {
             completedResponse = event.response;
-          } else if (event.type === 'response.failed' || event.type === 'error') {
+          } else if (
+            event.type === 'response.failed' ||
+            event.type === 'error'
+          ) {
             throw new AgentUnavailableError(extractStreamError(event));
           }
         }
 
         if (!completedResponse) {
-          throw new AgentUnavailableError('The model stream ended unexpectedly');
+          throw new AgentUnavailableError(
+            'The model stream ended unexpectedly',
+          );
         }
 
         const output = Array.isArray(completedResponse.output)
@@ -227,9 +255,7 @@ export class AgentService {
 
           try {
             const args = parseArguments(call.arguments);
-            const result = await this.tools.dispatch(toolName, args, {
-              walletAddress,
-            });
+            const result = await this.tools.dispatch(toolName, args, caller);
             await this.repository.insertMessage({
               threadId: thread.id,
               role: 'tool',
@@ -251,7 +277,8 @@ export class AgentService {
             };
             input.push(functionOutput(call, result.output));
           } catch (error) {
-            const message = error instanceof Error ? error.message : String(error);
+            const message =
+              error instanceof Error ? error.message : String(error);
             await this.repository.insertMessage({
               threadId: thread.id,
               role: 'tool',
@@ -311,7 +338,10 @@ export class AgentService {
         sequence: sequence++,
         timestamp: timestamp(),
         error: {
-          code: error instanceof BadRequestException ? 'bad_request' : 'agent_error',
+          code:
+            error instanceof BadRequestException
+              ? 'bad_request'
+              : 'agent_error',
           message,
           retryable: !(error instanceof BadRequestException),
         },
@@ -325,7 +355,10 @@ export class AgentService {
   ): Promise<AgentThreadMessagesResponse> {
     const wallet = assertNonEmpty(walletAddress, 'walletAddress');
     const thread = await this.loadThread(threadId, wallet);
-    const messages = await this.repository.listMessages(thread.id, HISTORY_LIMIT);
+    const messages = await this.repository.listMessages(
+      thread.id,
+      HISTORY_LIMIT,
+    );
     return { thread, messages: toDisplayHistory(messages) };
   }
 
@@ -333,17 +366,33 @@ export class AgentService {
     const thread = await this.repository.getThread(id);
     if (!thread) throw new BadRequestException('threadId not found');
     if (thread.walletAddress !== walletAddress) {
-      throw new BadRequestException('threadId does not belong to walletAddress');
+      throw new BadRequestException(
+        'threadId does not belong to walletAddress',
+      );
     }
     return thread;
   }
 
-  private saveAssistantMessage(threadId: string, content: string): Promise<AgentMessage> {
+  private saveAssistantMessage(
+    threadId: string,
+    content: string,
+  ): Promise<AgentMessage> {
     return this.repository.insertMessage({
       threadId,
       role: 'assistant',
       content,
     });
+  }
+
+  private async callerFor(
+    walletAddress: string,
+    authorization?: string,
+  ): Promise<AgentToolContext> {
+    const caller: AgentToolContext = { walletAddress };
+    const identity = await this.auth?.tryIdentify(authorization);
+    if (identity?.userId) caller.userId = identity.userId;
+    if (identity?.email) caller.email = identity.email;
+    return caller;
   }
 
   private async loadPortfolioContext(walletAddress: string) {
@@ -378,11 +427,15 @@ function findUnansweredUser(
 
 function messagesToInput(messages: AgentMessage[]): ResponseInput {
   return messages
-    .filter((message) => message.role === 'user' || message.role === 'assistant')
+    .filter(
+      (message) => message.role === 'user' || message.role === 'assistant',
+    )
     .map((message) => ({ role: message.role, content: message.content }));
 }
 
-function isFunctionCall(item: ResponseOutputItem): item is ResponseOutputItem & {
+function isFunctionCall(
+  item: ResponseOutputItem,
+): item is ResponseOutputItem & {
   name: string;
   call_id: string;
   arguments?: string;
@@ -427,7 +480,8 @@ function extractAssistantText(
 
 function missingStreamedSuffix(fullText: string, streamedText: string): string {
   if (!fullText || fullText === streamedText) return '';
-  if (fullText.startsWith(streamedText)) return fullText.slice(streamedText.length);
+  if (fullText.startsWith(streamedText))
+    return fullText.slice(streamedText.length);
   return streamedText ? '' : fullText;
 }
 
@@ -441,7 +495,9 @@ function toDisplayMessage(
     role: message.role === 'assistant' ? 'assistant' : 'user',
     content: message.content,
     createdAt: message.createdAt,
-    activities: activities?.length ? activities.map((item) => ({ ...item })) : undefined,
+    activities: activities?.length
+      ? activities.map((item) => ({ ...item }))
+      : undefined,
     artifacts: artifacts?.length ? artifacts : undefined,
   };
 }
@@ -490,23 +546,40 @@ function artifactFromToolOutput(
   data: unknown,
 ): AgentArtifact | undefined {
   switch (toolName) {
-    case 'getPortfolio': return { type: 'portfolio', data: data as never };
-    case 'getTradingCalendar': return { type: 'trading_calendar', data: data as never };
-    case 'getTradingCalendarDay': return { type: 'trading_calendar_day', data: data as never };
-    case 'getStock': return { type: 'stock', data: data as never };
-    case 'getBitgetMarketContext': return { type: 'bitget_market', data: data as never };
-    case 'analyzeStock': return { type: 'analysis', data: data as never };
-    case 'findOpportunities': return { type: 'opportunities', data: data as never };
-    case 'getSwapQuote': return { type: 'quote', data: data as never };
-    case 'proposeLimitOrder': return { type: 'limit_order', data: data as never };
-    case 'getLimitOrders': return { type: 'limit_orders', data: data as never };
-    case 'createBasket': return { type: 'basket', data: data as never };
-    case 'prepareSwap': return { type: 'prepared_swap', data: data as never };
-    case 'prepareBasketPurchase': return { type: 'prepared_basket', data: data as never };
-    case 'prepareLock': return { type: 'prepared_lock', data: data as never };
-    case 'prepareUnlock': return { type: 'prepared_unlock', data: data as never };
-    case 'getVaults': return { type: 'vaults', data: data as never };
-    default: return undefined;
+    case 'getPortfolio':
+      return { type: 'portfolio', data: data as never };
+    case 'getTradingCalendar':
+      return { type: 'trading_calendar', data: data as never };
+    case 'getTradingCalendarDay':
+      return { type: 'trading_calendar_day', data: data as never };
+    case 'getStock':
+      return { type: 'stock', data: data as never };
+    case 'getBitgetMarketContext':
+      return { type: 'bitget_market', data: data as never };
+    case 'analyzeStock':
+      return { type: 'analysis', data: data as never };
+    case 'findOpportunities':
+      return { type: 'opportunities', data: data as never };
+    case 'getSwapQuote':
+      return { type: 'quote', data: data as never };
+    case 'proposeLimitOrder':
+      return { type: 'limit_order', data: data as never };
+    case 'getLimitOrders':
+      return { type: 'limit_orders', data: data as never };
+    case 'createBasket':
+      return { type: 'basket', data: data as never };
+    case 'prepareSwap':
+      return { type: 'prepared_swap', data: data as never };
+    case 'prepareBasketPurchase':
+      return { type: 'prepared_basket', data: data as never };
+    case 'prepareLock':
+      return { type: 'prepared_lock', data: data as never };
+    case 'prepareUnlock':
+      return { type: 'prepared_unlock', data: data as never };
+    case 'getVaults':
+      return { type: 'vaults', data: data as never };
+    default:
+      return undefined;
   }
 }
 

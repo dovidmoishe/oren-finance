@@ -3,6 +3,7 @@ import {
   Body,
   Controller,
   Get,
+  Headers,
   Param,
   Post,
   Query,
@@ -76,8 +77,11 @@ export class AgentController {
   constructor(private readonly agent: AgentService) {}
 
   @Post('message')
-  message(@Body() body: AgentMessageDto): Promise<PostAgentMessageResponse> {
-    return this.agent.message(body);
+  message(
+    @Body() body: AgentMessageDto,
+    @Headers('authorization') authorization?: string,
+  ): Promise<PostAgentMessageResponse> {
+    return this.agent.message(body, authorization);
   }
 
   @Post('message/stream')
@@ -108,6 +112,7 @@ export class AgentController {
       for await (const event of this.agent.streamMessage(
         body,
         abortController.signal,
+        request.headers.authorization,
       )) {
         if (response.writableEnded || response.destroyed) break;
         response.write(`data: ${JSON.stringify(event)}\n\n`);

@@ -113,6 +113,9 @@ describe('AgentToolRegistry', () => {
         'getBitgetMarketContext',
       ]),
     );
+    expect(registry.getSchemas().map((schema) => schema.name)).not.toEqual(
+      expect.arrayContaining(['getDripOpinions', 'getDripPicks']),
+    );
 
     expect(registry.getSchemas().map((schema) => schema.name)).not.toEqual(
       expect.arrayContaining([
@@ -446,5 +449,85 @@ describe('AgentToolRegistry', () => {
     await expect(registry.dispatch('notReal', {})).rejects.toBeInstanceOf(
       BadRequestException,
     );
+  });
+
+  it('hides Drip tools from callers who are not allowlisted', async () => {
+    await expect(
+      registry.dispatch(
+        'getDripOpinions',
+        { assetIdOrTicker: 'NVDA', limit: null },
+        { walletAddress: 'wallet-1' },
+      ),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+});
+
+describe('AgentToolRegistry Drip gating', () => {
+  const drip = {
+    enabledFor: jest.fn(),
+    getOpinions: jest.fn(),
+    getPicks: jest.fn(),
+  };
+  const registry = new AgentToolRegistry(
+    {} as never,
+    {} as never,
+    {} as never,
+    {} as never,
+    {} as never,
+    {} as never,
+    {} as never,
+    {} as never,
+    {} as never,
+    drip as never,
+  );
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('omits the tools until the caller is allowlisted', () => {
+    drip.enabledFor.mockReturnValue(false);
+    expect(
+      registry
+        .getSchemas({ walletAddress: 'other' })
+        .map((schema) => schema.name),
+    ).not.toContain('getDripOpinions');
+
+    drip.enabledFor.mockReturnValue(true);
+    const names = registry
+      .getSchemas({ userId: 'did:privy:owner' })
+      .map((schema) => schema.name);
+    expect(names).toEqual(
+      expect.arrayContaining(['getDripOpinions', 'getDripPicks']),
+    );
+    const opinions = registry
+      .getSchemas()
+      .find((schema) => schema.name === 'getDripOpinions');
+    expect(opinions?.description).toContain('not facts or financial advice');
+    expect(opinions?.description).toContain('TSLAx');
+  });
+
+  it('clamps the opinion count and returns the Drip payload', async () => {
+    drip.enabledFor.mockReturnValue(true);
+    drip.getOpinions.mockResolvedValue({ available: true, opinions: [] });
+    drip.getPicks.mockResolvedValue({ available: false, reason: 'DRIP_UNSET' });
+
+    await registry.dispatch(
+      'getDripOpinions',
+      { assetIdOrTicker: 'TSLAx', limit: 100 },
+      { walletAddress: 'wallet-owner' },
+    );
+    expect(drip.getOpinions).toHaveBeenCalledWith('TSLAx', 12);
+
+    await expect(
+      registry.dispatch(
+        'getDripPicks',
+        { limit: null },
+        { email: 'owner@example.com' },
+      ),
+    ).resolves.toEqual({
+      output: { available: false, reason: 'DRIP_UNSET' },
+    });
+    expect(drip.getPicks).toHaveBeenCalledWith(8);
   });
 });

@@ -3,9 +3,11 @@ import type {
   AgentPortfolioContext,
 } from '../../types/agent';
 import type { Portfolio } from '../../types/portfolio';
-import { OREN_AGENT_PROMPT } from './agent.prompt';
+import { DRIP_AGENT_GUIDANCE, OREN_AGENT_PROMPT } from './agent.prompt';
 
-export function portfolioToContext(portfolio: Portfolio): AgentPortfolioContext {
+export function portfolioToContext(
+  portfolio: Portfolio,
+): AgentPortfolioContext {
   return {
     totalValueUsd: portfolio.totalValueUsd,
     availableValueUsd: portfolio.availableValueUsd,
@@ -30,8 +32,11 @@ export function buildInstructions(
   walletAddress: string,
   context?: AgentPageContext,
   portfolio?: AgentPortfolioContext,
+  options?: { includeDrip?: boolean },
 ): string {
-  const sections = [OREN_AGENT_PROMPT, walletSection(walletAddress)];
+  const sections = [OREN_AGENT_PROMPT];
+  if (options?.includeDrip) sections.push(DRIP_AGENT_GUIDANCE);
+  sections.push(walletSection(walletAddress));
 
   if (portfolio) {
     sections.push(portfolioSection(portfolio));
