@@ -44,6 +44,7 @@ import {
   type WalletSelection,
 } from "@/services/wallet-selection";
 import { AuthContext } from "./auth-context";
+import { setAgentTokenProvider } from "@/services/agent-service";
 import { EmailLogin } from "./email-login";
 import { WalletModalContext } from "./wallet-modal-context";
 
@@ -77,6 +78,10 @@ function clearWalletData() {
 
 export function PrivySession({ children }: { children: React.ReactNode }) {
   const { ready, authenticated, user, logout, getAccessToken } = usePrivy();
+  useEffect(() => {
+    setAgentTokenProvider(authenticated ? getAccessToken : undefined);
+    return () => setAgentTokenProvider(undefined);
+  }, [authenticated, getAccessToken]);
   const { generateAuthorizationSignature } = useAuthorizationSignature();
   const { addSigners, removeSigners } = useSigners();
   const pathname = usePathname();

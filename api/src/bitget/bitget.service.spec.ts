@@ -13,6 +13,12 @@ const env: AppEnv = {
   OPENAI_MODEL: 'test',
   BITGET_API_BASE_URL: 'https://api.bitget.test',
   BITGET_REQUEST_TIMEOUT_MS: 1800,
+  DRIP_ENABLED: false,
+  DRIP_PUBLIC_RESEARCH_ENABLED: false,
+  DRIP_API_BASE_URL: 'https://dripstack.com',
+  DRIP_ALLOWED_USER_IDS: [],
+  DRIP_ALLOWED_EMAILS: [],
+  DRIP_REQUEST_TIMEOUT_MS: 12_000,
   VAULT_PROGRAM_ID: 'test',
   VAULT_PROGRAM_LIVE: false,
 };
