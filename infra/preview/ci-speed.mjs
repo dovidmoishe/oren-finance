@@ -1,5 +1,5 @@
 import {execFile} from 'node:child_process';
-import {promisify} from 'node:util';
+import {promisify, stripVTControlCharacters} from 'node:util';
 import {writeFileSync} from 'node:fs';
 import {pathToFileURL} from 'node:url';
 
@@ -12,6 +12,27 @@ export function summarize(values) {
 }
 const seconds = (start, end) => (Date.parse(end) - Date.parse(start)) / 1000;
 const repo = 'dovidmoishe/oren-finance';
+export function cacheEvidence(raw) {
+  const log = stripVTControlCharacters(raw);
+  const install = log.split('\n').find(line => /#\d+ \[dependencies [^\]]+\] RUN pnpm install --frozen-lockfile/.test(line));
+  const id = install?.match(/#(\d+)/)?.[1];
+  const hit = id ? log.split('\n').find(line => new RegExp(`#${id} CACHED\\s*$`).test(line)) : null;
+  return {materialized: /\bload: true\b/.test(log), dependencyCacheHit: id ? Boolean(hit) : null,
+    evidence: [install, hit].filter(Boolean)};
+}
+async function benchmarkJobs(id) {
+  const result = [];
+  for (const j of await jobs(id)) {
+    let evidence = {};
+    if (j.conclusion === 'success') {
+      const {stdout} = await exec('gh', ['api', `repos/${repo}/actions/jobs/${j.id}/logs`, '--allow-escape-sequences'], {maxBuffer: 16 * 1024 * 1024});
+      evidence = cacheEvidence(stdout);
+    }
+    result.push({name: j.name, seconds: seconds(j.started_at, j.completed_at), conclusion: j.conclusion, ...evidence,
+      steps: j.steps?.map(s => ({name: s.name, seconds: seconds(s.started_at, s.completed_at), conclusion: s.conclusion}))});
+  }
+  return result;
+}
 async function api(path) {
   const {stdout} = await exec('gh', ['api', `repos/${repo}/${path}`], {maxBuffer: 16 * 1024 * 1024});
   return JSON.parse(stdout);
@@ -92,8 +113,7 @@ export async function collect({limit = 10, since = '2026-11-01T00:00:00Z', until
     const benchmarks = await api('actions/workflows/benchmark-web-deps.yml/runs?per_page=20');
     for (const run of benchmarks.workflow_runs.filter(r => inWindow(r) && r.status === 'completed')) {
       result.benchmark.push({run: run.id, sha: run.head_sha, conclusion: run.conclusion,
-        jobs: (await jobs(run.id)).map(j => ({name: j.name, seconds: seconds(j.started_at, j.completed_at), conclusion: j.conclusion,
-          steps: j.steps?.map(s => ({name: s.name, seconds: seconds(s.started_at, s.completed_at), conclusion: s.conclusion}))}))});
+        jobs: await benchmarkJobs(run.id)});
     }
   } catch (error) {
     if (!String(error.stderr).includes('404')) throw error;
