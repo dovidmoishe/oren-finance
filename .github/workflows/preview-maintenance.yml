@@ -33,6 +33,7 @@ jobs:
       pull-requests: read
       deployments: write
       statuses: write
+      actions: write
     env:
       VPS_HOST: ${{ secrets.VPS_HOST }}
       VPS_USER: ${{ secrets.VPS_USER }}
@@ -77,4 +78,23 @@ jobs:
               for (const deployment of deployments) await github.rest.repos.createDeploymentStatus({...context.repo, deployment_id: deployment.id, state: 'inactive'});
               const {data: pr} = await github.rest.pulls.get({...context.repo, pull_number: Number(number)});
               if (pr.state === 'open' && pr.head.sha === sha) await github.rest.repos.createCommitStatus({...context.repo, sha, context: 'Preview ready', state: 'failure', description: 'Preview removed or expired; rerun PR preview to recreate'});
+            }
+      - name: Cancel preview run for closed PR
+        if: always() && github.event_name == 'pull_request_target'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const sha = context.payload.pull_request.head.sha;
+            const statuses = await github.paginate(github.rest.repos.listCommitStatusesForRef, {...context.repo, ref: sha, per_page: 100});
+            const status = statuses.find(item => item.context === 'Preview ready');
+            const prefix = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/`;
+            if (status?.state !== 'pending' || !status.target_url?.startsWith(prefix)) return;
+            const runId = Number(status.target_url.slice(prefix.length));
+            if (!Number.isSafeInteger(runId) || runId < 1) return;
+            const {data: run} = await github.rest.actions.getWorkflowRun({...context.repo, run_id: runId});
+            if (run.name !== 'PR preview' || run.path !== '.github/workflows/preview.yml' || run.status === 'completed') return;
+            try {
+              await github.rest.actions.cancelWorkflowRun({...context.repo, run_id: runId});
+            } catch (error) {
+              if (error.status !== 409) throw error;
             }
