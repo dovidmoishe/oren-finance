@@ -152,10 +152,13 @@ function isDisclaimer(text: string): boolean {
 function cleanDetails(body: string): string | undefined {
   const cleaned = body
     .replace(/[\u200B-\u200D\uFEFF]/g, "")
+    .replace(/\u2028|\u2029/g, "\n")
     .replace(/\(the tool's details, unchanged\)/gi, "")
-    .trim();
-  if (!/[\p{L}\p{N}]/u.test(cleaned)) return undefined;
-  return cleaned;
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => /[\p{L}\p{N}]/u.test(line))
+    .join("\n");
+  return cleaned || undefined;
 }
 
 function isEmpty(block: AgentBlock): boolean {

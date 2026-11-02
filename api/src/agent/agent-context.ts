@@ -36,6 +36,10 @@ export function buildInstructions(
 ): string {
   const sections = [OREN_AGENT_PROMPT];
   if (options?.includeDrip) sections.push(DRIP_AGENT_GUIDANCE);
+  else
+    sections.push(
+      'Writer opinions are not available on this turn. If the user asks what people or writers are saying, say that plainly. Do not answer from the news feed or from Oren technical analysis and present it as those opinions, Drip, or Drip Stack.',
+    );
   sections.push(walletSection(walletAddress));
 
   if (portfolio) {
