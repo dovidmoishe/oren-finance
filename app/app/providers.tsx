@@ -138,6 +138,13 @@ function DeferredPrivy({
 }) {
   const [session, setSession] = useState<PublishedSession>();
   const [loading] = useState(createLoadingSession);
+  const [restoreTimedOut, setRestoreTimedOut] = useState(false);
+
+  useEffect(() => {
+    if (session?.auth.ready) return;
+    const timer = window.setTimeout(() => setRestoreTimedOut(true), 15_000);
+    return () => window.clearTimeout(timer);
+  }, [session?.auth.ready]);
 
   useEffect(() => {
     if (session) loading.replay(session);
@@ -146,6 +153,17 @@ function DeferredPrivy({
   const current = session ?? loading;
   return (
     <>
+      {restoreTimedOut && !current.auth.ready ? (
+        <div
+          className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950"
+          role="alert"
+        >
+          <span>Sign-in could not finish loading. Reload this page or ask the team to check this preview&apos;s login setup.</span>
+          <button className="font-semibold underline" onClick={() => window.location.reload()} type="button">
+            Reload
+          </button>
+        </div>
+      ) : null}
       <AuthContext.Provider value={current.auth}>
         <WalletContext.Provider value={current.wallet}>
           <WalletModalContext.Provider value={current.modal}>
