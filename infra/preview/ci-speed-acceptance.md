@@ -40,6 +40,12 @@ Post-change acceptance is pending until these future merges and real previews
 exist. Unit tests, synthetic reruns and dependency-only benchmarks cannot establish
 PR-to-preview or merge-to-healthy speedups.
 
+After merge, `CI speed evidence` automatically saves a 90-day JSON artifact after
+preview, production or benchmark completion. It uses trusted workflow code and
+read-only permissions. The job summary separates serial/parallel web previews and
+serial/overlapped production, and marks cohorts below five samples as pending.
+Retain the committed baseline snapshot; the rolling API window is not an archive.
+
 ## Web dependency cache experiment
 
 `Benchmark web dependency cache` runs automatically when its workflow changes in a
