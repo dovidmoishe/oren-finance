@@ -18,7 +18,7 @@ services:
       timeout: 5s
       retries: 20
       start_period: 10s
-    networks: [oren]
+    networks: [oren, signer-db]
 
   api-migrate:
     image: ghcr.io/${GHCR_OWNER:?set GHCR_OWNER in .release.env}/oren-api:${IMAGE_TAG:?set IMAGE_TAG in .release.env}
@@ -36,7 +36,8 @@ services:
       COMMIT_SHA: ${IMAGE_TAG}
     image: ghcr.io/${GHCR_OWNER:?set GHCR_OWNER in .release.env}/oren-api:${IMAGE_TAG:?set IMAGE_TAG in .release.env}
     restart: unless-stopped
-    env_file: .env
+    # Separate runtime credentials: .env retains the migration/admin database URL.
+    env_file: .env.api
     depends_on:
       db:
         condition: service_healthy
@@ -48,7 +49,31 @@ services:
       timeout: 5s
       retries: 8
       start_period: 20s
-    networks: [oren]
+    networks: [oren, signer-api, signer-db]
+
+  signer-gate:
+    profiles: [delegated-trades]
+    image: ghcr.io/${GHCR_OWNER:?set GHCR_OWNER in .release.env}/oren-api:${IMAGE_TAG:?set IMAGE_TAG in .release.env}
+    command: ["node", "dist/src/signer-gate/main"]
+    restart: unless-stopped
+    env_file:
+      - path: .env.signer-gate
+        required: false
+    environment:
+      DEPLOYMENT_ENV: production
+      SIGNER_GATE_ENABLED: ${SIGNER_GATE_ENABLED:-false}
+    depends_on:
+      db:
+        condition: service_healthy
+      api-migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:3001/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))\""]
+      interval: 15s
+      timeout: 5s
+      retries: 8
+      start_period: 20s
+    networks: [signer-db, signer-api, signer-egress]
 
   app:
     image: ghcr.io/${GHCR_OWNER:?set GHCR_OWNER in .release.env}/oren-app:${IMAGE_TAG:?set IMAGE_TAG in .release.env}
@@ -109,6 +134,12 @@ networks:
   preview-edge:
     external: true
   oren:
+    driver: bridge
+  signer-db:
+    internal: true
+  signer-api:
+    internal: true
+  signer-egress:
     driver: bridge
 
 volumes:

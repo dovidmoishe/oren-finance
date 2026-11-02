@@ -34,6 +34,19 @@ jobs:
           sudo touch /opt/oren/preview/provider.env /opt/oren/preview/access.env /opt/oren/preview/stacks/pr-42/oauth.env
           docker compose -f infra/preview/compose.yml config --quiet
           docker compose -f infra/preview/access.compose.yml config --quiet
+      - name: Validate production signer-gate Compose profile
+        env:
+          GHCR_OWNER: example
+          IMAGE_TAG: test-image
+          POSTGRES_USER: oren_test
+          POSTGRES_PASSWORD: test-password
+          POSTGRES_DB: oren_mcp_test
+          DOMAIN: production.example.com
+          API_DOMAIN: api.production.example.com
+        run: |
+          printf 'POSTGRES_URL=postgres://oren_test:test-password@db:5432/oren_mcp_test\n' > .env
+          printf 'POSTGRES_URL=postgres://oren_test:test-password@db:5432/oren_mcp_test\n' > .env.api
+          docker compose --profile delegated-trades -f deploy.yml config --quiet
       - name: Verify two disposable preview databases are isolated
         run: bash infra/preview/isolation.sh
       - name: Validate Caddy with a generated preview route
@@ -80,6 +93,7 @@ jobs:
       - run: pnpm run test:mcp:guard
       - run: pnpm run test:approval:crypto
       - run: pnpm build
+      - run: pnpm run test:mcp:gate
       - run: pnpm run test:mcp:registration
 
   app:
