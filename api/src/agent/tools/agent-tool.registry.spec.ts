@@ -202,22 +202,25 @@ describe('AgentToolRegistry', () => {
       opportunityScore: 90,
     });
 
-    await expect(
-      registry.dispatch('analyzeStock', { assetIdOrTicker: 'NVDA' }),
-    ).resolves.toEqual({
-      output: {
+    const result = await registry.dispatch('analyzeStock', {
+      assetIdOrTicker: 'NVDA',
+    });
+    expect(result.output).toEqual({
+      assetId: 'nvda',
+      ticker: 'NVDA',
+      opportunityScore: 90,
+    });
+    expect(result.artifact).toEqual({
+      type: 'analysis',
+      data: {
         assetId: 'nvda',
         ticker: 'NVDA',
         opportunityScore: 90,
       },
-      artifact: {
-        type: 'analysis',
-        data: {
-          assetId: 'nvda',
-          ticker: 'NVDA',
-          opportunityScore: 90,
-        },
-      },
+    });
+    expect(result.modelOutput).toMatchObject({
+      ticker: 'NVDA',
+      speak: { lead: expect.stringContaining('NVDA') as string },
     });
   });
 
@@ -517,18 +520,19 @@ describe('AgentToolRegistry Drip gating', () => {
       { assetIdOrTicker: 'TSLAx', limit: 100 },
       { walletAddress: 'wallet-owner' },
     );
-    expect(drip.getOpinions).toHaveBeenCalledWith('TSLAx', 12, {
+    expect(drip.getOpinions).toHaveBeenCalledWith('TSLAx', 40, {
       walletAddress: 'wallet-owner',
     });
 
-    await expect(
-      registry.dispatch(
-        'getDripPicks',
-        { limit: null },
-        { email: 'owner@example.com' },
-      ),
-    ).resolves.toEqual({
-      output: { available: false, reason: 'DRIP_UNSET' },
+    const picks = await registry.dispatch(
+      'getDripPicks',
+      { limit: null },
+      { email: 'owner@example.com' },
+    );
+    expect(picks.output).toEqual({ available: false, reason: 'DRIP_UNSET' });
+    expect(picks.modelOutput).toMatchObject({
+      available: false,
+      reason: 'DRIP_UNSET',
     });
     expect(drip.getPicks).toHaveBeenCalledWith(8, {
       email: 'owner@example.com',

@@ -59,7 +59,7 @@ it('keeps deterministic research and portfolio context when Drip fails', async (
     data: { allocationPercent: 10 },
   });
   expect(report.opinions).toMatchObject({ available: false });
-  expect(drip.getOpinions).toHaveBeenCalledWith('NVDA', 12, {
+  expect(drip.getOpinions).toHaveBeenCalledWith('NVDA', 40, {
     userId: 'did:privy:user',
     walletAddress: 'owned',
   });

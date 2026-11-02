@@ -12,6 +12,8 @@ export interface ResearchSource<T> {
 export interface ResearchOpinion {
   author: string;
   source: string;
+  sourceLabel?: string;
+  linkLabel?: string;
   date: string;
   url: string;
   stance?: 'BULLISH' | 'BEARISH' | 'NEUTRAL';
