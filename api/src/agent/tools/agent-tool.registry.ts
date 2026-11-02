@@ -17,10 +17,10 @@ import type { DripCaller } from '../../drip/drip-access';
 import { DripService } from '../../drip/drip.service';
 import { ResearchService } from '../../research/research.service';
 import {
-  DRIP_OPINION_RETURN_DEFAULT,
   DRIP_OPINION_RETURN_MAX,
   DRIP_PICKS_RETURN_DEFAULT,
   DRIP_PICKS_RETURN_MAX,
+  type DripOpinionFilter,
 } from '../../drip/drip.types';
 import {
   analysisModelOutput,
@@ -416,15 +416,24 @@ export class AgentToolRegistry {
 
       case 'getDripOpinions': {
         const drip = this.dripFor(context, name);
-        const opinions = await drip.getOpinions(
-          required(input, 'assetIdOrTicker'),
-          clampLimit(
-            optionalNumber(input, 'limit'),
-            DRIP_OPINION_RETURN_DEFAULT,
-            DRIP_OPINION_RETURN_MAX,
-          ),
-          context,
+        const filter = opinionFilter(input);
+        const limit = clampLimit(
+          optionalNumber(input, 'limit'),
+          DRIP_OPINION_RETURN_MAX,
+          DRIP_OPINION_RETURN_MAX,
         );
+        const opinions = filter
+          ? await drip.getOpinions(
+              required(input, 'assetIdOrTicker'),
+              limit,
+              context,
+              filter,
+            )
+          : await drip.getOpinions(
+              required(input, 'assetIdOrTicker'),
+              limit,
+              context,
+            );
         return {
           output: opinions,
           modelOutput: dripOpinionsModelOutput(opinions),
@@ -658,10 +667,16 @@ const TOOL_SCHEMAS: ToolDefinition[] = [
 const DRIP_TOOL_SCHEMAS: ToolDefinition[] = [
   tool(
     'getDripOpinions',
-    'Look up recent writer opinions about one stock from Drip. Sources can be X posts, Substack, podcasts, or other posts — use each item source label, and do not call the feed Substack or podcast opinions. Pass an Oren ticker, asset id, or xStock symbol such as TSLAx. Returns a plain summary whose counts cover the deduped window, plus a few linked highlights. These are opinions, not facts or financial advice. If the result is unavailable, say opinions could not be fetched and continue without inventing quotes.',
+    'Look up recent writer opinions about one stock from Drip. Pass stance BEARISH or BULLISH, author, or action to filter; omit them for the whole window. Each returned item includes the writer, source label, date, quote or summary, and link — use those texts to explain themes or list posts. Do not ask permission before calling. Sources can be X posts, newsletters, articles, Substack, or podcasts; use each item source label, and do not call the feed Substack or podcast opinions. Pass an Oren ticker, asset id, or xStock symbol such as TSLAx. Counts cover the deduped window (or the filter). These are opinions, not facts or financial advice. If the result is unavailable, say opinions could not be fetched and continue without inventing quotes.',
     {
       assetIdOrTicker: stringSchema,
       limit: nullableNumberSchema,
+      stance: {
+        type: ['string', 'null'],
+        enum: ['BULLISH', 'BEARISH', 'NEUTRAL', null],
+      },
+      author: nullableStringSchema,
+      action: nullableStringSchema,
     },
   ),
   tool(
@@ -745,6 +760,21 @@ function clampLimit(
   const floored = Math.floor(value);
   if (floored < 1) return fallback;
   return Math.min(max, floored);
+}
+
+function opinionFilter(
+  input: Record<string, unknown>,
+): DripOpinionFilter | undefined {
+  const stance = optionalString(input, 'stance')?.toUpperCase();
+  const author = optionalString(input, 'author');
+  const action = optionalString(input, 'action');
+  const filter: DripOpinionFilter = {};
+  if (stance === 'BULLISH' || stance === 'BEARISH' || stance === 'NEUTRAL') {
+    filter.stance = stance;
+  }
+  if (author) filter.author = author;
+  if (action) filter.action = action;
+  return filter.stance || filter.author || filter.action ? filter : undefined;
 }
 
 function optionalString(

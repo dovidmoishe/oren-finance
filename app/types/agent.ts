@@ -3,22 +3,29 @@ import type {
   ExecutionPreparedTransaction,
   PreparedBasketPurchase,
   QuoteResponse,
-} from './execution';
+} from "./execution";
+import type { LimitOrderProposal, LimitOrderRecord } from "./limit-order";
+import type { PortfolioSummary } from "./portfolio";
+import type { StockAnalysis, StockDetail, StockSummary } from "./stock";
+import type { PreparedVaultTransaction, VaultPosition } from "./vault";
+import type { CopyPortfolioProposal } from "./social";
 import type {
-  LimitOrderProposal,
-  LimitOrderRecord,
-} from './limit-order';
-import type { PortfolioSummary } from './portfolio';
-import type { StockAnalysis, StockDetail, StockSummary } from './stock';
-import type { PreparedVaultTransaction, VaultPosition } from './vault';
-import type { CopyPortfolioProposal } from './social';
-import type { TradingCalendarDayResponse, TradingCalendarResponse } from './calendar';
-import type { BitgetMarketContext } from './bitget';
+  TradingCalendarDayResponse,
+  TradingCalendarResponse,
+} from "./calendar";
+import type { BitgetMarketContext } from "./bitget";
 
-export type AgentPage = 'dashboard' | 'calendar' | 'leaderboard' | 'markets' | 'stock' | 'vault' | 'activity';
-export type AgentArtifactDensity = 'inline' | 'chips' | 'rail';
-export type AgentRole = 'user' | 'assistant';
-export type AgentToolStatus = 'running' | 'completed' | 'failed';
+export type AgentPage =
+  | "dashboard"
+  | "calendar"
+  | "leaderboard"
+  | "markets"
+  | "stock"
+  | "vault"
+  | "activity";
+export type AgentArtifactDensity = "inline" | "chips" | "rail";
+export type AgentRole = "user" | "assistant";
+export type AgentToolStatus = "running" | "completed" | "failed";
 
 export interface AgentPortfolioPositionContext {
   assetId: string;
@@ -60,24 +67,24 @@ export interface AgentVaultSummary {
 }
 
 export type AgentArtifact =
-  | { type: 'research'; data: import('./research').StockResearch }
-  | { type: 'portfolio'; data: PortfolioSummary }
-  | { type: 'stock'; data: StockDetail }
-  | { type: 'bitget_market'; data: BitgetMarketContext }
-  | { type: 'analysis'; data: StockAnalysis }
-  | { type: 'opportunities'; data: StockSummary[] }
-  | { type: 'quote'; data: QuoteResponse }
-  | { type: 'limit_order'; data: LimitOrderProposal }
-  | { type: 'limit_orders'; data: LimitOrderRecord[] }
-  | { type: 'prepared_swap'; data: ExecutionPreparedTransaction }
-  | { type: 'basket'; data: BasketResponse }
-  | { type: 'prepared_basket'; data: PreparedBasketPurchase }
-  | { type: 'prepared_lock'; data: PreparedVaultTransaction }
-  | { type: 'prepared_unlock'; data: PreparedVaultTransaction }
-  | { type: 'copy_portfolio_proposal'; data: CopyPortfolioProposal }
-  | { type: 'trading_calendar'; data: TradingCalendarResponse }
-  | { type: 'trading_calendar_day'; data: TradingCalendarDayResponse }
-  | { type: 'vaults'; data: AgentVaultSummary };
+  | { type: "research"; data: import("./research").StockResearch }
+  | { type: "portfolio"; data: PortfolioSummary }
+  | { type: "stock"; data: StockDetail }
+  | { type: "bitget_market"; data: BitgetMarketContext }
+  | { type: "analysis"; data: StockAnalysis }
+  | { type: "opportunities"; data: StockSummary[] }
+  | { type: "quote"; data: QuoteResponse }
+  | { type: "limit_order"; data: LimitOrderProposal }
+  | { type: "limit_orders"; data: LimitOrderRecord[] }
+  | { type: "prepared_swap"; data: ExecutionPreparedTransaction }
+  | { type: "basket"; data: BasketResponse }
+  | { type: "prepared_basket"; data: PreparedBasketPurchase }
+  | { type: "prepared_lock"; data: PreparedVaultTransaction }
+  | { type: "prepared_unlock"; data: PreparedVaultTransaction }
+  | { type: "copy_portfolio_proposal"; data: CopyPortfolioProposal }
+  | { type: "trading_calendar"; data: TradingCalendarResponse }
+  | { type: "trading_calendar_day"; data: TradingCalendarDayResponse }
+  | { type: "vaults"; data: AgentVaultSummary };
 
 export interface AgentDisplayMessage {
   id: string;
@@ -128,35 +135,36 @@ interface AgentStreamEventBase {
 
 export type AgentStreamEvent =
   | (AgentStreamEventBase & {
-      type: 'turn_started';
+      type: "turn_started";
       threadId: string;
       message: AgentDisplayMessage;
     })
-  | (AgentStreamEventBase & { type: 'assistant_delta'; delta: string })
+  | (AgentStreamEventBase & { type: "assistant_delta"; delta: string })
+  | (AgentStreamEventBase & { type: "assistant_reset" })
   | (AgentStreamEventBase & {
-      type: 'tool_started';
+      type: "tool_started";
       callId: string;
       toolName: string;
     })
   | (AgentStreamEventBase & {
-      type: 'tool_completed';
+      type: "tool_completed";
       callId: string;
       toolName: string;
       artifact?: AgentArtifact;
     })
   | (AgentStreamEventBase & {
-      type: 'tool_failed';
+      type: "tool_failed";
       callId: string;
       toolName: string;
       error: string;
     })
   | (AgentStreamEventBase & {
-      type: 'turn_completed';
+      type: "turn_completed";
       threadId: string;
       message: AgentDisplayMessage;
       artifacts?: AgentArtifact[];
     })
   | (AgentStreamEventBase & {
-      type: 'turn_failed';
+      type: "turn_failed";
       error: { code: string; message: string; retryable: boolean };
     });

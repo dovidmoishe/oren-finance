@@ -153,6 +153,9 @@ export type AgentStreamEvent =
       delta: string;
     })
   | (AgentStreamEventBase & {
+      type: 'assistant_reset';
+    })
+  | (AgentStreamEventBase & {
       type: 'tool_started';
       callId: string;
       toolName: string;

@@ -23,6 +23,7 @@ import type {
   CachedDripOpinions,
   CachedDripPicks,
   DripFailureReason,
+  DripOpinionFilter,
   DripOpinionResult,
   DripPicksResult,
   DripUnavailable,
@@ -71,8 +72,6 @@ export class DripService {
       {
         enabled: this.env.DRIP_ENABLED,
         publicResearch: this.env.DRIP_PUBLIC_RESEARCH_ENABLED,
-        userIds: this.env.DRIP_ALLOWED_USER_IDS,
-        emails: this.env.DRIP_ALLOWED_EMAILS,
       },
       caller,
     );
@@ -82,6 +81,7 @@ export class DripService {
     queried: string,
     limit = DRIP_OPINION_RETURN_DEFAULT,
     caller?: DripCaller,
+    filter?: DripOpinionFilter,
   ): Promise<DripOpinionResult> {
     const bounded = clampLimit(
       limit,
@@ -107,7 +107,13 @@ export class DripService {
           return this.loadTicker(resolved.ticker);
         },
       );
-      return presentOpinions(cached, queried, resolved.mappedFrom, bounded);
+      return presentOpinions(
+        cached,
+        queried,
+        resolved.mappedFrom,
+        bounded,
+        filter,
+      );
     } catch (error) {
       this.logFailure('opinions', queried, error);
       return this.unavailable(reasonFor(error), queried);

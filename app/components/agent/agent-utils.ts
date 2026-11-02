@@ -20,7 +20,7 @@ export function promptSuggestions(context: AgentPageContext, ticker?: string): s
         `Research ${ticker ?? 'this stock'} with sources`,
         `Analyze ${ticker ?? 'this stock'} for me`,
         `What is the latest news on ${ticker ?? 'this stock'}?`,
-        `What are the main risks here?`,
+        `What are people saying about ${ticker ?? 'this stock'}?`,
       ];
     case 'calendar':
       return [

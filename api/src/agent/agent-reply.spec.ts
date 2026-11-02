@@ -1,5 +1,10 @@
 import type { DripOpinions } from '../drip/drip.types';
-import { dripOpinionsModelOutput } from './agent-reply';
+import { presentOpinions } from '../drip/drip.mapper';
+import {
+  dripOpinionsModelOutput,
+  priorDripToolNote,
+  stripEmptyDetailsFences,
+} from './agent-reply';
 import { plainTechnicalRead } from '../intelligence/ta/plain-read';
 import type { TechnicalBrief } from '../../types/analysis';
 
@@ -99,7 +104,164 @@ describe('agent reply shaping', () => {
     expect(shaped.speak.lead).toContain('sample');
     expect(shaped.countsNote).toContain('not every post');
   });
+
+  it('keeps quote text for a bearish filter instead of counts alone', () => {
+    const cached = {
+      ticker: 'SPCX',
+      truncated: false,
+      summary: {
+        calls: 4,
+        analysts: 4,
+        bullish: 2,
+        bearish: 2,
+        neutral: 0,
+        byAction: { OPINION: 3, EXIT: 1 },
+        bySource: { 'X post': 2, Newsletter: 1, Article: 1 },
+      },
+      opinions: [
+        spcx(
+          'optionscjp',
+          'BULLISH',
+          'ADD',
+          'X post',
+          'Adding into the breakout.',
+          'https://x.com/optionscjp/status/1',
+        ),
+        spcx(
+          'GrindeOptions',
+          'BULLISH',
+          'HOLD',
+          'X post',
+          'Still holding the core position.',
+          'https://x.com/GrindeOptions/status/2',
+        ),
+        spcx(
+          'Za',
+          'BEARISH',
+          'OPINION',
+          'Newsletter',
+          'Dilution is the real risk if the raise lands.',
+          'https://zastocks.com/spcx',
+        ),
+        spcx(
+          'Skeptic',
+          'BEARISH',
+          'EXIT',
+          'Article',
+          'I exited. The rollout keeps slipping.',
+          'https://example.com/spcx-exit',
+        ),
+      ],
+    };
+    const overview = dripOpinionsModelOutput(
+      presentOpinions(cached, 'SPCX', undefined, 40),
+    );
+    const bears = dripOpinionsModelOutput(
+      presentOpinions(cached, 'SPCX', undefined, 40, { stance: 'BEARISH' }),
+    );
+    if (!overview.available || !bears.available)
+      throw new Error('expected opinions');
+
+    expect(JSON.stringify(overview.items)).toContain(
+      'Dilution is the real risk',
+    );
+    expect(JSON.stringify(overview.items)).toContain(
+      'Adding into the breakout',
+    );
+    expect(overview.speak.bullets.join(' ')).toContain(
+      'Dilution is the real risk',
+    );
+    expect(bears.appliedFilter).toEqual({ stance: 'BEARISH' });
+    expect(bears.items).toHaveLength(2);
+    expect(bears.items.map((item) => item.author)).toEqual(['Za', 'Skeptic']);
+    expect(bears.items[0]).toMatchObject({
+      sourceLabel: 'Newsletter',
+      quote: 'Dilution is the real risk if the raise lands.',
+      url: 'https://zastocks.com/spcx',
+    });
+    expect(bears.speak.lead).toBe('2 negative recent writers on SPCX.');
+    expect(bears.speak.lead).not.toContain('31 of 40');
+    expect(bears.details).toContain('negative 2');
+  });
+
+  it('drops an empty details fence and keeps a fence that has numbers', () => {
+    expect(
+      stripEmptyDetailsFences(
+        'Mostly bullish.\n\n:::details\n\n:::\n\nReady for me to pull?',
+      ),
+    ).toBe('Mostly bullish.\n\nReady for me to pull?');
+    expect(
+      stripEmptyDetailsFences(
+        "Overview.\n\n:::details\n\u200b\n(the tool's details, unchanged)\n:::",
+      ),
+    ).toBe('Overview.');
+    expect(
+      stripEmptyDetailsFences(
+        'Overview.\n\n:::details\nPositive 31, negative 9.\n:::',
+      ),
+    ).toContain('negative 9');
+  });
+
+  it('replays stored opinion quotes without the canned lead', () => {
+    const note = priorDripToolNote([
+      {
+        role: 'tool',
+        toolName: 'getDripOpinions',
+        content: JSON.stringify({
+          available: true,
+          source: 'drip',
+          queried: 'SPCX',
+          ticker: 'SPCX',
+          truncated: false,
+          windowComplete: true,
+          summary: {
+            calls: 1,
+            analysts: 1,
+            bullish: 0,
+            bearish: 1,
+            neutral: 0,
+            byAction: { OPINION: 1 },
+          },
+          opinions: [
+            spcx(
+              'Za',
+              'BEARISH',
+              'OPINION',
+              'Newsletter',
+              'Dilution is the real risk.',
+              'https://zastocks.com/spcx',
+            ),
+          ],
+          disclaimer: 'Opinions, not facts, and not financial advice.',
+        }),
+      },
+    ]);
+    expect(note).toContain('Dilution is the real risk.');
+    expect(note).toContain('Do not ask permission');
+    expect(note).not.toContain('not financial advice');
+    expect(note).not.toContain('"speak"');
+  });
 });
+
+function spcx(
+  author: string,
+  stance: 'BULLISH' | 'BEARISH',
+  action: string,
+  sourceLabel: string,
+  quote: string,
+  url: string,
+) {
+  return {
+    author,
+    linkLabel: author,
+    sourceLabel,
+    stance,
+    action,
+    quote,
+    url,
+    date: '2026-10-30T00:00:00.000Z',
+  };
+}
 
 describe('plain technical sample', () => {
   it('keeps the Tesla stall read free of indicator names', () => {

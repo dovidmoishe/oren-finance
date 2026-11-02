@@ -20,6 +20,7 @@ const SOURCE_LABEL: Record<DripSourceKind, string> = {
   podcast: 'Podcast',
   newsletter: 'Newsletter',
   video: 'Video',
+  article: 'Article',
   other: 'Post',
 };
 
@@ -40,6 +41,7 @@ export function classifyDripSource(input: {
   const fromSlug = kindFromHost(hostOfSlug(input.slug));
   if (fromSlug) return fromSlug;
   if (input.guest) return 'podcast';
+  if (hostOf(input.url) || hostOfSlug(input.slug)) return 'article';
   return 'other';
 }
 
@@ -95,6 +97,9 @@ function kindFromHost(host: string | undefined): DripSourceKind | undefined {
     normalized === 'pca.st'
   ) {
     return 'podcast';
+  }
+  if (normalized === 'zastocks.com' || normalized.endsWith('.zastocks.com')) {
+    return 'newsletter';
   }
   return undefined;
 }

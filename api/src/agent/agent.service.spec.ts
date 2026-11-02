@@ -407,4 +407,251 @@ describe('AgentService', () => {
     expect(openai.responses.create).toHaveBeenCalledTimes(5);
     expect(result.message.content).toContain('tool limit');
   });
+
+  it('leaves tool choice on auto when the user sends a short agreement', async () => {
+    const prior = [
+      {
+        id: 'user-1',
+        threadId: 'thread-1',
+        role: 'user' as const,
+        content: 'What are people saying about SPCX?',
+        createdAt: new Date('2026-09-13T10:00:00Z'),
+      },
+      {
+        id: 'assistant-1',
+        threadId: 'thread-1',
+        role: 'assistant' as const,
+        content:
+          'I can pull the negative posts with quotes and links if you want them.',
+        createdAt: new Date('2026-09-13T10:00:01Z'),
+      },
+    ];
+    repository.listMessages.mockResolvedValueOnce(prior).mockResolvedValueOnce([
+      ...prior,
+      {
+        id: 'user-2',
+        threadId: 'thread-1',
+        role: 'user',
+        content: 'yh',
+        createdAt: new Date('2026-09-13T10:00:02Z'),
+      },
+    ]);
+    openai.responses.create.mockResolvedValue(
+      responseStream({
+        output_text: 'Here are the negative posts, with the points they made.',
+        output: [],
+      }),
+    );
+
+    for await (const event of service.streamMessage({
+      walletAddress: 'wallet-1',
+      threadId: 'thread-1',
+      message: 'yh',
+    })) {
+      void event;
+    }
+
+    const creates = openai.responses.create.mock.calls as unknown as Array<
+      [{ tool_choice: unknown; instructions: string }]
+    >;
+    expect(creates[0]?.[0].tool_choice).toBe('auto');
+    expect(creates[0]?.[0].instructions).toContain('Any short agreement');
+    expect(tools.dispatch).not.toHaveBeenCalled();
+  });
+
+  it('drops a repeated reply and answers again instead of sending it twice', async () => {
+    const repeated =
+      "I'll fetch and paste the nine negative SPCX posts with short quotes and direct links. Ready for me to pull?";
+    const prior = [
+      {
+        id: 'user-1',
+        threadId: 'thread-1',
+        role: 'user' as const,
+        content: 'List the negative SPCX posts',
+        createdAt: new Date('2026-09-13T10:00:00Z'),
+      },
+      {
+        id: 'assistant-1',
+        threadId: 'thread-1',
+        role: 'assistant' as const,
+        content: repeated,
+        createdAt: new Date('2026-09-13T10:00:01Z'),
+      },
+    ];
+    repository.listMessages.mockResolvedValueOnce(prior).mockResolvedValueOnce([
+      ...prior,
+      {
+        id: 'user-2',
+        threadId: 'thread-1',
+        role: 'user',
+        content: "so what's the inference",
+        createdAt: new Date('2026-09-13T10:00:02Z'),
+      },
+    ]);
+    openai.responses.create
+      .mockResolvedValueOnce(
+        responseStream({ output_text: repeated, output: [] }, [repeated]),
+      )
+      .mockResolvedValueOnce(
+        responseStream({
+          output_text:
+            'The bear case is dilution, and Za is the one saying it.',
+          output: [],
+        }),
+      );
+
+    const events: AgentStreamEvent[] = [];
+    for await (const event of service.streamMessage({
+      walletAddress: 'wallet-1',
+      threadId: 'thread-1',
+      message: "so what's the inference",
+    })) {
+      events.push(event);
+    }
+
+    expect(events.some((event) => event.type === 'assistant_reset')).toBe(true);
+    expect(events.at(-1)).toMatchObject({
+      type: 'turn_completed',
+      message: {
+        content: 'The bear case is dilution, and Za is the one saying it.',
+      },
+    });
+    const second = openai.responses.create.mock.calls[1] as
+      [{ input: unknown }] | undefined;
+    expect(JSON.stringify(second?.[0].input)).toContain(
+      'repeated your previous message',
+    );
+  });
+
+  it('discards a tool-round preamble so the saved answer is the post-tool text', async () => {
+    openai.responses.create
+      .mockResolvedValueOnce(
+        responseStream(
+          {
+            output: [
+              {
+                type: 'function_call',
+                name: 'getStock',
+                call_id: 'call-1',
+                arguments: '{"assetIdOrTicker":"NVDA"}',
+              },
+            ],
+          },
+          ["I'll fetch that."],
+        ),
+      )
+      .mockResolvedValueOnce(
+        responseStream({ output_text: 'NVDA is up today.', output: [] }, [
+          'NVDA is up today.',
+        ]),
+      );
+    tools.dispatch.mockResolvedValue({ output: { ticker: 'NVDA' } });
+
+    const events: AgentStreamEvent[] = [];
+    for await (const event of service.streamMessage({
+      walletAddress: 'wallet-1',
+      message: 'Analyze NVDA',
+    })) {
+      events.push(event);
+    }
+
+    expect(events.map((event) => event.type)).toEqual([
+      'turn_started',
+      'assistant_delta',
+      'assistant_reset',
+      'tool_started',
+      'tool_completed',
+      'assistant_delta',
+      'turn_completed',
+    ]);
+    expect(events.at(-1)).toMatchObject({
+      type: 'turn_completed',
+      message: { content: 'NVDA is up today.' },
+    });
+  });
+
+  it('puts an earlier Drip quote back into the next turn', async () => {
+    const prior = [
+      {
+        id: 'user-1',
+        threadId: 'thread-1',
+        role: 'user' as const,
+        content: 'What are people saying about SPCX?',
+        createdAt: new Date('2026-09-13T10:00:00Z'),
+      },
+      {
+        id: 'tool-1',
+        threadId: 'thread-1',
+        role: 'tool' as const,
+        toolName: 'getDripOpinions',
+        content: JSON.stringify({
+          available: true,
+          source: 'drip',
+          queried: 'SPCX',
+          ticker: 'SPCX',
+          truncated: false,
+          windowComplete: true,
+          summary: {
+            calls: 1,
+            analysts: 1,
+            bullish: 0,
+            bearish: 1,
+            neutral: 0,
+            byAction: { OPINION: 1 },
+          },
+          opinions: [
+            {
+              author: 'Za',
+              sourceLabel: 'Newsletter',
+              stance: 'BEARISH',
+              quote: 'Dilution is the real risk.',
+              url: 'https://zastocks.com/spcx',
+              date: '2026-10-30T00:00:00.000Z',
+            },
+          ],
+          disclaimer: 'Opinions, not facts, and not financial advice.',
+        }),
+        createdAt: new Date('2026-09-13T10:00:01Z'),
+      },
+      {
+        id: 'assistant-1',
+        threadId: 'thread-1',
+        role: 'assistant' as const,
+        content: 'Mostly bullish: 31 of 40 recent opinions are positive.',
+        createdAt: new Date('2026-09-13T10:00:02Z'),
+      },
+    ];
+    repository.listMessages.mockResolvedValueOnce(prior).mockResolvedValueOnce([
+      ...prior,
+      {
+        id: 'user-2',
+        threadId: 'thread-1',
+        role: 'user',
+        content: "so what's the inference",
+        createdAt: new Date('2026-09-13T10:00:03Z'),
+      },
+    ]);
+    openai.responses.create.mockResolvedValue(
+      responseStream({
+        output_text: 'The bear case is dilution.',
+        output: [],
+      }),
+    );
+
+    for await (const event of service.streamMessage({
+      walletAddress: 'wallet-1',
+      threadId: 'thread-1',
+      message: "so what's the inference",
+    })) {
+      void event;
+    }
+
+    const creates = openai.responses.create.mock.calls as unknown as Array<
+      [{ instructions: string }]
+    >;
+    expect(creates[0]?.[0].instructions).toContain(
+      'Dilution is the real risk.',
+    );
+    expect(creates[0]?.[0].instructions).not.toContain('not financial advice');
+  });
 });
