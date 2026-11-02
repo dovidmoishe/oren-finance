@@ -1,0 +1,908 @@
+{
+  "label": "baseline",
+  "capturedAt": "2026-11-02T13:04:14.377Z",
+  "since": "2026-11-01T00:00:00Z",
+  "until": "2026-11-02T12:54:00Z",
+  "definition": {
+    "preview": "Successful exact-head PR CI created_at to successful preview deployment status created_at; CI creation is a push-time proxy, not PR creation time",
+    "production": "PR merged_at to completion of Verify public production endpoints for the exact merge SHA",
+    "p90": "Nearest-rank percentile; retries excluded from comparable latency, retained in exclusions/failures"
+  },
+  "preview": [
+    {
+      "parallelWebChecks": false,
+      "pr": 28,
+      "sha": "4b84eb73e81ef35d3fdc134175a1fd7a28aaf881",
+      "ciRun": 41384650004,
+      "previewRun": 41384857159,
+      "deployment": 7483801418,
+      "url": "https://github.com/dovidmoishe/oren-finance/actions/runs/41384857159",
+      "ciCreatedAt": "2026-11-02T03:43:46Z",
+      "readyAt": "2026-11-02T03:50:18Z",
+      "seconds": 392
+    },
+    {
+      "parallelWebChecks": false,
+      "pr": 28,
+      "sha": "5b5ce7f36056efe2f314f018f13446b06db3a370",
+      "ciRun": 41377313963,
+      "previewRun": 41377545998,
+      "deployment": 7482822276,
+      "url": "https://github.com/dovidmoishe/oren-finance/actions/runs/41377545998",
+      "ciCreatedAt": "2026-11-02T02:21:46Z",
+      "readyAt": "2026-11-02T02:29:10Z",
+      "seconds": 444
+    },
+    {
+      "parallelWebChecks": false,
+      "pr": 18,
+      "sha": "2fb5807fd89c8e5bab515e4336da179a19acf564",
+      "ciRun": 41369945232,
+      "previewRun": 41370146231,
+      "deployment": 7481836207,
+      "url": "https://github.com/dovidmoishe/oren-finance/actions/runs/41370146231",
+      "ciCreatedAt": "2026-11-02T00:57:52Z",
+      "readyAt": "2026-11-02T01:04:29Z",
+      "seconds": 397
+    },
+    {
+      "parallelWebChecks": false,
+      "pr": 18,
+      "sha": "213e8242f3c2529f404d72e6937c1765a7aeb08a",
+      "ciRun": 41368926298,
+      "previewRun": 41369126994,
+      "deployment": 7481694734,
+      "url": "https://github.com/dovidmoishe/oren-finance/actions/runs/41369126994",
+      "ciCreatedAt": "2026-11-02T00:46:11Z",
+      "readyAt": "2026-11-02T00:52:06Z",
+      "seconds": 355
+    },
+    {
+      "parallelWebChecks": false,
+      "pr": 18,
+      "sha": "7d90c8e82a6f9ca97515da72271a687eb7c10d00",
+      "ciRun": 41364928244,
+      "previewRun": 41365121420,
+      "deployment": 7481182565,
+      "url": "https://github.com/dovidmoishe/oren-finance/actions/runs/41365121420",
+      "ciCreatedAt": "2026-11-02T00:01:27Z",
+      "readyAt": "2026-11-02T00:08:05Z",
+      "seconds": 398
+    }
+  ],
+  "production": [
+    {
+      "pr": 28,
+      "sha": "99205c2564aba3402d081f574bf5d926f923d0e3",
+      "run": 41441695782,
+      "url": "https://github.com/dovidmoishe/oren-finance/actions/runs/41441695782",
+      "mergedAt": "2026-11-02T12:01:37Z",
+      "healthyAt": "2026-11-02T12:08:31Z",
+      "seconds": 414,
+      "overlapped": false,
+      "stages": [
+        {
+          "name": "Build and publish API image",
+          "seconds": 100,
+          "conclusion": "success"
+        },
+        {
+          "name": "Build and publish web image",
+          "seconds": 171,
+          "conclusion": "success"
+        },
+        {
+          "name": "Deploy release to VPS",
+          "seconds": 62,
+          "conclusion": "success"
+        },
+        {
+          "name": "Record verified production deployment",
+          "seconds": 17,
+          "conclusion": "success"
+        }
+      ]
+    },
+    {
+      "pr": 32,
+      "sha": "828c607d46095ef6f596786e293b5a8afd5e3e73",
+      "run": 41441222557,
+      "url": "https://github.com/dovidmoishe/oren-finance/actions/runs/41441222557",
+      "mergedAt": "2026-11-02T11:58:16Z",
+      "healthyAt": "2026-11-02T12:04:10Z",
+      "seconds": 354,
+      "overlapped": false,
+      "stages": [
+        {
+          "name": "Build and publish web image",
+          "seconds": 161,
+          "conclusion": "success"
+        },
+        {
+          "name": "Build and publish API image",
+          "seconds": 27,
+          "conclusion": "success"
+        },
+        {
+          "name": "Deploy release to VPS",
+          "seconds": 51,
+          "conclusion": "success"
+        },
+        {
+          "name": "Record verified production deployment",
+          "seconds": 7,
+          "conclusion": "success"
+        }
+      ]
+    },
+    {
+      "pr": 31,
+      "sha": "02c1627cd4b283b4041518ee704ca9b20d4ef993",
+      "run": 41382483906,
+      "url": "https://github.com/dovidmoishe/oren-finance/actions/runs/41382483906",
+      "mergedAt": "2026-11-02T03:17:13Z",
+      "healthyAt": "2026-11-02T03:23:19Z",
+      "seconds": 366,
+      "overlapped": false,
+      "stages": [
+        {
+          "name": "Build and publish web image",
+          "seconds": 152,
+          "conclusion": "success"
+        },
+        {
+          "name": "Build and publish API image",
+          "seconds": 102,
+          "conclusion": "success"
+        },
+        {
+          "name": "Deploy release to VPS",
+          "seconds": 63,
+          "conclusion": "success"
+        },
+        {
+          "name": "Record verified production deployment",
+          "seconds": 7,
+          "conclusion": "success"
+        }
+      ]
+    },
+    {
+      "pr": 30,
+      "sha": "92a8e546a6b47889ad7f2abb0c4027d2a5f3cd3d",
+      "run": 41379665257,
+      "url": "https://github.com/dovidmoishe/oren-finance/actions/runs/41379665257",
+      "mergedAt": "2026-11-02T02:45:45Z",
+      "healthyAt": "2026-11-02T02:52:32Z",
+      "seconds": 407,
+      "overlapped": false,
+      "stages": [
+        {
+          "name": "Build and publish web image",
+          "seconds": 175,
+          "conclusion": "success"
+        },
+        {
+          "name": "Build and publish API image",
+          "seconds": 105,
+          "conclusion": "success"
+        },
+        {
+          "name": "Deploy release to VPS",
+          "seconds": 73,
+          "conclusion": "success"
+        },
+        {
+          "name": "Record verified production deployment",
+          "seconds": 8,
+          "conclusion": "success"
+        }
+      ]
+    },
+    {
+      "pr": 29,
+      "sha": "1c763ed70462c95745e5a65882572915f8c20539",
+      "run": 41378450223,
+      "url": "https://github.com/dovidmoishe/oren-finance/actions/runs/41378450223",
+      "mergedAt": "2026-11-02T02:31:55Z",
+      "healthyAt": "2026-11-02T02:38:30Z",
+      "seconds": 395,
+      "overlapped": false,
+      "stages": [
+        {
+          "name": "Build and publish API image",
+          "seconds": 104,
+          "conclusion": "success"
+        },
+        {
+          "name": "Build and publish web image",
+          "seconds": 171,
+          "conclusion": "success"
+        },
+        {
+          "name": "Deploy release to VPS",
+          "seconds": 71,
+          "conclusion": "success"
+        },
+        {
+          "name": "Record verified production deployment",
+          "seconds": 7,
+          "conclusion": "success"
+        }
+      ]
+    },
+    {
+      "pr": 27,
+      "sha": "28fdf60e3888eae4af2d4a635291a08af5d69dbe",
+      "run": 41377059660,
+      "url": "https://github.com/dovidmoishe/oren-finance/actions/runs/41377059660",
+      "mergedAt": "2026-11-02T02:16:27Z",
+      "healthyAt": "2026-11-02T02:22:33Z",
+      "seconds": 366,
+      "overlapped": false,
+      "stages": [
+        {
+          "name": "Build and publish web image",
+          "seconds": 154,
+          "conclusion": "success"
+        },
+        {
+          "name": "Build and publish API image",
+          "seconds": 26,
+          "conclusion": "success"
+        },
+        {
+          "name": "Deploy release to VPS",
+          "seconds": 57,
+          "conclusion": "success"
+        },
+        {
+          "name": "Record verified production deployment",
+          "seconds": 7,
+          "conclusion": "success"
+        }
+      ]
+    },
+    {
+      "pr": 26,
+      "sha": "8f1ea05a7a04415e08e637e6b9d621fbfc77794e",
+      "run": 41375214495,
+      "url": "https://github.com/dovidmoishe/oren-finance/actions/runs/41375214495",
+      "mergedAt": "2026-11-02T01:55:57Z",
+      "healthyAt": "2026-11-02T02:02:25Z",
+      "seconds": 388,
+      "overlapped": false,
+      "stages": [
+        {
+          "name": "Build and publish API image",
+          "seconds": 26,
+          "conclusion": "success"
+        },
+        {
+          "name": "Build and publish web image",
+          "seconds": 169,
+          "conclusion": "success"
+        },
+        {
+          "name": "Deploy release to VPS",
+          "seconds": 64,
+          "conclusion": "success"
+        },
+        {
+          "name": "Record verified production deployment",
+          "seconds": 8,
+          "conclusion": "success"
+        }
+      ]
+    },
+    {
+      "pr": 25,
+      "sha": "ef7b0ee815052cd8948c7f559bb28f539eb41706",
+      "run": 41374151087,
+      "url": "https://github.com/dovidmoishe/oren-finance/actions/runs/41374151087",
+      "mergedAt": "2026-11-02T01:43:12Z",
+      "healthyAt": "2026-11-02T01:49:01Z",
+      "seconds": 349,
+      "overlapped": false,
+      "stages": [
+        {
+          "name": "Build and publish web image",
+          "seconds": 138,
+          "conclusion": "success"
+        },
+        {
+          "name": "Build and publish API image",
+          "seconds": 109,
+          "conclusion": "success"
+        },
+        {
+          "name": "Deploy release to VPS",
+          "seconds": 56,
+          "conclusion": "success"
+        },
+        {
+          "name": "Record verified production deployment",
+          "seconds": 8,
+          "conclusion": "success"
+        }
+      ]
+    },
+    {
+      "pr": 24,
+      "sha": "bba6d36d65c5c3a973f36eaadf832306ae24f8b7",
+      "run": 41373432254,
+      "url": "https://github.com/dovidmoishe/oren-finance/actions/runs/41373432254",
+      "mergedAt": "2026-11-02T01:34:53Z",
+      "healthyAt": "2026-11-02T01:40:55Z",
+      "seconds": 362,
+      "overlapped": false,
+      "stages": [
+        {
+          "name": "Build and publish API image",
+          "seconds": 50,
+          "conclusion": "success"
+        },
+        {
+          "name": "Build and publish web image",
+          "seconds": 157,
+          "conclusion": "success"
+        },
+        {
+          "name": "Deploy release to VPS",
+          "seconds": 59,
+          "conclusion": "success"
+        },
+        {
+          "name": "Record verified production deployment",
+          "seconds": 7,
+          "conclusion": "success"
+        }
+      ]
+    },
+    {
+      "pr": 23,
+      "sha": "804de08950aeb528b5f38f4c2a5d2467cd6793bb",
+      "run": 41372078080,
+      "url": "https://github.com/dovidmoishe/oren-finance/actions/runs/41372078080",
+      "mergedAt": "2026-11-02T01:19:17Z",
+      "healthyAt": "2026-11-02T01:25:22Z",
+      "seconds": 365,
+      "overlapped": false,
+      "stages": [
+        {
+          "name": "Build and publish API image",
+          "seconds": 28,
+          "conclusion": "success"
+        },
+        {
+          "name": "Build and publish web image",
+          "seconds": 166,
+          "conclusion": "success"
+        },
+        {
+          "name": "Deploy release to VPS",
+          "seconds": 59,
+          "conclusion": "success"
+        },
+        {
+          "name": "Record verified production deployment",
+          "seconds": 11,
+          "conclusion": "success"
+        }
+      ]
+    }
+  ],
+  "failures": [
+    {
+      "kind": "preview-workflow",
+      "run": 41384578037,
+      "workflowSha": "02c1627cd4b283b4041518ee704ca9b20d4ef993",
+      "conclusion": "failure",
+      "url": "https://github.com/dovidmoishe/oren-finance/actions/runs/41384578037",
+      "failedJobs": [
+        {
+          "name": "deploy",
+          "steps": [
+            "Run actions/github-script@v7"
+          ]
+        }
+      ],
+      "hasDeployJob": true
+    },
+    {
+      "kind": "preview-workflow",
+      "run": 41369869167,
+      "workflowSha": "cc3ab729d06f9c13b9adc53e21e59b71db43b018",
+      "conclusion": "failure",
+      "url": "https://github.com/dovidmoishe/oren-finance/actions/runs/41369869167",
+      "failedJobs": [
+        {
+          "name": "deploy",
+          "steps": [
+            "Run actions/github-script@v7"
+          ]
+        }
+      ],
+      "hasDeployJob": true
+    },
+    {
+      "kind": "preview-workflow",
+      "run": 41368810069,
+      "workflowSha": "cc3ab729d06f9c13b9adc53e21e59b71db43b018",
+      "conclusion": "failure",
+      "url": "https://github.com/dovidmoishe/oren-finance/actions/runs/41368810069",
+      "failedJobs": [
+        {
+          "name": "deploy",
+          "steps": [
+            "Run actions/github-script@v7"
+          ]
+        }
+      ],
+      "hasDeployJob": true
+    },
+    {
+      "kind": "preview-workflow",
+      "run": 41368162217,
+      "workflowSha": "cc3ab729d06f9c13b9adc53e21e59b71db43b018",
+      "conclusion": "failure",
+      "url": "https://github.com/dovidmoishe/oren-finance/actions/runs/41368162217",
+      "failedJobs": [
+        {
+          "name": "deploy",
+          "steps": [
+            "Run actions/github-script@v7"
+          ]
+        }
+      ],
+      "hasDeployJob": true
+    },
+    {
+      "kind": "preview-workflow",
+      "run": 41361458610,
+      "workflowSha": "cc3ab729d06f9c13b9adc53e21e59b71db43b018",
+      "conclusion": "failure",
+      "url": "https://github.com/dovidmoishe/oren-finance/actions/runs/41361458610",
+      "failedJobs": [
+        {
+          "name": "deploy",
+          "steps": [
+            "Run actions/github-script@v7"
+          ]
+        }
+      ],
+      "hasDeployJob": true
+    },
+    {
+      "kind": "preview-workflow",
+      "run": 41356388788,
+      "workflowSha": "cc3ab729d06f9c13b9adc53e21e59b71db43b018",
+      "conclusion": "failure",
+      "url": "https://github.com/dovidmoishe/oren-finance/actions/runs/41356388788",
+      "failedJobs": [
+        {
+          "name": "deploy",
+          "steps": [
+            "Run actions/github-script@v7"
+          ]
+        }
+      ],
+      "hasDeployJob": true
+    },
+    {
+      "kind": "preview-workflow",
+      "run": 41355626794,
+      "workflowSha": "cc3ab729d06f9c13b9adc53e21e59b71db43b018",
+      "conclusion": "failure",
+      "url": "https://github.com/dovidmoishe/oren-finance/actions/runs/41355626794",
+      "failedJobs": [
+        {
+          "name": "deploy",
+          "steps": [
+            "Run actions/github-script@v7"
+          ]
+        }
+      ],
+      "hasDeployJob": true
+    },
+    {
+      "kind": "preview-workflow",
+      "run": 41318232117,
+      "workflowSha": "c12ee2f08c4b62e6c9e6771eea6a937b93ff769c",
+      "conclusion": "failure",
+      "url": "https://github.com/dovidmoishe/oren-finance/actions/runs/41318232117",
+      "failedJobs": [
+        {
+          "name": "deploy",
+          "steps": [
+            "Run actions/github-script@v7"
+          ]
+        }
+      ],
+      "hasDeployJob": true
+    },
+    {
+      "kind": "preview-workflow",
+      "run": 41317156399,
+      "workflowSha": "24fcc4bf23e27c4000eb9739872a3113e3454613",
+      "conclusion": "failure",
+      "url": "https://github.com/dovidmoishe/oren-finance/actions/runs/41317156399",
+      "failedJobs": [
+        {
+          "name": "deploy",
+          "steps": [
+            "Run actions/github-script@v7"
+          ]
+        }
+      ],
+      "hasDeployJob": true
+    },
+    {
+      "kind": "preview-workflow",
+      "run": 41316628844,
+      "workflowSha": "24fcc4bf23e27c4000eb9739872a3113e3454613",
+      "conclusion": "failure",
+      "url": "https://github.com/dovidmoishe/oren-finance/actions/runs/41316628844",
+      "failedJobs": [
+        {
+          "name": "deploy",
+          "steps": [
+            "Deploy using installed trusted controller"
+          ]
+        }
+      ],
+      "hasDeployJob": true
+    },
+    {
+      "kind": "preview-workflow",
+      "run": 41312624465,
+      "workflowSha": "24fcc4bf23e27c4000eb9739872a3113e3454613",
+      "conclusion": "failure",
+      "url": "https://github.com/dovidmoishe/oren-finance/actions/runs/41312624465",
+      "failedJobs": [
+        {
+          "name": "deploy",
+          "steps": [
+            "Deploy using installed trusted controller"
+          ]
+        }
+      ],
+      "hasDeployJob": true
+    },
+    {
+      "kind": "preview-workflow",
+      "run": 41310826959,
+      "workflowSha": "872e6b7831872f30bb6fd2abe802df130a57fb0c",
+      "conclusion": "failure",
+      "url": "https://github.com/dovidmoishe/oren-finance/actions/runs/41310826959",
+      "failedJobs": [
+        {
+          "name": "deploy",
+          "steps": [
+            "Run actions/github-script@v7"
+          ]
+        }
+      ],
+      "hasDeployJob": true
+    },
+    {
+      "kind": "preview-workflow",
+      "run": 41284283921,
+      "workflowSha": "9850beb27f2cc0ba104ffbe743dfc870199eb784",
+      "conclusion": "failure",
+      "url": "https://github.com/dovidmoishe/oren-finance/actions/runs/41284283921",
+      "failedJobs": [
+        {
+          "name": "deploy",
+          "steps": [
+            "Run actions/github-script@v7"
+          ]
+        }
+      ],
+      "hasDeployJob": true
+    },
+    {
+      "kind": "preview-workflow",
+      "run": 41281464708,
+      "workflowSha": "da02111967ec8787c4a81959f169c33379a4df91",
+      "conclusion": "failure",
+      "url": "https://github.com/dovidmoishe/oren-finance/actions/runs/41281464708",
+      "failedJobs": [
+        {
+          "name": "deploy",
+          "steps": [
+            "Run actions/github-script@v7"
+          ]
+        }
+      ],
+      "hasDeployJob": true
+    },
+    {
+      "kind": "preview-workflow",
+      "run": 41279872651,
+      "workflowSha": "4a155e152f858bb44050c3ddd7cc27adf6088c89",
+      "conclusion": "failure",
+      "url": "https://github.com/dovidmoishe/oren-finance/actions/runs/41279872651",
+      "failedJobs": [
+        {
+          "name": "deploy",
+          "steps": [
+            "Run actions/github-script@v7"
+          ]
+        }
+      ],
+      "hasDeployJob": true
+    },
+    {
+      "kind": "preview-workflow",
+      "run": 41278641135,
+      "workflowSha": "a7d88588bc9773f315b5e4c2e0241084fe5685c7",
+      "conclusion": "failure",
+      "url": "https://github.com/dovidmoishe/oren-finance/actions/runs/41278641135",
+      "failedJobs": [
+        {
+          "name": "deploy",
+          "steps": [
+            "Run actions/github-script@v7"
+          ]
+        }
+      ],
+      "hasDeployJob": true
+    },
+    {
+      "kind": "preview-workflow",
+      "run": 41277346064,
+      "workflowSha": "0ea5783aa6e3d975236e14efeeec9628d95f8fd9",
+      "conclusion": "failure",
+      "url": "https://github.com/dovidmoishe/oren-finance/actions/runs/41277346064",
+      "failedJobs": [
+        {
+          "name": "deploy",
+          "steps": [
+            "Run actions/github-script@v7"
+          ]
+        }
+      ],
+      "hasDeployJob": true
+    },
+    {
+      "kind": "preview-workflow",
+      "run": 41275413824,
+      "workflowSha": "b794461a957dfd71e154c0785061a6defcc0fb32",
+      "conclusion": "failure",
+      "url": "https://github.com/dovidmoishe/oren-finance/actions/runs/41275413824",
+      "failedJobs": [
+        {
+          "name": "deploy",
+          "steps": [
+            "Run actions/github-script@v7"
+          ]
+        }
+      ],
+      "hasDeployJob": true
+    },
+    {
+      "kind": "preview-workflow",
+      "run": 41274192908,
+      "workflowSha": "98112742e259938564dd9658e6e69677b7c77654",
+      "conclusion": "failure",
+      "url": "https://github.com/dovidmoishe/oren-finance/actions/runs/41274192908",
+      "failedJobs": [
+        {
+          "name": "deploy",
+          "steps": [
+            "Run actions/github-script@v7"
+          ]
+        }
+      ],
+      "hasDeployJob": true
+    },
+    {
+      "kind": "preview-workflow",
+      "run": 41273340644,
+      "workflowSha": "98112742e259938564dd9658e6e69677b7c77654",
+      "conclusion": "failure",
+      "url": "https://github.com/dovidmoishe/oren-finance/actions/runs/41273340644",
+      "failedJobs": [
+        {
+          "name": "deploy",
+          "steps": [
+            "Deploy using installed trusted controller"
+          ]
+        }
+      ],
+      "hasDeployJob": true
+    },
+    {
+      "kind": "preview-workflow",
+      "run": 41272050420,
+      "workflowSha": "273c00875c73ff1113a0271d4526cd93480103d0",
+      "conclusion": "failure",
+      "url": "https://github.com/dovidmoishe/oren-finance/actions/runs/41272050420",
+      "failedJobs": [
+        {
+          "name": "deploy",
+          "steps": [
+            "Run actions/github-script@v7"
+          ]
+        }
+      ],
+      "hasDeployJob": true
+    },
+    {
+      "kind": "preview-workflow",
+      "run": 41264550033,
+      "workflowSha": "273c00875c73ff1113a0271d4526cd93480103d0",
+      "conclusion": "failure",
+      "url": "https://github.com/dovidmoishe/oren-finance/actions/runs/41264550033",
+      "failedJobs": [
+        {
+          "name": "deploy",
+          "steps": [
+            "Deploy using installed trusted controller"
+          ]
+        }
+      ],
+      "hasDeployJob": true
+    },
+    {
+      "kind": "ci",
+      "run": 41373455336,
+      "workflowSha": "65b758ee39584e4a80b13b0ede276debe62447d8",
+      "conclusion": "failure",
+      "url": "https://github.com/dovidmoishe/oren-finance/actions/runs/41373455336",
+      "failedJobs": [
+        {
+          "name": "API test and build",
+          "steps": [
+            "Run pnpm test --runInBand"
+          ]
+        }
+      ]
+    },
+    {
+      "kind": "ci",
+      "run": 41364779358,
+      "workflowSha": "c35d57fe1ae4537c19c8e3bcfc4c3ff7b2cd3ef1",
+      "conclusion": "failure",
+      "url": "https://github.com/dovidmoishe/oren-finance/actions/runs/41364779358",
+      "failedJobs": [
+        {
+          "name": "API test and build",
+          "steps": [
+            "Run pnpm test --runInBand"
+          ]
+        }
+      ]
+    },
+    {
+      "kind": "ci",
+      "run": 41358233415,
+      "workflowSha": "dfd08a66f1471929531e7fdcbe9a1b2220d29fd9",
+      "conclusion": "failure",
+      "url": "https://github.com/dovidmoishe/oren-finance/actions/runs/41358233415",
+      "failedJobs": [
+        {
+          "name": "App test, lint, and build",
+          "steps": [
+            "Run pnpm test"
+          ]
+        }
+      ]
+    },
+    {
+      "kind": "ci",
+      "run": 41357988077,
+      "workflowSha": "cc9c41727c3257d079bd9523c5022cb9970b21c8",
+      "conclusion": "failure",
+      "url": "https://github.com/dovidmoishe/oren-finance/actions/runs/41357988077",
+      "failedJobs": [
+        {
+          "name": "App test, lint, and build",
+          "steps": [
+            "Run pnpm test"
+          ]
+        }
+      ]
+    }
+  ],
+  "excluded": [
+    {
+      "kind": "preview-workflow",
+      "run": 41441341647,
+      "reason": "cancelled/superseded; not a latency sample"
+    },
+    {
+      "kind": "preview-workflow",
+      "run": 41382218675,
+      "reason": "cancelled/superseded; not a latency sample"
+    },
+    {
+      "kind": "preview-workflow",
+      "run": 41379397060,
+      "reason": "cancelled/superseded; not a latency sample"
+    },
+    {
+      "kind": "preview-workflow",
+      "run": 41378204890,
+      "reason": "cancelled/superseded; not a latency sample"
+    },
+    {
+      "kind": "preview-workflow",
+      "run": 41376803517,
+      "reason": "cancelled/superseded; not a latency sample"
+    },
+    {
+      "kind": "preview-workflow",
+      "run": 41374982586,
+      "reason": "cancelled/superseded; not a latency sample"
+    },
+    {
+      "kind": "preview-workflow",
+      "run": 41373834060,
+      "reason": "cancelled/superseded; not a latency sample"
+    },
+    {
+      "kind": "preview-workflow",
+      "run": 41373198325,
+      "reason": "cancelled/superseded; not a latency sample"
+    },
+    {
+      "kind": "preview-workflow",
+      "run": 41371823496,
+      "reason": "cancelled/superseded; not a latency sample"
+    },
+    {
+      "kind": "preview-workflow",
+      "run": 41371003516,
+      "reason": "cancelled/superseded; not a latency sample"
+    },
+    {
+      "kind": "preview-workflow",
+      "run": 41317657382,
+      "reason": "cancelled/superseded; not a latency sample"
+    }
+  ],
+  "benchmark": [],
+  "summary": {
+    "cohorts": {
+      "serialWebPreview": {
+        "n": 5,
+        "medianSeconds": 397,
+        "p90Seconds": 444,
+        "accepted": true
+      },
+      "parallelWebPreview": {
+        "n": 0,
+        "medianSeconds": null,
+        "p90Seconds": null,
+        "accepted": false
+      },
+      "serialProduction": {
+        "n": 10,
+        "medianSeconds": 366,
+        "p90Seconds": 407,
+        "accepted": true
+      },
+      "overlappedProduction": {
+        "n": 0,
+        "medianSeconds": null,
+        "p90Seconds": null,
+        "accepted": false
+      }
+    },
+    "preview": {
+      "n": 5,
+      "medianSeconds": 397,
+      "p90Seconds": 444,
+      "accepted": true
+    },
+    "production": {
+      "n": 10,
+      "medianSeconds": 366,
+      "p90Seconds": 407,
+      "accepted": true
+    },
+    "failures": 26
+  }
+}
