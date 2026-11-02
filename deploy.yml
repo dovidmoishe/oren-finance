@@ -34,10 +34,18 @@ services:
     environment:
       DEPLOYMENT_ENV: production
       COMMIT_SHA: ${IMAGE_TAG}
+      # Never pass standalone migration credentials or the gate key to API.
+      POSTGRES_USER: ""
+      POSTGRES_PASSWORD: ""
+      SIGNER_GATE_PRIVATE_KEY: ""
     image: ghcr.io/${GHCR_OWNER:?set GHCR_OWNER in .release.env}/oren-api:${IMAGE_TAG:?set IMAGE_TAG in .release.env}
     restart: unless-stopped
-    # Separate runtime credentials: .env retains the migration/admin database URL.
-    env_file: .env.api
+    # The later runtime file overrides the admin URL after staged provisioning.
+    # It is optional while delegated execution is compiled off.
+    env_file:
+      - .env
+      - path: .env.api
+        required: false
     depends_on:
       db:
         condition: service_healthy

@@ -249,6 +249,8 @@ export function validateEnv(env: EnvSource = process.env): AppEnv {
       throw new Error(
         'Delegated signing is blocked pending funded Jupiter proof and rollout',
       );
+    if (new URL(requireEnv(env, 'POSTGRES_URL')).username !== 'oren_api_runtime')
+      throw new Error('Delegated trades require the restricted API database role');
   }
   return {
     DEPLOYMENT_ENV: deployment.environment,

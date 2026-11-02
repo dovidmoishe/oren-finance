@@ -85,7 +85,10 @@ function main() {
         process.env.TOKENS_API_BASE_URL ?? 'https://api.tokens.xyz',
       TOKENS_API_KEY: required('TOKENS_API_KEY'),
     } as AppEnv;
-    const client = postgres(required('POSTGRES_URL'), { max: 5 });
+    const databaseUrl = required('POSTGRES_URL');
+    if (new URL(databaseUrl).username !== 'oren_signer_gate')
+      throw new Error('Signer gate requires its restricted database role');
+    const client = postgres(databaseUrl, { max: 5 });
     const db = drizzle(client, { schema });
     const privy = new PrivyClient({
       appId: config.appId,

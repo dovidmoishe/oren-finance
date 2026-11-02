@@ -16,11 +16,13 @@ another host before broadening beyond the owner allowlist.
    `oren_signer_gate`. Run `roles.sql` as the migration owner with psql variables
    `api_password` and `gate_password`. Do not place either on a command line or
    in a log. Re-run the grants after future schema migrations.
-3. Create `/opt/oren/.env.api` from the existing API runtime settings. Replace
-   `POSTGRES_URL` with the `oren_api_runtime` connection URL. Remove
-   `POSTGRES_USER`, `POSTGRES_PASSWORD`, the migration/admin Postgres URL,
-   `SIGNER_GATE_PRIVATE_KEY`, and any policy-owner key. Keep only the API
-   quorum key in `PRIVY_MCP_SIGNER_PRIVATE_KEY`.
+3. Create `/opt/oren/.env.api` with the `oren_api_runtime` `POSTGRES_URL` and,
+   when ready for the owner trial, only the API quorum key and gate URL/token.
+   The later `.env.api` overrides `.env` in Compose. The API service blanks
+   standalone `POSTGRES_USER`, `POSTGRES_PASSWORD`, and gate-private-key
+   variables. Until `.env.api` exists, the existing API keeps using its old
+   admin URL **only while delegated execution is compiled off**. Verify the
+   resolved API container uses `oren_api_runtime` before opening that block.
 4. Create `/opt/oren/.env.signer-gate` from `env.example`, mode `0600`, with the
    distinct `oren_signer_gate` Postgres URL and the gate quorum key. The API
    public key and gate private key must belong to the same reviewed 2-of-2

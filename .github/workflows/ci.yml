@@ -45,6 +45,7 @@ jobs:
           API_DOMAIN: api.production.example.com
         run: |
           printf 'POSTGRES_URL=postgres://oren_test:test-password@db:5432/oren_mcp_test\n' > .env
+          docker compose -f deploy.yml config --quiet
           printf 'POSTGRES_URL=postgres://oren_test:test-password@db:5432/oren_mcp_test\n' > .env.api
           docker compose --profile delegated-trades -f deploy.yml config --quiet
       - name: Verify two disposable preview databases are isolated
