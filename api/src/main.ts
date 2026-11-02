@@ -21,6 +21,7 @@ import { ExecutionService } from './execution/execution.service';
 import { handleMcpRequest } from './mcp-auth/mcp-resource';
 import { SignerGateClient } from './mcp-auth/signer-gate.client';
 import { SignerGateRejection } from './mcp-auth/signer-gate.errors';
+import { registerMcpJsonBodyParser } from './mcp-auth/mcp-json-body';
 import {
   clientMayPrepareTrades,
   clientMayExecuteTrades,
@@ -69,6 +70,7 @@ async function bootstrap() {
       },
       oauth,
     };
+    registerMcpJsonBodyParser(expressApp);
     expressApp.get(
       '/.well-known/oauth-protected-resource/mcp',
       (_req: Request, res: Response) =>

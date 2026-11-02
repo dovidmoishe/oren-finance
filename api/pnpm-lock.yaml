@@ -56,6 +56,9 @@ importers:
       drizzle-orm:
         specifier: ^0.45.2
         version: 0.45.2(postgres@3.4.9)
+      express:
+        specifier: ^5.2.1
+        version: 5.2.1(supports-color@8.1.1)
       oidc-provider:
         specifier: ^9.13.3
         version: 9.13.3(supports-color@8.1.1)
