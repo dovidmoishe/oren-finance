@@ -30,6 +30,7 @@ export default function Home() {
             <a className="transition-colors hover:text-[#111110]" href="#stock-mix">Stock mix</a>
             <Link className="transition-colors hover:text-[#111110]" href="/app/markets">Markets</Link>
             <Link className="transition-colors hover:text-[#111110]" href="/token">Token</Link>
+            <Link className="transition-colors hover:text-[#111110]" href="/roadmap">Roadmap</Link>
             <Link className="transition-colors hover:text-[#111110]" href="/changelog">Changelog</Link>
           </div>
           <ButtonLink className="h-10 rounded-full px-4 text-sm font-medium" href="/app" variant="primary">

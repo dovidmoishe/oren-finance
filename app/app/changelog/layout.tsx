@@ -13,7 +13,7 @@ export default function ChangelogLayout({ children }: { children: React.ReactNod
   return <div className={styles.page} id="top">
     <LandingHeader><nav className={styles.nav} aria-label="Main navigation">
       <Link className={styles.brand} href="/" aria-label="Oren home"><OrenLogo size={28} /><span>OREN</span></Link>
-      <div className={styles.navLinks}><Link href="/#product">Product</Link><Link href="/#stock-mix">Stock mix</Link><Link href="/app/markets">Markets</Link><Link href="/token">Token</Link><Link href="/changelog" aria-current="page">Changelog</Link></div>
+      <div className={styles.navLinks}><Link href="/#product">Product</Link><Link href="/app/markets">Markets</Link><Link href="/token">Token</Link><Link href="/roadmap">Roadmap</Link><Link href="/changelog" aria-current="page">Changelog</Link></div>
       <ButtonLink className="h-10 rounded-full px-4 text-sm font-medium" href="/app" variant="primary">Launch App <HugeiconsIcon icon={ArrowRight02Icon} size={16} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className="inline-block shrink-0 align-middle" /></ButtonLink>
     </nav></LandingHeader>
     <main className={styles.main}>
