@@ -27,6 +27,7 @@ export class PreviewGuard implements CanActivate {
         '/api/execution/quote',
         '/api/execution/basket',
         '/api/execution/limit-order',
+        '/api/feedback',
       ].includes(path)
     )
       return true;

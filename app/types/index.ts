@@ -2,6 +2,7 @@ export * from "./agent";
 export * from "./bitget";
 export * from "./calendar";
 export * from "./execution";
+export * from "./feedback";
 export * from "./limit-order";
 export * from "./market-session";
 export * from "./portfolio";

@@ -753,6 +753,38 @@ export const researchEvents = pgTable(
   ],
 );
 
+/** User feedback and support requests; the team reads and resolves these. */
+export const feedbackTickets = pgTable(
+  'feedback_tickets',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    userId: text('user_id').notNull(),
+    walletAddress: text('wallet_address').notNull(),
+    email: text('email'),
+    kind: text('kind').notNull(),
+    subject: text('subject').notNull(),
+    message: text('message').notNull(),
+    page: text('page'),
+    status: text('status').notNull().default('open'),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index('feedback_tickets_user_created_idx').on(
+      table.userId,
+      table.createdAt,
+    ),
+    index('feedback_tickets_status_created_idx').on(
+      table.status,
+      table.createdAt,
+    ),
+  ],
+);
+
 /** Optional short-lived news cache — not a Tokens API mirror. */
 export const cachedNews = pgTable(
   'cached_news',
