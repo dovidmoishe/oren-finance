@@ -14,6 +14,7 @@ import { Button, Modal, Toast, formatCurrency, formatNumber } from "@/components
 import type { LimitOrderProposal } from "@/types";
 import type { TradeFlowStatus } from "@/hooks/use-quote-execution";
 import { useApprovalReview } from "@/hooks/use-approval-review";
+import { MarketSessionNotice } from "./market-session-notice";
 
 interface LimitOrderReviewModalProps {
   open: boolean;
@@ -73,6 +74,8 @@ export function LimitOrderReviewModal({
               <Row label="TA basis" value={proposal.basis.replaceAll("_", " ")} />
             ) : null}
           </div>
+
+          <MarketSessionNotice session={proposal.marketSession} />
 
           {proposal.wouldFillImmediately ? (
             <Toast

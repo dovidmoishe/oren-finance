@@ -1,6 +1,7 @@
 import type { TokenizedEquity } from './equity';
 import type { Quote, TradeSide } from './quote';
 import type { StockOpportunity } from './analysis';
+import type { MarketSession } from './market-session';
 
 export type ExecutionType =
   | 'stock_purchase'
@@ -92,6 +93,7 @@ export interface Basket {
   thesis?: string;
   riskLabel?: string;
   featureSource?: Extract<ExecutionFeature, 'basket' | 'copy_trade'>;
+  marketSession?: MarketSession;
   createdAt: Date;
 }
 

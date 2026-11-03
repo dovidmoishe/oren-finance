@@ -8,6 +8,7 @@ export type {
 export type { Position, PositionVariant } from './position';
 
 export type { Quote, TradeSide } from './quote';
+export type { MarketSession, UsMarketSessionState } from './market-session';
 
 export type {
   LimitOrderIntent,

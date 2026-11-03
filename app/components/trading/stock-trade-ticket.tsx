@@ -15,6 +15,7 @@ import { listLimitOrders, proposeLimitOrder } from "@/services";
 import { Button, Card, cn, formatCurrency, formatNumber } from "@/components/ui";
 import { useExecutionStore, usePortfolioStore } from "@/store";
 import type { LimitOrderProposal, LimitOrderRecord, LimitZone, QuoteResponse, StockDetail, TradeSide } from "@/types";
+import { MarketSessionNotice } from "./market-session-notice";
 import { QuoteReviewModal } from "./quote-review-modal";
 import { LimitOrderReviewModal } from "./limit-order-review-modal";
 import { CancelOrderReviewModal } from "./cancel-order-review-modal";
@@ -561,6 +562,10 @@ export function StockTradeTicket({ stock, limitZones, onConfirmed }: StockTradeT
         </div>
 
         <div className="mt-auto flex flex-col pt-3">
+          <MarketSessionNotice
+            className="mb-3"
+            session={orderMode === "market" ? activeQuote?.marketSession : limitProposal?.marketSession}
+          />
           <div className="space-y-1.5">
             {orderMode === "market" ? (
               <>
