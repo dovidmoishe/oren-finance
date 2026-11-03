@@ -416,7 +416,7 @@ describe('withdrawal transaction construction with real Solana libraries', () =>
     expect(f.rpc.call).not.toHaveBeenCalled();
     f.input.amount = '2';
     await expect(f.service.prepare('Bearer token', f.input)).rejects.toThrow(
-      'another withdrawal',
+      'another transfer',
     );
   });
 

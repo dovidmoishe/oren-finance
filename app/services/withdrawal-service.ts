@@ -43,7 +43,7 @@ export async function recoverWithdrawal(wallet: string, token: string | null) {
 }
 
 export function prepareWithdrawal(input: WithdrawalInput, token: string | null) {
-  if (!token) throw new Error('Sign in again before withdrawing.');
+  if (!token) throw new Error('Sign in again before transferring.');
   return apiRequest<TradeApproval>('/execution/withdrawals/prepare', {
     method: 'POST', body: input, headers: { Authorization: `Bearer ${token}` }, cache: 'no-store',
   });
