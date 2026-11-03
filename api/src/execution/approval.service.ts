@@ -1,4 +1,5 @@
 import { assertFinancialExecutionEnabled } from '../config/deployment';
+import { WithdrawalStocksService } from './withdrawal-stocks.service';
 import {
   BadRequestException,
   ConflictException,
@@ -38,6 +39,7 @@ export class ApprovalService {
     private readonly quotes: QuoteCache,
     private readonly limits: LimitOrderCache,
     @Inject(APP_ENV) private readonly env: AppEnv,
+    private readonly withdrawalStocks: WithdrawalStocksService,
   ) {}
 
   async prepare(
@@ -214,6 +216,8 @@ export class ApprovalService {
         throw new BadRequestException(
           'Approval expired. Review a fresh quote.',
         );
+      if (row.kind === 'withdrawal')
+        await this.withdrawalStocks.assertReviewed(row.details);
       const claimed = await this.approvals.claim(row.id);
       if (!claimed)
         throw new ConflictException(
@@ -286,6 +290,19 @@ export class ApprovalService {
   async status(authorization: string | undefined, id: string) {
     assertFinancialExecutionEnabled();
     let { row } = await this.owned(authorization, id, false);
+    if (
+      row.kind === 'withdrawal' &&
+      row.status === 'prepared' &&
+      row.expiresAt.getTime() <= Date.now()
+    )
+      row =
+        (await this.approvals.patch(
+          row.id,
+          { status: 'failed' },
+          'prepared',
+        )) ??
+        (await this.approvals.get(row.id)) ??
+        row;
     if (row.status === 'signing' && row.expiresAt.getTime() <= Date.now())
       row =
         (await this.approvals.patch(row.id, { status: 'failed' }, 'signing')) ??
@@ -337,7 +354,7 @@ export class ApprovalService {
             closeSignature: row.signature,
           });
         }
-        if (row.kind !== 'swap')
+        if (row.kind !== 'swap' && row.kind !== 'withdrawal')
           await this.executions.updateStatus(row.executionId, {
             status: 'confirmed',
             transactionSignature: row.signature,
@@ -358,6 +375,8 @@ export class ApprovalService {
   }
 
   private async track(row: ApprovalRow) {
+    // Withdrawals are transfers, not stock executions; onchain portfolio activity records them.
+    if (row.kind === 'withdrawal') return;
     if (!row.signature) return;
     const execution = await this.executions.findById(row.executionId);
     if (execution?.status === 'confirmed' || execution?.status === 'failed')

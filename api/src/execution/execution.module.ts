@@ -1,4 +1,7 @@
 import { Module } from '@nestjs/common';
+import { WithdrawalController } from './withdrawal.controller';
+import { WithdrawalService } from './withdrawal.service';
+import { WithdrawalStocksService } from './withdrawal-stocks.service';
 import { AuthModule } from '../auth/auth.module';
 import { AlchemyModule } from '../alchemy/alchemy.module';
 import { ApprovalController } from './approval.controller';
@@ -37,8 +40,10 @@ import { LimitOrderFillPoller } from './limit-order-fill.poller';
     IntelligenceModule,
     AnalyticsModule,
   ],
-  controllers: [ExecutionController, ApprovalController],
+  controllers: [ExecutionController, ApprovalController, WithdrawalController],
   providers: [
+    WithdrawalService,
+    WithdrawalStocksService,
     ApprovalService,
     ApprovalRepository,
     ApprovalRpc,
