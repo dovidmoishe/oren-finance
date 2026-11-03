@@ -1,22 +1,30 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';
 import ts from 'typescript';
 import { Children, isValidElement } from 'react';
 
-const require = createRequire(import.meta.url);
 function load(file) {
+  const filename = file.startsWith('/') ? file : fileURLToPath(new URL(file, import.meta.url));
+  const localRequire = createRequire(filename);
   const exports = {};
-  vm.runInNewContext(ts.transpileModule(readFileSync(new URL(file, import.meta.url), 'utf8'), {
+  vm.runInNewContext(ts.transpileModule(readFileSync(filename, 'utf8'), {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX },
   }).outputText, { exports, require(id) {
     if (id === '@hugeicons/core-free-icons') return {};
     if (id === '@hugeicons/react') return { HugeiconsIcon: () => null };
     if (id === '@/components/stock/stock-logo') return { StockLogo: () => null };
-    if (id === '@/components/ui') return { Button: 'button', formatCurrency: (value) => `$${value.toFixed(2)}`, formatNumber: String };
-    return require(id);
+    if (id === '@/components/ui') return { Button: 'button', Toast: () => null, formatCurrency: (value) => `$${value.toFixed(2)}`, formatNumber: String };
+    if (id.startsWith('.')) {
+      const resolved = path.resolve(path.dirname(filename), id);
+      const candidate = ['.ts', '.tsx', '.js', ''].map((ext) => `${resolved}${ext}`).find((item) => existsSync(item));
+      if (candidate?.endsWith('.ts') || candidate?.endsWith('.tsx')) return load(candidate);
+    }
+    return localRequire(id);
   } });
   return exports;
 }

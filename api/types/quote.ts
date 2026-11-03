@@ -1,4 +1,5 @@
 import type { TokenizedEquity } from './equity';
+import type { MarketSession } from './market-session';
 
 export type TradeSide = 'buy' | 'sell';
 
@@ -31,6 +32,8 @@ export interface Quote {
   provider: string;
   /** Opaque provider route payload needed to prepare the tx. */
   routePayload?: unknown;
+  /** Present for catalog stock quotes. Omitted for unresolved mints. */
+  marketSession?: MarketSession;
   expiresAt: Date;
   quotedAt: Date;
 }

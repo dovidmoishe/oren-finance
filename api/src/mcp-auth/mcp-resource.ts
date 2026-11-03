@@ -296,6 +296,9 @@ export async function handleMcpRequest(
                 maxInRaw: maxIn,
                 slippageBps,
                 expiresAt: intent.expiresAt.toISOString(),
+                ...(quote.marketSession
+                  ? { marketSession: quote.marketSession }
+                  : {}),
                 mode: delegated ? 'delegated' : 'browser',
                 ...(delegated
                   ? {}

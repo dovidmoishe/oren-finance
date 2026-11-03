@@ -11,6 +11,7 @@ import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
 import { Card, CardContent, CardHeader, cn, formatCurrency, formatNumber } from "@/components/ui";
 import type { BasketExecutionProgress, BasketLegStatus, BasketResponse } from "@/types";
 import { StockLogo } from "@/components/stock/stock-logo";
+import { MarketSessionNotice } from "./market-session-notice";
 
 interface BasketReviewProps {
   basket: BasketResponse;
@@ -67,6 +68,7 @@ export function BasketReview({ basket, progress }: BasketReviewProps) {
         </div>
       </CardHeader>
       <CardContent className="space-y-3">
+        <MarketSessionNotice session={basket.marketSession} />
         {progress ? (
           <div className="rounded-[18px] border border-border bg-panel-subtle p-4 text-sm">
             <div className="flex flex-wrap items-center justify-between gap-3">

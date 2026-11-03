@@ -1,6 +1,7 @@
 import type { TokenizedEquity } from './equity';
 import type { TradeSide } from './quote';
 import type { LimitZoneBasis } from './analysis';
+import type { MarketSession } from './market-session';
 
 export type LimitOrderStatus =
   | 'open'
@@ -54,6 +55,7 @@ export interface LimitOrderProposal {
   expiredAt: number;
   slippageBps: number;
   provider: string;
+  marketSession?: MarketSession;
   createdAt: Date;
 }
 

@@ -42,6 +42,10 @@ import {
 import { PortfolioService } from '../portfolio/portfolio.service';
 import { TokensService } from '../tokens/tokens.service';
 import { IntelligenceService } from '../intelligence/intelligence.service';
+import {
+  marketSessionForTrade,
+  stampQuoteMarketSession,
+} from '../market/us-market-session';
 import { BasketCache } from './basket-cache';
 import { ExecutionRepository } from './execution.repository';
 import { JupiterTriggerClient } from './jupiter/jupiter-trigger.client';
@@ -101,6 +105,7 @@ export class ExecutionService {
     }
 
     const { quote } = await this.selector.selectAndQuote(intent);
+    stampQuoteMarketSession(quote);
     this.cache.set(quote);
     return quote;
   }
@@ -112,6 +117,7 @@ export class ExecutionService {
     if (!intent.assetId || !intent.preferredMint)
       throw new BadRequestException('Exact stock and mint are required');
     const { quote } = await this.selector.selectAndQuote(intent, true);
+    stampQuoteMarketSession(quote);
     if (
       quote.assetId !== intent.assetId ||
       quote.variant.mint !== intent.preferredMint
@@ -249,6 +255,7 @@ export class ExecutionService {
       thesis: buildBasketThesis(input.prompt, allocations.length),
       riskLabel: riskLabelFromCandidates(selected),
       featureSource: 'basket',
+      marketSession: marketSessionForTrade({ kind: 'market' }),
       createdAt: new Date(),
     };
 
@@ -278,6 +285,7 @@ export class ExecutionService {
       thesis: input.thesis,
       riskLabel: input.riskLabel,
       featureSource: input.featureSource ?? 'basket',
+      marketSession: marketSessionForTrade({ kind: 'market' }),
       createdAt: new Date(),
     };
 
@@ -396,6 +404,7 @@ export class ExecutionService {
       throw err;
     }
     const { prepared, quote, expectation } = routed;
+    stampQuoteMarketSession(quote);
     if (quote !== entry.quote) this.cache.replace(quote);
 
     const row = await this.repository.insert({
@@ -557,6 +566,10 @@ export class ExecutionService {
       expiredAt,
       slippageBps: intent.slippageBps ?? 0,
       provider: 'jupiter-trigger',
+      marketSession: marketSessionForTrade({
+        kind: 'limit',
+        liquidityUsd: variant.liquidity,
+      }),
       createdAt: new Date(),
     };
 
@@ -990,6 +1003,7 @@ export class ExecutionService {
       quote.amountUsd = quote.outputAmount;
     }
 
+    stampQuoteMarketSession(quote);
     this.cache.set(quote);
     return quote;
   }

@@ -253,7 +253,12 @@ describe('AgentToolRegistry', () => {
   });
 
   it('quotes swaps for the conversation wallet without leaking route payloads to the model', async () => {
-    const quote = { id: 'q-1', provider: 'jupiter', routePayload: { big: 1 } };
+    const quote = {
+      id: 'q-1',
+      provider: 'jupiter',
+      routePayload: { big: 1 },
+      marketSession: { regular: false, summary: 'US markets are closed.' },
+    };
     execution.getQuote.mockResolvedValue(quote);
 
     const result = await registry.dispatch(

@@ -9,6 +9,7 @@ import {
   type PriceMovedTerms,
   QuoteExpiredError,
 } from '../common/errors/provider.errors';
+import { stampQuoteMarketSession } from '../market/us-market-session';
 import {
   JupiterService,
   type JupiterQuoteContext,
@@ -373,7 +374,7 @@ export class SwapRouter {
     };
     let alternative: Quote | undefined;
     try {
-      alternative = await this.jupiter.getQuoteWithContext({
+      const quoted = await this.jupiter.getQuoteWithContext({
         side: quote.side,
         assetId: quote.assetId,
         ticker: quote.ticker,
@@ -388,6 +389,7 @@ export class SwapRouter {
         amountUsd: quote.amountUsd,
         slippageBps: reviewedTerms.slippageBps,
       });
+      alternative = quoted ? stampQuoteMarketSession(quoted) : undefined;
     } catch (err) {
       this.logger.warn(
         `Jupiter alternative for ${quote.id} unavailable: ${errorMessage(err)}`,

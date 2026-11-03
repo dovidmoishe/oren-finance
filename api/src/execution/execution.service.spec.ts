@@ -168,7 +168,35 @@ describe('ExecutionService basket support', () => {
       100,
     );
     expect(basket.riskLabel).toBe('moderate');
+    expect(basket.marketSession?.summary).toEqual(expect.any(String));
+    expect(basket.marketSession?.regular).toEqual(expect.any(Boolean));
     expect(baskets.get(basket.id)).toBe(basket);
+  });
+
+  it('attaches the US market session to a stock quote and skips unresolved mints', async () => {
+    const quoted = makeQuote('NVDA', 25);
+    quoted.variant.liquidity = 10_000;
+    selector.selectAndQuote.mockResolvedValue({ quote: quoted });
+    const stockQuote = await service.getQuote({
+      side: 'buy',
+      ticker: 'NVDA',
+      amountUsd: 25,
+    });
+    expect(stockQuote.marketSession?.state).toEqual(expect.any(String));
+    expect(quoteCache.set).toHaveBeenCalledWith(stockQuote);
+
+    router.quote.mockImplementation((ctx: { assetId: string }) => ({
+      ...makeQuote('TOKEN', 1),
+      assetId: ctx.assetId,
+    }));
+    const unresolved = await service.getQuote({
+      side: 'buy',
+      inputMint: 'usdc-mint',
+      outputMint: 'not-a-stock',
+      amount: 1,
+    });
+    expect(unresolved.assetId).toBe('unknown');
+    expect(unresolved.marketSession).toBeUndefined();
   });
 
   it('falls back to opportunities when no candidates are supplied', async () => {
