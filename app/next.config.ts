@@ -18,6 +18,7 @@ const nextConfig: NextConfig = {
       { source: "/stocks/:path*", destination: "/app/stocks/:path*", permanent: false },
       { source: "/vault", destination: "/app/vault", permanent: false },
       { source: "/venues", destination: "/app/venues", permanent: false },
+      { source: "/changelog/send-cash-and-stocks", destination: "/changelog/transfer-stablecoins-and-stocks", permanent: true },
     ];
   },
 };

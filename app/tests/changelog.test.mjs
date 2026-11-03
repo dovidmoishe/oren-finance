@@ -52,7 +52,17 @@ test('uses publication sequence within a day before the slug fallback', () => {
   assert.deepEqual(visibleEntries(entries).map(e => e.slug), ['z-latest', 'a-earlier', 'legacy', 'older-day']);
   const dir = new URL('../content/changelog/', import.meta.url);
   const actual = validateEntries(readdirSync(dir).filter(f => f.endsWith('.json')).map(f => JSON.parse(readFileSync(new URL(f, dir), 'utf8'))));
-  assert.equal(visibleEntries(actual)[0].slug, 'send-cash-and-stocks');
+  assert.equal(visibleEntries(actual)[0].slug, 'transfer-stablecoins-and-stocks');
+  const published = findEntry(actual, 'transfer-stablecoins-and-stocks');
+  assert.equal(published.status, 'published');
+  assert.equal(published.date, '2026-11-03');
+  assert.equal(published.title, 'Transfer stablecoins and stocks');
+  assert.doesNotMatch(`${published.title} ${published.summary} ${JSON.stringify(published.sections)}`, /cash|withdraw/i);
+});
+
+test('the shared send-cash changelog URL redirects permanently to the transfer slug', () => {
+  const config = readFileSync(new URL('../next.config.ts', import.meta.url), 'utf8');
+  assert.match(config, /source: "\/changelog\/send-cash-and-stocks", destination: "\/changelog\/transfer-stablecoins-and-stocks", permanent: true/);
 });
 
 test('draft lookup and listing require explicit development preview; production ignores the flag', () => {
