@@ -44,5 +44,7 @@ export interface PortfolioActivityItem {
   valueUsd?: number;
   status?: string;
   signature?: string;
+  /** Recorded Titan or Jupiter route. Absent when the trade has no stored venue. */
+  route?: "Titan" | "Jupiter";
   occurredAt: string;
 }

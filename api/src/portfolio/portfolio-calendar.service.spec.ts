@@ -142,8 +142,68 @@ describe('PortfolioCalendarService helpers', () => {
       'agent',
       'movement',
     ]);
+    expect(summaries[0].significantEvents[0].route).toBeUndefined();
+  });
+
+  it('labels recorded swap venues and does not invent one', () => {
+    const summaries = buildDaySummaries({
+      dates: ['2026-09-15'],
+      timeZone: 'UTC',
+      previousSnapshot: null,
+      snapshots: [
+        snapshot({
+          timestamp: '2026-09-15T20:00:00.000Z',
+          total: 10,
+          positions: [],
+        }),
+      ],
+      executions: [
+        execution({ provider: 'titan:Titan-DART', id: 'titan' }),
+        execution({
+          provider: 'jupiter-trigger',
+          id: 'limit',
+          type: 'limit_buy',
+        }),
+        execution({ provider: null, id: 'legacy' }),
+        execution({ provider: 'oren-vault', id: 'lock', type: 'lock' }),
+      ],
+      vaultPositions: [],
+      agentMessages: [],
+    });
+
+    expect(summaries[0].significantEvents.map((event) => event.route)).toEqual([
+      'Titan',
+      'Jupiter',
+      undefined,
+      undefined,
+    ]);
   });
 });
+
+function execution(input: {
+  id: string;
+  provider: string | null;
+  type?: 'stock_sale' | 'limit_buy' | 'lock';
+}) {
+  return {
+    id: input.id,
+    walletAddress: 'wallet',
+    type: input.type ?? 'stock_sale',
+    status: 'confirmed' as const,
+    ticker: 'AAPL',
+    assetId: 'aapl',
+    amount: null,
+    amountUsd: '10',
+    tokenMint: null,
+    inputAsset: null,
+    outputAsset: null,
+    provider: input.provider,
+    featureSource: 'direct' as const,
+    transactionSignature: null,
+    createdAt: new Date('2026-09-15T12:00:00.000Z'),
+    submittedAt: null,
+  };
+}
 
 function snapshot(input: {
   timestamp: string;
