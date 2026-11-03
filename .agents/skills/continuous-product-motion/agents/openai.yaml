@@ -1,0 +1,4 @@
+interface:
+  display_name: "Continuous Product Motion"
+  short_description: "Premium product films with the Oren Drip finish"
+  default_prompt: "Use $continuous-product-motion to create a crisp, minimal product film with continuous camera movement, purposeful UI choreography, and energetic original sound."
