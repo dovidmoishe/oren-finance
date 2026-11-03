@@ -85,6 +85,7 @@ function EventRow({ event }: { event: TradingCalendarEvent }) {
         <p className="mt-1 text-xs text-muted">
           {event.detail ?? event.status ?? "Observed event"}
           {event.ticker ? ` · ${event.ticker}` : ""}
+          {event.route ? ` · ${event.route}` : ""}
         </p>
       </div>
     </div>
@@ -269,6 +270,22 @@ export function TradingCalendar() {
                           <span className={cn("font-mono", item.valueChangeUsd >= 0 ? "text-positive" : "text-negative")}>
                             {formatCurrency(item.valueChangeUsd)} · {formatNumber(item.valueChangePct, 2)}%
                           </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+                {calendarDay?.trades.length ? (
+                  <div>
+                    <p className="mb-2 text-sm font-semibold">Trades</p>
+                    <div className="space-y-2">
+                      {calendarDay.trades.map((trade) => (
+                        <div className="flex items-center justify-between gap-3 rounded-[14px] border border-border bg-background p-3 text-sm" key={trade.id}>
+                          <span className="font-semibold">
+                            {trade.ticker ?? "Trade"}
+                            {trade.route ? <span className="font-normal text-muted"> · {trade.route}</span> : null}
+                          </span>
+                          <span className="font-mono text-xs text-muted">{trade.amountUsd ? formatCurrency(trade.amountUsd) : trade.status}</span>
                         </div>
                       ))}
                     </div>

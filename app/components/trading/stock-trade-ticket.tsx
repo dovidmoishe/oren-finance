@@ -1,6 +1,7 @@
 "use client";
 
 import { financialExecutionEnabled } from "@/services/environment";
+import { formatQuotedRoute } from "@/services/route-label";
 
 import { AlertCircleIcon, CoinsSwapIcon, Loading03Icon, Wallet02Icon, ArrowUpDownIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
@@ -208,7 +209,7 @@ export function StockTradeTicket({ stock, limitZones, onConfirmed }: StockTradeT
   const displayedError = executionError;
   const liveRouteUnavailable = isNoRouteError(displayedError);
   const routeValue = activeQuote
-    ? `${activeQuote.provider} · ${activeQuote.variant.symbol}`
+    ? formatQuotedRoute(activeQuote.provider, activeQuote.variant.symbol)
     : isLoading
       ? "Fetching quote"
       : liveRouteUnavailable

@@ -4,6 +4,7 @@ import { AlertCircleIcon, ArrowRight01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Button, Toast, formatNumber } from "@/components/ui";
 import { priceMovedChangePercent } from "@/services/price-moved";
+import { routeVenueLabel } from "@/services/route-label";
 import type { PriceMovedDetails, PriceMovedTerms, QuoteResponse } from "@/types";
 
 interface PriceMovedReviewProps {
@@ -15,7 +16,7 @@ interface PriceMovedReviewProps {
 }
 
 function venueLabel(provider: string) {
-  return provider.startsWith("titan") ? "Titan" : provider.startsWith("jupiter") ? "Jupiter" : provider;
+  return routeVenueLabel(provider) ?? "—";
 }
 
 function Row({ label, value }: { label: string; value: string }) {
