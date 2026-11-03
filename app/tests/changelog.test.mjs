@@ -52,7 +52,7 @@ test('uses publication sequence within a day before the slug fallback', () => {
   assert.deepEqual(visibleEntries(entries).map(e => e.slug), ['z-latest', 'a-earlier', 'legacy', 'older-day']);
   const dir = new URL('../content/changelog/', import.meta.url);
   const actual = validateEntries(readdirSync(dir).filter(f => f.endsWith('.json')).map(f => JSON.parse(readFileSync(new URL(f, dir), 'utf8'))));
-  assert.equal(visibleEntries(actual)[0].slug, 'drip-on-oren');
+  assert.equal(visibleEntries(actual)[0].slug, 'send-cash-and-stocks');
 });
 
 test('draft lookup and listing require explicit development preview; production ignores the flag', () => {

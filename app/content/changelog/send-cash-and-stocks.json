@@ -1,8 +1,8 @@
 {
   "slug": "send-cash-and-stocks",
-  "date": "2026-11-02",
+  "date": "2026-11-03",
   "sequence": 1,
-  "status": "draft",
+  "status": "published",
   "title": "Send cash. Send stocks.",
   "summary": "Send USDC, SOL, and supported tokenized stocks to another Solana wallet, with the recipient, amount, and fees reviewed before you approve. Local preview shown with sample balances.",
   "sections": [
