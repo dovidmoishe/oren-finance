@@ -3,6 +3,7 @@ export * from "./bitget";
 export * from "./calendar";
 export * from "./execution";
 export * from "./limit-order";
+export * from "./market-session";
 export * from "./portfolio";
 export * from "./research";
 export * from "./social";

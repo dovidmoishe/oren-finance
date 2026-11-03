@@ -24,6 +24,7 @@ import { Button, cn, formatCurrency, formatNumber } from '@/components/ui';
 import { useQuoteRefresh } from '@/hooks/use-quote-refresh';
 import { useExecutionStore } from '@/store';
 import { BasketProposal } from '@/components/trading/basket-proposal';
+import { MarketSessionNotice } from '@/components/trading/market-session-notice';
 
 interface AgentArtifactsProps {
   artifacts: AgentArtifact[];
@@ -324,6 +325,7 @@ function AgentArtifactCard({
               {formatNumber(artifact.data.takingAmount, 6)} {artifact.data.outputSymbol}
             </span>
           </div>
+          <MarketSessionNotice session={artifact.data.marketSession} variant="note" />
           {artifact.data.wouldFillImmediately ? (
             <p className="mt-3 rounded-[13px] bg-white/60 px-3 py-2 text-[11px] leading-4 text-muted">
               This limit is already through market — it may fill right after you sign.
@@ -385,6 +387,7 @@ function AgentArtifactCard({
             ))}
           </div>
           <p className="mt-3 text-xs leading-5 text-muted">{artifact.data.riskCopy}</p>
+          <MarketSessionNotice session={artifact.data.basket.marketSession} variant="note" />
           <Button className="mt-4 h-10 w-full rounded-[14px]" onClick={() => onReviewBasket(artifact.data.basket)} variant="primary">
             Review copy basket
           </Button>
@@ -524,6 +527,7 @@ function QuoteArtifact({
               : `${secondsLeft}s left`}
         </span>
       </div>
+      <MarketSessionNotice session={liveQuote.marketSession} variant="note" />
       <p className="mt-3 rounded-[13px] bg-white/60 px-3 py-2 text-[11px] leading-4 text-muted">
         {refreshFailed
           ? 'Could not refresh this quote. Retry to keep it actionable.'

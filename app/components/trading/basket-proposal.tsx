@@ -5,6 +5,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import type { BasketResponse } from "@/types";
 import { StockLogo } from "@/components/stock/stock-logo";
 import { Button, formatCurrency, formatNumber } from "@/components/ui";
+import { MarketSessionNotice } from "./market-session-notice";
 
 export function BasketProposal({ basket, onReview }: { basket: BasketResponse; onReview: (basket: BasketResponse) => void }) {
   return <section className="overflow-hidden rounded-[20px] border border-border bg-panel">
@@ -28,6 +29,7 @@ export function BasketProposal({ basket, onReview }: { basket: BasketResponse; o
         </div>)}
       </div>
       {basket.thesis && <p className="mt-5 text-xs leading-5 text-muted">{basket.thesis}</p>}
+      <MarketSessionNotice className="mt-5" session={basket.marketSession} />
       <Button variant="primary" className="mt-5 h-10 w-full rounded-[12px]" onClick={() => onReview(basket)}>Review mix <HugeiconsIcon icon={ArrowUpRight01Icon} size={14} strokeWidth={1.8} /></Button>
     </div>
   </section>;

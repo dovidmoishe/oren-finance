@@ -36,12 +36,16 @@ export function uiAmountToRaw(ui: number, decimals: number): string {
   return String(Math.round(ui * factor));
 }
 
+/**
+ * Jupiter `priceImpactPct` is a ratio from 0 to 1, not a percentage.
+ * `0.01` means 1%. Store percentage points so `1` means 1% for both venues.
+ */
 export function parsePriceImpactPercent(
   value: string | number | undefined,
 ): number {
-  if (value === undefined || value === null) return 0;
+  if (value === undefined || value === null || value === '') return 0;
   const n = typeof value === 'number' ? value : Number(value);
-  return Number.isFinite(n) ? n : 0;
+  return Number.isFinite(n) ? n * 100 : 0;
 }
 
 /**

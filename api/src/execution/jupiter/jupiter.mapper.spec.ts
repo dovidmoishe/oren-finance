@@ -28,7 +28,12 @@ describe('jupiter.mapper', () => {
   it('converts raw and ui amounts', () => {
     expect(rawAmountToUi('1000000', 6)).toBe(1);
     expect(uiAmountToRaw(1.5, 6)).toBe('1500000');
-    expect(parsePriceImpactPercent('0.03')).toBe(0.03);
+    expect(parsePriceImpactPercent('0.03')).toBe(3);
+    expect(parsePriceImpactPercent('0.00020743931921022977')).toBeCloseTo(
+      0.020743931921022977,
+      8,
+    );
+    expect(parsePriceImpactPercent('')).toBe(0);
   });
 
   it('maps Jupiter quote into domain Quote', () => {
@@ -52,7 +57,7 @@ describe('jupiter.mapper', () => {
     expect(quote.inputAmount).toBe(100);
     expect(quote.outputAmount).toBe(0.42);
     expect(quote.estimatedPriceUsd).toBeCloseTo(100 / 0.42);
-    expect(quote.priceImpactPercent).toBe(0.03);
+    expect(quote.priceImpactPercent).toBe(3);
     expect(quote.routePayload).toBe(raw);
   });
 });

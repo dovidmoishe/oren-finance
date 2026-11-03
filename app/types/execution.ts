@@ -1,3 +1,5 @@
+import type { MarketSession } from "./market-session";
+
 export type TradeSide = "buy" | "sell";
 
 export interface TradeIntent {
@@ -44,6 +46,7 @@ export interface QuoteResponse {
   slippageBps: number;
   provider: string;
   routePayload?: unknown;
+  marketSession?: MarketSession;
   expiresAt: string;
   quotedAt: string;
 }
@@ -96,6 +99,7 @@ export interface BasketResponse {
   allocations: BasketAllocation[];
   thesis?: string;
   riskLabel?: string;
+  marketSession?: MarketSession;
   createdAt: string;
 }
 

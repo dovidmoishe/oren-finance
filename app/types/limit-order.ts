@@ -1,5 +1,6 @@
-import type { LimitZoneBasis } from "./stock";
 import type { QuoteVariant, TradeSide } from "./execution";
+import type { MarketSession } from "./market-session";
+import type { LimitZoneBasis } from "./stock";
 
 export type LimitOrderStatus =
   | "open"
@@ -45,6 +46,7 @@ export interface LimitOrderProposal {
   expiredAt: number;
   slippageBps: number;
   provider: string;
+  marketSession?: MarketSession;
   createdAt: string;
 }
 

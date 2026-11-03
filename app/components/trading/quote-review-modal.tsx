@@ -15,6 +15,7 @@ import { useState } from "react";
 import { Button, Modal, Toast, formatCurrency, formatNumber } from "@/components/ui";
 import type { ExecutionStatus, QuoteResponse } from "@/types";
 import { useApprovalReview } from "@/hooks/use-approval-review";
+import { MarketSessionNotice } from "./market-session-notice";
 import { PriceMovedReview } from "./price-moved-review";
 
 type TradeFlowStatus = "idle" | "quoted" | "preparing" | "signing" | "confirming" | "submitted" | "confirmed" | "failed";
@@ -121,6 +122,8 @@ export function QuoteReviewModal({
             <Row label="Estimated network fee" value={review.approval ? `${Number(review.approval.feeLamports) / 1e9} SOL` : "Preparing…"} />
             <Row label="Quote expiry" value={formatExpiryLabel(secondsLeft, isRefreshingQuote)} />
           </div>
+
+          <MarketSessionNotice session={quote.marketSession} />
 
           {warnings.length ? (
             <div className="space-y-2">
