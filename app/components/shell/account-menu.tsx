@@ -30,7 +30,7 @@ export function AccountMenu() {
         <div className="min-w-0"><p className="font-semibold">Your account</p><p className="mt-1 truncate text-sm text-muted">{auth.email || "Signed in"}</p></div>
       </div>
       <div aria-label="Account actions" className="p-2">
-        <button className="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-sm font-medium hover:bg-background focus-visible:outline-2" type="button" onClick={() => { close(); setWithdrawOpen(true); }}><HugeiconsIcon icon={ArrowUpRight01Icon} size={20} strokeWidth={1.5} aria-hidden="true" /> Withdraw</button>
+        <button className="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-sm font-medium hover:bg-background focus-visible:outline-2" type="button" onClick={() => { close(); setWithdrawOpen(true); }}><HugeiconsIcon icon={ArrowUpRight01Icon} size={20} strokeWidth={1.5} aria-hidden="true" /> Transfer</button>
         <button className="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-sm font-medium hover:bg-background focus-visible:outline-2" onClick={() => { close(); auth.openDeposit(); }} type="button"><HugeiconsIcon icon={ArrowDownLeft01Icon} size={20} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className="inline-block shrink-0 align-middle" /> Deposit</button>
       </div>
       <div className="border-t border-border p-2">
