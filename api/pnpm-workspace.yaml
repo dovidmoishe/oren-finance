@@ -1,3 +1,11 @@
+# pnpm 11 aborts a registry request, body included, at fetchTimeout
+# (default 60s). @solana/assertions metadata is ~12 MB, so a slow npm
+# response fails the supply-chain check with ERR_PNPM_BROKEN_METADATA_JSON
+# after the built-in retries. These only wait longer and retry more.
+# The check and the frozen lockfile are unchanged.
+fetchTimeout: 300000
+fetchRetries: 5
+
 allowBuilds:
   '@parcel/watcher': true
   bigint-buffer: true
