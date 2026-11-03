@@ -91,6 +91,7 @@ jobs:
     needs: resolve
     if: needs.resolve.outputs.pr != ''
     runs-on: ubuntu-24.04
+    timeout-minutes: 25
     concurrency:
       group: preview-api-image-${{ needs.resolve.outputs.pr }}
       cancel-in-progress: true
@@ -151,6 +152,8 @@ jobs:
           context: ./source/api
           push: true
           tags: ghcr.io/${{ needs.resolve.outputs.owner }}/oren-api:pr-${{ needs.resolve.outputs.pr }}-${{ needs.resolve.outputs.sha }}
+          cache-from: type=gha,scope=oren-api-preview
+          cache-to: type=gha,mode=max,scope=oren-api-preview
       - name: Record preview API digest
         id: digest
         env:
@@ -171,6 +174,7 @@ jobs:
     needs: resolve
     if: needs.resolve.outputs.pr != ''
     runs-on: ubuntu-24.04
+    timeout-minutes: 25
     concurrency:
       group: preview-web-image-${{ needs.resolve.outputs.pr }}
       cancel-in-progress: true
@@ -199,6 +203,8 @@ jobs:
             NEXT_PUBLIC_PREVIEW_PR_NUMBER=${{ needs.resolve.outputs.pr }}
             NEXT_PUBLIC_COMMIT_SHA=${{ needs.resolve.outputs.sha }}
           tags: ghcr.io/${{ needs.resolve.outputs.owner }}/oren-app:pr-${{ needs.resolve.outputs.pr }}-${{ needs.resolve.outputs.sha }}
+          cache-from: type=gha,scope=oren-app-preview
+          cache-to: type=gha,mode=max,scope=oren-app-preview
   deploy:
     needs: [resolve, ci-gate, build-api, build-app]
     if: always() && needs.resolve.outputs.pr != ''

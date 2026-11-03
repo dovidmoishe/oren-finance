@@ -1,4 +1,5 @@
 node_modules
+.pnpm-cache
 .next
 coverage
 .env
