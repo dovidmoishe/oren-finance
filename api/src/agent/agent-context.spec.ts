@@ -70,6 +70,9 @@ describe('agent-context', () => {
     expect(instructions).not.toMatch(/\byh\b/);
     expect(instructions).toContain('Top holdings: NVDA 20.0%');
     expect(instructions).toContain('currently on the dashboard page');
+    expect(instructions).toContain(
+      'Writer opinions are not available on this turn',
+    );
     expect(instructions).not.toContain('getDripOpinions');
   });
 
@@ -81,10 +84,14 @@ describe('agent-context', () => {
     expect(instructions).toContain('getDripOpinions');
     expect(instructions).toContain('getDripPicks');
     expect(instructions).toContain('financial advice');
-    expect(instructions).toContain('could not be fetched');
+    expect(instructions).toContain(
+      'Drip is not available or returned no writer opinions',
+    );
     expect(instructions).toContain('stance');
     expect(instructions).toContain('one-line quote');
     expect(instructions).toContain('Do not ask whether to fetch');
+    expect(instructions).toContain('before you answer');
+    expect(instructions).toContain('as Drip');
   });
 
   it('tells the model to fetch portfolio when snapshot is unavailable', () => {

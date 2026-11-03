@@ -68,6 +68,22 @@ Manual production deployments accept a full Git SHA and load its matching deploy
 
 ## Image build speed rollout
 
+Preview image builds start when PR CI enters `in_progress`, including CI reruns.
+The trusted resolver still admits only open, same-repository collaborator PRs on
+the current head. An independent gate waits for the newest exact-head `ci.yml`
+PR run to succeed while the API and web images build. Before activation, the
+deployment runner checks the PR, collaborator permission and latest CI again.
+Failed, cancelled, missing or pending CI cannot activate a preview. Manual
+redeploys retain their early CI admission check and the same activation gate.
+
+New commits cancel superseded PR CI and per-PR API/web image jobs. Master CI runs
+keep unique groups and are never cancelled by this policy. Deployments retain
+their existing per-PR serialization without automatic cancellation. An older
+attempt cannot overwrite a newer attempt's `Preview ready` status; the installed
+controller also retains its current-head checks, password/financial/worker gates
+and health verification. This moves CI off the serial image-build path; it does
+not skip checks, change image caching or alter production deployment/rollback.
+
 Production starts on the same `master` push as CI. The existing API/web image jobs and
 the exact-SHA CI gate run concurrently; deployment requires the gate and both image
 jobs to succeed. Failed, cancelled, missing or timed-out CI never authorizes deployment.
