@@ -51,4 +51,6 @@ See **Active phase** at the top of [`docs/api-build-board.md`](docs/api-build-bo
 
 - For release notes and changelog publishing, use [the Oren changelog skill](.agents/skills/oren-changelog/SKILL.md). Entries live in `app/content/changelog/`; films follow the existing separately deployed media workflow.
 
+- For product launch films and motion design in the Oren Drip style, use [the Continuous Product Motion skill](.agents/skills/continuous-product-motion/SKILL.md). It includes camera, UI, pacing, audio and delivery guidance plus a bundled visual benchmark.
+
 - Next.js rules for `app/` may also appear in [`app/AGENTS.md`](app/AGENTS.md). Follow both: root board + app Next guidance.
