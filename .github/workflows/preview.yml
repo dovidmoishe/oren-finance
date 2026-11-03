@@ -152,8 +152,10 @@ jobs:
           context: ./source/api
           push: true
           tags: ghcr.io/${{ needs.resolve.outputs.owner }}/oren-api:pr-${{ needs.resolve.outputs.pr }}-${{ needs.resolve.outputs.sha }}
+          # workflow_run on the default branch gets a read-only Actions cache token.
+          # Ignore export errors so a denied cache write cannot fail the preview.
           cache-from: type=gha,scope=oren-api-preview
-          cache-to: type=gha,mode=max,scope=oren-api-preview
+          cache-to: type=gha,mode=max,scope=oren-api-preview,ignore-error=true
       - name: Record preview API digest
         id: digest
         env:
@@ -203,8 +205,10 @@ jobs:
             NEXT_PUBLIC_PREVIEW_PR_NUMBER=${{ needs.resolve.outputs.pr }}
             NEXT_PUBLIC_COMMIT_SHA=${{ needs.resolve.outputs.sha }}
           tags: ghcr.io/${{ needs.resolve.outputs.owner }}/oren-app:pr-${{ needs.resolve.outputs.pr }}-${{ needs.resolve.outputs.sha }}
+          # workflow_run on the default branch gets a read-only Actions cache token.
+          # Ignore export errors so a denied cache write cannot fail the preview.
           cache-from: type=gha,scope=oren-app-preview
-          cache-to: type=gha,mode=max,scope=oren-app-preview
+          cache-to: type=gha,mode=max,scope=oren-app-preview,ignore-error=true
   deploy:
     needs: [resolve, ci-gate, build-api, build-app]
     if: always() && needs.resolve.outputs.pr != ''
