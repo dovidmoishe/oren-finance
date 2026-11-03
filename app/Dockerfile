@@ -4,11 +4,21 @@ FROM node:22-bookworm-slim AS base
 WORKDIR /app
 ENV PNPM_HOME=/pnpm
 ENV PATH=$PNPM_HOME:$PATH
+# The store mount is a different filesystem from the image layer.
+ENV pnpm_config_store_dir=/pnpm/store
+ENV pnpm_config_package_import_method=copy
 RUN corepack enable
 
 FROM base AS dependencies
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
-RUN pnpm install --frozen-lockfile
+# Mounts reuse the store and the full-metadata mirror on a warm builder.
+# The verification record is copied into the layer so a GitHub Actions
+# layer-cache hit still skips the registry (mounts are not in that cache).
+RUN --mount=type=cache,id=oren-app-pnpm-store,target=/pnpm/store,sharing=locked \
+    --mount=type=cache,id=oren-app-pnpm-cache,target=/pnpm/cache,sharing=locked \
+    pnpm_config_cache_dir=/pnpm/cache pnpm install --frozen-lockfile \
+    && mkdir -p /app/.pnpm-cache \
+    && cp -a /pnpm/cache/lockfile-verified.jsonl /app/.pnpm-cache/lockfile-verified.jsonl
 
 FROM dependencies AS build
 ARG NEXT_PUBLIC_OREN_API_URL

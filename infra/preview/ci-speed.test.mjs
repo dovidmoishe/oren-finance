@@ -19,4 +19,6 @@ test('cache evidence requires the pnpm layer itself and distinguishes materializ
   const probe = 'no-cache-filters: dependency-probe\n#20 [dependency-probe 1/1] RUN node -e "resolve"\n#20 DONE 0.2s';
   assert.equal(cacheEvidence(probe).materialized, true);
   assert.equal(cacheEvidence(probe.replace('#20 DONE 0.2s', '#20 CACHED')).materialized, false);
+  const mounted = `${prefix}#14 [dependencies 2/2] RUN --mount=type=cache,id=oren-app-pnpm-store,target=/pnpm/store,sharing=locked --mount=type=cache,id=oren-app-pnpm-cache,target=/pnpm/cache,sharing=locked pnpm_config_cache_dir=/pnpm/cache pnpm install --frozen-lockfile && cp lockfile-verified.jsonl /app/.pnpm-cache/\n${prefix}#14 CACHED\nload: true\n`;
+  assert.equal(cacheEvidence(mounted).dependencyCacheHit, true);
 });

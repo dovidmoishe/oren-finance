@@ -68,6 +68,7 @@ jobs:
   api:
     name: API test and build
     runs-on: ubuntu-24.04
+    timeout-minutes: 20
     services:
       postgres:
         image: postgres:16-alpine
@@ -98,7 +99,18 @@ jobs:
           node-version: 22
           cache: pnpm
           cache-dependency-path: api/pnpm-lock.yaml
-      - run: pnpm install --frozen-lockfile
+      # setup-node caches the package store only. This directory holds the
+      # full-metadata mirror and lockfile-verified.jsonl, which skips the
+      # registry when the lockfile is unchanged.
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/pnpm
+          key: pnpm-metadata-api-${{ runner.os }}-11.22-${{ hashFiles('api/pnpm-lock.yaml') }}
+          restore-keys: |
+            pnpm-metadata-api-${{ runner.os }}-11.22-
+      - name: Install dependencies
+        timeout-minutes: 8
+        run: pnpm install --frozen-lockfile
       - run: pnpm run typecheck
       - run: pnpm test --runInBand
       - run: pnpm run test:mcp:guard
@@ -120,6 +132,7 @@ jobs:
   app-check:
     name: App ${{ matrix.check }}
     runs-on: ubuntu-24.04
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
@@ -142,7 +155,18 @@ jobs:
           node-version: 22
           cache: pnpm
           cache-dependency-path: app/pnpm-lock.yaml
-      - run: pnpm install --frozen-lockfile
+      # setup-node caches the package store only. This directory holds the
+      # full-metadata mirror and lockfile-verified.jsonl, which skips the
+      # registry when the lockfile is unchanged.
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/pnpm
+          key: pnpm-metadata-app-${{ runner.os }}-11.22-${{ hashFiles('app/pnpm-lock.yaml') }}
+          restore-keys: |
+            pnpm-metadata-app-${{ runner.os }}-11.22-
+      - name: Install dependencies
+        timeout-minutes: 8
+        run: pnpm install --frozen-lockfile
       - run: pnpm run ${{ matrix.check }}
 
   # Preserve the required-check name used by preview setup and branch protection.
