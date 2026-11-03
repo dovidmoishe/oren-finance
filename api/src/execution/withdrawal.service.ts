@@ -109,12 +109,12 @@ export class WithdrawalService {
     assertFinancialExecutionEnabled();
     if (this.env.SOLANA_NETWORK !== 'mainnet')
       throw new ServiceUnavailableException(
-        'Withdrawals are available on Solana mainnet only',
+        'Transfers are available on Solana mainnet only',
       );
     const owner = await this.auth.requireSigner(authorization, input.wallet);
     if (!['USDC', 'SOL', 'STOCK'].includes(input.asset))
       throw new BadRequestException(
-        'Choose cash or a stock from your holdings',
+        'Choose USDC, SOL, or a stock token from your holdings',
       );
     if (input.asset !== 'STOCK' && input.mint)
       throw new BadRequestException(
@@ -149,7 +149,7 @@ export class WithdrawalService {
         (existing.details.mint ?? undefined) !== stock?.mint
       )
         throw new ConflictException(
-          'This request already belongs to another withdrawal',
+          'This request already belongs to another transfer',
         );
       return this.view(existing);
     }
@@ -167,7 +167,7 @@ export class WithdrawalService {
       );
     if ((await this.approvals.pending(owner.userId, input.wallet)).length)
       throw new ConflictException(
-        'Check your pending transaction before preparing another withdrawal',
+        'Check your pending transaction before preparing another transfer',
       );
 
     const [balance, destination, latest] = await Promise.all([
@@ -306,12 +306,12 @@ export class WithdrawalService {
       bytes = tx.serialize();
     } catch {
       throw new BadRequestException(
-        'Tokens are spread across too many accounts for one withdrawal',
+        'Tokens are spread across too many accounts for one transfer',
       );
     }
     if (bytes.length > 1232)
       throw new BadRequestException(
-        'Tokens are spread across too many accounts for one withdrawal',
+        'Tokens are spread across too many accounts for one transfer',
       );
     const transaction = Buffer.from(bytes).toString('base64');
     const fee = await this.rpc.call<{ value: number | null }>(
@@ -330,7 +330,7 @@ export class WithdrawalService {
       (input.asset === 'SOL' ? raw : 0n) + rent + BigInt(fee.value)
     )
       throw new BadRequestException(
-        'Insufficient SOL for this withdrawal and network costs',
+        'Insufficient SOL for this transfer and network costs',
       );
     await this.inspection.inspect(transaction, input.wallet);
     const row = await this.approvals.create({

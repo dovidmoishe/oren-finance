@@ -81,11 +81,11 @@ function fixture() {
 test('withdrawal review requires an explicit checked confirmation and never signs during preparation', async () => {
   const f = fixture(); await f.review();
   assert.deepEqual(f.counts(), { requests: 1, submissions: 0, authorizations: 0 });
-  assert.equal(f.button('Confirm withdrawal').props.disabled, true);
-  f.check(); assert.equal(f.button('Confirm withdrawal').props.disabled, false);
-  f.button('Confirm withdrawal').props.onClick(); await tick();
+  assert.equal(f.button('Confirm transfer').props.disabled, true);
+  f.check(); assert.equal(f.button('Confirm transfer').props.disabled, false);
+  f.button('Confirm transfer').props.onClick(); await tick();
   assert.deepEqual(f.counts(), { requests: 1, submissions: 1, authorizations: 1 });
-  assert.ok(f.button('Check withdrawal status'));
+  assert.ok(f.button('Check transfer status'));
 });
 
 test('stock withdrawal selects the exact held variant and shows its identity in review', async () => {
@@ -108,24 +108,24 @@ test('stock withdrawal selects the exact held variant and shows its identity in 
 test('a lost withdrawal response stays pending and status checks cannot create another transfer', async () => {
   const f = fixture(); f.submit(async () => { throw new Error('Network timeout'); });
   await f.review(); f.check();
-  const confirm = f.button('Confirm withdrawal'); confirm.props.onClick(); confirm.props.onClick(); await tick();
+  const confirm = f.button('Confirm transfer'); confirm.props.onClick(); confirm.props.onClick(); await tick();
   assert.equal(f.counts().submissions, 1);
-  assert.equal(f.button('Confirm withdrawal'), undefined);
-  f.button('Check withdrawal status').props.onClick(); await tick();
+  assert.equal(f.button('Confirm transfer'), undefined);
+  f.button('Check transfer status').props.onClick(); await tick();
   assert.equal(f.counts().submissions, 1);
   assert.equal(f.counts().requests, 1);
 });
 
 test('reopening the modal recovers pending withdrawals instead of offering a new send', async () => {
   const f = fixture(); f.pending([{ ...f.row, status: 'signed' }]); f.render(); await tick();
-  assert.ok(f.button('Check withdrawal status'));
+  assert.ok(f.button('Check transfer status'));
   assert.equal(f.nodes(f.render(), 'form').length, 0);
   assert.deepEqual(f.counts(), { requests: 0, submissions: 0, authorizations: 0 });
 });
 
 test('an uncertain prepared withdrawal cannot reopen a fresh send form', async () => {
   const f = fixture(); f.pending([{ ...f.row, status: 'prepared' }]); f.render(); await tick();
-  assert.ok(f.button('Check withdrawal status'));
+  assert.ok(f.button('Check transfer status'));
   assert.equal(f.nodes(f.render(), 'form').length, 0);
   assert.ok(JSON.stringify(f.render()).includes('approval may still be processing'));
 });
@@ -133,14 +133,14 @@ test('an uncertain prepared withdrawal cannot reopen a fresh send form', async (
 test('failed recovery blocks another withdrawal until a retry verifies the previous state', async () => {
   const f = fixture(); f.recoveryError(new Error('Unavailable')); f.render(); await tick();
   assert.equal(f.nodes(f.render(), 'form').length, 0);
-  assert.ok(f.button('Check pending withdrawals'));
-  f.recoveryError(undefined); f.button('Check pending withdrawals').props.onClick(); f.render(); await tick();
+  assert.ok(f.button('Check pending transfers'));
+  f.recoveryError(undefined); f.button('Check pending transfers').props.onClick(); f.render(); await tick();
   assert.equal(f.nodes(f.render(), 'form').length, 1);
 });
 
 test('wallet changes while authorizing a withdrawal prevent submission', async () => {
   const f = fixture(), wait = deferred(); f.authorize(() => wait.promise);
-  await f.review(); f.check(); f.button('Confirm withdrawal').props.onClick(); await tick();
+  await f.review(); f.check(); f.button('Confirm transfer').props.onClick(); await tick();
   f.changeSession(); wait.resolve('old-owner-signature'); await tick();
   assert.equal(f.counts().submissions, 0);
 });
@@ -153,14 +153,14 @@ test('recovery retries the existing signed withdrawal without preparing or autho
 
 test('closing the modal while authorizing prevents a later submission', async () => {
   const f = fixture(), wait = deferred(); f.authorize(() => wait.promise);
-  await f.review(); f.check(); f.button('Confirm withdrawal').props.onClick(); await tick();
+  await f.review(); f.check(); f.button('Confirm transfer').props.onClick(); await tick();
   f.unmount(); wait.resolve('owner-signature'); await tick();
   assert.equal(f.counts().submissions, 0);
 });
 
 test('an expired withdrawal cannot request authorization', async () => {
   const f = fixture(); await f.review(); f.check(); f.row.expiresAt = new Date(0).toISOString();
-  f.button('Confirm withdrawal').props.onClick(); await tick();
+  f.button('Confirm transfer').props.onClick(); await tick();
   assert.equal(f.counts().authorizations, 0);
   assert.equal(f.counts().submissions, 0);
 });

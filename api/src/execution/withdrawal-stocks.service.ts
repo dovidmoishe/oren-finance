@@ -322,7 +322,7 @@ export class WithdrawalStocksService {
       (details.scaleMultiplier !== undefined &&
         typeof details.scaleMultiplier !== 'string')
     )
-      throw new BadRequestException('Stock withdrawal review is incomplete');
+      throw new BadRequestException('Stock transfer review is incomplete');
     const current = await this.resolve(details.mint);
     if (
       current.decimals !== details.decimals ||
@@ -331,7 +331,7 @@ export class WithdrawalStocksService {
         : String(current.scaleMultiplier)) !== details.scaleMultiplier
     )
       throw new BadRequestException(
-        'The stock share adjustment changed. Review a fresh withdrawal.',
+        'The stock share adjustment changed. Review a fresh transfer.',
       );
   }
 }

@@ -46,7 +46,7 @@ export function PendingApprovalNotice() {
         setRecovered(items => items.filter(item => item.id !== first.id));
       }
       if (result.status === 'confirmed') await refreshPortfolio();
-      setMessage(result.status === 'confirmed' ? 'Transaction confirmed.' : result.status === 'failed' ? 'Transaction failed or expired.' : result.status === 'prepared' ? result.kind === 'withdrawal' ? 'Withdrawal approval may still be processing. Check again until it completes or expires.' : 'No approval was processed. Reopen the transaction review to confirm.' : result.message || 'Still waiting for confirmation.');
+      setMessage(result.status === 'confirmed' ? 'Transaction confirmed.' : result.status === 'failed' ? 'Transaction failed or expired.' : result.status === 'prepared' ? result.kind === 'withdrawal' ? 'Transfer approval may still be processing. Check again until it completes or expires.' : 'No approval was processed. Reopen the transaction review to confirm.' : result.message || 'Still waiting for confirmation.');
     } catch { if (current()) setMessage('Status unavailable. Check again before creating another transaction.'); }
     finally { setBusy(false); }
   }
