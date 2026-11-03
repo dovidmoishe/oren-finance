@@ -14,7 +14,7 @@ const seconds = (start, end) => (Date.parse(end) - Date.parse(start)) / 1000;
 const repo = 'dovidmoishe/oren-finance';
 export function cacheEvidence(raw) {
   const log = stripVTControlCharacters(raw);
-  const install = log.split('\n').find(line => /#\d+ \[dependencies [^\]]+\] RUN pnpm install --frozen-lockfile/.test(line));
+  const install = log.split('\n').find(line => /#\d+ \[dependencies [^\]]+\] RUN\b.*\bpnpm install --frozen-lockfile\b/.test(line));
   const id = install?.match(/#(\d+)/)?.[1];
   const hit = id ? log.split('\n').find(line => new RegExp(`#${id} CACHED\\s*$`).test(line)) : null;
   const probe = log.match(/#(\d+) \[dependency-probe [^\]]+\] RUN node -e/);
