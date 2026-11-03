@@ -1,16 +1,20 @@
 "use client";
-import { ArrowDownLeft01Icon, Logout01Icon } from '@hugeicons/core-free-icons';
+import { ArrowDownLeft01Icon, ArrowUpRight01Icon, Logout01Icon } from '@hugeicons/core-free-icons';
 import { HugeiconsIcon } from '@hugeicons/react';
 
 
-import { useId, useRef } from "react";
+import { useId, useRef, useState } from "react";
+import dynamic from "next/dynamic";
 import { useOrenAuth } from "@/components/auth/auth-context";
 import { Button } from "@/components/ui";
+
+const WithdrawalModal = dynamic(() => import('@/components/portfolio/withdrawal-modal').then(mod => mod.WithdrawalModal), { ssr: false });
 
 export function AccountMenu() {
   const auth = useOrenAuth();
   const id = useId();
   const menu = useRef<HTMLDivElement>(null);
+  const [withdrawOpen, setWithdrawOpen] = useState(false);
   if (!auth.configured) return <span className="text-xs text-muted">Sign-in unavailable</span>;
   if (!auth.ready) return <span className="text-xs text-muted" role="status">Loading account…</span>;
   if (!auth.authenticated) return <Button onClick={auth.open} size="sm">Sign in</Button>;
@@ -26,12 +30,14 @@ export function AccountMenu() {
         <div className="min-w-0"><p className="font-semibold">Your account</p><p className="mt-1 truncate text-sm text-muted">{auth.email || "Signed in"}</p></div>
       </div>
       <div aria-label="Account actions" className="p-2">
+        <button className="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-sm font-medium hover:bg-background focus-visible:outline-2" type="button" onClick={() => { close(); setWithdrawOpen(true); }}><HugeiconsIcon icon={ArrowUpRight01Icon} size={20} strokeWidth={1.5} aria-hidden="true" /> Withdraw</button>
         <button className="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-sm font-medium hover:bg-background focus-visible:outline-2" onClick={() => { close(); auth.openDeposit(); }} type="button"><HugeiconsIcon icon={ArrowDownLeft01Icon} size={20} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className="inline-block shrink-0 align-middle" /> Deposit</button>
       </div>
       <div className="border-t border-border p-2">
-        <button className="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-sm font-medium text-red-600 hover:bg-red-50" onClick={() => { close(); void auth.signOut(); }} type="button"><HugeiconsIcon icon={Logout01Icon} size={20} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className="inline-block shrink-0 align-middle" /> Sign out</button>
+        <button className="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-sm font-medium text-red-600 hover:bg-red-50" onClick={() => { close(); setWithdrawOpen(false); void auth.signOut(); }} type="button"><HugeiconsIcon icon={Logout01Icon} size={20} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className="inline-block shrink-0 align-middle" /> Sign out</button>
       </div>
       {auth.error && <p className="px-5 pb-4 text-xs text-red-700" role="alert">{auth.error}</p>}
     </div>
+    {withdrawOpen && <WithdrawalModal key={auth.address} onClose={() => setWithdrawOpen(false)} />}
   </>;
 }

@@ -8,6 +8,27 @@ export type ApprovalRow = typeof tradeApprovals.$inferSelect;
 @Injectable()
 export class ApprovalRepository {
   constructor(@Inject(DRIZZLE) private readonly db: Database) {}
+  async findReference(
+    userId: string,
+    wallet: string,
+    kind: string,
+    referenceId: string,
+  ) {
+    return (
+      await this.db
+        .select()
+        .from(tradeApprovals)
+        .where(
+          and(
+            eq(tradeApprovals.userId, userId),
+            eq(tradeApprovals.wallet, wallet),
+            eq(tradeApprovals.kind, kind),
+            eq(tradeApprovals.referenceId, referenceId),
+          ),
+        )
+        .limit(1)
+    )[0];
+  }
   async get(id: string) {
     return (
       await this.db

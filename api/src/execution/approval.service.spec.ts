@@ -96,6 +96,9 @@ function fixture(status = 'prepared') {
     updateStatus: jest.fn(),
     findByOrderKey: jest.fn(),
   };
+  const withdrawalStocks = {
+    assertReviewed: jest.fn().mockResolvedValue(undefined),
+  };
   const service = new ApprovalService(
     auth as never,
     approvals as never,
@@ -106,9 +109,11 @@ function fixture(status = 'prepared') {
     quotes as never,
     {} as never,
     { SOLANA_NETWORK: 'mainnet' } as never,
+    withdrawalStocks as never,
   );
   return {
     service,
+    withdrawalStocks,
     auth,
     approvals,
     rpc,
@@ -125,6 +130,80 @@ function fixture(status = 'prepared') {
   };
 }
 describe('server trade approvals', () => {
+  it('keeps an uncertain prepared withdrawal pending until its approval expires', async () => {
+    const f = fixture();
+    f.set({ kind: 'withdrawal' });
+    expect((await f.service.status('Bearer token', 'approval')).status).toBe(
+      'prepared',
+    );
+    f.set({ expiresAt: new Date(0) });
+    expect((await f.service.status('Bearer token', 'approval')).status).toBe(
+      'failed',
+    );
+    expect(f.auth.signTransaction).not.toHaveBeenCalled();
+    expect(f.rpc.broadcast).not.toHaveBeenCalled();
+  });
+  it('does not sign or broadcast a stock withdrawal after its share adjustment changes', async () => {
+    const f = fixture();
+    f.set({ kind: 'withdrawal', details: { asset: 'STOCK', mint: 'mint' } });
+    f.withdrawalStocks.assertReviewed.mockRejectedValue(
+      new Error('Share adjustment changed'),
+    );
+    await expect(
+      f.service.approve('Bearer token', 'approval', 'owner-authorization'),
+    ).rejects.toThrow('Share adjustment changed');
+    expect(f.auth.signTransaction).not.toHaveBeenCalled();
+    expect(f.rpc.broadcast).not.toHaveBeenCalled();
+  });
+  it('requires explicit authorization before signing a withdrawal', async () => {
+    const f = fixture();
+    f.set({ kind: 'withdrawal' });
+    await expect(
+      f.service.approve('Bearer token', 'approval'),
+    ).rejects.toThrow();
+    expect(f.auth.signTransaction).not.toHaveBeenCalled();
+    expect(f.rpc.broadcast).not.toHaveBeenCalled();
+  });
+  it('confirms a withdrawal without treating it as a stock execution', async () => {
+    const f = fixture('submitted');
+    f.set({ kind: 'withdrawal', signature: 'signature' });
+    f.rpc.status.mockResolvedValue({
+      err: null,
+      confirmationStatus: 'confirmed',
+    });
+    expect((await f.service.status('Bearer token', 'approval')).status).toBe(
+      'confirmed',
+    );
+    expect(f.executions.updateStatus).not.toHaveBeenCalled();
+    expect(f.orders.upsert).not.toHaveBeenCalled();
+  });
+  it('persists a signed withdrawal before broadcast and retries only those same bytes', async () => {
+    const f = fixture();
+    f.set({ kind: 'withdrawal' });
+    f.rpc.broadcast.mockRejectedValueOnce(new Error('Lost response'));
+    expect(
+      (
+        await f.service.approve(
+          'Bearer token',
+          'approval',
+          'owner-authorization',
+        )
+      ).status,
+    ).toBe('signed');
+    expect(f.approvals.patch).toHaveBeenCalledWith(
+      'approval',
+      expect.objectContaining({
+        status: 'signed',
+        signedTransaction: 'signed',
+      }),
+      'signing',
+    );
+    expect(f.auth.signTransaction).toHaveBeenCalledTimes(1);
+    await f.service.approve('Bearer token', 'approval');
+    expect(f.auth.signTransaction).toHaveBeenCalledTimes(1);
+    expect(f.rpc.broadcast.mock.calls).toEqual([['signed'], ['signed']]);
+    expect(f.executions.updateStatus).not.toHaveBeenCalled();
+  });
   it('binds the approval to the quote prepare executed, without re-reading the cache (H5)', async () => {
     const f = fixture();
     await f.service.prepare('Bearer token', {

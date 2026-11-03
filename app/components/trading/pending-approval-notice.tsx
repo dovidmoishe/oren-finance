@@ -41,20 +41,20 @@ export function PendingApprovalNotice() {
       const result = resubmit && existing.status === 'signed' ? await approveServerTrade(first.id, token, address) : existing;
       if (!current()) return;
       setState(result);
-      if (result.status === 'confirmed' || result.status === 'failed' || result.status === 'prepared') {
+      if (result.status === 'confirmed' || result.status === 'failed' || result.status === 'prepared' && result.kind !== 'withdrawal') {
         forgetApproval(first.id);
         setRecovered(items => items.filter(item => item.id !== first.id));
       }
       if (result.status === 'confirmed') await refreshPortfolio();
-      setMessage(result.status === 'confirmed' ? 'Trade confirmed.' : result.status === 'failed' ? 'Transaction failed.' : result.status === 'prepared' ? 'No approval was processed. Reopen the trade review to confirm.' : result.message || 'Still waiting for confirmation.');
-    } catch { if (current()) setMessage('Status unavailable. Check again before creating another trade.'); }
+      setMessage(result.status === 'confirmed' ? 'Transaction confirmed.' : result.status === 'failed' ? 'Transaction failed or expired.' : result.status === 'prepared' ? result.kind === 'withdrawal' ? 'Withdrawal approval may still be processing. Check again until it completes or expires.' : 'No approval was processed. Reopen the transaction review to confirm.' : result.message || 'Still waiting for confirmation.');
+    } catch { if (current()) setMessage('Status unavailable. Check again before creating another transaction.'); }
     finally { setBusy(false); }
   }
   if (!first) return null;
   return <div role="status" className="mb-4 rounded-xl border border-border bg-panel-subtle p-3 text-sm">
-    <p>A trade is awaiting confirmation. Check its status before repeating it.</p>
+    <p>A transaction is awaiting confirmation. Check its status before repeating it.</p>
     {message ? <p className="mt-1 text-xs text-muted">{message}</p> : null}
-    <Button className="mt-2" size="sm" disabled={busy} onClick={() => void check()}>Check trade status</Button>
+    <Button className="mt-2" size="sm" disabled={busy} onClick={() => void check()}>Check transaction status</Button>
     {state?.id === first.id && state.status === 'signed' ? <Button className="ml-2 mt-2" size="sm" disabled={busy} onClick={() => void check(true)}>Retry same submission</Button> : null}
   </div>;
 }

@@ -102,6 +102,7 @@ jobs:
       - run: pnpm run typecheck
       - run: pnpm test --runInBand
       - run: pnpm run test:mcp:guard
+      - run: pnpm run test:withdrawals
       - run: pnpm run test:approval:crypto
       - run: pnpm build
       - run: pnpm run test:mcp:gate
