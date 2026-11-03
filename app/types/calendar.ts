@@ -18,6 +18,8 @@ export interface TradingCalendarEvent {
   assetId?: string;
   amountUsd?: number;
   status?: string;
+  /** Recorded swap venue. Absent when that trade has no stored route. */
+  route?: "Titan" | "Jupiter";
   occurredAt: string;
 }
 
@@ -60,6 +62,7 @@ export interface TradingCalendarTrade {
   amountUsd?: number;
   status: string;
   transactionSignature?: string;
+  route?: "Titan" | "Jupiter";
   occurredAt: string;
 }
 

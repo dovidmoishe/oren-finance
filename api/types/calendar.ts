@@ -1,4 +1,5 @@
 import type { ExecutionStatus, ExecutionType } from './execution';
+import type { SwapRouteLabel } from './route';
 
 export interface TradingCalendarQuery {
   month?: string;
@@ -27,19 +28,15 @@ export interface TradingCalendarContributor {
 export interface TradingCalendarEvent {
   id: string;
   type:
-    | 'trade'
-    | 'basket'
-    | 'lock'
-    | 'unlock'
-    | 'agent'
-    | 'wallet'
-    | 'movement';
+    'trade' | 'basket' | 'lock' | 'unlock' | 'agent' | 'wallet' | 'movement';
   title: string;
   detail?: string;
   ticker?: string;
   assetId?: string;
   amountUsd?: number;
   status?: ExecutionStatus | string;
+  /** Recorded swap venue. Omitted when the execution has no known route. */
+  route?: SwapRouteLabel;
   occurredAt: Date;
 }
 
@@ -78,6 +75,8 @@ export interface TradingCalendarTrade {
   amountUsd?: number;
   status: ExecutionStatus;
   transactionSignature?: string;
+  /** Recorded swap venue. Omitted when the execution has no known route. */
+  route?: SwapRouteLabel;
   occurredAt: Date;
 }
 

@@ -7,6 +7,7 @@ import type {
 } from '../../types/portfolio';
 import { AlchemyService } from '../alchemy/alchemy.service';
 import { USDC_MINT } from '../config/constants';
+import { routeVenueLabel } from '../execution/route-label';
 import { TokensService } from '../tokens/tokens.service';
 import {
   buildLockedByMint,
@@ -207,7 +208,7 @@ export class PortfolioService {
   }
 }
 
-function mapExecutionRow(row: ExecutionRow): ExecutionRecord {
+export function mapExecutionRow(row: ExecutionRow): ExecutionRecord {
   return {
     id: row.id,
     walletAddress: row.walletAddress,
@@ -220,6 +221,7 @@ function mapExecutionRow(row: ExecutionRow): ExecutionRecord {
     amount: row.amount !== null ? Number(row.amount) : undefined,
     amountUsd: row.amountUsd !== null ? Number(row.amountUsd) : undefined,
     provider: row.provider ?? undefined,
+    route: routeVenueLabel(row.provider),
     transactionSignature: row.transactionSignature ?? undefined,
     status: row.status as ExecutionStatus,
     createdAt: row.createdAt,

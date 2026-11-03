@@ -1,4 +1,5 @@
 import { apiRequest } from "./api-client";
+import { routeVenueLabel } from "./route-label";
 import type {
   PortfolioActivityItem,
   PortfolioRange,
@@ -45,11 +46,20 @@ type ApiActivityItem =
   | {
       source: "oren";
       id: string;
-      type: "stock_purchase" | "stock_sale" | "basket_purchase" | "lock" | "unlock";
+      type:
+        | "stock_purchase"
+        | "stock_sale"
+        | "basket_purchase"
+        | "lock"
+        | "unlock"
+        | "limit_buy"
+        | "limit_sell"
+        | "limit_cancel";
       ticker?: string;
       assetId?: string;
       amount?: number;
       amountUsd?: number;
+      provider?: string | null;
       transactionSignature?: string;
       status: string;
       createdAt: string;
@@ -144,6 +154,7 @@ export function mapActivityItem(item: ApiActivityItem): PortfolioActivityItem {
       valueUsd: item.amountUsd,
       status: item.status,
       signature: item.transactionSignature,
+      route: routeVenueLabel(item.provider),
       occurredAt: item.createdAt,
     };
   }
@@ -161,6 +172,8 @@ function mapExecutionType(type: ApiExecutionActivityType): PortfolioActivityItem
   switch (type) {
     case "stock_purchase":
     case "stock_sale":
+    case "limit_buy":
+    case "limit_sell":
       return "trade";
     case "basket_purchase":
       return "basket";
