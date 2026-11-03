@@ -1,6 +1,7 @@
 "use client";
 
 import { financialExecutionEnabled } from "@/services/environment";
+import { routeVenueLabel } from "@/services/route-label";
 
 import {
   AlertCircleIcon,
@@ -50,6 +51,7 @@ export function LimitOrderReviewModal({
   const expiresLabel = proposal
     ? new Date(proposal.expiredAt * 1000).toLocaleDateString()
     : "—";
+  const route = routeVenueLabel(proposal?.provider);
 
   return (
     <Modal open={open} onClose={onClose} side="right" title={proposal ? `Review ${proposal.side} limit · ${proposal.ticker}` : "Review limit order"}>
@@ -66,6 +68,7 @@ export function LimitOrderReviewModal({
               <Row label="Market price" value={formatCurrency(proposal.marketPriceUsd)} />
             ) : null}
             <Row label="Expires" value={expiresLabel} />
+            {route ? <Row label="Route" value={route} /> : null}
             {proposal.basis ? (
               <Row label="TA basis" value={proposal.basis.replaceAll("_", " ")} />
             ) : null}
@@ -87,6 +90,7 @@ export function LimitOrderReviewModal({
                 <HugeiconsIcon className="mt-0.5 shrink-0" color="currentColor" icon={CheckmarkCircle01Icon} size={16} strokeWidth={1.8} />
                 <div>
                   <p className="font-semibold">Limit order opened</p>
+                  {route ? <p className="mt-1 text-xs font-medium">Routed through {route}</p> : null}
                   {confirmation.orderKey ? (
                     <p className="mt-1 break-all text-xs opacity-75">Order {confirmation.orderKey}</p>
                   ) : null}

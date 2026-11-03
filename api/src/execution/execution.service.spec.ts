@@ -393,4 +393,66 @@ describe('ExecutionService basket support', () => {
     });
     expect(result.progress.legs[1].status).toBe('awaiting_signature');
   });
+
+  it('stores the route that prepare actually used', async () => {
+    const reviewed = makeQuote('NVDA', 50);
+    const executed = { ...reviewed, provider: 'titan:Titan-DART' };
+    quoteCache.get.mockReturnValueOnce({ quote: reviewed });
+    router.prepare.mockResolvedValueOnce({
+      prepared: {
+        quoteId: reviewed.id,
+        wallet,
+        transaction: 'base64',
+        provider: executed.provider,
+        expiresAt: reviewed.expiresAt,
+      },
+      quote: executed,
+    });
+    repository.insert.mockResolvedValue({ id: 'exec-titan' });
+
+    await service.prepareWithQuote({ quoteId: reviewed.id, wallet });
+
+    expect(repository.insert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        provider: 'titan:Titan-DART',
+        featureSource: 'direct',
+      }),
+    );
+  });
+
+  it('stores Jupiter on a trigger limit order', async () => {
+    limitOrderCache.getProposal.mockReturnValueOnce({
+      id: 'proposal-1',
+      side: 'buy',
+      assetId: 'aapl',
+      ticker: 'AAPL',
+      variant: { mint: 'mint-aapl' },
+      inputMint: 'usdc',
+      outputMint: 'mint-aapl',
+      makingAmount: 25,
+      takingAmount: 0.1,
+      amountUsd: 25,
+      provider: 'jupiter-trigger',
+    });
+    trigger.createOrder.mockResolvedValueOnce({
+      requestId: 'req-1',
+      transaction: 'base64-limit',
+      order: 'order-key',
+    });
+    repository.insert.mockResolvedValue({ id: 'exec-limit' });
+
+    const prepared = await service.prepareLimitOrder({
+      proposalId: 'proposal-1',
+      wallet,
+    });
+
+    expect(prepared.provider).toBe('jupiter-trigger');
+    expect(repository.insert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        provider: 'jupiter-trigger',
+        featureSource: 'limit_order',
+        type: 'limit_buy',
+      }),
+    );
+  });
 });

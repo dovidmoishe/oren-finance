@@ -1,6 +1,7 @@
 "use client";
 
 import { financialExecutionEnabled } from "@/services/environment";
+import { routeVenueLabel } from "@/services/route-label";
 
 import {
   AlertCircleIcon,
@@ -90,6 +91,7 @@ export function QuoteReviewModal({
   const minimumReceived = quote
     ? quote.outputAmount * (1 - quote.slippageBps / 10_000)
     : 0;
+  const route = routeVenueLabel(quote?.provider);
   const warnings = [
     quote && quote.priceImpactPercent >= 1 ? `Price impact is ${formatNumber(quote.priceImpactPercent, 2)}%. Review before signing.` : null,
     refreshFailed ? "Could not refresh this quote. Retry to keep signing." : null,
@@ -115,6 +117,7 @@ export function QuoteReviewModal({
             <Row label="Estimated price" value={formatCurrency(quote.estimatedPriceUsd)} />
             <Row label="Price impact" value={`${formatNumber(quote.priceImpactPercent, 2)}%`} />
             <Row label="Slippage" value={`${formatNumber(quote.slippageBps / 100, 2)}%`} />
+            {route ? <Row label="Route" value={route} /> : null}
             <Row label="Estimated network fee" value={review.approval ? `${Number(review.approval.feeLamports) / 1e9} SOL` : "Preparing…"} />
             <Row label="Quote expiry" value={formatExpiryLabel(secondsLeft, isRefreshingQuote)} />
           </div>
@@ -139,6 +142,7 @@ export function QuoteReviewModal({
                 <div>
                   <p className="font-semibold">Tracking transaction</p>
                   <p className="mt-1 text-xs opacity-75">Oren is verifying the fill without holding up your trade.</p>
+                  {route ? <p className="mt-1 text-xs font-medium">Routed through {route}</p> : null}
                   <p className="mt-1 break-all text-xs opacity-75">{confirmation.signature}</p>
                 </div>
               </div>

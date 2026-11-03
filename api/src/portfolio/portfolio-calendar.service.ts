@@ -13,6 +13,7 @@ import type {
 import type { ExecutionStatus, ExecutionType } from '../../types/execution';
 import type { WalletTransaction } from '../../types/providers';
 import { AlchemyService } from '../alchemy/alchemy.service';
+import { routeVenueLabel } from '../execution/route-label';
 import type {
   AgentMessageRow,
   ExecutionRow,
@@ -407,6 +408,7 @@ function executionToSignificantEvent(row: ExecutionRow): TradingCalendarEvent {
     assetId: row.assetId ?? undefined,
     amountUsd: row.amountUsd !== null ? Number(row.amountUsd) : undefined,
     status: row.status,
+    route: routeVenueLabel(row.provider),
     occurredAt: row.createdAt,
   };
 }
@@ -421,6 +423,7 @@ function executionToTrade(row: ExecutionRow): TradingCalendarTrade {
     amountUsd: row.amountUsd !== null ? Number(row.amountUsd) : undefined,
     status: row.status as ExecutionStatus,
     transactionSignature: row.transactionSignature ?? undefined,
+    route: routeVenueLabel(row.provider),
     occurredAt: row.createdAt,
   };
 }

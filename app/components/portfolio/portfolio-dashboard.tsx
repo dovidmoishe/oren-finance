@@ -24,12 +24,12 @@ import {
   formatDate,
   formatNumber,
   formatPercent,
-  formatRelativeTime,
 } from "@/components/ui";
+import { ActivityList } from "@/components/portfolio/activity-list";
 import { usePortfolioRefresh } from "@/hooks/use-portfolio-refresh";
 import { useOrenAuth } from "@/components/auth/auth-context";
 import { usePortfolioStore, useWalletStore } from "@/store";
-import type { PortfolioActivityItem, PortfolioPosition, PortfolioRange } from "@/types";
+import type { PortfolioPosition, PortfolioRange } from "@/types";
 
 const chartRangeToPortfolioRange: Record<MarketChartRange, PortfolioRange> = {
   "24H": "1D",
@@ -107,33 +107,6 @@ function DetailMetric({
         <span>This week</span>
       </div>
     </section>
-  );
-}
-
-function ActivityLabel({ item }: { item: PortfolioActivityItem }) {
-  const label = {
-    trade: "Trade",
-    basket: "Basket",
-    lock: "Lock",
-    unlock: "Unlock",
-    transfer: "Transfer",
-    unknown: "Activity",
-  }[item.type];
-
-  return (
-    <div className="flex items-center justify-between gap-4 rounded-[18px] border border-border bg-background p-3">
-      <div>
-        <p className="text-sm font-semibold">
-          {label}
-          {item.ticker ? <span className="text-muted"> · {item.ticker}</span> : null}
-        </p>
-        <p className="text-xs text-muted">{formatRelativeTime(item.occurredAt)}</p>
-      </div>
-      <div className="text-right">
-        <p className="font-mono text-sm">{item.valueUsd ? formatCurrency(item.valueUsd) : item.status ?? "Seen"}</p>
-        {item.signature ? <p className="text-xs text-muted">{item.signature.slice(0, 8)}...</p> : null}
-      </div>
-    </div>
   );
 }
 
@@ -413,6 +386,21 @@ export function PortfolioDashboard() {
               </div>
             )}
           </div>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between gap-4">
+            <div>
+              <h2 className="font-display text-lg font-semibold">Activity</h2>
+              <p className="text-sm text-muted">Recent trades. The route appears when Oren recorded it.</p>
+            </div>
+            <Link className="text-sm font-semibold underline underline-offset-4" href="/app/activity">
+              View all
+            </Link>
+          </CardHeader>
+          <CardContent>
+            <ActivityList items={activity.slice(0, 6)} />
+          </CardContent>
         </Card>
       </div>
     </div>

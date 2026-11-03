@@ -18,6 +18,7 @@ function load(file, modules = {}) {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX },
   }).outputText, { exports, Date, Number, Error, require(id) {
     if (id in modules) return modules[id];
+    if (id === '@/services/route-label') return load('../services/route-label.ts');
     return require(id);
   } });
   return exports;
