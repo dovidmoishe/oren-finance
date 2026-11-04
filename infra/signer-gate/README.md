@@ -7,6 +7,57 @@ role can read those records but cannot change their limits or signed bytes.
 The shared VPS root account remains a shared risk. Move the gate and its key to
 another host before broadening beyond the owner allowlist.
 
+## Independent co-signing upgrade (migration 0014)
+
+Deploy API, gate and web together with delegated signing disabled during the
+upgrade. Apply migration `0014_independent_trade_authorization` as the migration
+owner before starting the new services. It creates API-owned grant and
+append-only authorization tables and revokes gate access; `roles.sql` preserves
+the same separation when roles are provisioned again. Verify actual privileges
+with the disposable-database role test before enabling signing.
+
+Existing delegated grants are deliberately **not backfilled** from gate-owned
+rows. Browser settings require the owner to revoke, remove wallet signers and
+enroll again, then create a fresh OAuth execute connection. The new owner proof
+is an Ed25519 wallet signature over exact permission terms, grant ID, quorum,
+policy, expiry and action. The API retains the Privy session; it never forwards
+that session token to the gate. Both services verify the bounded wallet proof.
+
+Set the reviewed public GitHub repository variables `MCP_SIGNER_QUORUM_ID` and
+`MCP_SIGNER_POLICY_ID` before building the production web image. They become
+`NEXT_PUBLIC_MCP_SIGNER_QUORUM_ID` and `NEXT_PUBLIC_MCP_SIGNER_POLICY_ID`; local
+builds use the same names in `app/.env.local`. The quorum must match the API's
+`PRIVY_MCP_SIGNER_QUORUM_ID` and the gate's `SIGNER_GATE_QUORUM_ID`; the policy must
+match `SIGNER_GATE_POLICY_ID`. These identifiers are public, not private keys.
+Missing or mismatched pins disable enrollment before Privy adds a signer.
+Rotation requires a reviewed web rebuild; never populate these pins from a
+runtime API response.
+
+For every signature, the API independently validates the canonical Privy
+envelope, owned intent, exact Jupiter transaction, protected accounts, raw
+amounts, output floor and simulation, then locks its own grant and claims the
+exact request against its own budget. Gate-side state cannot reset that budget.
+An identical retry may reuse the same authorization; replacement bytes for an
+already claimed intent are rejected.
+
+API authorization charges are retained for the entire grant (at most 24 hours),
+including uncertain or failed attempts. They are not released based on a gate
+failure report. This is deliberately conservative; a safe independent refund
+or reconciliation mechanism is separate future work. Browser settings report
+the larger of gate reservations and independent API authorizations.
+
+Buys derive microdollars from raw USDC units and reject inconsistent USD fields.
+Sells derive shares from raw input and verified mint decimals, rejecting display
+share mismatches. Migration's `NOT VALID` buy constraint checks all new/updated
+rows without silently rewriting old financial intent data; source checks also
+reject inconsistent legacy rows before signing.
+
+Offline checks: `npm run test:mcp:guard`, focused `trade-budget.spec.ts`, and
+`app/tests/mcp-grant-authorization.test.mjs`. With an explicitly configured local
+`oren_mcp_test` Postgres, run `trade-budget.integration.spec.ts`, apply
+`infra/signer-gate/roles.sql` using disposable role passwords, then run
+`api/scripts/test-signer-gate-roles.mjs`. Never point these at production.
+
 ## Prepare the VPS while execution is disabled
 
 Production access is through GitHub Actions. After the disabled release is
@@ -64,8 +115,8 @@ and reconcile them before any new grant.
    The later `.env.api` overrides `.env` in Compose. The API service blanks
    standalone `POSTGRES_USER`, `POSTGRES_PASSWORD`, and gate-private-key
    variables. Until `.env.api` exists, the existing API keeps using its old
-   admin URL **only while delegated execution is compiled off**. Verify the
-   resolved API container uses `oren_api_runtime` before opening that block.
+   admin URL **only while delegated execution is disabled**. Verify the
+   resolved API container uses `oren_api_runtime` before enabling signing.
 4. Create `/opt/oren/.env.signer-gate` from `env.example`, mode `0600`, with the
    distinct `oren_signer_gate` Postgres URL and the gate quorum key. The API
    public key and gate private key must belong to the same reviewed 2-of-2
@@ -78,10 +129,10 @@ and reconcile them before any new grant.
    Confirm `/health` from inside the API network and confirm there is no host
    port for the gate. The regular production deployment leaves this profile off.
 
-The API startup still rejects `MCP_DELEGATED_TRADES_ENABLED=true` until the
-route and funded-wallet release gate is explicitly opened in code. PR previews
-always reject delegated execution. The 2-of-2 unfunded proof alone is not a
-live-trading release.
+Runtime flags and named allowlists gate signing; the source compile-time latch
+is currently open. Keep execution flags off during this upgrade until migration,
+role, enrollment and funded acceptance checks pass. PR previews always reject
+delegated execution. The 2-of-2 unfunded proof alone is not a live-trading release.
 
 ## Request and retry states
 

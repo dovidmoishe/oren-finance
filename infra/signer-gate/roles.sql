@@ -16,6 +16,11 @@ GRANT USAGE ON SCHEMA public TO oren_api_runtime, oren_signer_gate;
 -- budget reservations, signer-gate requests, or delegated execution state.
 GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO oren_api_runtime;
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO oren_api_runtime;
+-- API's independent approvals must survive a gate compromise. Append-only
+-- authorizations cannot be erased to reset the API's own spend accounting.
+REVOKE ALL ON mcp_api_trade_grants, mcp_api_trade_authorizations FROM PUBLIC, oren_signer_gate;
+REVOKE DELETE, TRUNCATE ON mcp_api_trade_grants FROM oren_api_runtime;
+REVOKE UPDATE, DELETE, TRUNCATE ON mcp_api_trade_authorizations FROM oren_api_runtime;
 REVOKE ALL ON mcp_trade_delegations, mcp_budget_reservations,
   mcp_delegated_executions, mcp_audit_events FROM oren_api_runtime;
 GRANT SELECT ON mcp_trade_delegations, mcp_budget_reservations,

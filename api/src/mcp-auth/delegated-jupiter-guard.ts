@@ -15,8 +15,10 @@ const MAX_PRIORITY_FEE_LAMPORTS = 100_000n;
 const route = idl.instructions[0];
 const definitions = new Map(idl.types.map((item) => [item.name, item.type]));
 const protectedNames = [
-  'source_mint', 'destination_mint',
-  'source_token_account', 'destination_token_account',
+  'source_mint',
+  'destination_mint',
+  'source_token_account',
+  'destination_token_account',
 ] as const;
 
 export interface DelegatedJupiterTerms {
@@ -26,7 +28,9 @@ export interface DelegatedJupiterTerms {
   sourceAta: string;
   destinationAta: string;
   rawInput: string;
-  quotedOutputRaw: string;
+  quotedOutputRaw?: string;
+  /** Independent cosigner may verify the saved floor without trusting a quote. */
+  minimumOutputRaw?: string;
   maxInputRaw: string;
   maxSlippageBps: number;
 }
@@ -49,7 +53,11 @@ function decodeRouteData(data: Buffer) {
     reject('wrong instruction discriminator');
   let offset = 8;
   const take = (length: number) => {
-    if (!Number.isSafeInteger(length) || length < 0 || offset + length > data.length)
+    if (
+      !Number.isSafeInteger(length) ||
+      length < 0 ||
+      offset + length > data.length
+    )
       reject('truncated or oversized route data');
     const start = offset;
     offset += length;
@@ -58,31 +66,40 @@ function decodeRouteData(data: Buffer) {
   const read = (type: any): any => {
     if (typeof type === 'string') {
       switch (type) {
-        case 'u8': return data.readUInt8(take(1));
-        case 'u16': return data.readUInt16LE(take(2));
-        case 'u32': return data.readUInt32LE(take(4));
-        case 'u64': return data.readBigUInt64LE(take(8)).toString();
+        case 'u8':
+          return data.readUInt8(take(1));
+        case 'u16':
+          return data.readUInt16LE(take(2));
+        case 'u32':
+          return data.readUInt32LE(take(4));
+        case 'u64':
+          return data.readBigUInt64LE(take(8)).toString();
         case 'u128': {
           const start = take(16);
-          return (data.readBigUInt64LE(start) +
-            (data.readBigUInt64LE(start + 8) << 64n)).toString();
+          return (
+            data.readBigUInt64LE(start) +
+            (data.readBigUInt64LE(start + 8) << 64n)
+          ).toString();
         }
         case 'bool': {
           const value = data.readUInt8(take(1));
           if (value > 1) reject('invalid boolean');
           return value === 1;
         }
-        case 'pubkey': return new PublicKey(data.subarray(take(32), offset)).toBase58();
+        case 'pubkey':
+          return new PublicKey(data.subarray(take(32), offset)).toBase58();
         case 'bytes': {
           const length = read('u32');
           take(length);
           return undefined;
         }
-        default: return reject(`unsupported IDL type ${type}`);
+        default:
+          return reject(`unsupported IDL type ${type}`);
       }
     }
     if (type.defined) {
-      const name = typeof type.defined === 'string' ? type.defined : type.defined.name;
+      const name =
+        typeof type.defined === 'string' ? type.defined : type.defined.name;
       const definition: any = definitions.get(name);
       if (!definition) reject(`missing IDL type ${name}`);
       if (definition.kind === 'struct') {
@@ -124,7 +141,9 @@ function decodeRouteData(data: Buffer) {
   return args;
 }
 
-function inspectComputeBudget(instructions: ReturnType<typeof TransactionMessage.decompile>['instructions']) {
+function inspectComputeBudget(
+  instructions: ReturnType<typeof TransactionMessage.decompile>['instructions'],
+) {
   let units: number | undefined;
   let microLamports: bigint | undefined;
   for (const instruction of instructions) {
@@ -139,7 +158,8 @@ function inspectComputeBudget(instructions: ReturnType<typeof TransactionMessage
   }
   if (units !== undefined && (units < 1 || units > 1_400_000))
     reject('compute unit limit out of range');
-  const fee = (BigInt(units ?? 200_000) * (microLamports ?? 0n) + 999_999n) / 1_000_000n;
+  const fee =
+    (BigInt(units ?? 200_000) * (microLamports ?? 0n) + 999_999n) / 1_000_000n;
   if (fee > MAX_PRIORITY_FEE_LAMPORTS) reject('priority fee over cap');
   return fee;
 }
@@ -148,40 +168,67 @@ function inspectComputeBudget(instructions: ReturnType<typeof TransactionMessage
 export async function inspectDelegatedJupiterTransaction(
   transaction: string,
   expected: DelegatedJupiterTerms,
-  resolveTable: (address: PublicKey) => Promise<AddressLookupTableAccount | null>,
+  resolveTable: (
+    address: PublicKey,
+  ) => Promise<AddressLookupTableAccount | null>,
 ): Promise<DelegatedJupiterInspection> {
   const bytes = Buffer.from(transaction, 'base64');
-  if (bytes.length > MAX_TRANSACTION_BYTES) reject('transaction exceeds packet size');
+  if (bytes.length > MAX_TRANSACTION_BYTES)
+    reject('transaction exceeds packet size');
   let tx: VersionedTransaction;
-  try { tx = VersionedTransaction.deserialize(bytes); }
-  catch { reject('invalid transaction bytes'); }
-  if (tx.message.header.numRequiredSignatures !== 1 ||
-      tx.message.staticAccountKeys[0]?.toBase58() !== expected.wallet)
+  try {
+    tx = VersionedTransaction.deserialize(bytes);
+  } catch {
+    reject('invalid transaction bytes');
+  }
+  if (
+    tx.message.header.numRequiredSignatures !== 1 ||
+    tx.message.staticAccountKeys[0]?.toBase58() !== expected.wallet
+  )
     reject('unexpected fee payer or signer');
   if (tx.signatures.length !== 1 || tx.signatures[0].some((byte) => byte !== 0))
     reject('transaction was already signed');
-  const tables = await Promise.all(tx.message.addressTableLookups.map(async (lookup) => {
-    const table = await resolveTable(lookup.accountKey);
-    if (!table || !table.key.equals(lookup.accountKey)) reject('lookup table missing or mismatched');
-    return table;
-  }));
-  let instructions: ReturnType<typeof TransactionMessage.decompile>['instructions'];
-  try { instructions = TransactionMessage.decompile(tx.message, { addressLookupTableAccounts: tables }).instructions; }
-  catch { reject('lookup table resolution failed'); }
-  const jupiter = instructions.filter((item) => item.programId.toBase58() === JUPITER);
+  const tables = await Promise.all(
+    tx.message.addressTableLookups.map(async (lookup) => {
+      const table = await resolveTable(lookup.accountKey);
+      if (!table || !table.key.equals(lookup.accountKey))
+        reject('lookup table missing or mismatched');
+      return table;
+    }),
+  );
+  let instructions: ReturnType<
+    typeof TransactionMessage.decompile
+  >['instructions'];
+  try {
+    instructions = TransactionMessage.decompile(tx.message, {
+      addressLookupTableAccounts: tables,
+    }).instructions;
+  } catch {
+    reject('lookup table resolution failed');
+  }
+  const jupiter = instructions.filter(
+    (item) => item.programId.toBase58() === JUPITER,
+  );
   if (jupiter.length !== 1) reject('expected exactly one Jupiter route');
-  if (instructions.some((item) => ![JUPITER, COMPUTE_BUDGET].includes(item.programId.toBase58())))
+  if (
+    instructions.some(
+      (item) => ![JUPITER, COMPUTE_BUDGET].includes(item.programId.toBase58()),
+    )
+  )
     reject('unapproved top-level instruction');
   const fee = inspectComputeBudget(instructions);
   const instruction = jupiter[0];
-  if (instruction.keys.length < route.accounts.length) reject('missing route accounts');
+  if (instruction.keys.length < route.accounts.length)
+    reject('missing route accounts');
   const key = (name: string) => {
     const index = route.accounts.findIndex((account) => account.name === name);
     if (index < 0) reject(`IDL is missing ${name}`);
     return instruction.keys[index];
   };
-  if (key('user_transfer_authority').pubkey.toBase58() !== expected.wallet ||
-      !key('user_transfer_authority').isSigner)
+  if (
+    key('user_transfer_authority').pubkey.toBase58() !== expected.wallet ||
+    !key('user_transfer_authority').isSigner
+  )
     reject('wrong transfer authority');
   for (const [name, value] of Object.entries({
     source_mint: expected.inputMint,
@@ -191,22 +238,42 @@ export async function inspectDelegatedJupiterTransaction(
   })) {
     if (key(name).pubkey.toBase58() !== value) reject(`wrong ${name}`);
   }
-  const staticKeys = new Set(tx.message.staticAccountKeys.map((item) => item.toBase58()));
-  if (protectedNames.some((name) => !staticKeys.has(key(name).pubkey.toBase58())))
+  const staticKeys = new Set(
+    tx.message.staticAccountKeys.map((item) => item.toBase58()),
+  );
+  if (
+    protectedNames.some((name) => !staticKeys.has(key(name).pubkey.toBase58()))
+  )
     reject('protected account loaded through lookup table');
-  if (key('token_program').pubkey.toBase58() !== TOKEN_PROGRAM_ID.toBase58() ||
-      key('token_2022_program').pubkey.toBase58() !== TOKEN_2022_PROGRAM_ID.toBase58())
+  if (
+    key('token_program').pubkey.toBase58() !== TOKEN_PROGRAM_ID.toBase58() ||
+    key('token_2022_program').pubkey.toBase58() !==
+      TOKEN_2022_PROGRAM_ID.toBase58()
+  )
     reject('wrong token program');
   const args = decodeRouteData(Buffer.from(instruction.data));
-  if (args.in_amount !== expected.rawInput ||
-      !/^\d+$/.test(expected.maxInputRaw) ||
-      BigInt(args.in_amount) < 1n ||
-      BigInt(args.in_amount) > BigInt(expected.maxInputRaw) ||
-      args.quoted_out_amount !== expected.quotedOutputRaw ||
-      !Number.isInteger(expected.maxSlippageBps) ||
-      args.slippage_bps > expected.maxSlippageBps ||
-      args.platform_fee_bps !== 0)
+  if (
+    args.in_amount !== expected.rawInput ||
+    !/^\d+$/.test(expected.maxInputRaw) ||
+    BigInt(args.in_amount) < 1n ||
+    BigInt(args.in_amount) > BigInt(expected.maxInputRaw) ||
+    (expected.quotedOutputRaw !== undefined &&
+      args.quoted_out_amount !== expected.quotedOutputRaw) ||
+    (expected.quotedOutputRaw === undefined &&
+      expected.minimumOutputRaw === undefined) ||
+    !Number.isInteger(expected.maxSlippageBps) ||
+    args.slippage_bps > expected.maxSlippageBps ||
+    args.platform_fee_bps !== 0
+  )
     reject('route amounts, slippage or fees differ from reviewed terms');
+  if (
+    expected.minimumOutputRaw !== undefined &&
+    (!/^[1-9]\d*$/.test(expected.minimumOutputRaw) ||
+      (BigInt(args.quoted_out_amount) * BigInt(10_000 - args.slippage_bps)) /
+        10_000n <
+        BigInt(expected.minimumOutputRaw))
+  )
+    reject('route output is below the reviewed minimum');
   return {
     rawInput: args.in_amount,
     quotedOutputRaw: args.quoted_out_amount,

@@ -5,6 +5,7 @@ import { Connection } from '@solana/web3.js';
 import { PrivyClient } from '@privy-io/node';
 import { drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
+import { ownerProofSchema } from '../mcp-auth/grant-owner-proof';
 import { AlchemyClient } from '../alchemy/alchemy.client';
 import { PrivyWalletAuth } from '../auth/privy-wallet-auth';
 import { ApprovalRpc } from '../execution/approval-rpc.service';
@@ -131,6 +132,7 @@ function main() {
       try {
         if (request.method !== 'POST') throw new Error('Unsupported method');
         const body = await readBody(request);
+        const ownerProof = ownerProofSchema.safeParse(body.authorization);
         let result: unknown;
         if (
           request.url === '/challenge' &&
@@ -154,14 +156,14 @@ function main() {
           result = await gate.reconcile(body.executionId);
         else if (
           request.url === '/grant/prepare' &&
-          typeof body.userToken === 'string' &&
+          ownerProof.success &&
           typeof body.allowSell === 'boolean' &&
           typeof body.perTradeUsd === 'number' &&
           typeof body.dailyUsd === 'number' &&
           typeof body.maxSlippageBps === 'number' &&
           typeof body.durationHours === 'number'
         )
-          result = await gate.prepareGrant(body.userToken, {
+          result = await gate.prepareGrant(ownerProof.data, {
             allowSell: body.allowSell,
             perTradeUsd: body.perTradeUsd,
             dailyUsd: body.dailyUsd,
@@ -170,16 +172,16 @@ function main() {
           });
         else if (
           request.url === '/grant/activate' &&
-          typeof body.userToken === 'string' &&
+          ownerProof.success &&
           typeof body.delegationId === 'string'
         )
-          result = await gate.activateGrant(body.userToken, body.delegationId);
+          result = await gate.activateGrant(ownerProof.data, body.delegationId);
         else if (
           request.url === '/grant/revoke' &&
-          typeof body.userToken === 'string' &&
+          ownerProof.success &&
           typeof body.delegationId === 'string'
         )
-          result = await gate.revokeGrant(body.userToken, body.delegationId);
+          result = await gate.revokeGrant(ownerProof.data, body.delegationId);
         else throw new Error('Invalid gate request');
         response.end(JSON.stringify(result));
       } catch (error) {

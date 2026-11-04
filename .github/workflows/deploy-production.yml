@@ -117,6 +117,8 @@ jobs:
           build-args: |
             NEXT_PUBLIC_OREN_API_URL=${{ vars.PUBLIC_API_ORIGIN || 'https://api.oren.finance' }}/api
             NEXT_PUBLIC_PRIVY_APP_ID=${{ vars.PRIVY_APP_ID }}
+            NEXT_PUBLIC_MCP_SIGNER_QUORUM_ID=${{ vars.MCP_SIGNER_QUORUM_ID }}
+            NEXT_PUBLIC_MCP_SIGNER_POLICY_ID=${{ vars.MCP_SIGNER_POLICY_ID }}
             NEXT_PUBLIC_COMMIT_SHA=${{ github.sha }}
           push: true
           tags: ghcr.io/${{ github.repository_owner }}/oren-app:${{ github.sha }}

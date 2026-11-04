@@ -179,6 +179,54 @@ export const mcpTradeDelegations = pgTable(
   ],
 );
 
+/** API-owned browser terms: the gate role cannot create or change these. */
+export const mcpApiTradeGrants = pgTable('mcp_api_trade_grants', {
+  id: uuid('id').primaryKey(),
+  userId: text('user_id').notNull(),
+  walletId: text('wallet_id').notNull(),
+  wallet: text('wallet').notNull(),
+  signerId: text('signer_id').notNull(),
+  policyId: text('policy_id').notNull(),
+  perTradeLimitUsd: numeric('per_trade_limit_usd', {
+    precision: 18,
+    scale: 6,
+  }).notNull(),
+  dailyLimitUsd: numeric('daily_limit_usd', {
+    precision: 18,
+    scale: 6,
+  }).notNull(),
+  maxSlippageBps: integer('max_slippage_bps').notNull(),
+  allowSell: boolean('allow_sell').notNull(),
+  status: text('status')
+    .$type<'pending' | 'active' | 'revoked'>()
+    .notNull()
+    .default('pending'),
+  createdAt: timestamp('created_at', { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  activatedAt: timestamp('activated_at', { withTimezone: true }),
+});
+
+/** Append-only API budget and exact-request claim. No gate-writable foreign keys. */
+export const mcpApiTradeAuthorizations = pgTable(
+  'mcp_api_trade_authorizations',
+  {
+    intentId: uuid('intent_id').primaryKey(),
+    delegationId: uuid('delegation_id')
+      .notNull()
+      .references(() => mcpApiTradeGrants.id),
+    executionId: uuid('execution_id').notNull().unique(),
+    idempotencyKey: text('idempotency_key').notNull(),
+    canonicalRequestBase64: text('canonical_request_base64').notNull(),
+    amountUsd: numeric('amount_usd', { precision: 18, scale: 6 }).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [index('mcp_api_authorizations_grant_idx').on(table.delegationId)],
+);
+
 /** A reserved amount remains charged until confirmation or definite failure. */
 export const mcpBudgetReservations = pgTable(
   'mcp_budget_reservations',

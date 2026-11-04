@@ -14,6 +14,8 @@ import {
   mcpTradeDelegations,
   mcpTradeIntents,
   tradeApprovals,
+  mcpApiTradeGrants,
+  mcpApiTradeAuthorizations,
 } from './database/schema';
 import { MarketService } from './market/market.service';
 import { PortfolioService } from './portfolio/portfolio.service';
@@ -30,6 +32,11 @@ import {
 } from './mcp-auth/oauth-runtime';
 import { createRegistrationRateLimit } from './mcp-auth/registration-rate-limit';
 import { approvalMatchesMcpIntent } from './mcp-auth/intent-approval';
+import { ApiTradeAuthorization } from './mcp-auth/api-trade-authorization';
+import { Connection } from '@solana/web3.js';
+import { TokensService } from './tokens/tokens.service';
+import { ApprovalRpc } from './execution/approval-rpc.service';
+import { ownerProofSchema } from './mcp-auth/grant-owner-proof';
 
 async function bootstrap() {
   const env = validateEnv();
@@ -49,12 +56,28 @@ async function bootstrap() {
     const expressApp = app.getHttpAdapter().getInstance() as Express;
     const db = app.get(DatabaseService).db;
     const identity = app.get(PrivyWalletAuth, { strict: false });
+    const apiTradeAuthorization = new ApiTradeAuthorization({
+      db,
+      auth: identity,
+      appId: env.PRIVY_APP_ID ?? '',
+      allowedUsers: new Set(env.MCP_DELEGATED_TRADES_ALLOWED_USERS),
+      buysEnabled: env.MCP_DELEGATED_BUYS_ENABLED,
+      sellsEnabled: env.MCP_DELEGATED_SELLS_ENABLED,
+      signerQuorumId: env.PRIVY_MCP_SIGNER_QUORUM_ID ?? '',
+      tokens: app.get(TokensService, { strict: false }),
+      rpc: app.get(ApprovalRpc, { strict: false }),
+      connection: new Connection(
+        `https://solana-${env.SOLANA_NETWORK}.g.alchemy.com/v2/${env.ALCHEMY_API_KEY}`,
+        'confirmed',
+      ),
+    });
     const grantGate =
       env.SIGNER_GATE_URL && env.SIGNER_GATE_API_TOKEN
         ? new SignerGateClient(
             env.SIGNER_GATE_URL,
             env.SIGNER_GATE_API_TOKEN,
             env.PRIVY_MCP_SIGNER_PRIVATE_KEY ?? '',
+            apiTradeAuthorization,
           )
         : undefined;
     const mcpDeps = {
@@ -150,6 +173,29 @@ async function bootstrap() {
                 env.MCP_DELEGATED_TRADES_ALLOWED_USERS.includes(owner.userId)),
             sellAvailable: env.MCP_DELEGATED_SELLS_ENABLED,
           });
+        const [independent] = await db
+          .select()
+          .from(mcpApiTradeGrants)
+          .where(
+            and(
+              eq(mcpApiTradeGrants.id, delegation.id),
+              eq(mcpApiTradeGrants.userId, owner.userId),
+              eq(mcpApiTradeGrants.walletId, owner.walletId),
+              eq(mcpApiTradeGrants.wallet, owner.wallet),
+            ),
+          );
+        if (
+          !independent ||
+          independent.expiresAt <= new Date() ||
+          independent.status === 'revoked' ||
+          (delegation.status === 'active' && independent.status !== 'active')
+        )
+          return res.json({
+            enabled: false,
+            reenrollmentRequired: true,
+            delegationId: delegation.id,
+            wallet: owner.wallet,
+          });
         if (delegation.status === 'pending_signer')
           return res.json({
             enabled: false,
@@ -160,13 +206,13 @@ async function bootstrap() {
             pendingGrant: {
               delegationId: delegation.id,
               wallet: delegation.wallet,
-              signerId: delegation.signerId,
-              policyId: delegation.policyId,
-              perTradeUsd: delegation.perTradeLimitUsd,
-              dailyUsd: delegation.dailyLimitUsd,
-              maxSlippageBps: delegation.maxSlippageBps,
-              allowSell: delegation.allowSell,
-              expiresAt: delegation.expiresAt.toISOString(),
+              signerId: independent.signerId,
+              policyId: independent.policyId,
+              perTradeUsd: independent.perTradeLimitUsd,
+              dailyUsd: independent.dailyLimitUsd,
+              maxSlippageBps: independent.maxSlippageBps,
+              allowSell: independent.allowSell,
+              expiresAt: independent.expiresAt.toISOString(),
             },
           });
         const [usage] = await db
@@ -189,17 +235,26 @@ async function bootstrap() {
               ),
             ),
           );
+        const [apiUsage] = await db
+          .select({
+            total: sql<string>`COALESCE(SUM(${mcpApiTradeAuthorizations.amountUsd}), 0)`,
+          })
+          .from(mcpApiTradeAuthorizations)
+          .where(eq(mcpApiTradeAuthorizations.delegationId, independent.id));
         return res.json({
           enabled: true,
           sellAvailable: env.MCP_DELEGATED_SELLS_ENABLED,
           delegationId: delegation.id,
           wallet: delegation.wallet,
-          perTradeUsd: delegation.perTradeLimitUsd,
-          dailyUsd: delegation.dailyLimitUsd,
-          usedTodayUsd: usage.total,
-          maxSlippageBps: delegation.maxSlippageBps,
-          sides: delegation.allowSell ? ['buy', 'sell'] : ['buy'],
-          expiresAt: delegation.expiresAt.toISOString(),
+          perTradeUsd: independent.perTradeLimitUsd,
+          dailyUsd: independent.dailyLimitUsd,
+          usedTodayUsd:
+            Number(apiUsage.total) > Number(usage.total)
+              ? apiUsage.total
+              : usage.total,
+          maxSlippageBps: independent.maxSlippageBps,
+          sides: independent.allowSell ? ['buy', 'sell'] : ['buy'],
+          expiresAt: independent.expiresAt.toISOString(),
         });
       } catch {
         return res.sendStatus(401);
@@ -207,6 +262,46 @@ async function bootstrap() {
     });
     const browserToken = (req: Request) =>
       /^Bearer\s+(\S+)$/i.exec(req.headers.authorization ?? '')?.[1];
+    const grantSettingsSchema = z
+      .object({
+        allowSell: z.boolean(),
+        perTradeUsd: z.number().finite().min(0.01).max(25),
+        dailyUsd: z.number().finite().min(0.01).max(50),
+        maxSlippageBps: z.number().int().min(1).max(50),
+        durationHours: z.number().int().min(1).max(24),
+      })
+      .refine((value) => value.dailyUsd >= value.perTradeUsd);
+    expressApp.post(
+      '/mcp/delegation/authorization',
+      async (req: Request, res: Response) => {
+        const token = browserToken(req);
+        if (!token) return res.sendStatus(401);
+        const parsed = z
+          .discriminatedUnion('action', [
+            z.object({
+              action: z.literal('prepare'),
+              settings: grantSettingsSchema,
+              signerId: z.string().min(1).max(256),
+              policyId: z.string().min(1).max(256),
+            }),
+            z.object({ action: z.literal('activate'), delegationId: z.uuid() }),
+            z.object({ action: z.literal('revoke'), delegationId: z.uuid() }),
+          ])
+          .safeParse(req.body);
+        if (!parsed.success) return res.sendStatus(400);
+        try {
+          return res.json(
+            await apiTradeAuthorization.ownerChallenge(
+              token,
+              parsed.data.action,
+              parsed.data,
+            ),
+          );
+        } catch {
+          return res.status(409).json({ error: 'permission_unavailable' });
+        }
+      },
+    );
     expressApp.post(
       '/mcp/delegation/prepare',
       async (req: Request, res: Response) => {
@@ -215,16 +310,29 @@ async function bootstrap() {
         if (!token) return res.sendStatus(401);
         const parsed = z
           .object({
-            allowSell: z.boolean(),
-            perTradeUsd: z.number().finite().min(0.01).max(25),
-            dailyUsd: z.number().finite().min(0.01).max(50),
-            maxSlippageBps: z.number().int().min(1).max(50),
-            durationHours: z.number().int().min(1).max(24),
+            settings: grantSettingsSchema,
+            authorization: ownerProofSchema,
           })
           .safeParse(req.body);
         if (!parsed.success) return res.sendStatus(400);
         try {
-          return res.json(await mcpDeps.gate.prepareGrant(token, parsed.data));
+          const { settings, authorization } = parsed.data;
+          await apiTradeAuthorization.verifyPreparation(
+            token,
+            authorization,
+            settings,
+          );
+          const prepared = await mcpDeps.gate.prepareGrant(
+            authorization,
+            settings,
+          );
+          await apiTradeAuthorization.recordPending(
+            token,
+            authorization,
+            settings,
+            prepared,
+          );
+          return res.json(prepared);
         } catch (error) {
           const code =
             error instanceof SignerGateRejection &&
@@ -241,12 +349,23 @@ async function bootstrap() {
       async (req: Request, res: Response) => {
         if (!mcpDeps.gate) return res.sendStatus(503);
         const token = browserToken(req);
-        const parsed = z.object({ delegationId: z.uuid() }).safeParse(req.body);
+        const parsed = z
+          .object({ delegationId: z.uuid(), authorization: ownerProofSchema })
+          .safeParse(req.body);
         if (!token) return res.sendStatus(401);
         if (!parsed.success) return res.sendStatus(400);
         try {
           return res.json(
-            await mcpDeps.gate.activateGrant(token, parsed.data.delegationId),
+            await apiTradeAuthorization.activate(
+              token,
+              parsed.data.authorization,
+              parsed.data.delegationId,
+              () =>
+                mcpDeps.gate!.activateGrant(
+                  parsed.data.authorization,
+                  parsed.data.delegationId,
+                ),
+            ),
           );
         } catch {
           return res.sendStatus(409);
@@ -258,12 +377,22 @@ async function bootstrap() {
       async (req: Request, res: Response) => {
         if (!grantGate) return res.sendStatus(503);
         const token = browserToken(req);
-        const parsed = z.object({ delegationId: z.uuid() }).safeParse(req.body);
+        const parsed = z
+          .object({ delegationId: z.uuid(), authorization: ownerProofSchema })
+          .safeParse(req.body);
         if (!token) return res.sendStatus(401);
         if (!parsed.success) return res.sendStatus(400);
         try {
+          await apiTradeAuthorization.revoke(
+            token,
+            parsed.data.authorization,
+            parsed.data.delegationId,
+          );
           return res.json(
-            await grantGate.revokeGrant(token, parsed.data.delegationId),
+            await grantGate.revokeGrant(
+              parsed.data.authorization,
+              parsed.data.delegationId,
+            ),
           );
         } catch {
           return res.sendStatus(409);
@@ -558,6 +687,20 @@ async function bootstrap() {
             req.headers['x-oren-delegation-id'] !== delegation.id
           )
             return res.sendStatus(403);
+          const [independent] = await db
+            .select({ id: mcpApiTradeGrants.id })
+            .from(mcpApiTradeGrants)
+            .where(
+              and(
+                eq(mcpApiTradeGrants.id, delegation.id),
+                eq(mcpApiTradeGrants.userId, owner.userId),
+                eq(mcpApiTradeGrants.walletId, owner.walletId),
+                eq(mcpApiTradeGrants.wallet, owner.wallet),
+                eq(mcpApiTradeGrants.status, 'active'),
+                gt(mcpApiTradeGrants.expiresAt, new Date()),
+              ),
+            );
+          if (!independent) return res.sendStatus(403);
         }
         const grant = new oauth.provider.Grant({
           accountId: owner.userId,
