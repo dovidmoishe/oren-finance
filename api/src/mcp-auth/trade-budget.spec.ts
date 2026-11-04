@@ -4,9 +4,23 @@ import {
   usdMicros,
   buyNotionalUsd,
 } from './trade-budget';
-import { rawSellReferenceUsd } from './delegated-amounts';
+import { rawSellReferenceUsd, rawSellShares } from './delegated-amounts';
 
 describe('MCP trade budget amounts', () => {
+  it('normalizes quoted raw sell shares without floating-point or storage rounding', () => {
+    expect(rawSellShares('12345679', 8)).toBe('0.123456790000');
+    expect(
+      rawSellReferenceUsd('12345679', rawSellShares('12345679', 8), 8, 100),
+    ).toBe('12.345679');
+    expect(rawSellShares('100000000000000001', 8)).toBe(
+      '1000000000.000000010000',
+    );
+    expect(rawSellShares('1', 0)).toBe('1.000000000000');
+    expect(rawSellShares('1000000', 18)).toBe('0.000000000001');
+    expect(() => rawSellShares('1', 18)).toThrow('exact intent precision');
+    expect(() => rawSellShares('18446744073709551616', 8)).toThrow();
+    expect(() => rawSellShares('0', 8)).toThrow();
+  });
   it('derives buy charges from exact USDC and rejects forged display amounts', () => {
     expect(buyNotionalUsd('1000000', '0.010000')).toBeUndefined();
     expect(buyNotionalUsd('1000000', '1')).toBe('1.000000');

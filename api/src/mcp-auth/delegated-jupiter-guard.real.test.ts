@@ -20,6 +20,7 @@ import { staticJupiterAccounts } from '../signer-gate/static-jupiter-accounts';
 import { inspectApiTradeTransaction } from './api-trade-transaction';
 import { buildGateJupiterRoute } from '../signer-gate/gate-jupiter';
 import type { mcpTradeIntents } from '../database/schema';
+import { rawSellShares } from './delegated-amounts';
 
 const JUPITER = new PublicKey('JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4');
 const USDC = new PublicKey('EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v');
@@ -95,7 +96,7 @@ function transaction(
 
 const noTable = () => Promise.resolve(null);
 
-function apiFixture() {
+function apiFixture(decimals = 6) {
   const intent = {
     id: 'fixture',
     side: 'buy',
@@ -117,7 +118,7 @@ function apiFixture() {
       mintAuthorityOption: 0,
       mintAuthority: PublicKey.default,
       supply: 100000000n,
-      decimals: 6,
+      decimals,
       isInitialized: true,
       freezeAuthorityOption: 0,
       freezeAuthority: PublicKey.default,
@@ -133,13 +134,11 @@ function apiFixture() {
       getAddressLookupTable: jest.fn().mockResolvedValue({ value: null }),
     },
     tokens: {
-      getStock: jest
-        .fn()
-        .mockResolvedValue({
-          id: 'stock',
-          price: 25,
-          variants: [{ mint: STOCK.toBase58(), tradable: true }],
-        }),
+      getStock: jest.fn().mockResolvedValue({
+        id: 'stock',
+        price: 25,
+        variants: [{ mint: STOCK.toBase58(), tradable: true }],
+      }),
     },
     rpc: { inspect },
   };
@@ -223,6 +222,54 @@ describe('independent API transaction validation with real Solana serialization'
     await expect(f.check(tx)).resolves.toBe('25.000000');
     f.intent.amountShares = '0.010000000000';
     await expect(f.check(tx)).rejects.toThrow('differs from raw');
+  });
+  it('both signing components accept normalized eight-decimal sells and still reject mismatches', async () => {
+    const f = apiFixture(8);
+    Object.assign(f.intent, {
+      side: 'sell',
+      amountUsd: null,
+      maxInRaw: '12345679',
+      amountShares: rawSellShares('12345679', 8),
+    });
+    const source = getAssociatedTokenAddressSync(
+      STOCK,
+      wallet,
+      false,
+      TOKEN_2022_PROGRAM_ID,
+    );
+    const destination = getAssociatedTokenAddressSync(USDC, wallet);
+    const tx = transaction([
+      route(12345679n, { 3: source, 6: destination, 7: STOCK, 8: USDC }),
+    ]);
+    const deps = {
+      ...f.deps,
+      jupiter: {
+        getQuote: jest
+          .fn()
+          .mockResolvedValue({
+            inputMint: STOCK.toBase58(),
+            outputMint: USDC.toBase58(),
+            inAmount: '12345679',
+            outAmount: '10000',
+            otherAmountThreshold: '9950',
+            swapMode: 'ExactIn',
+            slippageBps: 50,
+          }),
+        postSwap: jest.fn().mockResolvedValue({ swapTransaction: tx }),
+      },
+    };
+    await expect(f.check(tx)).resolves.toBe('3.086420');
+    await expect(
+      buildGateJupiterRoute(f.intent, deps as never),
+    ).resolves.toMatchObject({
+      rawInput: '12345679',
+      referenceValueUsd: '3.086420',
+    });
+    f.intent.amountShares = '0.123456789000';
+    await expect(f.check(tx)).rejects.toThrow('differs from raw');
+    await expect(
+      buildGateJupiterRoute(f.intent, deps as never),
+    ).rejects.toThrow('differs from raw');
   });
 });
 

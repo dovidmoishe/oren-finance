@@ -23,6 +23,8 @@ import {
 import type { McpOAuthRuntime } from './oauth-runtime';
 import type { SignerGateClient } from './signer-gate.client';
 import { SignerGateRejection } from './signer-gate.errors';
+import { USDC_DECIMALS } from '../config/constants';
+import { rawSellShares, rawSellReferenceUsd } from './delegated-amounts';
 
 export interface McpResourceDeps {
   db: Database;
@@ -210,15 +212,20 @@ export async function handleMcpRequest(
           side === 'sell'
             ? await deps.market.getStock(quote.assetId)
             : undefined;
+        const stockDecimals = quote.variant.decimals ?? USDC_DECIMALS;
+        const normalizedShares =
+          side === 'sell' ? rawSellShares(maxIn, stockDecimals) : null;
         const referenceValueUsd =
           side === 'sell' &&
           stock?.price &&
           Number.isFinite(stock.price) &&
-          stock.price > 0 &&
-          Number.isFinite(amountShares! * stock.price)
-            ? (
-                Math.ceil(amountShares! * stock.price * 1_000_000) / 1_000_000
-              ).toFixed(6)
+          stock.price > 0
+            ? rawSellReferenceUsd(
+                maxIn,
+                normalizedShares,
+                stockDecimals,
+                stock.price,
+              )
             : null;
         const quotedProceedsUsd =
           side === 'sell' &&
@@ -264,7 +271,7 @@ export async function handleMcpRequest(
             side,
             stockMint: quote.variant.mint,
             amountUsd: side === 'buy' ? amountUsd!.toFixed(6) : null,
-            amountShares: side === 'sell' ? amountShares!.toFixed(12) : null,
+            amountShares: normalizedShares,
             maxInRaw: maxIn,
             minOutRaw: minOut.toString(),
             referenceValueUsd,
@@ -289,7 +296,10 @@ export async function handleMcpRequest(
                 ticker: quote.ticker,
                 stockMint: quote.variant.mint,
                 amountUsd,
-                amountShares,
+                amountShares:
+                  normalizedShares === null
+                    ? undefined
+                    : Number(normalizedShares),
                 minOutRaw: minOut.toString(),
                 referenceValueUsd,
                 quotedProceedsUsd,
@@ -473,7 +483,11 @@ export async function handleMcpRequest(
               isError: true,
             };
           try {
-            const result = await deps.gate!.execute(intentId, idempotencyKey, connection);
+            const result = await deps.gate!.execute(
+              intentId,
+              idempotencyKey,
+              connection,
+            );
             return {
               content: [
                 {

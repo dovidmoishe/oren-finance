@@ -1,5 +1,30 @@
 import { microsUsd } from './trade-budget';
 
+/** Preserve the quoted token units exactly in numeric(30,12) intent storage. */
+export function rawSellShares(rawInput: string, decimals: number): string {
+  if (
+    !/^[1-9]\d{0,19}$/.test(rawInput) ||
+    !Number.isInteger(decimals) ||
+    decimals < 0 ||
+    decimals > 18
+  )
+    throw new Error('Invalid quoted share amount');
+  const raw = BigInt(rawInput);
+  if (raw > 18_446_744_073_709_551_615n)
+    throw new Error('Invalid quoted share amount');
+  const scale = 10n ** BigInt(decimals);
+  const whole = String(raw / scale);
+  const fraction =
+    decimals === 0
+      ? ''
+      : String(raw % scale)
+          .padStart(decimals, '0')
+          .replace(/0+$/, '');
+  if (whole.length > 18 || fraction.length > 12)
+    throw new Error('Quoted share amount exceeds exact intent precision');
+  return `${whole}.${fraction.padEnd(12, '0')}`;
+}
+
 /** Exact decimal/scientific representation, including catalog number strings. */
 function fraction(value: string) {
   const match = /^(\d+)(?:\.(\d+))?(?:e([+-]?\d+))?$/i.exec(value);
