@@ -12,9 +12,15 @@ import {
   getAssociatedTokenAddressSync,
   TOKEN_2022_PROGRAM_ID,
   TOKEN_PROGRAM_ID,
+  MintLayout,
+  MINT_SIZE,
 } from '@solana/spl-token';
 import { inspectDelegatedJupiterTransaction } from './delegated-jupiter-guard';
 import { staticJupiterAccounts } from '../signer-gate/static-jupiter-accounts';
+import { inspectApiTradeTransaction } from './api-trade-transaction';
+import { buildGateJupiterRoute } from '../signer-gate/gate-jupiter';
+import type { mcpTradeIntents } from '../database/schema';
+import { rawSellShares } from './delegated-amounts';
 
 const JUPITER = new PublicKey('JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4');
 const USDC = new PublicKey('EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v');
@@ -89,6 +95,183 @@ function transaction(
 }
 
 const noTable = () => Promise.resolve(null);
+
+function apiFixture(decimals = 6) {
+  const intent = {
+    id: 'fixture',
+    side: 'buy',
+    wallet: expected.wallet,
+    assetId: 'stock',
+    stockMint: STOCK.toBase58(),
+    maxInRaw: '1000000',
+    minOutRaw: '9950',
+    amountUsd: '1.000000',
+    amountShares: null,
+    slippageBps: 50,
+    mode: 'delegated',
+    status: 'prepared',
+    expiresAt: new Date(Date.now() + 300000),
+  } as typeof mcpTradeIntents.$inferSelect;
+  const mintData = Buffer.alloc(MINT_SIZE);
+  MintLayout.encode(
+    {
+      mintAuthorityOption: 0,
+      mintAuthority: PublicKey.default,
+      supply: 100000000n,
+      decimals,
+      isInitialized: true,
+      freezeAuthorityOption: 0,
+      freezeAuthority: PublicKey.default,
+    },
+    mintData,
+  );
+  const inspect = jest.fn().mockResolvedValue('5000');
+  const deps = {
+    connection: {
+      getAccountInfo: jest
+        .fn()
+        .mockResolvedValue({ owner: TOKEN_2022_PROGRAM_ID, data: mintData }),
+      getAddressLookupTable: jest.fn().mockResolvedValue({ value: null }),
+    },
+    tokens: {
+      getStock: jest.fn().mockResolvedValue({
+        id: 'stock',
+        price: 25,
+        variants: [{ mint: STOCK.toBase58(), tradable: true }],
+      }),
+    },
+    rpc: { inspect },
+  };
+  const check = (tx = transaction([route()])) =>
+    inspectApiTradeTransaction(tx, intent, deps as never);
+  return { intent, deps, check };
+}
+
+describe('independent API transaction validation with real Solana serialization', () => {
+  it('accepts a bounded route and charges the actual raw USDC', async () => {
+    const f = apiFixture();
+    await expect(f.check()).resolves.toBe('1.000000');
+    expect(f.deps.rpc.inspect).toHaveBeenCalledWith(
+      expect.any(String),
+      expected.wallet,
+      {
+        inputMint: expected.inputMint,
+        outputMint: expected.outputMint,
+        maxInRaw: '1000000',
+        minOutRaw: '9950',
+      },
+    );
+  });
+  it('rejects the original understated-dollar exploit in both signing components', async () => {
+    const f = apiFixture();
+    f.intent.amountUsd = '0.010000';
+    await expect(f.check()).rejects.toThrow('raw USDC');
+    await expect(buildGateJupiterRoute(f.intent, {} as never)).rejects.toThrow(
+      'raw USDC',
+    );
+    expect(f.deps.rpc.inspect).not.toHaveBeenCalled();
+  });
+  it('rejects wrong destination, oversized input, a second route and bundled transfer', async () => {
+    const f = apiFixture();
+    for (const instructions of [
+      [route(1000000n, { 6: random() })],
+      [route(1000001n)],
+      [route(), route()],
+      [
+        route(),
+        SystemProgram.transfer({
+          fromPubkey: wallet,
+          toPubkey: random(),
+          lamports: 1,
+        }),
+      ],
+    ])
+      await expect(f.check(transaction(instructions))).rejects.toThrow();
+    expect(f.deps.rpc.inspect).not.toHaveBeenCalled();
+  });
+  it('checks the encoded output floor independently of gate quote metadata', async () => {
+    const f = apiFixture();
+    const altered = route();
+    altered.data.writeBigUInt64LE(9999n, 21);
+    await expect(f.check(transaction([altered]))).rejects.toThrow(
+      'reviewed minimum',
+    );
+    f.deps.rpc.inspect.mockRejectedValueOnce(new Error('simulation failed'));
+    await expect(f.check()).rejects.toThrow('simulation failed');
+  });
+  it('derives sell reference value from mint decimals and rejects understated shares', async () => {
+    const f = apiFixture();
+    f.intent.side = 'sell';
+    f.intent.amountUsd = null;
+    f.intent.amountShares = '1.000000000000';
+    const stockSource = getAssociatedTokenAddressSync(
+      STOCK,
+      wallet,
+      false,
+      TOKEN_2022_PROGRAM_ID,
+    );
+    const usdcDestination = getAssociatedTokenAddressSync(USDC, wallet);
+    const tx = transaction([
+      route(1000000n, {
+        3: stockSource,
+        6: usdcDestination,
+        7: STOCK,
+        8: USDC,
+      }),
+    ]);
+    await expect(f.check(tx)).resolves.toBe('25.000000');
+    f.intent.amountShares = '0.010000000000';
+    await expect(f.check(tx)).rejects.toThrow('differs from raw');
+  });
+  it('both signing components accept normalized eight-decimal sells and still reject mismatches', async () => {
+    const f = apiFixture(8);
+    Object.assign(f.intent, {
+      side: 'sell',
+      amountUsd: null,
+      maxInRaw: '12345679',
+      amountShares: rawSellShares('12345679', 8),
+    });
+    const source = getAssociatedTokenAddressSync(
+      STOCK,
+      wallet,
+      false,
+      TOKEN_2022_PROGRAM_ID,
+    );
+    const destination = getAssociatedTokenAddressSync(USDC, wallet);
+    const tx = transaction([
+      route(12345679n, { 3: source, 6: destination, 7: STOCK, 8: USDC }),
+    ]);
+    const deps = {
+      ...f.deps,
+      jupiter: {
+        getQuote: jest
+          .fn()
+          .mockResolvedValue({
+            inputMint: STOCK.toBase58(),
+            outputMint: USDC.toBase58(),
+            inAmount: '12345679',
+            outAmount: '10000',
+            otherAmountThreshold: '9950',
+            swapMode: 'ExactIn',
+            slippageBps: 50,
+          }),
+        postSwap: jest.fn().mockResolvedValue({ swapTransaction: tx }),
+      },
+    };
+    await expect(f.check(tx)).resolves.toBe('3.086420');
+    await expect(
+      buildGateJupiterRoute(f.intent, deps as never),
+    ).resolves.toMatchObject({
+      rawInput: '12345679',
+      referenceValueUsd: '3.086420',
+    });
+    f.intent.amountShares = '0.123456789000';
+    await expect(f.check(tx)).rejects.toThrow('differs from raw');
+    await expect(
+      buildGateJupiterRoute(f.intent, deps as never),
+    ).rejects.toThrow('differs from raw');
+  });
+});
 
 describe('delegated Jupiter transaction guard', () => {
   it('accepts one bounded route with protected static accounts', async () => {

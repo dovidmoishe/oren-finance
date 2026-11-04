@@ -21,6 +21,7 @@ export interface OrenAuth {
   createWallet: () => Promise<void>;
   getAccessToken: () => Promise<string | null>;
   authorizeTrade: (id: string, token: string | null) => Promise<string>;
+  signTradePermission: (wallet: string, message: string) => Promise<string>;
   addTradeSigner: (
     wallet: string,
     signerId: string,
@@ -51,6 +52,9 @@ export const AuthContext = createContext<OrenAuth>({
   },
   async addTradeSigner() {
     throw new Error("Sign in before granting a trade signer.");
+  },
+  async signTradePermission() {
+    throw new Error("Sign in before authorizing chat trading.");
   },
   async removeTradeSigners() {
     throw new Error("Sign in before removing trade signers.");

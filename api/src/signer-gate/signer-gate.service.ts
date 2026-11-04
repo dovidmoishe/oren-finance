@@ -26,6 +26,12 @@ import type { TokensService } from '../tokens/tokens.service';
 import type { ApprovalRpc } from '../execution/approval-rpc.service';
 import type { Connection } from '@solana/web3.js';
 import { buildGateJupiterRoute } from './gate-jupiter';
+import {
+  verifyOwnerProof,
+  sameGrantTerms,
+  type OwnerProof,
+  type OwnerMessage,
+} from '../mcp-auth/grant-owner-proof';
 
 type Delegation = typeof mcpTradeDelegations.$inferSelect;
 type Execution = typeof mcpDelegatedExecutions.$inferSelect;
@@ -99,9 +105,16 @@ export class SignerGateService {
     if (!this.config.enabled) throw new Error('Delegated signing is disabled');
   }
 
-  private async browserOwner(userToken: string, requireAllowlist = true) {
-    const owner = await this.deps.auth.requireMcpIdentity(
-      `Bearer ${userToken}`,
+  private async browserOwner(
+    proof: OwnerProof,
+    action: OwnerMessage['action'],
+    requireAllowlist = true,
+  ) {
+    const owner = verifyOwnerProof(proof, this.config.appId, action);
+    await this.deps.auth.verifyMcpWallet(
+      owner.userId,
+      owner.walletId,
+      owner.wallet,
     );
     if (requireAllowlist && !this.config.allowedUsers.has(owner.userId))
       throw new Error('User is not allowlisted for delegated trading');
@@ -115,7 +128,9 @@ export class SignerGateService {
       policy.chain_type !== 'solana' ||
       policy.rules?.length !== (this.config.sellsEnabled ? 4 : 3) ||
       (this.config.sellsEnabled &&
-        !policy.rules.some((rule) => rule.name === 'allow bounded jupiter sell')) ||
+        !policy.rules.some(
+          (rule) => rule.name === 'allow bounded jupiter sell',
+        )) ||
       policy.rules.some((rule) => rule.method !== 'signTransaction') ||
       gatePolicyFingerprint(policy) !== this.config.policyHash
     )
@@ -123,7 +138,7 @@ export class SignerGateService {
   }
 
   async prepareGrant(
-    userToken: string,
+    proof: OwnerProof,
     settings: {
       allowSell: boolean;
       perTradeUsd: number;
@@ -133,7 +148,19 @@ export class SignerGateService {
     },
   ) {
     this.assertEnabled();
-    const owner = await this.browserOwner(userToken);
+    const owner = await this.browserOwner(proof, 'prepare');
+    if (
+      !owner.terms ||
+      owner.signerId !== this.config.signerQuorumId ||
+      owner.policyId !== this.config.policyId ||
+      owner.terms.perTradeUsd !== settings.perTradeUsd.toFixed(6) ||
+      owner.terms.dailyUsd !== settings.dailyUsd.toFixed(6) ||
+      owner.terms.maxSlippageBps !== settings.maxSlippageBps ||
+      owner.terms.allowSell !== settings.allowSell ||
+      new Date(owner.terms.expiresAt).getTime() >
+        owner.issuedAt + settings.durationHours * 3_600_000
+    )
+      throw new Error('Grant differs from wallet-authorized terms');
     if (
       !this.config.buysEnabled ||
       (settings.allowSell && !this.config.sellsEnabled) ||
@@ -165,7 +192,16 @@ export class SignerGateService {
       .limit(1);
     if (open?.status === 'active' && open.expiresAt > new Date())
       throw new Error('Wallet already has an active delegation');
-    if (open?.status === 'pending_signer' && open.expiresAt > new Date())
+    if (open?.status === 'pending_signer' && open.expiresAt > new Date()) {
+      if (
+        open.id !== owner.delegationId ||
+        open.perTradeLimitUsd !== owner.terms.perTradeUsd ||
+        open.dailyLimitUsd !== owner.terms.dailyUsd ||
+        open.maxSlippageBps !== owner.terms.maxSlippageBps ||
+        open.allowSell !== owner.terms.allowSell ||
+        open.expiresAt.toISOString() !== owner.terms.expiresAt
+      )
+        throw new Error('Pending grant has different signed terms');
       return {
         delegationId: open.id,
         wallet: open.wallet,
@@ -177,6 +213,7 @@ export class SignerGateService {
         allowSell: open.allowSell,
         expiresAt: open.expiresAt.toISOString(),
       };
+    }
     if (open && open.expiresAt <= new Date())
       await this.deps.db
         .update(mcpTradeDelegations)
@@ -191,11 +228,12 @@ export class SignerGateService {
     )
       throw new Error('Wallet has other signers; enrollment is unavailable');
     await this.verifyPolicy();
-    const expiresAt = new Date(Date.now() + settings.durationHours * 3_600_000);
+    const expiresAt = new Date(owner.terms.expiresAt);
     const delegation = await this.deps.db.transaction(async (tx) => {
       const [saved] = await tx
         .insert(mcpTradeDelegations)
         .values({
+          id: owner.delegationId,
           userId: owner.userId,
           walletId: owner.walletId,
           wallet: owner.wallet,
@@ -232,9 +270,9 @@ export class SignerGateService {
     };
   }
 
-  async activateGrant(userToken: string, delegationId: string) {
+  async activateGrant(proof: OwnerProof, delegationId: string) {
     this.assertEnabled();
-    const owner = await this.browserOwner(userToken);
+    const owner = await this.browserOwner(proof, 'activate');
     const [delegation] = await this.deps.db
       .select()
       .from(mcpTradeDelegations)
@@ -248,9 +286,22 @@ export class SignerGateService {
       )
       .limit(1);
     if (
+      delegation?.status === 'active' &&
+      delegation.expiresAt > new Date() &&
+      sameGrantTerms(owner, delegation)
+    ) {
+      await this.verifyPrivySigner(delegation);
+      return {
+        active: true,
+        delegationId,
+        expiresAt: delegation.expiresAt.toISOString(),
+      };
+    }
+    if (
       !delegation ||
       delegation.status !== 'pending_signer' ||
-      delegation.expiresAt <= new Date()
+      delegation.expiresAt <= new Date() ||
+      !sameGrantTerms(owner, delegation)
     )
       throw new Error('Pending delegation unavailable');
     await this.verifyPrivySigner(delegation);
@@ -282,8 +333,10 @@ export class SignerGateService {
     };
   }
 
-  async revokeGrant(userToken: string, delegationId: string) {
-    const owner = await this.browserOwner(userToken, false);
+  async revokeGrant(proof: OwnerProof, delegationId: string) {
+    const owner = await this.browserOwner(proof, 'revoke', false);
+    if (owner.delegationId !== delegationId)
+      throw new Error('Revocation targets a different grant');
     await this.deps.db.transaction(async (tx) => {
       const [updated] = await tx
         .update(mcpTradeDelegations)
@@ -404,7 +457,9 @@ export class SignerGateService {
       gatePolicyFingerprint(policy) !== this.config.policyHash ||
       policy.rules?.length !== (this.config.sellsEnabled ? 4 : 3) ||
       (this.config.sellsEnabled &&
-        !policy.rules.some((rule) => rule.name === 'allow bounded jupiter sell')) ||
+        !policy.rules.some(
+          (rule) => rule.name === 'allow bounded jupiter sell',
+        )) ||
       policy.rules.some((rule) => rule.method !== 'signTransaction')
     )
       throw new Error('Privy signer policy changed');

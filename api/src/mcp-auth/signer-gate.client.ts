@@ -1,5 +1,7 @@
 import { generateAuthorizationSignature } from '@privy-io/node';
 import { SignerGateRejection } from './signer-gate.errors';
+import type { ApiTradeAuthorizer, TradeActor } from './api-trade-authorization';
+import type { OwnerProof } from './grant-owner-proof';
 
 export type GateResult = {
   executionId: string;
@@ -13,6 +15,7 @@ export class SignerGateClient {
     private readonly url: string,
     private readonly token: string,
     private readonly apiPrivateKey: string,
+    private readonly authorizer?: ApiTradeAuthorizer,
   ) {
     if (!/^http:\/\/signer-gate:3001$/.test(url))
       throw new Error(
@@ -39,17 +42,28 @@ export class SignerGateClient {
     return result;
   }
 
-  async execute(intentId: string, idempotencyKey: string): Promise<GateResult> {
-    if (!this.apiPrivateKey) throw new SignerGateRejection('disabled');
+  async execute(
+    intentId: string,
+    idempotencyKey: string,
+    actor?: TradeActor,
+  ): Promise<GateResult> {
+    if (!this.apiPrivateKey || !this.authorizer || !actor)
+      throw new SignerGateRejection('disabled');
     const challenge = await this.post<
       GateResult & { canonicalRequestBase64?: string }
     >('/challenge', { intentId, idempotencyKey });
     if (challenge.state !== 'challenged') return challenge;
     if (!challenge.canonicalRequestBase64)
       throw new SignerGateRejection('pending');
+    const independentlyAuthorized = await this.authorizer.authorize(
+      intentId,
+      idempotencyKey,
+      actor,
+      challenge,
+    );
     const signature = generateAuthorizationSignature({
       authorizationPrivateKey: this.apiPrivateKey,
-      input: Buffer.from(challenge.canonicalRequestBase64, 'base64'),
+      input: independentlyAuthorized,
     });
     return this.post<GateResult>('/complete', {
       executionId: challenge.executionId,
@@ -58,7 +72,7 @@ export class SignerGateClient {
   }
 
   prepareGrant(
-    userToken: string,
+    authorization: OwnerProof,
     settings: {
       allowSell: boolean;
       perTradeUsd: number;
@@ -77,21 +91,21 @@ export class SignerGateClient {
       maxSlippageBps: number;
       allowSell: boolean;
       expiresAt: string;
-    }>('/grant/prepare', { userToken, ...settings });
+    }>('/grant/prepare', { authorization, ...settings });
   }
 
-  activateGrant(userToken: string, delegationId: string) {
+  activateGrant(authorization: OwnerProof, delegationId: string) {
     return this.post<{
       active: boolean;
       delegationId: string;
       expiresAt: string;
-    }>('/grant/activate', { userToken, delegationId });
+    }>('/grant/activate', { authorization, delegationId });
   }
 
-  revokeGrant(userToken: string, delegationId: string) {
+  revokeGrant(authorization: OwnerProof, delegationId: string) {
     return this.post<{
       revoked: boolean;
       removeAllWalletSignersInBrowser: boolean;
-    }>('/grant/revoke', { userToken, delegationId });
+    }>('/grant/revoke', { authorization, delegationId });
   }
 }

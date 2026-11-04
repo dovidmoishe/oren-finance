@@ -105,6 +105,9 @@ function createLoadingSession() {
     async authorizeTrade() {
       throw new Error("Sign in before approving a trade.");
     },
+    async signTradePermission() {
+      throw new Error("Sign in before authorizing chat trading.");
+    },
     async addTradeSigner() {
       throw new Error("Sign in before granting a trade signer.");
     },

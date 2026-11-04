@@ -18,6 +18,24 @@ export function usdMicros(value: string): bigint {
   return BigInt(whole) * 1_000_000n + BigInt(fraction.padEnd(6, '0'));
 }
 
+export function microsUsd(value: bigint): string {
+  if (value < 0n) throw new Error('Invalid USD amount');
+  return `${value / 1_000_000n}.${String(value % 1_000_000n).padStart(6, '0')}`;
+}
+
+/** USDC raw units are microdollars. Never price a buy from API display data. */
+export function buyNotionalUsd(rawInput: string, amountUsd: string | null) {
+  if (!/^[1-9]\d{0,19}$/.test(rawInput) || !amountUsd) return undefined;
+  try {
+    const raw = BigInt(rawInput);
+    return raw <= 18_446_744_073_709_551_615n && usdMicros(amountUsd) === raw
+      ? microsUsd(raw)
+      : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export function sellNotionalUsd(
   referenceValueUsd: string,
   quotedProceedsUsd: string,
@@ -53,8 +71,8 @@ export function reservationNotionalUsd(
   )
     return undefined;
   if (intent.side === 'buy')
-    return fresh.rawInput === intent.maxInRaw && intent.amountUsd
-      ? intent.amountUsd
+    return fresh.rawInput === intent.maxInRaw
+      ? buyNotionalUsd(fresh.rawInput, intent.amountUsd)
       : undefined;
   if (
     !intent.referenceValueUsd ||

@@ -2,6 +2,7 @@ import {
   getAssociatedTokenAddressSync,
   TOKEN_2022_PROGRAM_ID,
   TOKEN_PROGRAM_ID,
+  unpackMint,
 } from '@solana/spl-token';
 import { ComputeBudgetProgram, Connection, PublicKey } from '@solana/web3.js';
 import type { mcpTradeIntents } from '../database/schema';
@@ -11,6 +12,8 @@ import type { TokensService } from '../tokens/tokens.service';
 import type { ApprovalRpc } from '../execution/approval-rpc.service';
 import { inspectDelegatedJupiterTransaction } from '../mcp-auth/delegated-jupiter-guard';
 import { staticJupiterAccounts } from './static-jupiter-accounts';
+import { buyNotionalUsd, microsUsd } from '../mcp-auth/trade-budget';
+import { rawSellReferenceUsd } from '../mcp-auth/delegated-amounts';
 
 type Intent = typeof mcpTradeIntents.$inferSelect;
 
@@ -26,12 +29,6 @@ export type GateRoute = {
 
 function positiveRaw(value: string | null | undefined): value is string {
   return typeof value === 'string' && /^\d+$/.test(value) && BigInt(value) > 0n;
-}
-
-function usdSix(value: number): string {
-  if (!Number.isFinite(value) || value <= 0 || value > 1_000_000_000)
-    throw new Error('Independent stock valuation is unavailable');
-  return (Math.ceil(value * 1_000_000) / 1_000_000).toFixed(6);
 }
 
 /** Gate-owned quote and transaction build. The MCP API supplies only an intent ID. */
@@ -56,6 +53,11 @@ export async function buildGateJupiterRoute(
     intent.slippageBps > 50
   )
     throw new Error('Prepared intent is unavailable for delegation');
+  if (
+    intent.side === 'buy' &&
+    !buyNotionalUsd(intent.maxInRaw, intent.amountUsd)
+  )
+    throw new Error('Buy amount differs from raw USDC input');
   const stock = await deps.tokens.getStock(intent.assetId);
   const variant = stock.variants.find(
     (item) => item.mint === intent.stockMint && item.tradable,
@@ -160,15 +162,16 @@ export async function buildGateJupiterRoute(
   let referenceValueUsd: string | undefined;
   let quotedProceedsUsd: string | undefined;
   if (intent.side === 'sell') {
-    if (
-      !stock.price ||
-      !Number.isFinite(stock.price) ||
-      stock.price <= 0 ||
-      !intent.amountShares
-    )
-      throw new Error('Independent stock valuation is unavailable');
-    referenceValueUsd = usdSix(Number(intent.amountShares) * stock.price);
-    quotedProceedsUsd = usdSix(Number(quote.outAmount) / 1_000_000);
+    const mintState = unpackMint(mint, mintAccount, stockProgram);
+    if (!mintState.isInitialized)
+      throw new Error('Stock mint is uninitialized');
+    referenceValueUsd = rawSellReferenceUsd(
+      intent.maxInRaw,
+      intent.amountShares,
+      mintState.decimals,
+      stock.price,
+    );
+    quotedProceedsUsd = microsUsd(BigInt(quote.outAmount));
   }
   return {
     transaction,

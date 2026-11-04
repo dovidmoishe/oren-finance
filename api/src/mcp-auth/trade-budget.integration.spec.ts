@@ -12,7 +12,11 @@ import {
   mcpTradeDelegations,
   mcpTradeIntents,
 } from '../database/schema';
-import { reserveTradeBudget, settleTradeBudget } from './trade-budget';
+import {
+  reserveTradeBudget,
+  settleTradeBudget,
+  usdMicros,
+} from './trade-budget';
 
 const url = process.env.MCP_TEST_POSTGRES_URL;
 const describeDatabase = url ? describe : describe.skip;
@@ -32,7 +36,7 @@ describeDatabase('MCP budget reservations in Postgres', () => {
         'MCP_TEST_POSTGRES_URL must target the local oren_mcp_test database',
       );
     client = postgres(url, { max: 20 });
-    db = drizzle(client) as Database;
+    db = drizzle(client);
     await migrate(db, {
       migrationsFolder: resolve(process.cwd(), 'lib/db/migrations'),
     });
@@ -43,6 +47,7 @@ describeDatabase('MCP budget reservations in Postgres', () => {
   });
 
   async function fixture(amountUsd = '10.000000') {
+    const rawInput = usdMicros(amountUsd).toString();
     const userId = `test-${randomUUID()}`;
     const walletId = `wallet-${randomUUID()}`;
     const wallet = `address-${randomUUID()}`;
@@ -90,7 +95,7 @@ describeDatabase('MCP budget reservations in Postgres', () => {
           side: 'buy',
           stockMint: 'test-mint',
           amountUsd,
-          maxInRaw: '10000000',
+          maxInRaw: rawInput,
           minOutRaw: '1',
           slippageBps: 50,
           mode: 'delegated',
@@ -108,6 +113,7 @@ describeDatabase('MCP budget reservations in Postgres', () => {
       walletId,
       wallet,
       intent,
+      rawInput,
     };
   }
 
@@ -121,7 +127,7 @@ describeDatabase('MCP budget reservations in Postgres', () => {
         reserveTradeBudget(db, {
           ...owner,
           intentId,
-          rawInput: '10000000',
+          rawInput: owner.rawInput,
           idempotencyKey: randomUUID(),
         }),
       ),
@@ -134,11 +140,39 @@ describeDatabase('MCP budget reservations in Postgres', () => {
     ).toHaveLength(15);
   }, 90_000);
 
+  it('rejects forged and missing delegated buy amounts at the database boundary', async () => {
+    const owner = await fixture();
+    for (const amountUsd of ['0.010000', null]) {
+      await expect(
+        db.insert(mcpTradeIntents).values({
+          grantId: owner.grantId,
+          clientId: owner.clientId,
+          userId: owner.userId,
+          wallet: owner.wallet,
+          assetId: 'stock',
+          ticker: 'TEST',
+          mode: 'delegated',
+          delegationId: owner.delegationId,
+          amountUsd,
+          maxInRaw: '1000000',
+          minOutRaw: '1',
+          slippageBps: 50,
+          expiresAt: new Date(Date.now() + 300000),
+        }),
+      ).rejects.toThrow();
+    }
+  });
+
   it('returns an existing reservation for the same key and releases only a definite failure', async () => {
     const owner = await fixture('25.000000');
     const intentId = await owner.intent();
     const idempotencyKey = randomUUID();
-    const input = { ...owner, intentId, rawInput: '10000000', idempotencyKey };
+    const input = {
+      ...owner,
+      intentId,
+      rawInput: owner.rawInput,
+      idempotencyKey,
+    };
     expect((await reserveTradeBudget(db, input)).status).toBe('reserved');
     expect((await reserveTradeBudget(db, input)).status).toBe('existing');
     expect(
@@ -193,7 +227,7 @@ describeDatabase('MCP budget reservations in Postgres', () => {
     const input = {
       ...owner,
       intentId,
-      rawInput: '10000000',
+      rawInput: owner.rawInput,
       idempotencyKey,
       execution,
     };
@@ -223,7 +257,7 @@ describeDatabase('MCP budget reservations in Postgres', () => {
     const input = {
       ...owner,
       intentId: await owner.intent(),
-      rawInput: '10000000',
+      rawInput: owner.rawInput,
       idempotencyKey: randomUUID(),
     };
     await db
@@ -241,7 +275,7 @@ describeDatabase('MCP budget reservations in Postgres', () => {
         await reserveTradeBudget(db, {
           ...fresh,
           intentId: await fresh.intent(),
-          rawInput: '10000000',
+          rawInput: owner.rawInput,
           idempotencyKey: randomUUID(),
         })
       ).status,
@@ -256,7 +290,7 @@ describeDatabase('MCP budget reservations in Postgres', () => {
         await reserveTradeBudget(db, {
           ...owner,
           intentId: firstId,
-          rawInput: '10000000',
+          rawInput: owner.rawInput,
           idempotencyKey: randomUUID(),
         })
       ).status,
@@ -271,7 +305,7 @@ describeDatabase('MCP budget reservations in Postgres', () => {
         await reserveTradeBudget(db, {
           ...owner,
           intentId: secondId,
-          rawInput: '10000000',
+          rawInput: owner.rawInput,
           idempotencyKey: randomUUID(),
         })
       ).status,
@@ -282,7 +316,7 @@ describeDatabase('MCP budget reservations in Postgres', () => {
         await reserveTradeBudget(db, {
           ...owner,
           intentId: thirdId,
-          rawInput: '10000000',
+          rawInput: owner.rawInput,
           idempotencyKey: randomUUID(),
         })
       ).status,
