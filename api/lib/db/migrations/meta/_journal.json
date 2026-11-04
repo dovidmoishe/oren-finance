@@ -99,6 +99,13 @@
       "breakpoints": true,
       "tag": "0013_feedback_tickets",
       "idx": 13
+    },
+    {
+      "version": "7",
+      "when": 1793750400000,
+      "breakpoints": true,
+      "tag": "0014_independent_trade_authorization",
+      "idx": 14
     }
   ]
 }

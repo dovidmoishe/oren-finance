@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useOrenAuth } from "@/components/auth/auth-context";
 import { mcpApiOrigin } from "@/services/mcp-api-origin";
+import { validateGrantPermission, validateTrustedTradeSigner, type GrantSettings } from "@/services/mcp-grant-authorization";
 
 type PendingGrant = {
   delegationId: string;
@@ -17,6 +18,7 @@ type PendingGrant = {
 };
 type GrantState = {
   enabled: boolean;
+  reenrollmentRequired?: boolean;
   canEnroll?: boolean;
   sellAvailable?: boolean;
   pendingGrant?: PendingGrant;
@@ -34,6 +36,10 @@ export function TradeGrant() {
   const auth = useOrenAuth();
   const { authenticated, ready, getAccessToken } = auth;
   const apiOrigin = mcpApiOrigin();
+  const trustedSigner = {
+    signerId: process.env.NEXT_PUBLIC_MCP_SIGNER_QUORUM_ID ?? "",
+    policyId: process.env.NEXT_PUBLIC_MCP_SIGNER_POLICY_ID ?? "",
+  };
   const [grant, setGrant] = useState<GrantState>();
   const [pending, setPending] = useState<PendingGrant>();
   const [allowSell, setAllowSell] = useState(false);
@@ -110,15 +116,18 @@ export function TradeGrant() {
     setError(undefined);
     setNotice(undefined);
     try {
-      const saved = await post<PendingGrant>("prepare", {
+      const settings = {
         allowSell,
         perTradeUsd,
         dailyUsd,
         maxSlippageBps,
         durationHours,
-      });
+      };
+      const authorization = await ownerAuthorization("prepare", settings);
+      const saved = await post<PendingGrant>("prepare", { settings, authorization });
       if (saved.wallet !== auth.address)
         throw new Error("Your active wallet changed. Refresh before granting.");
+      validateTrustedTradeSigner(saved, trustedSigner);
       setPending(saved);
     } catch (cause) {
       setError(
@@ -131,18 +140,32 @@ export function TradeGrant() {
     }
   }
 
+  async function ownerAuthorization(action: "prepare" | "activate" | "revoke",
+    review: GrantSettings | PendingGrant | { delegationId: string }) {
+    if (!auth.address) throw new Error("Select your wallet before continuing.");
+    if (action !== "revoke") validateTrustedTradeSigner(trustedSigner, trustedSigner);
+    const request = action === "prepare" ? { action, settings: review, ...trustedSigner }
+      : { action, delegationId: (review as { delegationId: string }).delegationId };
+    const { message } = await post<{ message: string }>("authorization", request);
+    validateGrantPermission(message, auth.address, process.env.NEXT_PUBLIC_PRIVY_APP_ID ?? "", action, review, trustedSigner);
+    const signature = await auth.signTradePermission(auth.address, message);
+    return { message, signature };
+  }
+
   async function addSigner() {
     if (!pending || busy || pending.wallet !== auth.address) return;
     setBusy(true);
     setError(undefined);
     setNotice(undefined);
     try {
+      validateTrustedTradeSigner(pending, trustedSigner);
+      const authorization = await ownerAuthorization("activate", pending);
       await auth.addTradeSigner(
         pending.wallet,
         pending.signerId,
         pending.policyId,
       );
-      await post("activate", { delegationId: pending.delegationId });
+      await post("activate", { delegationId: pending.delegationId, authorization });
       setPending(undefined);
       await refresh();
       setNotice(
@@ -164,7 +187,8 @@ export function TradeGrant() {
     setBusy(true);
     setError(undefined);
     try {
-      await post("activate", { delegationId: pending.delegationId });
+      const authorization = await ownerAuthorization("activate", pending);
+      await post("activate", { delegationId: pending.delegationId, authorization });
       setPending(undefined);
       await refresh();
       setNotice(
@@ -189,7 +213,8 @@ export function TradeGrant() {
     setError(undefined);
     setNotice(undefined);
     try {
-      await post("revoke", { delegationId: targetId });
+      const authorization = await ownerAuthorization("revoke", { delegationId: targetId });
+      await post("revoke", { delegationId: targetId, authorization });
       setCleanupWallet(targetWallet);
       setGrant({ enabled: false, canEnroll: false });
       setPending(undefined);
@@ -250,7 +275,11 @@ export function TradeGrant() {
         Grant a revocable, limited signer to your embedded wallet. Claude needs
         a fresh connection after activation. Other agent clients stay read-only.
       </p>
-      {grant?.enabled && (
+      {grant?.reenrollmentRequired && <p className="mt-4 text-sm">
+        Renew your chat trading permission to use the new security checks. Revoke
+        this permission and remove its wallet signers, then review a new grant.
+      </p>}
+      {(grant?.enabled || grant?.reenrollmentRequired) && (
         <div className="mt-5 text-sm">
           <p>Allowed: {grant.sides?.join(" and ")}</p>
           <p>

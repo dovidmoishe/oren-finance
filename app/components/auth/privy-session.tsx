@@ -309,6 +309,15 @@ export function PrivySession({ children }: { children: React.ReactNode }) {
               "Your account changed. Check the wallet signer state.",
             );
         },
+        async signTradePermission(wallet, message) {
+          const current = walletSessionIsCurrent();
+          if (!ready || !authenticated || !active || wallet !== address ||
+              !message.startsWith("Oren chat trading permission\n") || message.length > 4096)
+            throw new Error("Review chat trading with your active wallet.");
+          const result = await signMessage({ message: new TextEncoder().encode(message), wallet: active });
+          if (!current()) throw new Error("Your wallet changed. Review the permission again.");
+          return btoa(String.fromCharCode(...result.signature));
+        },
         async removeTradeSigners(wallet) {
           const userId = currentUser.current;
           if (!ready || !authenticated || !userId || wallet !== address)

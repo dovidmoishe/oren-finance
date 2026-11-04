@@ -473,7 +473,7 @@ export async function handleMcpRequest(
               isError: true,
             };
           try {
-            const result = await deps.gate!.execute(intentId, idempotencyKey);
+            const result = await deps.gate!.execute(intentId, idempotencyKey, connection);
             return {
               content: [
                 {
