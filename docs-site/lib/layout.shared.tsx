@@ -7,8 +7,5 @@ export function baseOptions(): BaseLayoutProps {
       title: <div className="oren-wordmark"><OrenLogo size={28} /><span>OREN</span></div>,
       url: '/docs',
     },
-    links: [
-      { text: 'Open Oren', url: 'https://oren.finance', external: true },
-    ],
   };
 }
