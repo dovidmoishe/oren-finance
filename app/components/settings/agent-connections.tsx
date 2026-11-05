@@ -30,7 +30,6 @@ function ConnectionsContent() {
   const [revokeError, setRevokeError] = useState<string>();
   const [notice, setNotice] = useState<string>();
   const [attempt, setAttempt] = useState(0);
-  const [setupOpen, setSetupOpen] = useState(false);
   const apiOrigin = mcpApiOrigin();
 
   useEffect(() => {
@@ -76,21 +75,11 @@ function ConnectionsContent() {
       <Link href="/app" className="inline-flex items-center gap-1.5 text-sm text-muted hover:text-foreground"><HugeiconsIcon icon={ArrowLeft01Icon} size={16} aria-hidden="true" /> Back to dashboard</Link>
       <div className="mb-8 mt-7 flex flex-wrap items-start justify-between gap-5">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-widest text-muted">Account settings</p>
-          <h1 className="mt-2 font-display text-3xl font-semibold tracking-tight sm:text-4xl">Agent connections</h1>
+          <h1 className="font-display text-3xl font-semibold tracking-tight sm:text-4xl">Agent connections</h1>
           <p className="mt-3 max-w-lg text-sm leading-relaxed text-muted">Manage the apps connected to Oren and the permission to trade from your chats.</p>
         </div>
-        <Button href="#setup" onClick={() => setSetupOpen(true)} size="sm">Connect an agent <HugeiconsIcon icon={ArrowUpRight01Icon} size={15} aria-hidden="true" /></Button>
+        <Button href="/agents" size="sm">Connect an agent <HugeiconsIcon icon={ArrowUpRight01Icon} size={15} aria-hidden="true" /></Button>
       </div>
-      <details open={setupOpen} onToggle={event => setSetupOpen(event.currentTarget.open)} id="setup" className="mb-6 scroll-mt-24 rounded-2xl border border-border bg-panel p-5 sm:p-6">
-        <summary className="cursor-pointer text-sm font-semibold focus-visible:outline-2">How to connect an agent</summary>
-        <ol className="mt-4 list-decimal space-y-3 pl-5 text-sm leading-relaxed text-muted">
-          <li>Open your agent app’s MCP or connector settings and add Oren as a remote server.</li>
-          <li>Use this server URL: <code className="mt-2 block select-text break-all rounded-lg bg-background p-3 text-foreground">{apiOrigin ? `${apiOrigin}/mcp` : "https://api.oren.finance/mcp"}</code></li>
-          <li>Connect from your agent app, sign in to Oren, and review the access it requests. Your connection will appear here when you return.</li>
-        </ol>
-        <p className="mt-4 text-xs leading-relaxed text-muted">For trades from chat, review your chat trading permission below, then reconnect your agent to request trading access.</p>
-      </details>
       {!ready ? (
         <div className="rounded-2xl border border-border bg-panel p-8 text-sm text-muted" role="status">Loading your account…</div>
       ) : !authenticated ? (
@@ -115,7 +104,7 @@ function ConnectionsContent() {
                 <span className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-background text-muted"><HugeiconsIcon icon={Link01Icon} size={24} aria-hidden="true" /></span>
                 <h3 className="mt-4 text-base font-semibold">Connect your first agent</h3>
                 <p className="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-muted">Bring Oren into Claude, Cursor, or Codex to research stocks and manage your portfolio from a chat.</p>
-                <Button href="#setup" onClick={() => setSetupOpen(true)} className="mt-5" size="sm">View setup guide <HugeiconsIcon icon={ArrowUpRight01Icon} size={15} aria-hidden="true" /></Button>
+                <Button href="/agents" className="mt-5" size="sm">View setup guide <HugeiconsIcon icon={ArrowUpRight01Icon} size={15} aria-hidden="true" /></Button>
               </div>
             ) : (
               <ul className="divide-y divide-border">
