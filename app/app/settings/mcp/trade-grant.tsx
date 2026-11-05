@@ -269,11 +269,11 @@ export function TradeGrant() {
 
   if (!auth.authenticated) return null;
   return (
-    <section className="mt-10 rounded-2xl border border-border bg-panel p-5">
-      <h2 className="text-xl font-semibold">Chat trading permission</h2>
+    <section className="mt-6 rounded-2xl border border-border bg-panel p-5 sm:p-6">
+      <h2 className="text-lg font-semibold">Chat trading permission</h2>
       <p className="mt-2 text-sm text-muted">
-        Grant a revocable, limited signer to your embedded wallet. Claude, Cursor
-        and Codex need a fresh connection after activation.
+        Choose how much your agents can trade and when permission expires.
+        You can revoke it anytime. Reconnect Claude, Cursor or Codex after activation.
       </p>
       {grant?.reenrollmentRequired && <p className="mt-4 text-sm">
         Renew your chat trading permission to use the new security checks. Revoke
@@ -386,8 +386,8 @@ export function TradeGrant() {
         </div>
       )}
       {!grant?.enabled && !pending && grant?.canEnroll && (
-        <div className="mt-5 grid gap-3 text-sm">
-          <label>
+        <div className="mt-5 grid gap-4 text-sm sm:grid-cols-2">
+          <label className="sm:col-span-2">
             Permission
             <select
               className="mt-1 w-full rounded-lg border border-border bg-background p-2"
@@ -450,11 +450,11 @@ export function TradeGrant() {
               onChange={(event) => setDurationHours(Number(event.target.value))}
             />
           </label>
-          <p className="text-muted">
+          <p className="text-muted sm:col-span-2">
             Enrollment requires a wallet with zero existing signers. Privy
             currently removes every signer on revocation.
           </p>
-          <label className="flex gap-2">
+          <label className="flex gap-2 sm:col-span-2">
             <input
               type="checkbox"
               checked={acknowledged}
@@ -478,6 +478,8 @@ export function TradeGrant() {
           review remains available.
         </p>
       )}
+      {!apiOrigin && <p className="mt-4 text-sm text-muted" role="status">Chat trading settings are unavailable right now.</p>}
+      {apiOrigin && !grant && !error && <p className="mt-4 text-sm text-muted" role="status">Loading chat trading permission…</p>}
       {error && (
         <p className="mt-4 text-sm text-red-700" role="alert">
           {error}

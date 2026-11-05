@@ -146,7 +146,7 @@ function McpConnection({ uid }: { uid: string }) {
             <span>I allow this agent connection to execute trades within these limits. I can revoke it in settings.</span>
           </label>
         </>}
-        {requestsExecute && delegation && !delegation.enabled && <p className="mt-5 text-sm">Chat trading is not active. Enable it in <Link className="underline" href="/settings/mcp">Agent connections</Link> before connecting your agent app.</p>}
+        {requestsExecute && delegation && !delegation.enabled && <p className="mt-5 text-sm">Chat trading is not active. Enable it in <Link className="underline" href="/app/settings/connections">Agent connections</Link> before connecting your agent app.</p>}
       </div>}
       {error && <p className="mt-5 text-sm text-red-700" role="alert">{error}</p>}
       {delegationError && <p className="mt-5 text-sm text-red-700" role="alert">{delegationError}</p>}
@@ -161,7 +161,7 @@ function McpConnection({ uid }: { uid: string }) {
         </button>
       )}
       <p className="mt-6 text-sm text-muted">
-        You can revoke this connection anytime in <Link className="underline" href="/settings/mcp">Agent connections</Link>.
+        You can revoke this connection anytime in <Link className="underline" href="/app/settings/connections">Agent connections</Link>.
       </p>
     </main>
   );
