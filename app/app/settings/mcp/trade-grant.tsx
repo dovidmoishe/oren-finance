@@ -169,7 +169,7 @@ export function TradeGrant() {
       setPending(undefined);
       await refresh();
       setNotice(
-        "Chat trading permission is active. Connect Claude again to grant execute access.",
+        "Chat trading permission is active. Reconnect your agent app (Claude, Cursor or Codex) to grant execute access.",
       );
     } catch (cause) {
       setError(
@@ -192,7 +192,7 @@ export function TradeGrant() {
       setPending(undefined);
       await refresh();
       setNotice(
-        "Privy signer and policy were verified. Connect Claude again for execute access.",
+        "Privy signer and policy were verified. Reconnect your agent app for execute access.",
       );
     } catch (cause) {
       setError(
@@ -272,8 +272,8 @@ export function TradeGrant() {
     <section className="mt-10 rounded-2xl border border-border bg-panel p-5">
       <h2 className="text-xl font-semibold">Chat trading permission</h2>
       <p className="mt-2 text-sm text-muted">
-        Grant a revocable, limited signer to your embedded wallet. Claude needs
-        a fresh connection after activation. Other agent clients stay read-only.
+        Grant a revocable, limited signer to your embedded wallet. Claude, Cursor
+        and Codex need a fresh connection after activation.
       </p>
       {grant?.reenrollmentRequired && <p className="mt-4 text-sm">
         Renew your chat trading permission to use the new security checks. Revoke

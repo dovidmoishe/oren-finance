@@ -22,8 +22,12 @@ import { PortfolioService } from './portfolio/portfolio.service';
 import { ExecutionService } from './execution/execution.service';
 import { handleMcpRequest } from './mcp-auth/mcp-resource';
 import { SignerGateClient } from './mcp-auth/signer-gate.client';
+import { delegatedUserAllowed } from './mcp-auth/delegated-access';
 import { SignerGateRejection } from './mcp-auth/signer-gate.errors';
-import { registerMcpJsonBodyParser } from './mcp-auth/mcp-json-body';
+import {
+  mcpRegistrationBody,
+  registerMcpJsonBodyParser,
+} from './mcp-auth/mcp-json-body';
 import {
   clientMayPrepareTrades,
   clientMayExecuteTrades,
@@ -37,6 +41,10 @@ import { Connection } from '@solana/web3.js';
 import { TokensService } from './tokens/tokens.service';
 import { ApprovalRpc } from './execution/approval-rpc.service';
 import { ownerProofSchema } from './mcp-auth/grant-owner-proof';
+import {
+  describeMcpConsentClient,
+  nativeMcpConsentGranted,
+} from './mcp-auth/client-consent';
 
 async function bootstrap() {
   const env = validateEnv();
@@ -56,11 +64,15 @@ async function bootstrap() {
     const expressApp = app.getHttpAdapter().getInstance() as Express;
     const db = app.get(DatabaseService).db;
     const identity = app.get(PrivyWalletAuth, { strict: false });
+    const delegatedAccess = {
+      publicAccess: env.MCP_DELEGATED_TRADES_PUBLIC,
+      allowedUsers: new Set(env.MCP_DELEGATED_TRADES_ALLOWED_USERS),
+    };
     const apiTradeAuthorization = new ApiTradeAuthorization({
       db,
       auth: identity,
       appId: env.PRIVY_APP_ID ?? '',
-      allowedUsers: new Set(env.MCP_DELEGATED_TRADES_ALLOWED_USERS),
+      ...delegatedAccess,
       buysEnabled: env.MCP_DELEGATED_BUYS_ENABLED,
       sellsEnabled: env.MCP_DELEGATED_SELLS_ENABLED,
       signerQuorumId: env.PRIVY_MCP_SIGNER_QUORUM_ID ?? '',
@@ -169,8 +181,7 @@ async function bootstrap() {
             canEnroll:
               env.MCP_DELEGATED_TRADES_ENABLED &&
               env.MCP_DELEGATED_BUYS_ENABLED &&
-              (env.MCP_DELEGATED_TRADES_ALLOWED_USERS.includes('*') ||
-                env.MCP_DELEGATED_TRADES_ALLOWED_USERS.includes(owner.userId)),
+              delegatedUserAllowed(delegatedAccess, owner.userId),
             sellAvailable: env.MCP_DELEGATED_SELLS_ENABLED,
           });
         const [independent] = await db
@@ -594,7 +605,7 @@ async function bootstrap() {
           res.setHeader('Access-Control-Allow-Credentials', 'true');
           res.setHeader(
             'Access-Control-Allow-Headers',
-            'Authorization, Content-Type, X-Oren-Trade-Execute-Consent, X-Oren-Delegation-Id',
+            'Authorization, Content-Type, X-Oren-Trade-Execute-Consent, X-Oren-Delegation-Id, X-Oren-Native-Client-Consent',
           );
           res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
           res.setHeader('Vary', 'Origin');
@@ -614,10 +625,18 @@ async function bootstrap() {
             `${oauth.appOrigin}/connect/mcp?uid=${encodeURIComponent(details.uid)}`,
           );
         }
+        const client = await oauth.provider.Client.find(
+          String(details.params.client_id),
+        );
+        const consentClient =
+          client &&
+          describeMcpConsentClient(client, details.params.redirect_uri);
+        if (!consentClient) return res.sendStatus(403);
         return res.json({
           clientId: details.params.client_id,
           scope: details.params.scope,
           resource: oauth.resource,
+          ...consentClient,
         });
       } catch {
         return res.sendStatus(400);
@@ -655,6 +674,18 @@ async function bootstrap() {
             !clientMayExecuteTrades(client.redirectUris))
         )
           return res.sendStatus(403);
+        const consentClient = describeMcpConsentClient(
+          client,
+          details.params.redirect_uri,
+        );
+        if (
+          !consentClient ||
+          !nativeMcpConsentGranted(
+            consentClient,
+            req.headers['x-oren-native-client-consent'],
+          )
+        )
+          return res.sendStatus(403);
         const owner = await identity.requireMcpIdentity(
           req.headers.authorization,
         );
@@ -663,10 +694,7 @@ async function bootstrap() {
             return res.sendStatus(403);
           if (
             !env.MCP_DELEGATED_TRADES_ENABLED ||
-            !(
-              env.MCP_DELEGATED_TRADES_ALLOWED_USERS.includes('*') ||
-              env.MCP_DELEGATED_TRADES_ALLOWED_USERS.includes(owner.userId)
-            )
+            !delegatedUserAllowed(delegatedAccess, owner.userId)
           )
             return res.sendStatus(403);
           const [delegation] = await db
@@ -839,6 +867,7 @@ async function bootstrap() {
         }
         next();
       },
+      mcpRegistrationBody,
     );
     expressApp.use('/oauth', oauth.provider.callback());
   }

@@ -6,7 +6,43 @@ import {
   type Response,
 } from 'express';
 
+import { mcpClientKind } from './oauth-runtime';
+
 const parseMcpJson = json({ limit: '100kb' });
+const parseRegistrationJson = json({ limit: '32kb' });
+
+/**
+ * Cursor registers its custom-scheme callback without application_type, so
+ * oidc-provider would treat it as a web client and reject the scheme. Mark only
+ * Cursor-only registrations as native; oidc-provider still validates every URI.
+ */
+export function markNativeMcpRegistration(body: unknown): void {
+  if (!body || typeof body !== 'object') return;
+  const metadata = body as {
+    redirect_uris?: unknown;
+    application_type?: unknown;
+  };
+  if (
+    metadata.application_type === undefined &&
+    Array.isArray(metadata.redirect_uris) &&
+    metadata.redirect_uris.every((uri) => typeof uri === 'string') &&
+    mcpClientKind(metadata.redirect_uris) === 'cursor'
+  )
+    metadata.application_type = 'native';
+}
+
+/** Route-level parser for POST /oauth/reg only; oidc-provider reads req.body. */
+export function mcpRegistrationBody(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) {
+  parseRegistrationJson(req, res, (error?: unknown) => {
+    if (error) return next(error);
+    markNativeMcpRegistration(req.body);
+    next();
+  });
+}
 
 /**
  * Custom /mcp routes are mounted before Nest adds its parser in listen().
