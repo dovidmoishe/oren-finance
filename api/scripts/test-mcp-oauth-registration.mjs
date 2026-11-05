@@ -135,6 +135,8 @@ app.use('/.well-known/oauth-authorization-server/oauth', (req, res) => {
   mountPathBasedDiscoveryAtIssuer(req)
   return runtime.provider.callback()(req, res)
 })
+const { mcpRegistrationBody } = require('../dist/src/mcp-auth/mcp-json-body.js')
+app.post('/oauth/reg', mcpRegistrationBody)
 app.use('/oauth', runtime.provider.callback())
 const pathMetadata = await request(app)
   .get('/.well-known/oauth-authorization-server/oauth')
@@ -308,6 +310,30 @@ const unsupportedScope = await request(app)
     scope: 'oren.read oren.trade.execute',
   })
 assert.equal(unsupportedScope.status, 400)
+async function register(redirectUris) {
+  return request(app)
+    .post('/oauth/reg')
+    .send({
+      redirect_uris: redirectUris,
+      token_endpoint_auth_method: 'none',
+      response_types: ['code'],
+      grant_types: ['authorization_code', 'refresh_token'],
+      scope: 'oren.read oren.trade.prepare offline_access',
+    })
+}
+const cursor = await register([
+  'http://localhost:8787/callback',
+  'cursor://anysphere.cursor-mcp/oauth/callback',
+])
+assert.equal(cursor.status, 201, JSON.stringify(cursor.body))
+assert.equal(cursor.body.scope, 'oren.read oren.trade.prepare offline_access')
+const codex = await register(['http://127.0.0.1:49152/callback/Abcdef12_-'])
+assert.equal(codex.status, 201, JSON.stringify(codex.body))
+const mixed = await register([
+  'https://claude.ai/api/mcp/auth_callback',
+  'http://127.0.0.1:49152/callback',
+])
+assert.equal(mixed.status, 400)
 console.log(
-  'MCP OAuth discovery, Claude registration, consent callback, and token exchange pass',
+  'MCP OAuth discovery, Claude/Cursor/Codex registration, consent callback, and token exchange pass',
 )

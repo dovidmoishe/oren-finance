@@ -25,9 +25,18 @@ export function mountPathBasedDiscoveryAtIssuer(request: {
   request.originalUrl = `/oauth${request.url}`;
 }
 
-/** Keep public client registration limited to the pilot and Codex loopback. */
-export function isSupportedMcpRedirect(value: string): boolean {
-  if (value === 'https://claude.ai/api/mcp/auth_callback') return true;
+export type McpClientKind = 'claude' | 'cursor' | 'codex';
+
+/** Exact callbacks published by Claude.ai and Cursor (desktop, legacy scheme, web). */
+const FIXED_REDIRECTS: Record<string, McpClientKind> = {
+  'https://claude.ai/api/mcp/auth_callback': 'claude',
+  'http://localhost:8787/callback': 'cursor',
+  'cursor://anysphere.cursor-mcp/oauth/callback': 'cursor',
+  'https://www.cursor.com/agents/mcp/oauth/callback': 'cursor',
+};
+
+/** Codex loopback: http://127.0.0.1[:port]/callback[/<callback id>]. */
+function isCodexLoopback(value: string): boolean {
   let redirect: URL;
   try {
     redirect = new URL(value);
@@ -45,17 +54,42 @@ export function isSupportedMcpRedirect(value: string): boolean {
   );
 }
 
-/** Local Codex clients are limited to portfolio and market reads. */
-export function clientMayPrepareTrades(
-  redirectUris?: readonly string[],
-): boolean {
+export function mcpRedirectKind(value: string): McpClientKind | undefined {
   return (
-    redirectUris?.length === 1 &&
-    redirectUris[0] === 'https://claude.ai/api/mcp/auth_callback'
+    FIXED_REDIRECTS[value] ?? (isCodexLoopback(value) ? 'codex' : undefined)
   );
 }
 
-/** Only the exact Claude callback may request execution permission. */
+/** Public client registration is limited to Claude.ai, Cursor and Codex. */
+export function isSupportedMcpRedirect(value: string): boolean {
+  return mcpRedirectKind(value) !== undefined;
+}
+
+/**
+ * The client a registration belongs to. Cursor may register several of its own
+ * callbacks at once; a registration mixing different clients' callbacks has no
+ * single kind and stays read-only.
+ */
+export function mcpClientKind(
+  redirectUris?: readonly string[],
+): McpClientKind | undefined {
+  if (!redirectUris?.length || redirectUris.length > 4) return undefined;
+  const kinds = new Set(redirectUris.map(mcpRedirectKind));
+  if (kinds.size !== 1) return undefined;
+  return [...kinds][0];
+}
+
+/**
+ * Supported clients may prepare trades. Every trade still needs either browser
+ * review or an owner-signed, budget-limited delegation grant.
+ */
+export function clientMayPrepareTrades(
+  redirectUris?: readonly string[],
+): boolean {
+  return mcpClientKind(redirectUris) !== undefined;
+}
+
+/** Execution also requires explicit consent and an active delegation. */
 export const clientMayExecuteTrades = clientMayPrepareTrades;
 
 /** Disabled by default; partial configuration must fail startup, not weaken auth. */
@@ -162,8 +196,7 @@ export async function createMcpOAuthRuntime(
       validator: (context, _key, _value, metadata) => {
         if (!context) return;
         if (
-          metadata.redirect_uris?.length !== 1 ||
-          !isSupportedMcpRedirect(metadata.redirect_uris[0]) ||
+          !mcpClientKind(metadata.redirect_uris) ||
           metadata.token_endpoint_auth_method !== 'none' ||
           metadata.response_types?.join(' ') !== 'code' ||
           !metadata.grant_types?.includes('authorization_code')

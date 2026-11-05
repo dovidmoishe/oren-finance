@@ -14,6 +14,7 @@ import type { TokensService } from '../tokens/tokens.service';
 import type { ApprovalRpc } from '../execution/approval-rpc.service';
 import { inspectApiTradeTransaction } from './api-trade-transaction';
 import { usdMicros } from './trade-budget';
+import { delegatedUserAllowed } from './delegated-access';
 import { randomUUID } from 'node:crypto';
 import {
   ownerPermissionMessage,
@@ -96,6 +97,7 @@ export class ApiTradeAuthorization implements ApiTradeAuthorizer {
       tokens: TokensService;
       rpc: ApprovalRpc;
       allowedUsers: ReadonlySet<string>;
+      publicAccess?: boolean;
       buysEnabled: boolean;
       sellsEnabled: boolean;
       signerQuorumId: string;
@@ -126,7 +128,7 @@ export class ApiTradeAuthorization implements ApiTradeAuthorizer {
         !settings ||
         input.signerId !== this.deps.signerQuorumId ||
         !input.policyId ||
-        !this.deps.allowedUsers.has(owner.userId) ||
+        !delegatedUserAllowed(this.deps, owner.userId) ||
         !this.deps.buysEnabled ||
         (settings.allowSell && !this.deps.sellsEnabled)
       )
@@ -379,7 +381,7 @@ export class ApiTradeAuthorization implements ApiTradeAuthorizer {
     actor: TradeActor,
     challenge: TradeChallenge,
   ) {
-    if (!this.deps.allowedUsers.has(actor.userId))
+    if (!delegatedUserAllowed(this.deps, actor.userId))
       throw new Error(
         'Independent trade authorization is disabled for this user',
       );

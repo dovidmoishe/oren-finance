@@ -17,7 +17,11 @@ jest.mock('@privy-io/node', () =>
   ),
 );
 
-function fixture() {
+function fixture(
+  access: { allowedUsers: Set<string>; publicAccess?: boolean } = {
+    allowedUsers: new Set(['owner']),
+  },
+) {
   const keys = generateKeyPairSync('ed25519');
   const owner = {
     userId: 'owner',
@@ -65,7 +69,7 @@ function fixture() {
     connection: {} as never,
     tokens: {} as never,
     rpc: {} as never,
-    allowedUsers: new Set(['owner']),
+    ...access,
     buysEnabled: true,
     sellsEnabled: false,
     signerQuorumId: 'quorum',
@@ -108,6 +112,20 @@ function fixture() {
 
 describe('owner-bound grant enrollment', () => {
   afterEach(() => jest.restoreAllMocks());
+  it('lets a non-allowlisted user enroll only when public access is on, within the same limits', async () => {
+    const closed = fixture({ allowedUsers: new Set(['someone-else']) });
+    await expect(closed.getProof('prepare')).rejects.toThrow(
+      'Enrollment unavailable',
+    );
+    const open = fixture({ allowedUsers: new Set(), publicAccess: true });
+    const proof = await open.getProof('prepare');
+    await expect(
+      open.service.verifyPreparation('owner-token', proof, {
+        ...open.settings,
+        dailyUsd: 50,
+      }),
+    ).rejects.toThrow();
+  });
   it('records approved terms and activates only an exact signed snapshot', async () => {
     const f = fixture();
     const proof = await f.getProof('prepare');
