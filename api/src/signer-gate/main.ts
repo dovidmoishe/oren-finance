@@ -59,6 +59,21 @@ function main() {
     token = required('SIGNER_GATE_API_TOKEN');
     if (token.length < 32)
       throw new Error('Signer gate API token is too short');
+    const publicAccess = enabled('SIGNER_GATE_PUBLIC');
+    const allowedUsers = new Set(
+      (process.env.SIGNER_GATE_ALLOWED_USERS ?? '')
+        .split(',')
+        .map((item) => item.trim())
+        .filter(Boolean),
+    );
+    if (allowedUsers.has('*'))
+      throw new Error(
+        'Use SIGNER_GATE_PUBLIC=true instead of a wildcard allowlist',
+      );
+    if (!publicAccess && allowedUsers.size === 0)
+      throw new Error(
+        'Signer gate requires SIGNER_GATE_ALLOWED_USERS or SIGNER_GATE_PUBLIC=true',
+      );
     const config: SignerGateConfig = {
       enabled: active,
       appId: required('PRIVY_APP_ID'),
@@ -69,11 +84,8 @@ function main() {
       policyId: required('SIGNER_GATE_POLICY_ID'),
       policyOwnerId: required('SIGNER_GATE_POLICY_OWNER_ID'),
       policyHash: required('SIGNER_GATE_POLICY_HASH'),
-      allowedUsers: new Set(
-        required('SIGNER_GATE_ALLOWED_USERS')
-          .split(',')
-          .map((item) => item.trim()),
-      ),
+      allowedUsers,
+      publicAccess,
       buysEnabled: enabled('SIGNER_GATE_BUYS_ENABLED'),
       sellsEnabled: enabled('SIGNER_GATE_SELLS_ENABLED'),
     };

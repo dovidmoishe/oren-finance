@@ -49,6 +49,8 @@ export interface AppEnv {
   MCP_DELEGATED_BUYS_ENABLED: boolean;
   MCP_DELEGATED_SELLS_ENABLED: boolean;
   MCP_DELEGATED_TRADES_ALLOWED_USERS: string[];
+  /** Lets every signed-in user enroll; grant terms and dollar limits still apply. */
+  MCP_DELEGATED_TRADES_PUBLIC: boolean;
   MCP_DELEGATED_MAX_PER_TRADE_USD: number;
   MCP_DELEGATED_MAX_DAILY_USD: number;
   PRIVY_MCP_SIGNER_QUORUM_ID?: string;
@@ -239,15 +241,21 @@ export function validateEnv(env: EnvSource = process.env): AppEnv {
   const deployment = deploymentCapabilities(env);
   const delegatedEnabled = readBool(env, 'MCP_DELEGATED_TRADES_ENABLED', false);
   const delegatedUsers = readList(env, 'MCP_DELEGATED_TRADES_ALLOWED_USERS');
+  const delegatedPublic =
+    delegatedEnabled && readBool(env, 'MCP_DELEGATED_TRADES_PUBLIC', false);
   if (delegatedEnabled) {
     if (deployment.environment === 'preview')
       throw new Error('Delegated trades cannot be enabled in a PR preview');
     if (readEnv(env, 'MCP_OAUTH_ENABLED') !== 'true')
       throw new Error('Delegated trades require MCP OAuth');
-    if (delegatedUsers.length === 0)
-      throw new Error('Delegated trades require an explicit user allowlist');
     if (delegatedUsers.includes('*'))
-      throw new Error('Delegated trades require named owner user IDs');
+      throw new Error(
+        'Use MCP_DELEGATED_TRADES_PUBLIC=true instead of a wildcard allowlist',
+      );
+    if (!delegatedPublic && delegatedUsers.length === 0)
+      throw new Error(
+        'Delegated trades require an explicit user allowlist or MCP_DELEGATED_TRADES_PUBLIC=true',
+      );
     for (const key of [
       'PRIVY_MCP_SIGNER_QUORUM_ID',
       'PRIVY_MCP_SIGNER_PRIVATE_KEY',
@@ -288,6 +296,7 @@ export function validateEnv(env: EnvSource = process.env): AppEnv {
     MCP_DELEGATED_SELLS_ENABLED:
       delegatedEnabled && readBool(env, 'MCP_DELEGATED_SELLS_ENABLED', false),
     MCP_DELEGATED_TRADES_ALLOWED_USERS: delegatedUsers,
+    MCP_DELEGATED_TRADES_PUBLIC: delegatedPublic,
     MCP_DELEGATED_MAX_PER_TRADE_USD: readPositiveNumber(
       env,
       'MCP_DELEGATED_MAX_PER_TRADE_USD',

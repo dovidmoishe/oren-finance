@@ -22,8 +22,12 @@ import { PortfolioService } from './portfolio/portfolio.service';
 import { ExecutionService } from './execution/execution.service';
 import { handleMcpRequest } from './mcp-auth/mcp-resource';
 import { SignerGateClient } from './mcp-auth/signer-gate.client';
+import { delegatedUserAllowed } from './mcp-auth/delegated-access';
 import { SignerGateRejection } from './mcp-auth/signer-gate.errors';
-import { registerMcpJsonBodyParser } from './mcp-auth/mcp-json-body';
+import {
+  mcpRegistrationBody,
+  registerMcpJsonBodyParser,
+} from './mcp-auth/mcp-json-body';
 import {
   clientMayPrepareTrades,
   clientMayExecuteTrades,
@@ -56,11 +60,15 @@ async function bootstrap() {
     const expressApp = app.getHttpAdapter().getInstance() as Express;
     const db = app.get(DatabaseService).db;
     const identity = app.get(PrivyWalletAuth, { strict: false });
+    const delegatedAccess = {
+      publicAccess: env.MCP_DELEGATED_TRADES_PUBLIC,
+      allowedUsers: new Set(env.MCP_DELEGATED_TRADES_ALLOWED_USERS),
+    };
     const apiTradeAuthorization = new ApiTradeAuthorization({
       db,
       auth: identity,
       appId: env.PRIVY_APP_ID ?? '',
-      allowedUsers: new Set(env.MCP_DELEGATED_TRADES_ALLOWED_USERS),
+      ...delegatedAccess,
       buysEnabled: env.MCP_DELEGATED_BUYS_ENABLED,
       sellsEnabled: env.MCP_DELEGATED_SELLS_ENABLED,
       signerQuorumId: env.PRIVY_MCP_SIGNER_QUORUM_ID ?? '',
@@ -169,8 +177,7 @@ async function bootstrap() {
             canEnroll:
               env.MCP_DELEGATED_TRADES_ENABLED &&
               env.MCP_DELEGATED_BUYS_ENABLED &&
-              (env.MCP_DELEGATED_TRADES_ALLOWED_USERS.includes('*') ||
-                env.MCP_DELEGATED_TRADES_ALLOWED_USERS.includes(owner.userId)),
+              delegatedUserAllowed(delegatedAccess, owner.userId),
             sellAvailable: env.MCP_DELEGATED_SELLS_ENABLED,
           });
         const [independent] = await db
@@ -663,10 +670,7 @@ async function bootstrap() {
             return res.sendStatus(403);
           if (
             !env.MCP_DELEGATED_TRADES_ENABLED ||
-            !(
-              env.MCP_DELEGATED_TRADES_ALLOWED_USERS.includes('*') ||
-              env.MCP_DELEGATED_TRADES_ALLOWED_USERS.includes(owner.userId)
-            )
+            !delegatedUserAllowed(delegatedAccess, owner.userId)
           )
             return res.sendStatus(403);
           const [delegation] = await db
@@ -839,6 +843,7 @@ async function bootstrap() {
         }
         next();
       },
+      mcpRegistrationBody,
     );
     expressApp.use('/oauth', oauth.provider.callback());
   }
