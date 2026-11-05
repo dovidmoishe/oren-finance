@@ -48,7 +48,7 @@ export default function AgentsPage() {
       <Link className={styles.brand} href="/" aria-label="Oren home"><OrenLogo size={28} /><span>OREN</span></Link>
       <div className={styles.navLinks}><Link href="/#product">Product</Link><Link href="/app/markets">Markets</Link><Link href="/agents" aria-current="page">Agents</Link><Link href="/roadmap">Roadmap</Link><Link href="/changelog">Changelog</Link></div>
       <div className={styles.navRight}>
-        <AgentClientLinks variant="nav" />
+        <AgentClientLinks />
         <ButtonLink className="h-10 rounded-full px-4 text-sm font-medium" href="/app" variant="primary">Launch App <HugeiconsIcon icon={ArrowRight02Icon} size={16} /></ButtonLink>
       </div>
     </nav></LandingHeader>
@@ -61,7 +61,6 @@ export default function AgentsPage() {
           <ButtonLink className="h-11 rounded-full px-5 text-sm font-medium" href="#setup" variant="primary">Connect your agent <HugeiconsIcon icon={ArrowRight02Icon} size={16} /></ButtonLink>
           <Link className={styles.textLink} href="#how">How it works</Link>
         </div>
-        <AgentClientLinks variant="chips" />
       </section>
 
       <section aria-labelledby="how-title" className={styles.section} id="how">

@@ -18,9 +18,6 @@
 .navClients a { display: inline-grid; place-items: center; width: 36px; height: 36px; border-radius: 999px; color: #4a463e; transition: background 160ms ease; }
 .navClients span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .navClients a:hover { background: #fff; color: #292820; }
-.clients { display: flex; flex-wrap: wrap; gap: 8px; list-style: none; padding: 0; margin: 34px 0 0; }
-.clients a { display: inline-flex; align-items: center; gap: 8px; padding: 8px 15px; border: 1px solid #e3ded4; border-radius: 999px; background: #fff; font-size: 13px; color: #4a463e; transition: border-color 160ms ease, color 160ms ease; }
-.clients a:hover { border-color: #bdb5aa; color: #292820; }
 .clientLogo { width: 18px; height: 18px; object-fit: contain; flex-shrink: 0; }
 
 .section { padding: 56px 0; border-top: 1px solid #e7e3da; scroll-margin-top: 88px; }

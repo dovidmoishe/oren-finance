@@ -30,12 +30,12 @@ export function AgentLogo({ src }: { src: string }) {
 }
 
 /** Each link opens that app's setup tab on this page. */
-export function AgentClientLinks({ variant }: { variant: 'nav' | 'chips' }) {
+export function AgentClientLinks() {
   return (
-    <ul aria-label="Set up Oren in your agent app" className={variant === 'nav' ? styles.navClients : styles.clients}>
+    <ul aria-label="Set up Oren in your agent app" className={styles.navClients}>
       {AGENT_CLIENTS.map((item) => (
         <li key={item.id}>
-          <a aria-label={`Set up Oren in ${item.label}`} href={`/agents#${item.id}`} title={variant === 'nav' ? item.label : undefined}>
+          <a aria-label={`Set up Oren in ${item.label}`} href={`/agents#${item.id}`} title={item.label}>
             <AgentLogo src={item.logo} />
             <span>{item.label}</span>
           </a>
