@@ -1,5 +1,10 @@
 # CI and deployment speed acceptance
 
+> Retired (2026-11-05): the CI speed evidence and dependency-cache benchmark
+> workflows are disabled on GitHub and removed from the repository at the owner's
+> request. Historical results and the read-only local collector remain available.
+> The sections below document the original experiment, not active automation.
+
 ## Rollout
 
 - Production CI overlap: PR #33; exact-SHA master CI and both image jobs must pass.
@@ -40,7 +45,7 @@ Post-change acceptance is pending until these future merges and real previews
 exist. Unit tests, synthetic reruns and dependency-only benchmarks cannot establish
 PR-to-preview or merge-to-healthy speedups.
 
-After merge, `CI speed evidence` automatically saves a 90-day JSON artifact after
+Before retirement, `CI speed evidence` automatically saved a 90-day JSON artifact after
 preview, production or benchmark completion. It uses trusted workflow code and
 read-only permissions. The job summary separates serial/parallel web previews and
 serial/overlapped production, and marks cohorts below five samples as pending.
@@ -48,8 +53,8 @@ Retain the committed baseline snapshot; the rolling API window is not an archive
 
 ## Web dependency cache experiment
 
-`Benchmark web dependency cache` runs automatically when its workflow changes in a
-PR, or manually after merge. It builds only the Dockerfile's `dependencies` target;
+The retired `Benchmark web dependency cache` ran when its workflow changed in a
+PR, or manually after merge. It built only the Dockerfile's `dependencies` target;
 it does not publish an image, use production credentials or deploy. Six rounds each
 compare an uncached runner with a GHA remote cache in an isolated PR/run + input-hash
 scope. Each run has its own cache namespace and is not cancelled by later PR updates. Every sample gets a new runner and BuildKit builder. Round 1 seeds a cold
