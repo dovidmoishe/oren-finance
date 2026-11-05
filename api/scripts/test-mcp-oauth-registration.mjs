@@ -15,6 +15,10 @@ const {
   mcpInteractionUrl,
   mountPathBasedDiscoveryAtIssuer,
 } = require('../dist/src/mcp-auth/oauth-runtime.js')
+const {
+  describeMcpConsentClient,
+  nativeMcpConsentGranted,
+} = require('../dist/src/mcp-auth/client-consent.js')
 
 const { privateKey } = generateKeyPairSync('rsa', { modulusLength: 2048 })
 const signingKey = {
@@ -93,7 +97,10 @@ app.get('/oauth/interaction/:uid', async (req, res) => {
         303,
         `${runtime.appOrigin}/connect/mcp?uid=${encodeURIComponent(details.uid)}`,
       )
-    return res.json({ clientId: details.params.client_id })
+    const client = await runtime.provider.Client.find(details.params.client_id)
+    const presentation = client && describeMcpConsentClient(client, details.params.redirect_uri)
+    if (!presentation) return res.sendStatus(403)
+    return res.json({ clientId: details.params.client_id, ...presentation })
   } catch {
     return res.sendStatus(400)
   }
@@ -102,6 +109,10 @@ app.post('/oauth/interaction/:uid', async (req, res) => {
   try {
     const details = await runtime.provider.interactionDetails(req, res)
     if (details.uid !== req.params.uid) return res.sendStatus(403)
+    const client = await runtime.provider.Client.find(details.params.client_id)
+    const presentation = client && describeMcpConsentClient(client, details.params.redirect_uri)
+    if (!presentation || !nativeMcpConsentGranted(presentation, req.headers['x-oren-native-client-consent']))
+      return res.sendStatus(403)
     const grant = new runtime.provider.Grant({
       accountId: 'disposable-test-user',
       clientId: details.params.client_id,
@@ -322,6 +333,7 @@ async function register(redirectUris) {
     })
 }
 const cursor = await register([
+  'https://www.cursor.com/agents/mcp/oauth/callback',
   'http://localhost:8787/callback',
   'cursor://anysphere.cursor-mcp/oauth/callback',
 ])
@@ -334,6 +346,97 @@ const mixed = await register([
   'http://127.0.0.1:49152/callback',
 ])
 assert.equal(mixed.status, 400)
+
+// Use the actual provider to verify selected callbacks, native consent and PKCE.
+const proxyHeaders = {
+  Host: 'api.oren.finance',
+  'X-Forwarded-Host': 'api.oren.finance',
+  'X-Forwarded-Proto': 'https',
+}
+async function completeConnection(registration, redirectUri, nativeConsent, intercepted = false) {
+  const verifier = randomBytes(48).toString('base64url')
+  const query = {
+    client_id: registration.body.client_id,
+    redirect_uri: redirectUri,
+    response_type: 'code',
+    scope: 'oren.read oren.trade.prepare offline_access',
+    resource: runtime.resource,
+    state: randomBytes(16).toString('hex'),
+    code_challenge: createHash('sha256').update(verifier).digest('base64url'),
+    code_challenge_method: 'S256',
+  }
+  const missingPkce = await request(app).get('/oauth/auth').query({ ...query, code_challenge: undefined, code_challenge_method: undefined }).set(proxyHeaders)
+  assert.equal(missingPkce.status, 303)
+  const pkceError = new URL(missingPkce.headers.location)
+  assert.equal(pkceError.searchParams.get('error'), 'invalid_request', 'public clients cannot authorize without PKCE')
+  assert.equal(pkceError.searchParams.get('code'), null)
+  const start = await request(app).get('/oauth/auth').query(query).set(proxyHeaders)
+  assert.equal(start.status, 303)
+  const interactionPath = new URL(start.headers.location).pathname
+  const headers = { ...proxyHeaders, Cookie: start.headers['set-cookie'].map((value) => value.split(';')[0]).join('; ') }
+  const details = await request(app).get(interactionPath).set(headers)
+  assert.equal(details.status, 200)
+  assert.equal(details.body.callbackUrl, redirectUri)
+  assert.equal(details.body.requiresNativeConsent, nativeConsent)
+  if (nativeConsent) {
+    const refused = await request(app).post(interactionPath).set({ ...headers, Origin: runtime.appOrigin })
+    assert.equal(refused.status, 403, 'native consent cannot be skipped')
+  }
+  const consent = await request(app).post(interactionPath).set({ ...headers, Origin: runtime.appOrigin, ...(nativeConsent ? { 'X-Oren-Native-Client-Consent': 'true' } : {}) })
+  assert.equal(consent.status, 200)
+  const resumed = await request(app).get(new URL(consent.body.redirect).pathname).set(headers)
+  assert.equal(resumed.status, 303)
+  const callback = new URL(resumed.headers.location)
+  assert.equal(callback.searchParams.get('state'), query.state)
+  const code = callback.searchParams.get('code')
+  assert.ok(code)
+  const cookies = new Map()
+  for (const response of [start, consent, resumed]) {
+    for (const cookie of response.headers['set-cookie'] ?? []) {
+      const pair = cookie.split(';')[0]
+      const equals = pair.indexOf('=')
+      cookies.set(pair.slice(0, equals), pair.slice(equals + 1))
+    }
+  }
+  const sessionHeaders = { ...proxyHeaders, Cookie: [...cookies].map(([key, value]) => `${key}=${value}`).join('; ') }
+  // Even an existing browser session/grant must visit Oren's consent again.
+  const silent = await request(app).get('/oauth/auth').query({ ...query, prompt: 'none' }).set(sessionHeaders)
+  assert.equal(silent.status, 303)
+  const silentCallback = new URL(silent.headers.location)
+  assert.equal(silentCallback.searchParams.get('error'), registration.body.application_type === 'native' ? 'interaction_required' : 'consent_required')
+  assert.equal(silentCallback.searchParams.get('code'), null)
+  const repeated = await request(app).get('/oauth/auth').query(query).set(sessionHeaders)
+  assert.equal(repeated.status, 303)
+  const repeatedLocation = new URL(repeated.headers.location)
+  assert.equal(repeatedLocation.origin, 'https://api.oren.finance')
+  assert.ok(repeatedLocation.pathname.startsWith('/oauth/interaction/'))
+  const exchange = (codeVerifier) => request(app).post('/oauth/token').set(proxyHeaders).type('form').send({
+    grant_type: 'authorization_code', client_id: registration.body.client_id,
+    code, code_verifier: codeVerifier, redirect_uri: redirectUri,
+  })
+  if (intercepted) {
+    const denied = await exchange(randomBytes(48).toString('base64url'))
+    assert.equal(denied.status, 400, 'intercepted code cannot be redeemed without its verifier')
+    assert.equal(denied.body.error, 'invalid_grant')
+  } else {
+    const token = await exchange(verifier)
+    assert.equal(token.status, 200)
+    assert.equal(typeof token.body.access_token, 'string')
+    const refreshed = await request(app).post('/oauth/token').set(proxyHeaders).type('form').send({
+      grant_type: 'refresh_token', client_id: registration.body.client_id,
+      refresh_token: token.body.refresh_token, resource: runtime.resource,
+    })
+    assert.equal(refreshed.status, 200, JSON.stringify(refreshed.body))
+    assert.equal(typeof refreshed.body.access_token, 'string')
+    assert.equal((await exchange(verifier)).status, 400, 'authorization code is single-use')
+  }
+}
+await completeConnection(registration, 'https://claude.ai/api/mcp/auth_callback', false)
+await completeConnection(cursor, 'https://www.cursor.com/agents/mcp/oauth/callback', false)
+await completeConnection(cursor, 'http://localhost:49153/callback', true)
+await completeConnection(cursor, 'cursor://anysphere.cursor-mcp/oauth/callback', true)
+await completeConnection(codex, 'http://127.0.0.1:49152/callback/Abcdef12_-', true)
+await completeConnection(codex, 'http://127.0.0.1:49152/callback/Abcdef12_-', true, true)
 console.log(
-  'MCP OAuth discovery, Claude/Cursor/Codex registration, consent callback, and token exchange pass',
+  'MCP OAuth discovery, registration, selected callback/native consent, PKCE interception rejection, and token exchange pass',
 )
