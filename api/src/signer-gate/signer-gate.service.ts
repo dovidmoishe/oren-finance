@@ -26,6 +26,7 @@ import type { TokensService } from '../tokens/tokens.service';
 import type { ApprovalRpc } from '../execution/approval-rpc.service';
 import type { Connection } from '@solana/web3.js';
 import { buildGateJupiterRoute } from './gate-jupiter';
+import { delegatedUserAllowed } from '../mcp-auth/delegated-access';
 import {
   verifyOwnerProof,
   sameGrantTerms,
@@ -50,6 +51,7 @@ export interface SignerGateConfig {
   policyOwnerId: string;
   policyHash: string;
   allowedUsers: Set<string>;
+  publicAccess?: boolean;
   buysEnabled: boolean;
   sellsEnabled: boolean;
 }
@@ -116,7 +118,7 @@ export class SignerGateService {
       owner.walletId,
       owner.wallet,
     );
-    if (requireAllowlist && !this.config.allowedUsers.has(owner.userId))
+    if (requireAllowlist && !delegatedUserAllowed(this.config, owner.userId))
       throw new Error('User is not allowlisted for delegated trading');
     return owner;
   }
@@ -390,7 +392,7 @@ export class SignerGateService {
       !delegation ||
       delegation.status !== 'active' ||
       delegation.expiresAt <= new Date() ||
-      !this.config.allowedUsers.has(intent.userId) ||
+      !delegatedUserAllowed(this.config, intent.userId) ||
       (intent.side === 'buy' && !this.config.buysEnabled) ||
       (intent.side === 'sell' &&
         (!this.config.sellsEnabled || !delegation.allowSell)) ||

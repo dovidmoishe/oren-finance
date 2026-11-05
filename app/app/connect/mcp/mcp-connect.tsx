@@ -111,14 +111,14 @@ export function McpConnect({ uid }: { uid: string }) {
           {details.scope.includes('oren.read') ? 'Read your portfolio and stock market data. ' : ''}
           {details.scope.includes('oren.trade.prepare') ? 'Prepare stock buys and sells for review. ' : ''}
           {requestsExecute
-            ? 'If you grant chat trading below, Claude can execute trades within your active limits while this connection and delegation remain active.'
+            ? 'If you grant chat trading below, your agent app can execute trades within your active limits while this connection and delegation remain active.'
             : 'The agent cannot sign or submit a trade with this connection.'}
         </p>
         {requestsExecute && delegation?.enabled && <>
           <p className="mt-5 text-sm">Up to ${delegation.perTradeUsd} per trade and ${delegation.dailyUsd} in any rolling 24 hours. Used: ${delegation.usedTodayUsd}. {delegation.sides?.join(' and ')} only. Maximum slippage: {delegation.maxSlippageBps} bps. Expires {delegation.expiresAt ? new Date(delegation.expiresAt).toLocaleString() : 'soon'}.</p>
           <label className="mt-4 flex items-start gap-3 text-sm">
             <input checked={allowExecute} className="mt-1" onChange={(event) => setAllowExecute(event.target.checked)} type="checkbox" />
-            <span>I allow this Claude connection to execute trades within these limits. I can revoke it in settings.</span>
+            <span>I allow this agent connection to execute trades within these limits. I can revoke it in settings.</span>
           </label>
         </>}
         {requestsExecute && delegation && !delegation.enabled && <p className="mt-5 text-sm">Chat trading is not active. Enable it in <Link className="underline" href="/settings/mcp">Agent connections</Link> before connecting Claude.</p>}

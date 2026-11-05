@@ -128,7 +128,7 @@ describe('validateEnv — delegated MCP trading', () => {
         ...configured,
         MCP_DELEGATED_TRADES_ALLOWED_USERS: '*',
       }),
-    ).toThrow(/named owner user IDs/);
+    ).toThrow(/MCP_DELEGATED_TRADES_PUBLIC=true instead of a wildcard/);
     expect(() =>
       validateEnv({
         ...configured,
@@ -137,6 +137,45 @@ describe('validateEnv — delegated MCP trading', () => {
         COMMIT_SHA: 'a'.repeat(40),
       }),
     ).toThrow(/PR preview/);
+  });
+
+  it('opens enrollment to all users only through the public flag', () => {
+    const configured = {
+      ...required,
+      MCP_DELEGATED_TRADES_ENABLED: 'true',
+      MCP_OAUTH_ENABLED: 'true',
+      PRIVY_MCP_SIGNER_QUORUM_ID: 'quorum-test',
+      PRIVY_MCP_SIGNER_PRIVATE_KEY: 'key-test',
+      PRIVY_POLICY_ADMIN_QUORUM_ID: 'quorum-admin',
+      SIGNER_GATE_URL: 'http://signer-gate:3001',
+      SIGNER_GATE_API_TOKEN: 'test-token-not-for-production',
+      POSTGRES_URL: 'postgres://oren_api_runtime:test@localhost:5432/oren',
+    };
+    expect(() => validateEnv(configured)).toThrow(/allowlist/);
+    const open = validateEnv({
+      ...configured,
+      MCP_DELEGATED_TRADES_PUBLIC: 'true',
+    });
+    expect(open.MCP_DELEGATED_TRADES_PUBLIC).toBe(true);
+    expect(open.MCP_DELEGATED_TRADES_ALLOWED_USERS).toEqual([]);
+    expect(open.MCP_DELEGATED_MAX_PER_TRADE_USD).toBe(25);
+    expect(open.MCP_DELEGATED_MAX_DAILY_USD).toBe(50);
+    expect(() =>
+      validateEnv({
+        ...configured,
+        MCP_DELEGATED_TRADES_PUBLIC: 'true',
+        DEPLOYMENT_ENV: 'preview',
+        PREVIEW_PR_NUMBER: '18',
+        COMMIT_SHA: 'a'.repeat(40),
+      }),
+    ).toThrow(/PR preview/);
+  });
+
+  it('ignores the public flag while delegated trades are off', () => {
+    expect(
+      validateEnv({ ...required, MCP_DELEGATED_TRADES_PUBLIC: 'true' })
+        .MCP_DELEGATED_TRADES_PUBLIC,
+    ).toBe(false);
   });
 });
 

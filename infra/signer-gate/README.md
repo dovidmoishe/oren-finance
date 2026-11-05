@@ -134,6 +134,17 @@ is currently open. Keep execution flags off during this upgrade until migration,
 role, enrollment and funded acceptance checks pass. PR previews always reject
 delegated execution. The 2-of-2 unfunded proof alone is not a live-trading release.
 
+### Opening delegated trading to all users
+
+Set `MCP_DELEGATED_TRADES_PUBLIC=true` on the API **and** `SIGNER_GATE_PUBLIC=true`
+on the gate. Each service checks its own flag, so both must agree before any
+non-allowlisted user can enroll or trade; with either flag off, the named
+allowlists apply as before. A `*` allowlist entry is rejected on both services.
+Public access lifts only the allowlist: every grant still needs the owner's
+wallet-signed terms, the $25 per-trade and $50 daily ceilings, 0.5% slippage,
+24-hour expiry, the tradable-stock check and the two-key quorum all still apply.
+Turn the flags off to return to the allowlist without a redeploy of code.
+
 ## Request and retry states
 
 - `challenged`: the gate has built and simulated a fresh exact-mint Jupiter
