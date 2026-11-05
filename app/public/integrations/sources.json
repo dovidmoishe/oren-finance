@@ -25,7 +25,8 @@
   {
     "name": "OpenAI",
     "source": "https://openai.com/brand/",
-    "note": "Plain text service name; no recreated or modified logo"
+    "note": "OpenAI mark reused from existing Oren agent connection artwork for the Codex connector",
+    "file": "codex.svg"
   },
   {
     "name": "Privy",
@@ -37,5 +38,15 @@
     "name": "Alchemy",
     "file": "alchemy.svg",
     "source": "https://media.alchemy.com/1699253173-alchemy-logo.svg"
+  },
+  {
+    "name": "Claude",
+    "file": "claude.svg",
+    "source": "Existing Oren agent connection artwork"
+  },
+  {
+    "name": "Cursor",
+    "file": "cursor.svg",
+    "source": "Existing Oren agent connection artwork"
   }
 ]
