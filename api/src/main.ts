@@ -41,6 +41,10 @@ import { Connection } from '@solana/web3.js';
 import { TokensService } from './tokens/tokens.service';
 import { ApprovalRpc } from './execution/approval-rpc.service';
 import { ownerProofSchema } from './mcp-auth/grant-owner-proof';
+import {
+  describeMcpConsentClient,
+  nativeMcpConsentGranted,
+} from './mcp-auth/client-consent';
 
 async function bootstrap() {
   const env = validateEnv();
@@ -601,7 +605,7 @@ async function bootstrap() {
           res.setHeader('Access-Control-Allow-Credentials', 'true');
           res.setHeader(
             'Access-Control-Allow-Headers',
-            'Authorization, Content-Type, X-Oren-Trade-Execute-Consent, X-Oren-Delegation-Id',
+            'Authorization, Content-Type, X-Oren-Trade-Execute-Consent, X-Oren-Delegation-Id, X-Oren-Native-Client-Consent',
           );
           res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
           res.setHeader('Vary', 'Origin');
@@ -621,10 +625,18 @@ async function bootstrap() {
             `${oauth.appOrigin}/connect/mcp?uid=${encodeURIComponent(details.uid)}`,
           );
         }
+        const client = await oauth.provider.Client.find(
+          String(details.params.client_id),
+        );
+        const consentClient =
+          client &&
+          describeMcpConsentClient(client, details.params.redirect_uri);
+        if (!consentClient) return res.sendStatus(403);
         return res.json({
           clientId: details.params.client_id,
           scope: details.params.scope,
           resource: oauth.resource,
+          ...consentClient,
         });
       } catch {
         return res.sendStatus(400);
@@ -660,6 +672,18 @@ async function bootstrap() {
             !clientMayPrepareTrades(client.redirectUris)) ||
           (requested.includes('oren.trade.execute') &&
             !clientMayExecuteTrades(client.redirectUris))
+        )
+          return res.sendStatus(403);
+        const consentClient = describeMcpConsentClient(
+          client,
+          details.params.redirect_uri,
+        );
+        if (
+          !consentClient ||
+          !nativeMcpConsentGranted(
+            consentClient,
+            req.headers['x-oren-native-client-consent'],
+          )
         )
           return res.sendStatus(403);
         const owner = await identity.requireMcpIdentity(
