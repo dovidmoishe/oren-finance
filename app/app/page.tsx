@@ -2,6 +2,8 @@
 import { ArrowUpRight01Icon } from '@hugeicons/core-free-icons';
 import { HugeiconsIcon } from '@hugeicons/react';
 import Link from "next/link";
+import { AgentClientLinks } from "./agents/agent-clients";
+import agentStyles from "./agents/agents.module.css";
 import { LaunchArrow } from "@/components/landing/launch-arrow";
 import { OrenLogo } from "@/components/brand/oren-logo";
 import { ButtonLink } from "@/components/ui";
@@ -20,23 +22,24 @@ export default function Home() {
     <div id="top" className="relative min-h-screen overflow-x-clip bg-[#f9f9f7] text-[#111110]">
       <div aria-hidden className={styles.backdrop} />
       <LandingHeader>
-        <nav aria-label="Main navigation" className="relative mx-auto flex h-[76px] max-w-[1280px] items-center justify-between px-5 sm:px-8 lg:px-12">
+        <nav aria-label="Main navigation" className={agentStyles.nav}>
           <Link aria-label="Oren home" className="flex items-center gap-2.5" href="/">
             <OrenLogo className="h-7 w-7" size={28} />
             <span className="text-[15px] font-semibold tracking-[0.16em]">OREN</span>
           </Link>
-          <div className="absolute left-1/2 hidden -translate-x-1/2 items-center gap-7 text-sm text-[#676762] lg:flex">
-            <a className="transition-colors hover:text-[#111110]" href="#product">Product</a>
-            <a className="transition-colors hover:text-[#111110]" href="#stock-mix">Stock mix</a>
+          <div className={agentStyles.navLinks}>
             <Link className="transition-colors hover:text-[#111110]" href="/app/markets">Markets</Link>
             <Link className="transition-colors hover:text-[#111110]" href="/agents">Agents</Link>
             <Link className="transition-colors hover:text-[#111110]" href="/token">Token</Link>
             <Link className="transition-colors hover:text-[#111110]" href="/roadmap">Roadmap</Link>
             <Link className="transition-colors hover:text-[#111110]" href="/changelog">Changelog</Link>
           </div>
+          <div className={agentStyles.navRight}>
+            <AgentClientLinks />
           <ButtonLink className="h-10 rounded-full px-4 text-sm font-medium" href="/app" variant="primary">
             Launch App <LaunchArrow />
           </ButtonLink>
+          </div>
         </nav>
       </LandingHeader>
 

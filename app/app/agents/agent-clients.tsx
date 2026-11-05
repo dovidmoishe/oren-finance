@@ -3,13 +3,8 @@
 import { useCallback, useState } from 'react';
 import styles from './agents.module.css';
 
-export type AgentClient = 'claude' | 'cursor' | 'codex';
-
-export const AGENT_CLIENTS: { id: AgentClient; label: string; logo: string }[] = [
-  { id: 'claude', label: 'Claude', logo: '/integrations/claude.svg' },
-  { id: 'cursor', label: 'Cursor', logo: '/integrations/cursor.svg' },
-  { id: 'codex', label: 'Codex', logo: '/integrations/codex.svg' },
-];
+import { AGENT_CLIENTS, type AgentClient } from './agent-client-data';
+export { AGENT_CLIENTS, type AgentClient } from './agent-client-data';
 
 export function isAgentClient(value: string): value is AgentClient {
   return AGENT_CLIENTS.some((item) => item.id === value);

@@ -1,14 +1,15 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { ArrowRight02Icon } from '@hugeicons/core-free-icons';
+import { ArrowRight02Icon, ArrowDown01Icon, Search01Icon, Briefcase01Icon, Tick02Icon, RefreshIcon } from '@hugeicons/core-free-icons';
 import { HugeiconsIcon } from '@hugeicons/react';
 import { OrenLogo } from '@/components/brand/oren-logo';
 import { LandingHeader } from '@/components/landing/landing-header';
 import { LandingFooter } from '@/components/landing/landing-footer';
 import { ButtonLink } from '@/components/ui';
-import landing from '@/components/landing/landing-hero.module.css';
-import { AgentClientLinks } from './agent-clients';
+import { AgentClientLinks, AgentLogo } from './agent-clients';
+import { AGENT_CLIENTS } from './agent-client-data';
 import { AgentSetup } from './agent-setup';
+import { AgentConversationDemo } from './agent-conversation-demo';
 import styles from './agents.module.css';
 
 export const metadata: Metadata = {
@@ -41,79 +42,44 @@ const FAQ = [
   { q: 'How do I disconnect?', a: 'Open Agent connections and revoke the app. You can also turn off chat trading there.' },
 ];
 
+const USE_CASES = [
+  { label: 'Research', icon: Search01Icon, prompt: 'What’s happening with NVIDIA?', body: 'Explore stock signals, market context and the news behind a move.' },
+  { label: 'Portfolio', icon: Briefcase01Icon, prompt: 'How is my portfolio doing?', body: 'Bring your holdings into the conversation, without switching apps.' },
+  { label: 'Trading', icon: ArrowRight02Icon, prompt: 'Buy $5 of NVIDIA.', body: 'Turn a decision into a trade, with limits and approvals in place.' },
+];
+
 export default function AgentsPage() {
   return <div className={styles.page} id="top">
-    <div aria-hidden="true" className={landing.backdrop} />
     <LandingHeader><nav className={styles.nav} aria-label="Main navigation">
       <Link className={styles.brand} href="/" aria-label="Oren home"><OrenLogo size={28} /><span>OREN</span></Link>
-      <div className={styles.navLinks}><Link href="/#product">Product</Link><Link href="/app/markets">Markets</Link><Link href="/agents" aria-current="page">Agents</Link><Link href="/roadmap">Roadmap</Link><Link href="/changelog">Changelog</Link></div>
-      <div className={styles.navRight}>
-        <AgentClientLinks />
-        <ButtonLink className="h-10 rounded-full px-4 text-sm font-medium" href="/app" variant="primary">Launch App <HugeiconsIcon icon={ArrowRight02Icon} size={16} /></ButtonLink>
-      </div>
+      <div className={styles.navLinks}><Link href="/app/markets">Markets</Link><Link href="/agents" aria-current="page">Agents</Link><Link href="/roadmap">Roadmap</Link><Link href="/changelog">Changelog</Link></div>
+      <div className={styles.navRight}><AgentClientLinks /><ButtonLink className="h-10 rounded-full px-4 text-sm font-medium" href="/app" variant="primary">Launch App <HugeiconsIcon icon={ArrowRight02Icon} size={16} /></ButtonLink></div>
     </nav></LandingHeader>
     <main className={styles.main}>
-      <section className={styles.hero}>
-        <p className={styles.eyebrow}>Oren for AI agents</p>
-        <h1>Trade from the AI app <span>you already use.</span></h1>
-        <p className={styles.lede}>Connect Claude, Cursor or Codex to Oren. Your agent researches stocks, checks your portfolio and places trades, inside limits you set and sign.</p>
-        <div className={styles.heroActions}>
-          <ButtonLink className="h-11 rounded-full px-5 text-sm font-medium" href="#setup" variant="primary">Connect your agent <HugeiconsIcon icon={ArrowRight02Icon} size={16} /></ButtonLink>
-          <Link className={styles.textLink} href="#how">How it works</Link>
-        </div>
+      <section className={styles.hero} aria-labelledby="hero-title">
+        <div className={styles.eyebrow}><OrenLogo size={20} /> Oren for AI agents</div>
+        <h1 id="hero-title">Your next trade.<br /><span>Starts with a conversation.</span></h1>
+        <p className={styles.lede}>Research stocks, understand your portfolio and trade from Claude, Cursor or Codex. Connected through Oren. Controlled by you.</p>
+        <div className={styles.heroActions}><ButtonLink className="h-11 rounded-full px-5 text-sm font-medium" href="#setup" variant="primary">Connect your agent <HugeiconsIcon icon={ArrowRight02Icon} size={16} /></ButtonLink><Link className={styles.textLink} href="#how">See how it works <HugeiconsIcon icon={ArrowDown01Icon} size={15} /></Link></div>
       </section>
-
-      <section aria-labelledby="how-title" className={styles.section} id="how">
-        <h2 id="how-title">Up and running in five steps</h2>
-        <ol className={styles.steps}>
-          {STEPS.map((step, index) => <li className={styles.step} key={step.title}>
-            <span className={styles.stepNumber}>{String(index + 1).padStart(2, '0')}</span>
-            <div>
-              <h3>{step.title}</h3>
-              <p>{step.body}</p>
-              {step.link ? <Link className={styles.stepLink} href={step.link.href}>{step.link.label} <HugeiconsIcon icon={ArrowRight02Icon} size={14} aria-hidden="true" /></Link> : null}
-            </div>
-          </li>)}
-        </ol>
+      <section className={styles.demoSection} aria-labelledby="ask-title">
+        <div className={styles.demoStage}><h2 className={styles.screenReaderOnly} id="ask-title">See a conversation become a trade</h2><AgentConversationDemo /></div>
+        <p className={styles.caption}>Illustrative demo. No real trades are placed.</p>
+        <div className={styles.compatibility}><p>AT HOME IN THE APPS YOU ALREADY USE</p><div>{AGENT_CLIENTS.map(client => <Link key={client.id} href={'#'+client.id}><AgentLogo src={client.logo} /><span>{client.label}</span></Link>)}</div></div>
       </section>
-
-      <section aria-labelledby="setup-title" className={styles.section} id="setup">
-        <h2 id="setup-title">Add Oren to your agent</h2>
-        <p className={styles.sectionLede}>Choose the app you use. You&apos;ll sign in to Oren once, and your app remembers it.</p>
-        <AgentSetup />
-      </section>
-
-      <section aria-labelledby="ask-title" className={styles.section}>
-        <h2 id="ask-title">Then just ask</h2>
-        <div className={styles.chat}>
-          <p className={styles.you}>Buy $5 of NVIDIA.</p>
-          <p className={styles.agent}>Done. Bought 0.024 NVDA for $5.00 within your $25 per-trade limit. You have $45.00 left today.</p>
-          <p className={styles.you}>Sell all my Tesla.</p>
-          <p className={styles.agent}>That&apos;s $82.10, above your limit, so I&apos;ve prepared it for you to review in Oren.</p>
-        </div>
-        <p className={styles.caption}>Example conversation. Prices and amounts are illustrative.</p>
-      </section>
-
-      <section aria-labelledby="safe-title" className={styles.section}>
-        <h2 id="safe-title">Your limits are the contract</h2>
-        <div className={styles.safeguards}>
-          {SAFEGUARDS.map(item => <div className={styles.safeguard} key={item.title}><h3>{item.title}</h3><p>{item.body}</p></div>)}
-        </div>
-      </section>
-
-      <section aria-labelledby="faq-title" className={styles.section}>
-        <h2 id="faq-title">Questions</h2>
-        <div className={styles.faq}>
-          {FAQ.map(item => <details key={item.q}><summary>{item.q}</summary><p>{item.a}</p></details>)}
-        </div>
-      </section>
-
-      <section className={styles.cta}>
-        <h2>Bring your agent to the market.</h2>
-        <p>Sign in, set your limits, and connect the app you already use.</p>
-        <ButtonLink className="h-11 rounded-full px-5 text-sm font-medium" href="/app" variant="primary">Launch App <HugeiconsIcon icon={ArrowRight02Icon} size={16} /></ButtonLink>
-      </section>
-    </main>
-    <LandingFooter />
+      <section className={styles.introBand} aria-labelledby="connection-title"><div className={styles.split}>
+        <div className={styles.editorialCopy}><p className={styles.kicker}>A familiar place to invest</p><h2 id="connection-title">Keep the conversation.<br />Add the ability to act.</h2><p>Your AI app already knows how you think. Oren connects it to your portfolio, stock research and trading on Solana.</p><p>Ask in your own words. Review each trade yourself, or approve bounded trading limits for your agent.</p><Link className={styles.textLink} href="#setup">Find your app <HugeiconsIcon icon={ArrowRight02Icon} size={16} /></Link></div>
+        <div className={styles.connectionArt} role="img" aria-label="Claude, Cursor and Codex connect through Oren to research, portfolio and trades"><div className={styles.connectionApps}>{AGENT_CLIENTS.map(client => <span key={client.id}><AgentLogo src={client.logo} />{client.label}</span>)}</div><div className={styles.connectionHub}><OrenLogo size={44} /><strong>Oren</strong><small>One connection</small></div><div className={styles.connectionTools}><span>Research</span><span>Portfolio</span><span>Trades</span></div><p className={styles.artCaption}>Your AI app. Your onchain portfolio.</p></div>
+      </div></section>
+      <section className={styles.howBand} id="how" aria-labelledby="how-title"><div className={styles.split}>
+        <div className={styles.editorialCopy}><p className={styles.kicker}>How it works</p><h2 id="how-title">A few steps.<br />Then you’re connected.</h2><p>Start with your Oren account. Choose what your agent can do, then bring it into your favorite app.</p><ButtonLink className="h-10 rounded-full px-5 text-sm" href="#setup" variant="primary">Get connected <HugeiconsIcon icon={ArrowRight02Icon} size={15} /></ButtonLink></div>
+        <ol className={styles.steps}>{STEPS.map((step,index)=><li className={styles.step} key={step.title}><span className={styles.stepNumber}>{String(index+1).padStart(2,'0')}</span><div><h3>{step.title}</h3><p>{step.body}</p>{step.link && <Link className={styles.stepLink} href={step.link.href}>{step.link.label}<HugeiconsIcon icon={ArrowRight02Icon} size={14} /></Link>}</div></li>)}</ol>
+      </div></section>
+      <section className={styles.section} aria-labelledby="use-title"><div className={styles.sectionHeading}><p className={styles.kicker}>A place to start</p><h2 id="use-title">Less switching tabs.<br />More moving forward.</h2><p>A question, a portfolio check, a decision. Start wherever you are.</p></div><div className={styles.useCases}>{USE_CASES.map(item=><article className={styles.useCase} key={item.label}><span className={styles.useCaseLabel}><HugeiconsIcon icon={item.icon} size={18} />{item.label}</span><h3>“{item.prompt}”</h3><p>{item.body}</p><Link className={styles.stepLink} href="#setup">Connect to try it <HugeiconsIcon icon={ArrowRight02Icon} size={14} /></Link></article>)}</div></section>
+      <section className={styles.controlBand} aria-labelledby="safe-title"><div className={styles.sectionInner}><div className={styles.sectionHeading}><p className={styles.kicker}>The boundaries are yours</p><h2 id="safe-title">More capability.<br />The same control.</h2><p>You decide what’s allowed. Oren checks before it acts.</p></div><div className={styles.safeguards}>{SAFEGUARDS.map((item,index)=><article className={styles.safeguard} key={item.title}><span className={styles.controlIcon}>{index===2 ? <OrenLogo size={22} /> : <HugeiconsIcon icon={[Tick02Icon,Briefcase01Icon,Tick02Icon,RefreshIcon][index]} size={22} />}</span><h3>{item.title}</h3><p>{item.body}</p></article>)}</div><Link className={styles.controlLink} href="/settings/mcp">Manage agent connections <HugeiconsIcon icon={ArrowRight02Icon} size={15} /></Link></div></section>
+      <section className={styles.section} id="setup" aria-labelledby="setup-title"><div className={styles.sectionHeading}><p className={styles.kicker}>Make it yours</p><h2 id="setup-title">Choose your app.<br />We’ll meet you there.</h2><p>Follow the setup below, then sign in to connect your account.</p></div><AgentSetup /></section>
+      <section className={styles.faqSection} aria-labelledby="faq-title"><div className={styles.sectionHeading}><p className={styles.kicker}>Before you begin</p><h2 id="faq-title">A little more clarity.</h2></div><div className={styles.faq}>{FAQ.map(item=><details key={item.q}><summary>{item.q}<HugeiconsIcon icon={ArrowDown01Icon} size={17} aria-hidden="true" /></summary><p>{item.a}</p></details>)}</div></section>
+      <section className={styles.cta}><p className={styles.kicker}>Your next move</p><h2>A familiar app.<br />A new way to invest.</h2><p>Bring Oren into your next conversation.</p><ButtonLink className="h-11 rounded-full px-5 text-sm font-medium" href="#setup" variant="primary">Connect your agent <HugeiconsIcon icon={ArrowRight02Icon} size={16} /></ButtonLink></section>
+    </main><LandingFooter />
   </div>;
 }
