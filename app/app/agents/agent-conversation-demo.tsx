@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { RefreshIcon, Tick02Icon } from '@hugeicons/core-free-icons';
+import { RefreshIcon } from '@hugeicons/core-free-icons';
 import { HugeiconsIcon } from '@hugeicons/react';
 import { OrenLogo } from '@/components/brand/oren-logo';
 import styles from './agents.module.css';
@@ -55,7 +55,6 @@ export function AgentConversationDemo() {
       <div className={styles.replySlot}>
         {beat === 1 && <span className={styles.thinking}>Checking your limits<span>…</span></span>}
         <div className={reveal(beat >= 2)}><div className={`t-stagger-line ${styles.demoReply}`}>
-          <span className={styles.executionStatus}><HugeiconsIcon icon={Tick02Icon} size={15} />Within your limits</span>
           <p>Bought <strong>$5 of NVIDIA.</strong></p>
           <div className={styles.tradeReceipt}><span>0.024 NVDA</span><span>$45 left today</span></div>
         </div></div>
@@ -64,13 +63,11 @@ export function AgentConversationDemo() {
       <div className={styles.replySlot}>
         {beat === 3 && <span className={styles.thinking}>Preparing your review<span>…</span></span>}
         <div className={reveal(beat >= 4)}><div className={`t-stagger-line ${styles.demoReply}`}>
-          <span className={styles.reviewStatus}>Your approval comes first</span>
           <p>That’s <strong>$82.10</strong>, above your limit.</p>
-          <span className={styles.replyDetail}>Prepared for you to review in Oren.</span>
         </div></div>
       </div>
     </div>
-    <p className={styles.screenReaderOnly}>Example: You ask to buy $5 of NVIDIA. Oren buys 0.024 NVDA within your $25 per-trade limit, leaving $45 today. You ask to sell all your Tesla. The $82.10 trade exceeds your limit and is prepared for your review. Prices and amounts are illustrative.</p>
+    <p className={styles.screenReaderOnly}>Example: You ask to buy $5 of NVIDIA. Oren buys 0.024 NVDA within your $25 per-trade limit, leaving $45 today. You ask to sell all your Tesla. The $82.10 trade exceeds your limit. Prices and amounts are illustrative.</p>
     <div className={styles.conversationFooter}><span className={styles.statusDot} />Your wallet. Your limits. Your call.</div>
   </div>;
 }

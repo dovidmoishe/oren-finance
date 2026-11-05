@@ -64,7 +64,6 @@ export default function AgentsPage() {
       </section>
       <section className={styles.demoSection} aria-labelledby="ask-title">
         <div className={styles.demoStage}><h2 className={styles.screenReaderOnly} id="ask-title">See a conversation become a trade</h2><AgentConversationDemo /></div>
-        <p className={styles.caption}>Illustrative demo. No real trades are placed.</p>
         <div className={styles.compatibility}><p>AT HOME IN THE APPS YOU ALREADY USE</p><div>{AGENT_CLIENTS.map(client => <Link key={client.id} href={'#'+client.id}><AgentLogo src={client.logo} /><span>{client.label}</span></Link>)}</div></div>
       </section>
       <section className={styles.introBand} aria-labelledby="connection-title"><div className={styles.split}>
