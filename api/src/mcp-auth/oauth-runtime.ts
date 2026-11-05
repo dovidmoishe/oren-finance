@@ -142,7 +142,25 @@ export async function createMcpOAuthRuntime(
   const jwks = JSON.parse(jwksJson) as { keys: Record<string, unknown>[] };
   if (!Array.isArray(jwks.keys) || jwks.keys.length < 1)
     throw new Error('MCP OAuth signing key is missing');
-  const { default: OidcProvider, errors } = await import('oidc-provider');
+  const {
+    default: OidcProvider,
+    errors,
+    interactionPolicy,
+  } = await import('oidc-provider');
+  const policy = interactionPolicy.base();
+  // A callback is not app attestation. Require Oren's consent on each new
+  // authorization, including existing native registrations labelled "web".
+  // Resuming this same interaction after our consent POST must still complete.
+  policy
+    .get('consent')!
+    .checks.add(
+      new interactionPolicy.Check(
+        'oren_connection_consent',
+        'each agent connection requires explicit Oren consent',
+        'consent_required',
+        ({ oidc }) => !oidc.result?.consent,
+      ),
+    );
   const provider = new OidcProvider(issuer, {
     adapter: createMcpOAuthAdapter(db, storageKey),
     jwks,
@@ -172,6 +190,7 @@ export async function createMcpOAuthRuntime(
       claims: () => ({ sub: accountId }),
     }),
     interactions: {
+      policy,
       url: (_context, interaction) =>
         mcpInteractionUrl(issuer, interaction.uid),
     },
