@@ -7,6 +7,7 @@ import { LandingHeader } from '@/components/landing/landing-header';
 import { LandingFooter } from '@/components/landing/landing-footer';
 import { ButtonLink } from '@/components/ui';
 import landing from '@/components/landing/landing-hero.module.css';
+import { AgentClientLinks } from './agent-clients';
 import { AgentSetup } from './agent-setup';
 import styles from './agents.module.css';
 
@@ -46,7 +47,10 @@ export default function AgentsPage() {
     <LandingHeader><nav className={styles.nav} aria-label="Main navigation">
       <Link className={styles.brand} href="/" aria-label="Oren home"><OrenLogo size={28} /><span>OREN</span></Link>
       <div className={styles.navLinks}><Link href="/#product">Product</Link><Link href="/app/markets">Markets</Link><Link href="/agents" aria-current="page">Agents</Link><Link href="/roadmap">Roadmap</Link><Link href="/changelog">Changelog</Link></div>
-      <ButtonLink className="h-10 rounded-full px-4 text-sm font-medium" href="/app" variant="primary">Launch App <HugeiconsIcon icon={ArrowRight02Icon} size={16} /></ButtonLink>
+      <div className={styles.navRight}>
+        <AgentClientLinks variant="nav" />
+        <ButtonLink className="h-10 rounded-full px-4 text-sm font-medium" href="/app" variant="primary">Launch App <HugeiconsIcon icon={ArrowRight02Icon} size={16} /></ButtonLink>
+      </div>
     </nav></LandingHeader>
     <main className={styles.main}>
       <section className={styles.hero}>
@@ -57,9 +61,7 @@ export default function AgentsPage() {
           <ButtonLink className="h-11 rounded-full px-5 text-sm font-medium" href="#setup" variant="primary">Connect your agent <HugeiconsIcon icon={ArrowRight02Icon} size={16} /></ButtonLink>
           <Link className={styles.textLink} href="#how">How it works</Link>
         </div>
-        <ul aria-label="Supported apps" className={styles.clients}>
-          <li>Claude</li><li>Cursor</li><li>Codex</li>
-        </ul>
+        <AgentClientLinks variant="chips" />
       </section>
 
       <section aria-labelledby="how-title" className={styles.section} id="how">

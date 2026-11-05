@@ -37,5 +37,23 @@
     "name": "Alchemy",
     "file": "alchemy.svg",
     "source": "https://media.alchemy.com/1699253173-alchemy-logo.svg"
+  },
+  {
+    "name": "Claude",
+    "file": "claude.svg",
+    "source": "https://cdn.jsdelivr.net/npm/simple-icons@15/icons/claude.svg",
+    "note": "Simple Icons (CC0). Trademark belongs to Anthropic; used to identify the supported app on /agents."
+  },
+  {
+    "name": "Cursor",
+    "file": "cursor.svg",
+    "source": "https://cdn.jsdelivr.net/npm/simple-icons@15/icons/cursor.svg",
+    "note": "Simple Icons (CC0). Trademark belongs to Anysphere; used to identify the supported app on /agents."
+  },
+  {
+    "name": "Codex",
+    "file": "codex.svg",
+    "source": "https://cdn.jsdelivr.net/npm/simple-icons@13/icons/openai.svg",
+    "note": "OpenAI mark from Simple Icons (CC0), unmodified, used to identify Codex on /agents. Trademark belongs to OpenAI."
   }
 ]

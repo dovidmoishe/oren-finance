@@ -1,14 +1,15 @@
 'use client';
 
-import { useId, useState, useSyncExternalStore } from 'react';
+import { useEffect, useId, useState, useSyncExternalStore } from 'react';
 import { Copy01Icon, Tick02Icon } from '@hugeicons/core-free-icons';
 import { HugeiconsIcon } from '@hugeicons/react';
 import { mcpApiOrigin } from '@/services/mcp-api-origin';
+import { AGENT_CLIENTS, AgentLogo, isAgentClient, type AgentClient } from './agent-clients';
 import styles from './agents.module.css';
 
 const PRODUCTION_MCP_URL = 'https://api.oren.finance/mcp';
 
-type Client = 'claude' | 'cursor' | 'codex';
+type Client = AgentClient;
 
 /** The API origin is fixed per page load; there is nothing to subscribe to. */
 const subscribeNever = () => () => {};
@@ -45,6 +46,18 @@ function CodeBlock({ label, code }: { label: string; code: string }) {
 export function AgentSetup() {
   const id = useId();
   const [client, setClient] = useState<Client>('claude');
+  useEffect(() => {
+    // /agents#cursor (from the nav or hero links) opens that app's setup.
+    const openFromHash = () => {
+      const hash = window.location.hash.slice(1);
+      if (!isAgentClient(hash)) return;
+      setClient(hash);
+      document.getElementById('setup')?.scrollIntoView({ block: 'start' });
+    };
+    openFromHash();
+    window.addEventListener('hashchange', openFromHash);
+    return () => window.removeEventListener('hashchange', openFromHash);
+  }, []);
   const origin = useSyncExternalStore(subscribeNever, mcpApiOrigin, () => undefined);
   const url = origin ? `${origin}/mcp` : PRODUCTION_MCP_URL;
 
@@ -61,7 +74,7 @@ export function AgentSetup() {
         onClick={() => setClient(item.id)}
         role="tab"
         type="button"
-      >{item.label}</button>)}
+      ><AgentLogo src={AGENT_CLIENTS.find(entry => entry.id === item.id)!.logo} />{item.label}</button>)}
     </div>
     <div aria-labelledby={`${id}-${client}-tab`} className={styles.panel} id={`${id}-${client}`} role="tabpanel" tabIndex={0}>
       {client === 'claude' && <>
