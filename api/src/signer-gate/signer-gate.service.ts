@@ -1,4 +1,5 @@
 import { createHash, createPublicKey, randomUUID, verify } from 'node:crypto';
+import { policyAllowsStock } from './policy-stock-coverage';
 import {
   signingFailureDetails,
   signingOutcome,
@@ -444,11 +445,11 @@ export class SignerGateService {
       delegation.walletId,
       intent.wallet,
     );
-    await this.verifyPrivySigner(delegation);
+    await this.verifyPrivySigner(delegation, intent.stockMint ?? undefined);
     return { intent, delegation };
   }
 
-  private async verifyPrivySigner(delegation: Delegation) {
+  private async verifyPrivySigner(delegation: Delegation, stockMint?: string) {
     if (
       delegation.signerId !== this.config.signerQuorumId ||
       delegation.policyId !== this.config.policyId ||
@@ -476,6 +477,8 @@ export class SignerGateService {
       !gatePolicyRulesValid(policy, this.config.sellsEnabled)
     )
       throw new Error('Privy signer policy changed');
+    if (stockMint && !policyAllowsStock(policy, stockMint))
+      throw new Error('Stock mint is outside the delegated policy allowlist');
   }
 
   private response(execution: Execution) {
