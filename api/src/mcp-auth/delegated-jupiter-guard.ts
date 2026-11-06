@@ -168,6 +168,14 @@ function inspectComputeBudget(
   }
   if (units !== undefined && (units < 1 || units > 1_400_000))
     reject('compute unit limit out of range');
+  if (
+    microLamports !== undefined &&
+    units === undefined &&
+    instructions.some((item) =>
+      item.programId.equals(ASSOCIATED_TOKEN_PROGRAM_ID),
+    )
+  )
+    reject('priced account creation requires an explicit compute unit limit');
   const fee =
     (BigInt(units ?? 200_000) * (microLamports ?? 0n) + 999_999n) / 1_000_000n;
   if (fee > MAX_PRIORITY_FEE_LAMPORTS) reject('priority fee over cap');

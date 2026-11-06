@@ -444,6 +444,44 @@ const creationTerms = {
 };
 
 describe('headless first-purchase account creation', () => {
+  it('rejects an implicit multi-instruction compute budget and enforces the explicit fee cap', async () => {
+    const price = ComputeBudgetProgram.setComputeUnitPrice({
+      microLamports: 500000,
+    });
+    const implicit = transaction([price, createDestination(), route()]);
+    await expect(
+      inspectDelegatedJupiterTransaction(implicit, creationTerms, noTable),
+    ).rejects.toThrow('explicit compute unit limit');
+    const f = apiFixture();
+    await expect(f.check(implicit)).rejects.toThrow(
+      'explicit compute unit limit',
+    );
+    expect(f.deps.rpc.inspect).not.toHaveBeenCalled();
+    const instructions = [
+      ComputeBudgetProgram.setComputeUnitLimit({ units: 400000 }),
+      price,
+      createDestination(),
+      route(),
+    ];
+    await expect(
+      inspectDelegatedJupiterTransaction(
+        transaction(instructions),
+        creationTerms,
+        noTable,
+      ),
+    ).rejects.toThrow('priority fee over cap');
+    instructions[1] = ComputeBudgetProgram.setComputeUnitPrice({
+      microLamports: 250000,
+    });
+    await expect(
+      inspectDelegatedJupiterTransaction(
+        transaction(instructions),
+        creationTerms,
+        noTable,
+      ),
+    ).resolves.toMatchObject({ computeFeeCapLamports: '100000' });
+  });
+
   it('both cosigners accept missing USDC destination creation on a sell', async () => {
     const f = apiFixture();
     Object.assign(f.intent, {
