@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import { simulationFailureCode } from './simulation-failure';
 import { VersionedTransaction } from '@solana/web3.js';
 import { createPublicKey, verify } from 'node:crypto';
 import bs58 from 'bs58';
@@ -62,10 +63,14 @@ export class ApprovalRpc {
         { commitment: 'confirmed' },
       ]),
     ]);
-    if (simulated.value.err)
+    if (simulated.value.err) {
+      this.logger.warn(
+        `Transaction simulation rejected: ${simulationFailureCode(simulated.value.err)}`,
+      );
       throw new BadRequestException(
         'This transaction could not be simulated. Check your USDC and SOL balances and request a fresh quote.',
       );
+    }
     if (fee.value === null)
       throw new BadRequestException(
         'Transaction expired. Request a fresh quote.',

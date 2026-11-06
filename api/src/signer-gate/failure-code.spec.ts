@@ -1,10 +1,25 @@
 import { gateFailureCode } from './failure-code';
+import { simulationFailureCode } from '../execution/simulation-failure';
 import {
   publicGateFailureCode,
   SignerGateRejection,
 } from '../mcp-auth/signer-gate.errors';
 
 describe('bounded gate rejection reasons', () => {
+  it('records structural simulation errors without arbitrary RPC payloads', () => {
+    expect(simulationFailureCode('BlockhashNotFound')).toBe(
+      'BlockhashNotFound',
+    );
+    expect(
+      simulationFailureCode({ InstructionError: [3, { Custom: 6001 }] }),
+    ).toBe('instruction_3_custom_6001');
+    expect(
+      simulationFailureCode({ InstructionError: [3, 'secret-provider-text'] }),
+    ).toBe('instruction_error');
+    expect(simulationFailureCode({ payload: 'secret-token' })).toBe(
+      'simulation_error',
+    );
+  });
   it.each([
     [
       'This transaction could not be simulated. Check your USDC and SOL balances and request a fresh quote.',
