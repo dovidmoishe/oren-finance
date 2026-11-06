@@ -32,9 +32,15 @@ const reviewedMints = JSON.parse(readFileSync(required('SIGNER_GATE_LAUNCH_MINTS
 const stockMints = selectLaunchMints(catalogMints, reviewedMints);
 const resultPath = '/state/trading-policy.json';
 const existing = existsSync(resultPath) ? JSON.parse(readFileSync(resultPath, 'utf8')) : null;
-const expiresAtUnix = existing?.expiresAtUnix ?? Math.floor(Date.now() / 1000) + 7 * 86400;
+const allowDestinationAccountCreation = process.argv.includes('--allow-destination-account-creation');
+const priorExpiry = Math.min(...prior.rules.filter(r => r.action === 'DENY').flatMap(r => r.conditions ?? [])
+  .filter(c => c.field_source === 'system' && c.field === 'current_unix_timestamp' && c.operator === 'gte')
+  .map(c => Number(c.value)));
+const expiresAtUnix = existing?.expiresAtUnix ?? (allowDestinationAccountCreation ? priorExpiry : Math.floor(Date.now() / 1000) + 7 * 86400);
+if (allowDestinationAccountCreation && (!Number.isSafeInteger(priorExpiry) || expiresAtUnix > priorExpiry))
+  throw new Error('Account-creation rollout must preserve the reviewed policy expiry');
 const set = process.argv.includes('--create') ? await preparePolicyOwner(privy) : { ownerId: prior.owner_id };
-const candidate = buildTradingPolicy({ idl, stockMints, ownerId: set.ownerId, expiresAtUnix });
+const candidate = buildTradingPolicy({ idl, stockMints, ownerId: set.ownerId, expiresAtUnix, allowDestinationAccountCreation });
 const fingerprint = gate.gatePolicyFingerprint(candidate);
 if (existing?.policyId && existing.candidateFingerprint !== fingerprint) throw new Error('Saved candidate differs from the catalog or policy; review a new state directory');
 const result = { priorPolicyId: prior.id, candidate, fingerprint, candidateFingerprint: fingerprint, expiresAtUnix, stockMintCount: stockMints.length, reviewedMints: stockMints, catalogTradableMintCount: new Set(catalogMints).size };

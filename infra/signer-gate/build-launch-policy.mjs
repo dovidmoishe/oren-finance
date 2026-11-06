@@ -35,7 +35,7 @@ export function selectLaunchMints(catalogMints, reviewedMints) {
   return [...reviewedMints].sort();
 }
 /** Build a bounded launch policy within Privy's 128 KiB aggregate IDL limit. */
-export function buildLaunchPolicy(template, selectedMints) {
+export function buildLaunchPolicy(template, selectedMints, { allowDestinationAccountCreation = false } = {}) {
   const mints=[...new Set(selectedMints)];
   const usdc='EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
   if(!mints.length||mints.length>100||mints.includes(usdc)||mints.some(m=>typeof m!=='string'||!/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(m)))throw Error('Invalid launch mint list');
@@ -54,6 +54,28 @@ export function buildLaunchPolicy(template, selectedMints) {
     C('accounts.destination_mint',side==='buy'?'in':'eq',side==='buy'?mints:usdc),
   ]});
   const rules=[clean(expiry),clean(compute),rule('buy'),rule('sell')];
+  if (allowDestinationAccountCreation) {
+    // ATA CreateIdempotent is a one-byte discriminator with no arguments.
+    // The two independent transaction validators additionally bind payer,
+    // owner, mint and derived destination to the authenticated wallet/intent.
+    const ata = 'ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL';
+    const ataIdl = {
+      address: ata,
+      metadata: { name: 'associated_token', version: '1.0.0', spec: '0.1.0' },
+      instructions: [{ name: 'create_idempotent', discriminator: [1],
+        accounts: ['payer', 'associated_token', 'owner', 'mint', 'system_program', 'token_program'].map(name => ({ name })), args: [] }],
+      types: [],
+    };
+    const A = (field, operator, value) => ({ field_source: 'solana_instruction_data', field: 'create_idempotent.accounts.' + field, operator, value, idl: ataIdl });
+    for (const [name, operator, value] of [['stock', 'in', mints], ['usdc', 'eq', usdc]]) {
+      rules.push({ name: 'allow idempotent ' + name + ' account', method: 'signTransaction', action: 'ALLOW', conditions: [
+        { field_source: 'solana_program_instruction', field: 'programId', operator: 'eq', value: ata },
+        A('mint', operator, value),
+        A('system_program', 'eq', '11111111111111111111111111111111'),
+        A('token_program', 'in', ['TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA', 'TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb']),
+      ] });
+    }
+  }
   if(rules.flatMap(r=>r.conditions).reduce((n,c)=>n+(c.idl?Buffer.byteLength(JSON.stringify(c.idl)):0),0)>128*1024)throw Error('Policy exceeds aggregate IDL limit');
   return {...structuredClone(template),rules};
 }

@@ -8,6 +8,8 @@ export function gateFailureCode(error: unknown): string {
     case 'Delegation is inactive or exceeds owner-only limits':
       return 'inactive_delegation';
     case 'Headless Jupiter requires existing source and destination token accounts':
+    case 'Headless Jupiter requires an existing source token account':
+    case 'Destination account creation is outside the delegated policy':
     case 'Stock mint uses an unsupported token program':
     case 'Stock mint is outside the delegated policy allowlist':
       return 'unsupported_route';
