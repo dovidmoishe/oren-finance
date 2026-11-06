@@ -69,9 +69,24 @@ test('Privy timeout stays pending and duplicate calls never sign replacement byt
   f.setSign(async () => { throw new Error('timeout'); });
   assert.equal((await f.service.complete(f.execution.id, f.apiSignature)).state, 'pending');
   assert.equal(f.execution.state, 'pending');
+  assert.equal(f.execution.errorCode, 'privy_uncertain');
+  assert.equal((await f.service.complete(f.execution.id, f.apiSignature)).submissionState, 'not_broadcast');
   assert.equal(f.broadcastCalls, 0);
   assert.equal((await f.service.complete(f.execution.id, f.apiSignature)).state, 'pending');
   assert.equal(f.signCalls, 1);
+});
+
+test('Privy HTTP rejection remains reserved, explains signing stage and never broadcasts or retries', async () => {
+  const f = fixture();
+  f.setSign(async () => { throw Object.assign(new Error('secret provider body'), {status:403}); });
+  const first = await f.service.complete(f.execution.id, f.apiSignature);
+  assert.equal(first.reason, 'signing_rejected');
+  assert.equal(first.submissionState, 'not_broadcast');
+  assert.equal(f.execution.errorCode, 'privy_rejected_403');
+  const duplicate = await f.service.complete(f.execution.id, f.apiSignature);
+  assert.equal(duplicate.reason, 'signing_rejected');
+  assert.equal(f.signCalls, 1);
+  assert.equal(f.broadcastCalls, 0);
 });
 
 test('signed bytes are persisted before broadcast uncertainty', async () => {
