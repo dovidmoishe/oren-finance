@@ -146,26 +146,27 @@ For public buy/sell access, prepare a **new** policy with
 Keep its separate owner key in a mode-600 provisioning file outside the running
 API/gate mounts. Never update an enrolled policy in place to add selling.
 
-The public policy uses 100-mint inline chunks because Privy rejects larger
-`in` lists and does not support `in_condition_set` on these Jupiter IDL fields.
-Shared deny rules cap the buy USDC input and sell quoted proceeds at $25,
-slippage at 50 bps and platform fees at zero. Only compute-budget instructions
-and approved stock/USDC Jupiter routes are allowed. Account-only IDLs preserve
-the reviewed account order; full IDLs decode numeric limits. Every wallet,
-ATA, stock notional, daily budget and grant expiry is still independently
-verified by API and gate before either key authorizes signing.
+The verified launch policy supports an explicitly reviewed list of at most 100
+stock mints. It uses complete, compact Jupiter IDLs in every condition: the
+account-only IDLs used by the earlier 403-mint candidate caused Privy signing
+rejections. Complete IDLs across that broader catalog exceed Privy's 128 KiB
+aggregate limit. Do not silently truncate the catalog or remove financial guards.
+The four rules enforce expiry, compute-budget instructions, bounded USDC buys and
+bounded USDC sell proceeds, 50 bps maximum slippage and zero platform fees.
+Mints outside the pinned policy are detected before signing and require browser
+review. All wallet, account, raw-amount, daily-budget and authorization checks on
+the API and gate remain enforced independently.
 
-Pin the provider-readback fingerprint, policy owner and new policy ID on the
-gate; set matching `PRIVY_MCP_SIGNER_POLICY_ID` on the API and public
-`MCP_SIGNER_POLICY_ID` build variable. Release the compatible API, gate and web
-together. Older grants return `reenrollmentRequired`; users revoke/remove the
-old signer, explicitly select Buy and sell, activate the new grant and reconnect
-their agent. A buy-only grant must never be upgraded by a database edit.
-
-The policy has a seven-day hard expiry in addition to each grant's 24-hour
-maximum. Rotate it through the same reviewed rebuild/re-enrollment process
-before that deadline. Provider policy creation/readback and offline tests do
-not establish funded trade success; report live execution acceptance separately.
+For each rotation, write the approved mint addresses as a JSON array in a private
+state file, for example `/state/launch-mints.json`, and set
+`SIGNER_GATE_LAUNCH_MINTS_FILE=/state/launch-mints.json` in the one-off provisioning
+container. `prepare-trading-policy.mjs` requires this file, validates its 1..100
+unique entries against the complete current tradable catalog, and records the
+reviewed subset in the candidate checkpoint. Newly listed stocks never expand
+that reviewed subset automatically. A missing, stale or broader list fails closed.
+Rebuild the pinned web release and require explicit user re-enrollment when the
+production policy ID changes. Policy creation and sign-only diagnostics are not
+evidence of a funded, broadcast trade; verify those separately.
 Use a fresh private `/state` directory for each rotation; an existing directory
 is an idempotent checkpoint for one candidate, including its fixed expiry.
 
@@ -186,7 +187,7 @@ Turn the flags off to return to the allowlist without a redeploy of code.
   challenge that never reached Privy can be reconciled as a definite failure.
 - `signing` or `pending` without signed bytes: Privy may have signed even if
   its response timed out. Do not build new bytes or release the reservation.
-  Inspect Privy request/idempotency logs and the wallet's chain history, then
+  A pending unsigned attempt can be failed only after the request window closes and finalized block-height plus blockhash checks prove that its exact transaction is no longer valid. Never infer this from quote expiry alone. Inspect recorded signing metadata and chain history before any replacement, then
   resolve manually. The API returns pending to MCP.
 - `signed`, `broadcast` or `pending` with signed bytes: the database contains
   the only transaction allowed for this intent. Reconcile the saved chain

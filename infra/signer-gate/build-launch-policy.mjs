@@ -24,6 +24,16 @@ export function compactRouteIdl(idl) {
   }
   return result;
 }
+
+/** Provisioning never silently chooses a subset or expands an approved list. */
+export function selectLaunchMints(catalogMints, reviewedMints) {
+  if (!Array.isArray(reviewedMints) || !reviewedMints.length || reviewedMints.length > 100 || new Set(reviewedMints).size !== reviewedMints.length)
+    throw Error('Provide an explicitly reviewed list of 1..100 unique stock mints');
+  const tradable = new Set(catalogMints);
+  if (reviewedMints.some(m => typeof m !== 'string' || !/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(m) || !tradable.has(m) || m === 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v'))
+    throw Error('Reviewed launch list contains a nontradable or invalid stock mint');
+  return [...reviewedMints].sort();
+}
 /** Build a bounded launch policy within Privy's 128 KiB aggregate IDL limit. */
 export function buildLaunchPolicy(template, selectedMints) {
   const mints=[...new Set(selectedMints)];
