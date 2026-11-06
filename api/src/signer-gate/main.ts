@@ -1,4 +1,5 @@
 import 'reflect-metadata';
+import { gateFailureCode } from './failure-code';
 import { createServer } from 'node:http';
 import { timingSafeEqual } from 'node:crypto';
 import { Connection } from '@solana/web3.js';
@@ -199,22 +200,11 @@ function main() {
       } catch (error) {
         // Privy and RPC failures can contain payloads; return only a fixed code.
         response.statusCode = 409;
-        const reason = error instanceof Error ? error.message : '';
-        const code =
-          reason === 'Delegated trade over_budget'
-            ? 'over_budget'
-            : reason === 'Delegated trade inactive' ||
-                reason === 'Delegation is inactive or exceeds owner-only limits'
-              ? 'inactive_delegation'
-              : reason ===
-                    'Headless Jupiter requires existing source and destination token accounts' ||
-                  reason === 'Stock mint uses an unsupported token program'
-                ? 'unsupported_route'
-                : 'gate_rejected';
+        const code = gateFailureCode(error);
         response.end(JSON.stringify({ error: code }));
         console.error(
           'Signer gate request rejected',
-          error instanceof Error ? error.name : 'Unknown',
+          code,
         );
       }
     })();
