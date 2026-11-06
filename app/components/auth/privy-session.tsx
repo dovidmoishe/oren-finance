@@ -8,8 +8,10 @@ import {
 } from "@privy-io/react-auth";
 import { usePathname } from "next/navigation";
 import {
+  type PrivyStandardWallet,
   useCreateWallet,
   useSignMessage,
+  useStandardWallets,
   useWallets,
 } from "@privy-io/react-auth/solana";
 import {
@@ -92,6 +94,12 @@ export function PrivySession({ children }: { children: React.ReactNode }) {
     },
   });
   const { wallets } = useWallets();
+  const { wallets: standardWallets } = useStandardWallets();
+  const embeddedSigner = standardWallets.find(
+    (wallet): wallet is PrivyStandardWallet =>
+      wallet.name === "Privy" && "isPrivyWallet" in wallet &&
+      wallet.isPrivyWallet === true && "privy:" in wallet.features,
+  );
   const { createWallet } = useCreateWallet();
   const { signMessage } = useSignMessage();
   const [selection, setSelection] = useState<WalletSelection | undefined>(
@@ -111,6 +119,7 @@ export function PrivySession({ children }: { children: React.ReactNode }) {
     error?: string;
   }>();
   const currentUser = useRef<string | undefined>(undefined);
+  const currentAddress = useRef<string | undefined>(undefined);
   const account = resolveEmbeddedSolanaAccount(user, selection);
   const hasLinkedWallet = account.linked.length > 0;
   const { active: availableWallet } = resolveSolanaWallet(
@@ -131,7 +140,8 @@ export function PrivySession({ children }: { children: React.ReactNode }) {
   const identity = `${authenticated && !signingOut ? (user?.id ?? "") : ""}:${address ?? ""}`;
   useLayoutEffect(() => {
     currentUser.current = authenticated && !signingOut ? user?.id : undefined;
-  }, [authenticated, signingOut, user?.id]);
+    currentAddress.current = ready && authenticated && !signingOut ? address : undefined;
+  }, [ready, authenticated, signingOut, user?.id, address]);
 
   // Own creation explicitly for the custom email flow, with one automatic attempt per user.
   const setupWallet = useCallback(async () => {
@@ -212,7 +222,7 @@ export function PrivySession({ children }: { children: React.ReactNode }) {
   const open = useCallback(() => {
     setError(undefined);
     setVisible(true);
-  }, []);
+  }, [setError, setVisible]);
   const signOut = useCallback(async () => {
     if (actionLock.current) return;
     actionLock.current = true;
@@ -232,7 +242,7 @@ export function PrivySession({ children }: { children: React.ReactNode }) {
       setBusy(false);
       setSigningOut(false);
     }
-  }, [logout]);
+  }, [logout, setVisible]);
 
   // Compatibility boundary for existing trade screens; Privy owns the signer.
   const walletContext: WalletContextState = {
@@ -311,11 +321,25 @@ export function PrivySession({ children }: { children: React.ReactNode }) {
         },
         async signTradePermission(wallet, message) {
           const current = walletSessionIsCurrent();
-          if (!ready || !authenticated || !active || wallet !== address ||
+          const userId = currentUser.current;
+          if (!ready || !authenticated || !userId || userId !== user?.id ||
+              wallet !== address || wallet !== currentAddress.current ||
               !message.startsWith("Oren chat trading permission\n") || message.length > 4096)
             throw new Error("Review chat trading with your active wallet.");
-          const result = await signMessage({ message: new TextEncoder().encode(message), wallet: active });
-          if (!current()) throw new Error("Your wallet changed. Review the permission again.");
+          const bytes = new TextEncoder().encode(message);
+          // Linked account identity can restore before the connected-wallet
+          // adapter. Privy's own standard feature signs for this exact owned
+          // address and retains its wallet recovery and confirmation UI.
+          let result: { signature: Uint8Array };
+          if (active?.address === wallet) {
+            result = await signMessage({ message: bytes, wallet: active });
+          } else if (embeddedSigner) {
+            result = await embeddedSigner.features["privy:"].privy.signMessage({ address: wallet, message: bytes });
+          } else {
+            throw new Error("Your wallet is still restoring. Wait a moment, then review permission again.");
+          }
+          if (!current() || currentUser.current !== userId || currentAddress.current !== wallet)
+            throw new Error("Your wallet changed. Review the permission again.");
           return btoa(String.fromCharCode(...result.signature));
         },
         async removeTradeSigners(wallet) {
