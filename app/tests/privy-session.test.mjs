@@ -7,6 +7,8 @@ import ts from 'typescript';
 import { resolveEmbeddedSolanaAccount, resolveSolanaWallet } from '../services/wallet-selection.ts';
 
 const require = createRequire(import.meta.url);
+const privyRequire = createRequire(require.resolve('@privy-io/react-auth/solana'));
+const { ConnectedStandardSolanaWallet } = privyRequire('@privy-io/js-sdk-core');
 function deferred() {
   let resolve, reject;
   const promise = new Promise((yes, no) => { resolve = yes; reject = no; });
@@ -18,11 +20,32 @@ function session(createWallet) {
   let cursor = 0, loginComplete, modal, walletContext;
   const sdk = { ready: true, authenticated: true, user: { id: 'alice', linkedAccounts: [] }, logout: async () => {}, linkWallet() {}, getAccessToken: async () => 'token' };
   const walletSdk = { ready: true, wallets: [] };
+  class SigningImplementation {
+    #sign;
+    constructor(sign) { this.#sign = sign; }
+    signMessage(input) { return this.#sign(input); }
+  }
   class PrivyStandardWallet {
-    constructor(signMessage) { this.name='Privy'; this.isPrivyWallet=true; this.features = { 'privy:': { privy: { signMessage } } }; }
+    constructor(signMessage) {
+      this.name='Privy'; this.isPrivyWallet=true;
+      this.accounts=[{address:'11111111111111111111111111111111',publicKey:new Uint8Array(32),chains:['solana:mainnet'],features:['solana:signMessage']}];
+      const implementation=new SigningImplementation(signMessage);
+      // Match the installed Privy wrapper: it extracts an unbound class method.
+      this.features={
+        'privy:':{privy:{signMessage:implementation.signMessage}},
+        'solana:signMessage':{version:'1.0.0',signMessage:async(...inputs)=>{
+          const results=[];
+          for(const {account,...input} of inputs) {
+            const result=await implementation.signMessage({...input,address:account.address});
+            results.push({...result,signedMessage:input.message});
+          }
+          return results;
+        }},
+      };
+    }
   }
   const standardSdk = { ready: true, wallets: [] };
-  let messageSigner = async () => { throw new Error('unexpected connected wallet signature'); };
+  let messageSigner = ({wallet,message}) => wallet.signMessage({message});
   const effect = (fn, deps) => {
     const i = cursor++;
     if (!slots[i] || deps.some((dep, j) => !Object.is(dep, slots[i].deps[j]))) {
@@ -96,6 +119,21 @@ test('permission signing restores the exact embedded account before connected wa
   })];
   assert.equal(await app.render().signTradePermission(permissionAddress,permission),'AQID');
   assert.equal(calls,1);
+});
+test('the installed connected-wallet class and standard feature preserve private signer receivers', async () => {
+  const app=permissionSession();let calls=0;
+  const standard=app.embeddedSigner(async()=>{calls++;return {signature:new Uint8Array([1,2,3])};});
+  assert.throws(()=>standard.features['privy:'].privy.signMessage({message:new Uint8Array([1]),address:permissionAddress}),/private/i);
+  app.walletSdk.wallets=[new ConnectedStandardSolanaWallet({wallet:standard,account:standard.accounts[0]})];
+  assert.equal(await app.render().signTradePermission(permissionAddress,permission),'AQID');
+  assert.equal(calls,1);
+});
+test('a standard wallet without the exact owned account cannot sign a permission', async () => {
+  const app=permissionSession();
+  const standard=app.embeddedSigner(async()=>{throw new Error('must not sign another account');});
+  standard.accounts=[{...standard.accounts[0],address:'other-address'}];
+  app.standardSdk.wallets=[standard];
+  await assert.rejects(app.render().signTradePermission(permissionAddress,permission),/still restoring/);
 });
 test('permission signing refuses a different wallet or unrelated message before Privy', async () => {
   const app = permissionSession();

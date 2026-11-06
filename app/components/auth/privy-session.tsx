@@ -98,7 +98,7 @@ export function PrivySession({ children }: { children: React.ReactNode }) {
   const embeddedSigner = standardWallets.find(
     (wallet): wallet is PrivyStandardWallet =>
       wallet.name === "Privy" && "isPrivyWallet" in wallet &&
-      wallet.isPrivyWallet === true && "privy:" in wallet.features,
+      wallet.isPrivyWallet === true && "solana:signMessage" in wallet.features,
   );
   const { createWallet } = useCreateWallet();
   const { signMessage } = useSignMessage();
@@ -327,14 +327,19 @@ export function PrivySession({ children }: { children: React.ReactNode }) {
               !message.startsWith("Oren chat trading permission\n") || message.length > 4096)
             throw new Error("Review chat trading with your active wallet.");
           const bytes = new TextEncoder().encode(message);
+          const signerAccount = embeddedSigner?.accounts.find(
+            (account) => account.address === wallet,
+          );
           // Linked account identity can restore before the connected-wallet
-          // adapter. Privy's own standard feature signs for this exact owned
-          // address and retains its wallet recovery and confirmation UI.
+          // adapter. The Wallet Standard feature retains Privy's internal
+          // method receiver, recovery flow and confirmation UI.
           let result: { signature: Uint8Array };
           if (active?.address === wallet) {
             result = await signMessage({ message: bytes, wallet: active });
-          } else if (embeddedSigner) {
-            result = await embeddedSigner.features["privy:"].privy.signMessage({ address: wallet, message: bytes });
+          } else if (embeddedSigner && signerAccount) {
+            const [signed] = await embeddedSigner.features["solana:signMessage"].signMessage({ account: signerAccount, message: bytes });
+            if (!signed) throw new Error("Your wallet did not return a permission signature. Review permission again.");
+            result = signed;
           } else {
             throw new Error("Your wallet is still restoring. Wait a moment, then review permission again.");
           }
