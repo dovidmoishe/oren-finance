@@ -63,7 +63,7 @@ import {
   type ReviewedTerms,
   type SwapExpectation,
 } from './swap-terms';
-import { VariantSelector } from './variant-selector';
+import { VariantSelector, scaledSellAmount } from './variant-selector';
 
 @Injectable()
 export class ExecutionService {
@@ -535,6 +535,7 @@ export class ExecutionService {
         amount,
         limitPriceUsd: intent.limitPriceUsd,
         stockDecimals,
+        stockMultiplier: variant.uiMultiplier,
         marketPriceUsd: equity.price,
       });
     } catch (err) {
@@ -993,7 +994,10 @@ export class ExecutionService {
       outputSymbol: req.outputMint === USDC_MINT ? 'USDC' : variant.symbol,
       inputDecimals,
       outputDecimals,
-      amountUi: req.amount,
+      amountUi:
+        req.inputMint === stockMint && req.inputMint !== USDC_MINT
+          ? scaledSellAmount(req.amount, inputDecimals, variant.uiMultiplier)
+          : req.amount,
       amountUsd,
       slippageBps: req.slippageBps ?? DEFAULT_SLIPPAGE_BPS,
       wallet: req.wallet,
