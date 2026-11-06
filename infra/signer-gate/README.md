@@ -136,6 +136,34 @@ delegated execution. The 2-of-2 unfunded proof alone is not a live-trading relea
 
 ### Opening delegated trading to all users
 
+The original three-rule policy is a disposable, wallet-specific $1 TSLAx buy
+proof. Public enrollment flags alone do not turn it into a public trading policy.
+For public buy/sell access, prepare a **new** policy with
+`trading-policy.mjs` and `prepare-trading-policy.mjs` in a one-off container.
+Keep its separate owner key in a mode-600 provisioning file outside the running
+API/gate mounts. Never update an enrolled policy in place to add selling.
+
+The public policy uses 100-mint inline chunks because Privy rejects larger
+`in` lists and does not support `in_condition_set` on these Jupiter IDL fields.
+Shared deny rules cap the buy USDC input and sell quoted proceeds at $25,
+slippage at 50 bps and platform fees at zero. Only compute-budget instructions
+and approved stock/USDC Jupiter routes are allowed. Account-only IDLs preserve
+the reviewed account order; full IDLs decode numeric limits. Every wallet,
+ATA, stock notional, daily budget and grant expiry is still independently
+verified by API and gate before either key authorizes signing.
+
+Pin the provider-readback fingerprint, policy owner and new policy ID on the
+gate; set matching `PRIVY_MCP_SIGNER_POLICY_ID` on the API and public
+`MCP_SIGNER_POLICY_ID` build variable. Release the compatible API, gate and web
+together. Older grants return `reenrollmentRequired`; users revoke/remove the
+old signer, explicitly select Buy and sell, activate the new grant and reconnect
+their agent. A buy-only grant must never be upgraded by a database edit.
+
+The policy has a seven-day hard expiry in addition to each grant's 24-hour
+maximum. Rotate it through the same reviewed rebuild/re-enrollment process
+before that deadline. Provider policy creation/readback and offline tests do
+not establish funded trade success; report live execution acceptance separately.
+
 Set `MCP_DELEGATED_TRADES_PUBLIC=true` on the API **and** `SIGNER_GATE_PUBLIC=true`
 on the gate. Each service checks its own flag, so both must agree before any
 non-allowlisted user can enroll or trade; with either flag off, the named

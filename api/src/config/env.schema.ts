@@ -54,6 +54,7 @@ export interface AppEnv {
   MCP_DELEGATED_MAX_PER_TRADE_USD: number;
   MCP_DELEGATED_MAX_DAILY_USD: number;
   PRIVY_MCP_SIGNER_QUORUM_ID?: string;
+  PRIVY_MCP_SIGNER_POLICY_ID?: string;
   PRIVY_MCP_SIGNER_PRIVATE_KEY?: string;
   SIGNER_GATE_URL?: string;
   SIGNER_GATE_API_TOKEN?: string;
@@ -308,6 +309,7 @@ export function validateEnv(env: EnvSource = process.env): AppEnv {
       50,
     ),
     PRIVY_MCP_SIGNER_QUORUM_ID: readEnv(env, 'PRIVY_MCP_SIGNER_QUORUM_ID'),
+    PRIVY_MCP_SIGNER_POLICY_ID: readEnv(env, 'PRIVY_MCP_SIGNER_POLICY_ID'),
     PRIVY_MCP_SIGNER_PRIVATE_KEY: readEnv(env, 'PRIVY_MCP_SIGNER_PRIVATE_KEY'),
     SIGNER_GATE_URL: readEnv(env, 'SIGNER_GATE_URL'),
     SIGNER_GATE_API_TOKEN: readEnv(env, 'SIGNER_GATE_API_TOKEN'),
