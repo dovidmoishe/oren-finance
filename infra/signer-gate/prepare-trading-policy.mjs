@@ -4,7 +4,7 @@ import { PrivyClient } from '@privy-io/node';
 import tokensClient from '/app/dist/src/tokens/tokens.client.js';
 import tokensService from '/app/dist/src/tokens/tokens.service.js';
 import gate from '/app/dist/src/signer-gate/signer-gate.service.js';
-import { buildTradingPolicy, samePolicySemantics } from './trading-policy.mjs';
+import { buildTradingPolicy, samePolicySemantics, tradingPolicyIdl } from './trading-policy.mjs';
 import { preparePolicyOwner } from './policy-owner.mjs';
 
 const required = key => { if (!process.env[key]) throw new Error(`Missing ${key}`); return process.env[key]; };
@@ -13,7 +13,7 @@ const prior = await privy.policies().get(required('SIGNER_GATE_POLICY_ID'));
 if (prior.owner_id !== required('SIGNER_GATE_POLICY_OWNER_ID') || gate.gatePolicyFingerprint(prior) !== required('SIGNER_GATE_POLICY_HASH'))
   throw new Error('The live policy no longer matches its reviewed fingerprint');
 if (prior.owner_id === required('SIGNER_GATE_QUORUM_ID')) throw new Error('Policy owner must be separate from trade signers');
-const idl = prior.rules.flatMap(rule => rule.conditions).find(condition => condition.idl)?.idl;
+const idl = tradingPolicyIdl(prior);
 const tokens = new tokensService.TokensService(new tokensClient.TokensClient({ TOKENS_API_BASE_URL: process.env.TOKENS_API_BASE_URL ?? 'https://api.tokens.xyz', TOKENS_API_KEY: required('TOKENS_API_KEY') }));
 let offset = 0;
 let hasMore = true;

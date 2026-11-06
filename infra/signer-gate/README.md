@@ -163,6 +163,8 @@ The policy has a seven-day hard expiry in addition to each grant's 24-hour
 maximum. Rotate it through the same reviewed rebuild/re-enrollment process
 before that deadline. Provider policy creation/readback and offline tests do
 not establish funded trade success; report live execution acceptance separately.
+Use a fresh private `/state` directory for each rotation; an existing directory
+is an idempotent checkpoint for one candidate, including its fixed expiry.
 
 Set `MCP_DELEGATED_TRADES_PUBLIC=true` on the API **and** `SIGNER_GATE_PUBLIC=true`
 on the gate. Each service checks its own flag, so both must agree before any

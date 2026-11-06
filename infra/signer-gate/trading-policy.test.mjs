@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { buildTradingPolicy, samePolicySemantics } from './trading-policy.mjs';
+import { buildTradingPolicy, samePolicySemantics, tradingPolicyIdl } from './trading-policy.mjs';
 import { readFileSync } from 'node:fs';
 const stock = 'TSLAqBbv4CNCnzWFeB7LmydAyEiNMJtve7DYKLpdK4S';
 const usdc = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
@@ -71,6 +71,10 @@ test('the complete production IDL fits with a 403-mint catalog and 100-value chu
   assert.equal(p.rules.length,16);
   assert.ok(p.rules.flatMap(r=>r.conditions).filter(c=>c.operator==='in').every(c=>c.value.length<=100));
   assert.equal(p.rules.filter(r=>r.name.startsWith('allow bounded jupiter sell')).length,5);
+  assert.deepEqual(tradingPolicyIdl(p),productionIdl);
+  assert.doesNotThrow(()=>buildTradingPolicy({...input,idl:tradingPolicyIdl(p),stockMints:mints}));
+  const accountOnly = {rules:[{conditions:[{idl:p.rules[1].conditions[1].idl}]}]};
+  assert.throws(()=>tradingPolicyIdl(accountOnly),/complete Jupiter/);
 });
 
 test('readback ignores object-key order and provider IDs but rejects changed policy semantics', () => {

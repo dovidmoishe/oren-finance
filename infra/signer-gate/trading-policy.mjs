@@ -3,6 +3,16 @@ const JUPITER = 'JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4';
 const USDC = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
 const COMPUTE = 'ComputeBudget111111111111111111111111111111';
 const mintPattern = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
+const requiredArgs = ['in_amount', 'quoted_out_amount', 'slippage_bps', 'platform_fee_bps'];
+
+export function tradingPolicyIdl(policy) {
+  const idl = policy.rules?.flatMap(rule => rule.conditions ?? []).map(c => c.idl).find(candidate =>
+    candidate?.instructions?.length === 1 &&
+    candidate.instructions[0].name === 'shared_accounts_route' &&
+    requiredArgs.every(name => candidate.instructions[0].args?.some(arg => arg.name === name)));
+  if (!idl) throw new Error('Reviewed policy has no complete Jupiter argument IDL');
+  return idl;
+}
 
 export function samePolicySemantics(a, b) {
   const normalize = policy => ({ owner_id: policy.owner_id, chain_type: policy.chain_type, version: policy.version,
@@ -17,7 +27,7 @@ export function buildTradingPolicy({ idl, stockMints, ownerId, expiresAtUnix, no
   if (!ownerId || idl?.address !== JUPITER || idl.instructions.length !== 1 ||
       route?.name !== 'shared_accounts_route' ||
       JSON.stringify(route.discriminator) !== '[193,32,155,51,65,214,156,129]' ||
-      !['in_amount', 'quoted_out_amount', 'slippage_bps', 'platform_fee_bps'].every(name => route.args?.some(arg => arg.name === name)) ||
+      !requiredArgs.every(name => route.args?.some(arg => arg.name === name)) ||
       !['source_mint', 'destination_mint', 'user_transfer_authority', 'source_token_account', 'destination_token_account'].every(name => route.accounts?.some(account => account.name === name)))
     throw new Error('Expected the reviewed Jupiter shared-route IDL and separate policy owner');
   if (!Number.isSafeInteger(expiresAtUnix) || expiresAtUnix <= nowUnix + 3600 || expiresAtUnix > nowUnix + 7 * 86400)
