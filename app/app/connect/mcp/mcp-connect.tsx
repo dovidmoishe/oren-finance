@@ -10,6 +10,7 @@ import { OrenLogo } from '@/components/brand/oren-logo';
 import styles from './mcp-connect.module.css';
 import { mcpApiOrigin } from '@/services/mcp-api-origin';
 import { mcpConnector } from '@/services/mcp-connector';
+import { mcpEnrollmentLinks } from '@/services/mcp-enrollment-flow';
 
 type Interaction = {
   clientId: string;
@@ -180,7 +181,8 @@ function McpConnection({ uid }: { uid: string }) {
           </div>}
           {requestsExecute && delegation && !delegation.enabled && <div className={styles.notice}>
             <h2>Chat trading is off</h2>
-            <p>Set your limits in <Link href="/settings/mcp">Agent connections</Link>, then reconnect.</p>
+            <p>Set your trading limits, then return here to finish connecting.</p>
+            <Link className={styles.primary} href={mcpEnrollmentLinks(uid).settings}>Set up chat trading</Link>
           </div>}
           {requestsExecute && authenticated && !delegation && !delegationError && <p className={styles.loading} role="status">Checking your trading limits…</p>}
           <details className={styles.details}>
@@ -206,7 +208,7 @@ function McpConnection({ uid }: { uid: string }) {
       {!auth.authenticated && <p className={styles.signInNote}>We’ll email you a sign-in code.</p>}
       </section>
       <p className={styles.footer}>
-        You can disconnect anytime in <Link href="/settings/mcp">Agent connections</Link>.
+        You can disconnect anytime in <Link href={mcpEnrollmentLinks(uid).settings}>Agent connections</Link>.
       </p>
     </main>
   );

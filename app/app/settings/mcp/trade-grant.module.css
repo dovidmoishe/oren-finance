@@ -35,7 +35,7 @@
 .primary { display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 44px; padding: 11px 20px; border-radius: 999px; background: #171717; color: white; font-size: 13px; font-weight: 500; cursor: pointer; }
 .primary:disabled { opacity: .4; cursor: not-allowed; }
 .primary:hover:not(:disabled) { background: #333; }
-.card :is(button, select, summary, input[type="checkbox"]):focus-visible { outline: 2px solid var(--foreground); outline-offset: 4px; }
+.card :is(a, button, select, summary, input[type="checkbox"]):focus-visible { outline: 2px solid var(--foreground); outline-offset: 4px; }
 .warning { display: flex; align-items: flex-start; gap: 10px; padding: 14px; margin-top: 20px; border: 1px solid var(--border); border-radius: 12px; color: var(--muted); font-size: 12px; }
 .warning svg { flex-shrink: 0; margin-top: 2px; }
 .error { color: #b42318; margin-top: 16px; font-size: 13px; }
