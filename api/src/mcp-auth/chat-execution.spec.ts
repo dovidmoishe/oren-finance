@@ -35,3 +35,17 @@ describe('executionFailure', () => {
     expect(executionFailure('not an error').code).toBe('execution_failed');
   });
 });
+
+describe('executionFailure with the bounded gate codes from #73', () => {
+  it.each([
+    ['simulation_failed', 'simulation_failed'],
+    ['transaction_expired', 'transaction_expired'],
+    ['reviewed_terms_changed', 'reviewed_terms_changed'],
+    ['intent_unavailable', 'intent_unavailable'],
+    ['fresh_connection_required', 'reconnect_required'],
+  ])('maps %s to %s with a user-facing message', (gateCode, code) => {
+    const failure = executionFailure(new SignerGateRejection(gateCode));
+    expect(failure.code).toBe(code);
+    expect(failure.message.length).toBeGreaterThan(10);
+  });
+});

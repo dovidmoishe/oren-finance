@@ -61,6 +61,34 @@ const GATE_FAILURES: Record<string, ExecutionFailure> = {
       'Signing is still in progress. Check the trade status before retrying.',
     retryable: false,
   },
+  simulation_failed: {
+    code: 'simulation_failed',
+    message:
+      'The trade failed its on-chain check. Make sure the wallet has enough USDC (or shares to sell) and a little SOL for fees, then prepare a new trade.',
+    retryable: true,
+  },
+  transaction_expired: {
+    code: 'transaction_expired',
+    message: 'The quote expired before signing. Prepare a new trade.',
+    retryable: true,
+  },
+  reviewed_terms_changed: {
+    code: 'reviewed_terms_changed',
+    message:
+      'The price moved outside the quoted terms. Prepare a new trade for a fresh quote.',
+    retryable: true,
+  },
+  intent_unavailable: {
+    code: 'intent_unavailable',
+    message:
+      'This prepared trade is no longer available for signing. Prepare a new trade.',
+    retryable: true,
+  },
+  fresh_connection_required: {
+    code: 'reconnect_required',
+    message: CHAT_TRADE_ISSUES.reconnect_required,
+    retryable: false,
+  },
 };
 
 const AUTHORIZATION_FAILURES: Record<string, ExecutionFailure> = {
