@@ -465,17 +465,15 @@ describe('headless first-purchase account creation', () => {
     const deps = {
       ...f.deps,
       jupiter: {
-        getQuote: jest
-          .fn()
-          .mockResolvedValue({
-            inputMint: STOCK.toBase58(),
-            outputMint: USDC.toBase58(),
-            inAmount: '1000000',
-            outAmount: '10000',
-            otherAmountThreshold: '9950',
-            swapMode: 'ExactIn',
-            slippageBps: 50,
-          }),
+        getQuote: jest.fn().mockResolvedValue({
+          inputMint: STOCK.toBase58(),
+          outputMint: USDC.toBase58(),
+          inAmount: '1000000',
+          outAmount: '10000',
+          otherAmountThreshold: '9950',
+          swapMode: 'ExactIn',
+          slippageBps: 50,
+        }),
         postSwap: jest.fn().mockResolvedValue({ swapTransaction: tx }),
       },
     };
