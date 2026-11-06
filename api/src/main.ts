@@ -22,6 +22,7 @@ import { PortfolioService } from './portfolio/portfolio.service';
 import { ExecutionService } from './execution/execution.service';
 import { handleMcpRequest } from './mcp-auth/mcp-resource';
 import { mcpConsentScopes } from './mcp-auth/consent-scopes';
+import { requireMcpOfflineConsent } from './mcp-auth/offline-consent';
 import { SignerGateClient } from './mcp-auth/signer-gate.client';
 import { delegatedUserAllowed } from './mcp-auth/delegated-access';
 import { SignerGateRejection } from './mcp-auth/signer-gate.errors';
@@ -855,6 +856,7 @@ async function bootstrap() {
       },
       mcpRegistrationBody,
     );
+    expressApp.get('/oauth/auth', requireMcpOfflineConsent);
     expressApp.use('/oauth', oauth.provider.callback());
   }
 

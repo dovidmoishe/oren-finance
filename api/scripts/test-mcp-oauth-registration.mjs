@@ -10,6 +10,8 @@ const express = require(
   }),
 )
 const request = require('supertest')
+const { requireMcpOfflineConsent } = require('../dist/src/mcp-auth/offline-consent.js')
+const { mcpConsentScopes } = require('../dist/src/mcp-auth/consent-scopes.js')
 const {
   createMcpOAuthRuntime,
   mcpInteractionUrl,
@@ -117,12 +119,10 @@ app.post('/oauth/interaction/:uid', async (req, res) => {
       accountId: 'disposable-test-user',
       clientId: details.params.client_id,
     })
-    grant.addResourceScope(runtime.resource, [
-      'oren.read',
-      'oren.trade.prepare',
-    ])
-    grant.addOIDCScope(['oren.read', 'oren.trade.prepare'])
-    grant.addOIDCScope('offline_access')
+    const scopes = mcpConsentScopes(details.params.scope, false)
+    if (!scopes) return res.sendStatus(403)
+    grant.addResourceScope(runtime.resource, scopes.resourceScopes)
+    grant.addOIDCScope(scopes.oidcScopes)
     const grantId = await grant.save()
     const redirect = await runtime.provider.interactionResult(
       req,
@@ -148,6 +148,7 @@ app.use('/.well-known/oauth-authorization-server/oauth', (req, res) => {
 })
 const { mcpRegistrationBody } = require('../dist/src/mcp-auth/mcp-json-body.js')
 app.post('/oauth/reg', mcpRegistrationBody)
+app.get('/oauth/auth', requireMcpOfflineConsent)
 app.use('/oauth', runtime.provider.callback())
 const pathMetadata = await request(app)
   .get('/.well-known/oauth-authorization-server/oauth')
@@ -321,7 +322,7 @@ const unsupportedScope = await request(app)
     scope: 'oren.read oren.trade.execute',
   })
 assert.equal(unsupportedScope.status, 400)
-async function register(redirectUris) {
+async function register(redirectUris, scope = 'oren.read oren.trade.prepare offline_access') {
   return request(app)
     .post('/oauth/reg')
     .send({
@@ -329,7 +330,7 @@ async function register(redirectUris) {
       token_endpoint_auth_method: 'none',
       response_types: ['code'],
       grant_types: ['authorization_code', 'refresh_token'],
-      scope: 'oren.read oren.trade.prepare offline_access',
+      scope,
     })
 }
 const cursor = await register([
@@ -339,7 +340,7 @@ const cursor = await register([
 ])
 assert.equal(cursor.status, 201, JSON.stringify(cursor.body))
 assert.equal(cursor.body.scope, 'oren.read oren.trade.prepare offline_access')
-const codex = await register(['http://127.0.0.1:49152/callback/Abcdef12_-'])
+const codex = await register(['http://127.0.0.1:49152/callback/Abcdef12_-'], 'openid oren.read oren.trade.prepare offline_access')
 assert.equal(codex.status, 201, JSON.stringify(codex.body))
 const mixed = await register([
   'https://claude.ai/api/mcp/auth_callback',
@@ -359,7 +360,7 @@ async function completeConnection(registration, redirectUri, nativeConsent, inte
     client_id: registration.body.client_id,
     redirect_uri: redirectUri,
     response_type: 'code',
-    scope: 'oren.read oren.trade.prepare offline_access',
+    scope: registration.body.scope,
     resource: runtime.resource,
     state: randomBytes(16).toString('hex'),
     code_challenge: createHash('sha256').update(verifier).digest('base64url'),
@@ -422,12 +423,25 @@ async function completeConnection(registration, redirectUri, nativeConsent, inte
     const token = await exchange(verifier)
     assert.equal(token.status, 200)
     assert.equal(typeof token.body.access_token, 'string')
+    const renew = (refreshToken, scope = query.scope) => request(app).post('/oauth/token').set(proxyHeaders).type('form').send({
+      grant_type:'refresh_token',client_id:registration.body.client_id,
+      refresh_token:refreshToken,resource:runtime.resource,scope,
+    })
+    const excessive = await renew(token.body.refresh_token, query.scope + ' oren.trade.execute')
+    assert.equal(excessive.status,400,'refresh must not add ungranted trade scope')
+    assert.equal(excessive.body.error,'invalid_scope')
     const refreshed = await request(app).post('/oauth/token').set(proxyHeaders).type('form').send({
       grant_type: 'refresh_token', client_id: registration.body.client_id,
-      refresh_token: token.body.refresh_token, resource: runtime.resource,
+      refresh_token: token.body.refresh_token, resource: runtime.resource, scope: query.scope,
     })
     assert.equal(refreshed.status, 200, JSON.stringify(refreshed.body))
     assert.equal(typeof refreshed.body.access_token, 'string')
+    assert.notEqual(refreshed.body.refresh_token,token.body.refresh_token,'refresh token must rotate')
+    const access = await runtime.provider.AccessToken.find(refreshed.body.access_token)
+    assert.equal(access.aud,runtime.resource)
+    assert.deepEqual([...access.scopes].sort(),['oren.read','oren.trade.prepare'])
+    const nextRefresh = await renew(refreshed.body.refresh_token)
+    assert.equal(nextRefresh.status,200,'rotated token must retain the same requested renewal scopes')
     assert.equal((await exchange(verifier)).status, 400, 'authorization code is single-use')
   }
 }
