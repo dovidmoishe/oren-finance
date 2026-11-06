@@ -83,7 +83,7 @@ current() {
 current || { echo 'PR closed or superseded' >&2; exit 1; }
 if [[ ! -f "$STACK/release.env" ]]; then
   COUNT=$(find "$ROOT/stacks" -mindepth 2 -maxdepth 2 -name release.env | wc -l)
-  (( COUNT < 3 )) || { echo 'Three preview slots are occupied' >&2; exit 1; }
+  (( COUNT < 5 )) || { echo 'All five preview slots are occupied' >&2; exit 1; }
   AVAILABLE=$(awk '/MemAvailable/ {print $2}' /proc/meminfo)
   DISK=$(df -Pk "$ROOT" | awk 'NR==2 {print $4}')
   (( AVAILABLE >= 3145728 && DISK >= 15728640 )) || { echo 'Preview requires 3 GiB available RAM and 15 GiB free disk' >&2; exit 1; }
