@@ -128,6 +128,23 @@ test('the installed connected-wallet class and standard feature preserve private
   assert.equal(await app.render().signTradePermission(permissionAddress,permission),'AQID');
   assert.equal(calls,1);
 });
+test('legacy readiness cannot block the selected embedded account when SDK account lists are empty', async () => {
+  const app=permissionSession();app.walletSdk.ready=false;
+  let calls=0;
+  const standard=app.embeddedSigner(async({address})=>{
+    calls++;assert.equal(address,permissionAddress);
+    return {signature:new Uint8Array([1,2,3])};
+  });
+  const native=standard.features['solana:signMessage'].signMessage;
+  standard.features['solana:signMessage'].signMessage=(input)=>{
+    assert.equal(input.account.address,permissionAddress);
+    assert.equal(input.account.publicKey.length,32);
+    return native(input);
+  };
+  standard.accounts=[];app.standardSdk.wallets=[standard];
+  assert.equal(await app.render().signTradePermission(permissionAddress,permission),'AQID');
+  assert.equal(calls,1);
+});
 test('a standard wallet without the exact owned account cannot sign a permission', async () => {
   const app=permissionSession();
   const standard=app.embeddedSigner(async()=>{throw new Error('must not sign another account');});
