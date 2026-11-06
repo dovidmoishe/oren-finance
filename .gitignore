@@ -58,4 +58,4 @@ target/
 test-ledger/
 
 # Local agent/build board docs (keep untracked)
-docs/
+/docs/

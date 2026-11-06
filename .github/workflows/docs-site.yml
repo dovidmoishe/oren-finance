@@ -1,0 +1,39 @@
+name: Documentation
+on:
+  pull_request:
+    branches: [master]
+    paths: ['docs-site/**', 'infra/docs/**', 'Caddyfile', 'api/src/mcp-auth/mcp-resource.ts', '.github/workflows/docs-site.yml', '.github/workflows/deploy-docs.yml']
+  push:
+    branches: [master]
+    paths: ['docs-site/**', 'infra/docs/**', 'Caddyfile', 'api/src/mcp-auth/mcp-resource.ts', '.github/workflows/docs-site.yml', '.github/workflows/deploy-docs.yml']
+permissions:
+  contents: read
+concurrency:
+  group: docs-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  docs:
+    name: Documentation build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: docs-site
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.22.0
+          package_json_file: docs-site/package.json
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: docs-site/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: bash -n ../infra/docs/deploy.sh && node --test ../infra/docs/*.test.mjs
+      - run: node scripts/validate-content.mjs
+      - run: pnpm build
+      - run: pnpm types:check
+      - name: Verify container packaging
+        run: docker build -t oren-docs:ci .
