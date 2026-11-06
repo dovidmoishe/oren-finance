@@ -30,6 +30,9 @@ builds use the same names in `app/.env.local`. The quorum must match the API's
 `PRIVY_MCP_SIGNER_QUORUM_ID` and the gate's `SIGNER_GATE_QUORUM_ID`; the policy must
 match `SIGNER_GATE_POLICY_ID`. These identifiers are public, not private keys.
 Missing or mismatched pins disable enrollment before Privy adds a signer.
+The production image build also fails when either pin is missing. Changing
+repository variables takes effect only in a new web build; publish a new
+release SHA rather than reusing an existing immutable image tag.
 Rotation requires a reviewed web rebuild; never populate these pins from a
 runtime API response.
 
