@@ -164,6 +164,18 @@ describe('independent API signing authorization', () => {
   });
   afterEach(() => jest.restoreAllMocks());
 
+  it('authorizes a sell only with explicit sell permission and independently charges its dollar value', async () => {
+    const f = fixture();
+    f.deps.sellsEnabled = true;
+    f.state.intent.side = 'sell';
+    f.state.grant.allowSell = true;
+    f.state.grant.perTradeLimitUsd = '1.500000';
+    inspect.mockResolvedValueOnce('1.250000');
+    await f.authorize();
+    expect(f.state.authorizations).toHaveLength(1);
+    expect(f.state.authorizations[0].amountUsd).toBe('1.250000');
+  });
+
   it('claims exact bytes once and permits only identical retries', async () => {
     const f = fixture();
     expect((await f.authorize()).toString('base64')).toBe(

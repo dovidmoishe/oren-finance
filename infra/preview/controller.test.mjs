@@ -84,10 +84,34 @@ test('failed pull preserves previously healthy routing', {skip:!linux},t=>{
 test('superseded commit never activates a route', {skip:!linux},t=>{
   const f=fixture(t,{SUPERSEDE:'1'});assert.notEqual(f.run().status,0);assert.equal(existsSync(f.site),false);
 });
-test('capacity rejection creates no new stack', {skip:!linux},t=>{
+test('insufficient available RAM creates no new stack', {skip:!linux},t=>{
   const f=fixture(t,{AVAILABLE_KIB:'1000'});assert.notEqual(f.run().status,0);assert.equal(existsSync(f.stack),false);
-  for(const n of [1,2,3]){const p=join(f.root,'stacks',`pr-${n}`);mkdirSync(p);writeFileSync(join(p,'release.env'),'');}
-  assert.match(f.run().stderr,/Three preview slots/);
+});
+
+test('fourth and fifth preview allocations succeed', {skip:!linux},t=>{
+  for (const count of [3,4]) {
+    const f=fixture(t);
+    for(let n=1;n<=count;n++){const p=join(f.root,'stacks',`pr-${n}`);mkdirSync(p);writeFileSync(join(p,'release.env'),'');}
+    const result=f.run();assert.equal(result.status,0,result.stderr);
+    assert.equal(JSON.parse(readFileSync(join(f.stack,'state.json'),'utf8')).sha,sha);
+  }
+});
+
+test('sixth allocation is rejected without creating a stack or changing routes', {skip:!linux},t=>{
+  const f=fixture(t);
+  for(const n of [1,2,3,4,5]){const p=join(f.root,'stacks',`pr-${n}`);mkdirSync(p);writeFileSync(join(p,'release.env'),'');}
+  const result=f.run();assert.notEqual(result.status,0);
+  assert.match(result.stderr,/All five preview slots are occupied/);
+  assert.equal(existsSync(f.stack),false);
+  assert.equal(existsSync(f.site),false);
+  assert.ok(!f.log().includes('compose'));
+});
+
+test('existing preview can redeploy when all five slots are occupied', {skip:!linux},t=>{
+  const f=fixture(t,{AVAILABLE_KIB:'1000'});f.existing();
+  for(const n of [1,2,3,4]){const p=join(f.root,'stacks',`pr-${n}`);mkdirSync(p);writeFileSync(join(p,'release.env'),'');}
+  const result=f.run();assert.equal(result.status,0,result.stderr);
+  assert.equal(JSON.parse(readFileSync(join(f.stack,'state.json'),'utf8')).sha,sha);
 });
 test('incorrect reset confirmation is inert; stop is repeatable and narrowly scoped', {skip:!linux},t=>{
   const f=fixture(t);f.existing();assert.notEqual(f.run('reset',['wrong']).status,0);
