@@ -22,7 +22,11 @@ import {
 } from '../execution/swap-terms';
 import type { McpOAuthRuntime } from './oauth-runtime';
 import type { SignerGateClient } from './signer-gate.client';
-import { SignerGateRejection } from './signer-gate.errors';
+import {
+  CHAT_TRADE_ISSUES,
+  executionFailure,
+  type ChatTradeIssue,
+} from './chat-execution';
 import { rawSellShares, rawSellReferenceUsd } from './delegated-amounts';
 
 export interface McpResourceDeps {
@@ -154,7 +158,7 @@ export async function handleMcpRequest(
       {
         title: 'Prepare stock trade',
         description:
-          'Prepare a USDC stock buy or stock sell. For delegated mode, call execute_trade with the returned intent ID; for browser mode, give the user the approval link.',
+          'Prepare a USDC stock buy or stock sell. When it returns mode "delegated", call execute_trade with the intent ID so the user can approve it in chat. If it returns not_executable_in_chat, tell the user the message; do not offer a link. Only connections without chat trading get an approvalUrl.',
         inputSchema: z.object({
           assetId: z.string().trim().min(1).max(80),
           side: z.enum(['buy', 'sell']),
@@ -242,10 +246,11 @@ export async function handleMcpRequest(
           quote.outputAmount > 0
             ? (Math.ceil(quote.outputAmount * 1_000_000) / 1_000_000).toFixed(6)
             : null;
+        const chatTrading = connection.tokenScopes.has('oren.trade.execute');
         const [delegation] =
           deps.gate &&
           deps.delegatedSides?.[side] &&
-          connection.tokenScopes.has('oren.trade.execute') &&
+          chatTrading &&
           quote.provider === 'jupiter'
             ? await deps.db
                 .select()
@@ -268,6 +273,40 @@ export async function handleMcpRequest(
           (side === 'buy' || Boolean(referenceValueUsd && quotedProceedsUsd)) &&
           (side === 'buy' || delegation.allowSell),
         );
+        // A chat-trading connection signs in chat or not at all: say why
+        // instead of quietly preparing a browser trade with a review link.
+        if (chatTrading && !delegated) {
+          const issue: ChatTradeIssue = !deps.gate
+            ? 'chat_trading_unavailable'
+            : !deps.delegatedSides?.[side]
+              ? side === 'sell'
+                ? 'sells_disabled'
+                : 'buys_disabled'
+              : quote.provider !== 'jupiter'
+                ? 'unsupported_route'
+                : !delegation?.activatedAt
+                  ? 'chat_trading_inactive'
+                  : connection.createdAt <= delegation.activatedAt
+                    ? 'reconnect_required'
+                    : slippageBps > delegation.maxSlippageBps
+                      ? 'slippage_above_limit'
+                      : side === 'sell' && !delegation.allowSell
+                        ? 'sells_not_allowed'
+                        : 'price_unavailable';
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify({
+                  status: 'not_executable_in_chat',
+                  code: issue,
+                  message: CHAT_TRADE_ISSUES[issue],
+                }),
+              },
+            ],
+            isError: true,
+          };
+        }
         const [intent] = await deps.db
           .insert(mcpTradeIntents)
           .values({
@@ -320,7 +359,9 @@ export async function handleMcpRequest(
                   : {}),
                 mode: delegated ? 'delegated' : 'browser',
                 ...(delegated
-                  ? {}
+                  ? {
+                      next: 'Call execute_trade with this intentId. The user approves the call in chat.',
+                    }
                   : {
                       approvalUrl: `${deps.oauth.appOrigin}/app/trades/review/${intent.id}`,
                     }),
@@ -432,16 +473,18 @@ export async function handleMcpRequest(
         content: [{ type: 'text' as const, text: JSON.stringify(result) }],
       };
     };
-    server.registerTool(
-      'review_trade',
-      {
-        title: 'Open trade review',
-        description:
-          'Get the Oren browser review link for a prepared buy or sell intent. The user signs there. Works for delegated intents too: the intent moves to browser review and can no longer be executed by execute_trade.',
-        inputSchema: z.object({ intentId: z.uuid() }),
-      },
-      openTradeReview,
-    );
+    // Chat-trading connections sign in chat through execute_trade only.
+    if (!connection.tokenScopes.has('oren.trade.execute'))
+      server.registerTool(
+        'review_trade',
+        {
+          title: 'Open trade review',
+          description:
+            'Get the Oren browser review link for a prepared buy or sell intent. The user signs there.',
+          inputSchema: z.object({ intentId: z.uuid() }),
+        },
+        openTradeReview,
+      );
     if (!connection.tokenScopes.has('oren.trade.execute'))
       server.registerTool(
         'execute_buy',
@@ -459,7 +502,7 @@ export async function handleMcpRequest(
         {
           title: 'Execute a prepared stock trade',
           description:
-            'Execute an intent returned in delegated mode by prepare_trade under the active browser-granted signer delegation.',
+            'Execute an intent returned in delegated mode by prepare_trade under the active browser-granted signer delegation. On failure it returns a code and message; tell the user the message. It never returns a link.',
           inputSchema: z.object({
             intentId: z.uuid(),
             idempotencyKey: z.string().regex(/^[A-Za-z0-9_-]{16,64}$/),
@@ -485,29 +528,31 @@ export async function handleMcpRequest(
               content: [{ type: 'text' as const, text: 'Intent unavailable.' }],
               isError: true,
             };
-          const browser = () => ({
+          const failed = (
+            code: string,
+            message: string,
+            retryable: boolean,
+          ) => ({
             content: [
               {
                 type: 'text' as const,
                 text: JSON.stringify({
                   intentId,
-                  status: 'browser_approval_required',
-                  approvalUrl: `${deps.oauth.appOrigin}/app/trades/review/${intentId}`,
+                  status: 'failed',
+                  code,
+                  message,
+                  retryable,
                 }),
               },
             ],
+            isError: true,
           });
-          if (
-            intent.mode === 'browser' &&
-            intent.status === 'prepared' &&
-            intent.expiresAt > new Date()
-          )
-            return browser();
           if (intent.mode !== 'delegated')
-            return {
-              content: [{ type: 'text' as const, text: 'Intent unavailable.' }],
-              isError: true,
-            };
+            return failed(
+              'not_executable_in_chat',
+              'This trade was not prepared for chat signing. Prepare it again.',
+              true,
+            );
           try {
             const result = await deps.gate!.execute(
               intentId,
@@ -527,41 +572,8 @@ export async function handleMcpRequest(
               ],
             };
           } catch (error) {
-            if (
-              error instanceof SignerGateRejection &&
-              [
-                'over_budget',
-                'inactive_delegation',
-                'unsupported_route',
-              ].includes(error.code) &&
-              intent.status === 'prepared' &&
-              intent.expiresAt > new Date()
-            ) {
-              const [converted] = await deps.db
-                .update(mcpTradeIntents)
-                .set({ mode: 'browser', delegationId: null })
-                .where(
-                  and(
-                    eq(mcpTradeIntents.id, intentId),
-                    eq(mcpTradeIntents.status, 'prepared'),
-                    eq(mcpTradeIntents.mode, 'delegated'),
-                  ),
-                )
-                .returning({ id: mcpTradeIntents.id });
-              if (converted) return browser();
-            }
-            return {
-              content: [
-                {
-                  type: 'text' as const,
-                  text: JSON.stringify({
-                    intentId,
-                    status: 'pending_or_unavailable',
-                  }),
-                },
-              ],
-              isError: true,
-            };
+            const failure = executionFailure(error);
+            return failed(failure.code, failure.message, failure.retryable);
           }
         },
       );

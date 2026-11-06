@@ -23,7 +23,11 @@ jest.mock('@modelcontextprotocol/node', () => ({
 async function registeredTools(
   scopes: string[],
   quote?: Quote,
-  review?: { intent?: { id: string; mode: string }; converted?: boolean },
+  review?: {
+    intent?: { id: string; mode: string };
+    converted?: boolean;
+    delegation?: Record<string, unknown> | null;
+  },
 ) {
   const connection = {
     grantId: 'grant-1',
@@ -63,14 +67,17 @@ async function registeredTools(
                   ? review?.intent
                     ? [review.intent]
                     : []
-                  : [
-                      {
-                        id: 'delegation-test',
-                        activatedAt: new Date(Date.now() - 60_000),
-                        maxSlippageBps: 50,
-                        allowSell: true,
-                      },
-                    ],
+                  : review?.delegation === null
+                    ? []
+                    : [
+                        {
+                          id: 'delegation-test',
+                          activatedAt: new Date(Date.now() - 60_000),
+                          maxSlippageBps: 50,
+                          allowSell: true,
+                          ...review?.delegation,
+                        },
+                      ],
             ),
           }),
         }),
@@ -138,26 +145,23 @@ async function registeredTools(
 describe('MCP trade tool exposure', () => {
   beforeEach(() => jest.clearAllMocks());
 
-  it('offers the delegated path without browser-only buy aliases to an execute connection', async () => {
+  it('gives a chat-trading connection only the in-chat path, with no review link tools', async () => {
     const { names: tools } = await registeredTools([
       'oren.read',
       'oren.trade.prepare',
       'oren.trade.execute',
     ]);
     expect(tools).toEqual(
-      expect.arrayContaining([
-        'prepare_trade',
-        'execute_trade',
-        'review_trade',
-      ]),
+      expect.arrayContaining(['prepare_trade', 'execute_trade']),
     );
+    expect(tools).not.toContain('review_trade');
     expect(tools).not.toEqual(
       expect.arrayContaining(['prepare_buy', 'execute_buy']),
     );
   });
 
-  describe('review_trade', () => {
-    const scopes = ['oren.read', 'oren.trade.prepare', 'oren.trade.execute'];
+  describe('review_trade (connections without chat trading)', () => {
+    const scopes = ['oren.read', 'oren.trade.prepare'];
     const intentId = '7b2c1c4e-2f0a-4f33-9d6e-1a2b3c4d5e6f';
 
     it('moves a prepared delegated intent to browser review and returns the link', async () => {
@@ -280,4 +284,88 @@ describe('MCP trade tool exposure', () => {
       });
     },
   );
+});
+
+describe('prepare_trade for chat-trading connections', () => {
+  const execute = ['oren.read', 'oren.trade.prepare', 'oren.trade.execute'];
+  const raw = uiAmountToRaw(0.5, 8);
+  const quote = {
+    id: 'quote-chat',
+    assetId: 'stock',
+    ticker: 'TEST',
+    side: 'sell',
+    variant: { mint: 'stock-mint', decimals: 8 },
+    inputMint: 'stock-mint',
+    outputMint: USDC_MINT,
+    inputAmount: 0.5,
+    outputAmount: 50,
+    provider: 'jupiter',
+    slippageBps: 50,
+    routePayload: {
+      inAmount: raw,
+      outAmount: '50000000',
+      otherAmountThreshold: '49750000',
+      swapMode: 'ExactIn',
+    },
+  } as Quote;
+  const sell = {
+    assetId: 'stock',
+    side: 'sell' as const,
+    amountShares: 0.5,
+    slippageBps: 50,
+  };
+
+  beforeEach(() => jest.clearAllMocks());
+
+  it.each([
+    ['no active grant', null, 'chat_trading_inactive'],
+    [
+      'a grant activated after the connection',
+      { activatedAt: new Date(Date.now() + 60_000) },
+      'reconnect_required',
+    ],
+    ['a grant without sells', { allowSell: false }, 'sells_not_allowed'],
+    [
+      'slippage above the grant',
+      { maxSlippageBps: 10 },
+      'slippage_above_limit',
+    ],
+  ] as const)(
+    'explains %s instead of preparing a linked browser trade',
+    async (_case, delegation, code) => {
+      const tools = await registeredTools(execute, quote, {
+        delegation: delegation as Record<string, unknown> | null,
+      });
+      const result = await tools.prepare(sell);
+      expect(result.isError).toBe(true);
+      const body = JSON.parse(result.content[0].text) as Record<
+        string,
+        unknown
+      >;
+      expect(body).toMatchObject({ status: 'not_executable_in_chat', code });
+      expect(body).not.toHaveProperty('approvalUrl');
+      expect(tools.values).not.toHaveBeenCalled();
+    },
+  );
+
+  it('tells the agent to execute in chat when the grant covers the trade', async () => {
+    const tools = await registeredTools(execute, quote);
+    const result = await tools.prepare(sell);
+    const body = JSON.parse(result.content[0].text) as Record<string, unknown>;
+    expect(body).toMatchObject({ mode: 'delegated' });
+    expect(body.next).toMatch(/execute_trade/);
+    expect(body).not.toHaveProperty('approvalUrl');
+  });
+
+  it('keeps the review link for connections without chat trading', async () => {
+    const tools = await registeredTools(
+      ['oren.read', 'oren.trade.prepare'],
+      quote,
+    );
+    const body = JSON.parse(
+      (await tools.prepare(sell)).content[0].text,
+    ) as Record<string, unknown>;
+    expect(body).toMatchObject({ mode: 'browser' });
+    expect(body.approvalUrl).toMatch(/\/app\/trades\/review\//);
+  });
 });
