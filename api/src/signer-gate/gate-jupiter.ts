@@ -1,10 +1,16 @@
 import {
   getAssociatedTokenAddressSync,
+  ASSOCIATED_TOKEN_PROGRAM_ID,
   TOKEN_2022_PROGRAM_ID,
   TOKEN_PROGRAM_ID,
   unpackMint,
 } from '@solana/spl-token';
-import { ComputeBudgetProgram, Connection, PublicKey } from '@solana/web3.js';
+import {
+  ComputeBudgetProgram,
+  Connection,
+  PublicKey,
+  SystemProgram,
+} from '@solana/web3.js';
 import type { mcpTradeIntents } from '../database/schema';
 import { USDC_MINT } from '../config/constants';
 import type { JupiterClient } from '../execution/jupiter/jupiter.client';
@@ -92,10 +98,12 @@ export async function buildGateJupiterRoute(
     deps.connection.getAccountInfo(sourceAta, 'confirmed'),
     deps.connection.getAccountInfo(destinationAta, 'confirmed'),
   ]);
-  if (!sourceAccount || !destinationAccount)
+  if (!sourceAccount)
     throw new Error(
-      'Headless Jupiter requires existing source and destination token accounts',
+      'Headless Jupiter requires an existing source token account',
     );
+  const destinationTokenProgram =
+    intent.side === 'buy' ? stockProgram : TOKEN_PROGRAM_ID;
   const inputMint = intent.side === 'buy' ? USDC_MINT : intent.stockMint;
   const outputMint = intent.side === 'buy' ? intent.stockMint : USDC_MINT;
   const freshQuote = await deps.jupiter.getQuote({
@@ -146,6 +154,9 @@ export async function buildGateJupiterRoute(
     sourceAta.toBase58(),
     destinationAta.toBase58(),
     ComputeBudgetProgram.programId.toBase58(),
+    ASSOCIATED_TOKEN_PROGRAM_ID.toBase58(),
+    SystemProgram.programId.toBase58(),
+    destinationTokenProgram.toBase58(),
   ]);
   const resolve = async (key: PublicKey) =>
     (await deps.connection.getAddressLookupTable(key)).value;
@@ -162,6 +173,8 @@ export async function buildGateJupiterRoute(
       outputMint,
       sourceAta: sourceAta.toBase58(),
       destinationAta: destinationAta.toBase58(),
+      destinationTokenProgram: destinationTokenProgram.toBase58(),
+      requireDestinationAccountCreation: !destinationAccount,
       rawInput: quote.inAmount,
       maxInputRaw: intent.maxInRaw,
       quotedOutputRaw: quote.outAmount,

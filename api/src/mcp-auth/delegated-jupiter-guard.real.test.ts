@@ -9,6 +9,7 @@ import {
   VersionedTransaction,
 } from '@solana/web3.js';
 import {
+  createAssociatedTokenAccountIdempotentInstruction,
   getAssociatedTokenAddressSync,
   TOKEN_2022_PROGRAM_ID,
   TOKEN_PROGRAM_ID,
@@ -244,17 +245,15 @@ describe('independent API transaction validation with real Solana serialization'
     const deps = {
       ...f.deps,
       jupiter: {
-        getQuote: jest
-          .fn()
-          .mockResolvedValue({
-            inputMint: STOCK.toBase58(),
-            outputMint: USDC.toBase58(),
-            inAmount: '12345679',
-            outAmount: '10000',
-            otherAmountThreshold: '9950',
-            swapMode: 'ExactIn',
-            slippageBps: 50,
-          }),
+        getQuote: jest.fn().mockResolvedValue({
+          inputMint: STOCK.toBase58(),
+          outputMint: USDC.toBase58(),
+          inAmount: '12345679',
+          outAmount: '10000',
+          otherAmountThreshold: '9950',
+          swapMode: 'ExactIn',
+          slippageBps: 50,
+        }),
         postSwap: jest.fn().mockResolvedValue({ swapTransaction: tx }),
       },
     };
@@ -425,5 +424,278 @@ describe('delegated Jupiter transaction guard', () => {
         noTable,
       ),
     ).rejects.toThrow('trailing route data');
+  });
+});
+
+function createDestination(program = TOKEN_2022_PROGRAM_ID, mint = STOCK) {
+  return createAssociatedTokenAccountIdempotentInstruction(
+    wallet,
+    getAssociatedTokenAddressSync(mint, wallet, false, program),
+    wallet,
+    mint,
+    program,
+  );
+}
+
+const creationTerms = {
+  ...expected,
+  destinationTokenProgram: TOKEN_2022_PROGRAM_ID.toBase58(),
+  requireDestinationAccountCreation: true,
+};
+
+describe('headless first-purchase account creation', () => {
+  it('both cosigners accept missing USDC destination creation on a sell', async () => {
+    const f = apiFixture();
+    Object.assign(f.intent, {
+      side: 'sell',
+      amountUsd: null,
+      amountShares: '1.000000000000',
+    });
+    const mintAccount = (await f.deps.connection.getAccountInfo()) as {
+      owner: PublicKey;
+      data: Buffer;
+    };
+    f.deps.connection.getAccountInfo.mockImplementation((key: PublicKey) =>
+      Promise.resolve(key.equals(sourceAta) ? null : mintAccount),
+    );
+    const tx = transaction([
+      createDestination(TOKEN_PROGRAM_ID, USDC),
+      route(1000000n, { 3: destinationAta, 6: sourceAta, 7: STOCK, 8: USDC }),
+    ]);
+    const deps = {
+      ...f.deps,
+      jupiter: {
+        getQuote: jest
+          .fn()
+          .mockResolvedValue({
+            inputMint: STOCK.toBase58(),
+            outputMint: USDC.toBase58(),
+            inAmount: '1000000',
+            outAmount: '10000',
+            otherAmountThreshold: '9950',
+            swapMode: 'ExactIn',
+            slippageBps: 50,
+          }),
+        postSwap: jest.fn().mockResolvedValue({ swapTransaction: tx }),
+      },
+    };
+    await expect(f.check(tx)).resolves.toBe('25.000000');
+    await expect(
+      buildGateJupiterRoute(f.intent, deps as never),
+    ).resolves.toMatchObject({ rawInput: '1000000' });
+  });
+
+  it.each([TOKEN_PROGRAM_ID, TOKEN_2022_PROGRAM_ID])(
+    'accepts an exact idempotent destination for program %s',
+    async (program) => {
+      const destination = getAssociatedTokenAddressSync(
+        STOCK,
+        wallet,
+        false,
+        program,
+      );
+      await expect(
+        inspectDelegatedJupiterTransaction(
+          transaction([
+            createDestination(program),
+            route(1000000n, { 6: destination }),
+          ]),
+          {
+            ...creationTerms,
+            destinationAta: destination.toBase58(),
+            destinationTokenProgram: program.toBase58(),
+          },
+          noTable,
+        ),
+      ).resolves.toMatchObject({ rawInput: '1000000' });
+    },
+  );
+
+  it('allows idempotent creation when the account already exists', async () => {
+    await expect(
+      inspectDelegatedJupiterTransaction(
+        transaction([createDestination(), route()]),
+        { ...creationTerms, requireDestinationAccountCreation: false },
+        noTable,
+      ),
+    ).resolves.toMatchObject({ rawInput: '1000000' });
+  });
+
+  it('rejects missing, duplicate, late and unverified creation', async () => {
+    for (const instructions of [
+      [route()],
+      [createDestination(), createDestination(), route()],
+      [route(), createDestination()],
+    ]) {
+      await expect(
+        inspectDelegatedJupiterTransaction(
+          transaction(instructions),
+          creationTerms,
+          noTable,
+        ),
+      ).rejects.toThrow();
+    }
+    await expect(
+      inspectDelegatedJupiterTransaction(
+        transaction([createDestination(), route()]),
+        expected,
+        noTable,
+      ),
+    ).rejects.toThrow();
+  });
+
+  it.each([0, 1, 2, 3, 4, 5])(
+    'rejects substituted ATA account %s in both cosigners',
+    async (index) => {
+      const create = createDestination();
+      // A substituted payer is not an authorized additional transaction signer.
+      create.keys[index] = {
+        ...create.keys[index],
+        pubkey: random(),
+        isSigner: false,
+      };
+      const tx = transaction([create, route()]);
+      await expect(
+        inspectDelegatedJupiterTransaction(tx, creationTerms, noTable),
+      ).rejects.toThrow();
+      const f = apiFixture();
+      await expect(f.check(tx)).rejects.toThrow();
+      expect(f.deps.rpc.inspect).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([
+    Buffer.alloc(0),
+    Buffer.from([0]),
+    Buffer.from([2]),
+    Buffer.from([1, 0]),
+  ])(
+    'rejects non-idempotent, nested-recovery and trailing instruction data %s',
+    async (data) => {
+      const create = createDestination();
+      create.data = data;
+      await expect(
+        inspectDelegatedJupiterTransaction(
+          transaction([create, route()]),
+          creationTerms,
+          noTable,
+        ),
+      ).rejects.toThrow();
+    },
+  );
+
+  it('rejects source-account creation and an extra SOL transfer', async () => {
+    const source = createDestination(TOKEN_PROGRAM_ID, USDC);
+    for (const instructions of [
+      [source, route()],
+      [
+        createDestination(),
+        SystemProgram.transfer({
+          fromPubkey: wallet,
+          toPubkey: random(),
+          lamports: 1,
+        }),
+        route(),
+      ],
+    ]) {
+      await expect(
+        inspectDelegatedJupiterTransaction(
+          transaction(instructions),
+          creationTerms,
+          noTable,
+        ),
+      ).rejects.toThrow();
+    }
+  });
+
+  it('requires protected creation accounts to be static and preserves them when recompiling', async () => {
+    const create = createDestination();
+    const table = new AddressLookupTableAccount({
+      key: random(),
+      state: {
+        deactivationSlot: 18446744073709551615n,
+        lastExtendedSlot: 0,
+        lastExtendedSlotStartIndex: 0,
+        authority: undefined,
+        addresses: [SystemProgram.programId, TOKEN_2022_PROGRAM_ID],
+      },
+    });
+    const tx = transaction([create, route()], [table]);
+    await expect(
+      inspectDelegatedJupiterTransaction(tx, creationTerms, () =>
+        Promise.resolve(table),
+      ),
+    ).rejects.toThrow('creation accounts');
+    const rewritten = await staticJupiterAccounts(
+      tx,
+      new Set([
+        ...Object.values(expected).filter((v) => typeof v === 'string'),
+        ...create.keys.map((k) => k.pubkey.toBase58()),
+        create.programId.toBase58(),
+      ]),
+      () => Promise.resolve(table),
+    );
+    await expect(
+      inspectDelegatedJupiterTransaction(rewritten, creationTerms, () =>
+        Promise.resolve(table),
+      ),
+    ).resolves.toMatchObject({ rawInput: '1000000' });
+  });
+
+  it('both cosigners accept a first buy with no destination; missing source and omitted creation fail before signing', async () => {
+    const f = apiFixture();
+    const getAccount = f.deps.connection.getAccountInfo;
+    const mintAccount = {
+      owner: TOKEN_2022_PROGRAM_ID,
+      data: Buffer.alloc(MINT_SIZE),
+    };
+    getAccount.mockImplementation((key: PublicKey) =>
+      Promise.resolve(key.equals(destinationAta) ? null : mintAccount),
+    );
+    const tx = transaction([createDestination(), route()]);
+    const deps = {
+      ...f.deps,
+      jupiter: {
+        getQuote: jest.fn().mockResolvedValue({
+          inputMint: expected.inputMint,
+          outputMint: expected.outputMint,
+          inAmount: '1000000',
+          outAmount: '10000',
+          otherAmountThreshold: '9950',
+          swapMode: 'ExactIn',
+          slippageBps: 50,
+        }),
+        postSwap: jest.fn().mockResolvedValue({ swapTransaction: tx }),
+      },
+    };
+    await expect(f.check(tx)).resolves.toBe('1.000000');
+    await expect(
+      buildGateJupiterRoute(f.intent, deps as never),
+    ).resolves.toMatchObject({ rawInput: '1000000' });
+    deps.jupiter.postSwap.mockResolvedValue({
+      swapTransaction: transaction([route()]),
+    });
+    await expect(
+      buildGateJupiterRoute(f.intent, deps as never),
+    ).rejects.toThrow('missing destination account creation');
+    getAccount.mockImplementation((key: PublicKey) =>
+      Promise.resolve(key.equals(sourceAta) ? null : mintAccount),
+    );
+    await expect(
+      buildGateJupiterRoute(f.intent, deps as never),
+    ).rejects.toThrow('existing source');
+  });
+
+  it('the independent API still requires simulation and the original output floor', async () => {
+    const f = apiFixture();
+    f.deps.rpc.inspect.mockRejectedValue(new Error('insufficient rent'));
+    await expect(
+      f.check(transaction([createDestination(), route()])),
+    ).rejects.toThrow('insufficient rent');
+    const changed = route();
+    changed.data.writeBigUInt64LE(9999n, 21);
+    await expect(
+      f.check(transaction([createDestination(), changed])),
+    ).rejects.toThrow('reviewed minimum');
   });
 });
