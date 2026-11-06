@@ -1,0 +1,24 @@
+# Independent docs release on the existing production Caddy network.
+name: oren-docs
+services:
+  docs:
+    image: ${DOCS_IMAGE:?set DOCS_IMAGE to the built documentation image tag}
+    container_name: oren-docs
+    restart: unless-stopped
+    environment:
+      DOCS_RELEASE_SHA: ${DOCS_RELEASE_SHA:?set DOCS_RELEASE_SHA to the release commit}
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /app/.next/cache
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks: [production]
+networks:
+  production:
+    external: true
+    name: oren_oren

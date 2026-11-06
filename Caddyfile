@@ -37,3 +37,11 @@ import /etc/caddy/previews/*.caddy
 	# Pin the production container so a preview API cannot answer this host.
 	reverse_proxy oren-api-1:3000
 }
+
+# The documentation service releases independently on the production network.
+docs.oren.finance {
+	import access_log docs
+	encode zstd gzip
+	import security_headers
+	reverse_proxy oren-docs:3000
+}
