@@ -23,7 +23,7 @@ export default function RoadmapPage() {
     <div aria-hidden="true" className={landing.backdrop} />
     <LandingHeader><nav className={styles.nav} aria-label="Main navigation">
       <Link className={styles.brand} href="/" aria-label="Oren home"><OrenLogo size={28} /><span>OREN</span></Link>
-      <div className={styles.navLinks}><Link href="/#product">Product</Link><Link href="/app/markets">Markets</Link><Link href="/token">Token</Link><Link href="/roadmap" aria-current="page">Roadmap</Link><Link href="/changelog">Changelog</Link></div>
+      <div className={styles.navLinks}><Link href="/#product">Product</Link><Link href="/app/markets">Markets</Link><Link href="/agents">Agents</Link><Link href="/token">Token</Link><Link href="/roadmap" aria-current="page">Roadmap</Link><Link href="/changelog">Changelog</Link></div>
       <ButtonLink className="h-10 rounded-full px-4 text-sm font-medium" href="/app" variant="primary">Launch App <HugeiconsIcon icon={ArrowRight02Icon} size={16} /></ButtonLink>
     </nav></LandingHeader>
     <main className={styles.main}>
