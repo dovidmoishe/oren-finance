@@ -507,7 +507,7 @@ export class SignerGateService {
     if (existing) {
       if (existing.idempotencyKey !== idempotencyKey)
         throw new Error('Intent was already claimed with another key');
-      return this.response(existing);
+      return this.reconcile(existing.id);
     }
     const fresh = await buildGateJupiterRoute(intent, this.deps);
     const requestExpiresAt = new Date(Date.now() + 30_000);
@@ -712,22 +712,60 @@ export class SignerGateService {
       .where(eq(mcpDelegatedExecutions.id, executionId))
       .limit(1);
     if (!execution) throw new Error('Execution unavailable');
+    let expiredUnsignedSigning = false;
     if (
-      execution.state === 'challenged' &&
-      execution.requestExpiresAt <= new Date()
+      execution.state === 'pending' &&
+      !execution.chainSignature &&
+      !execution.signedTransaction &&
+      execution.requestExpiresAt <= new Date() &&
+      (execution.errorCode === 'privy_uncertain' ||
+        /^privy_rejected_(400|401|403|404|409|422)$/.test(
+          execution.errorCode ?? '',
+        )) &&
+      Number.isSafeInteger(execution.lastValidBlockHeight) &&
+      execution.lastValidBlockHeight! > 0
+    ) {
+      const [intent] = await this.deps.db
+        .select({ wallet: mcpTradeIntents.wallet })
+        .from(mcpTradeIntents)
+        .where(eq(mcpTradeIntents.id, execution.intentId))
+        .limit(1);
+      expiredUnsignedSigning =
+        !!intent &&
+        !(await this.deps.rpc.blockhashValid(
+          execution.unsignedTransaction,
+          intent.wallet,
+          execution.lastValidBlockHeight!,
+        ));
+    }
+    if (
+      (execution.state === 'challenged' &&
+        execution.requestExpiresAt <= new Date()) ||
+      expiredUnsignedSigning
     ) {
       const expired = await this.deps.db.transaction(async (tx) => {
         const [claimed] = await tx
           .update(mcpDelegatedExecutions)
           .set({
             state: 'failed',
-            errorCode: 'unused_challenge_expired',
+            errorCode: expiredUnsignedSigning
+              ? 'signing_expired'
+              : 'unused_challenge_expired',
             updatedAt: new Date(),
           })
           .where(
             and(
               eq(mcpDelegatedExecutions.id, executionId),
-              eq(mcpDelegatedExecutions.state, 'challenged'),
+              eq(
+                mcpDelegatedExecutions.state,
+                expiredUnsignedSigning ? 'pending' : 'challenged',
+              ),
+              ...(expiredUnsignedSigning
+                ? [
+                    isNull(mcpDelegatedExecutions.chainSignature),
+                    isNull(mcpDelegatedExecutions.signedTransaction),
+                  ]
+                : []),
             ),
           )
           .returning({ id: mcpDelegatedExecutions.id });

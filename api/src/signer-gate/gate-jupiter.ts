@@ -14,6 +14,7 @@ import { inspectDelegatedJupiterTransaction } from '../mcp-auth/delegated-jupite
 import { staticJupiterAccounts } from './static-jupiter-accounts';
 import { buyNotionalUsd, microsUsd } from '../mcp-auth/trade-budget';
 import { rawSellReferenceUsd } from '../mcp-auth/delegated-amounts';
+import { reviewedQuoteFloor } from './reviewed-quote';
 
 type Intent = typeof mcpTradeIntents.$inferSelect;
 
@@ -97,23 +98,38 @@ export async function buildGateJupiterRoute(
     );
   const inputMint = intent.side === 'buy' ? USDC_MINT : intent.stockMint;
   const outputMint = intent.side === 'buy' ? intent.stockMint : USDC_MINT;
-  const quote = await deps.jupiter.getQuote({
+  const freshQuote = await deps.jupiter.getQuote({
     inputMint,
     outputMint,
     amount: intent.maxInRaw,
     slippageBps: intent.slippageBps,
   });
   if (
-    quote.inputMint !== inputMint ||
-    quote.outputMint !== outputMint ||
-    quote.inAmount !== intent.maxInRaw ||
-    quote.swapMode !== 'ExactIn' ||
-    !positiveRaw(quote.outAmount) ||
-    !positiveRaw(quote.otherAmountThreshold) ||
-    BigInt(quote.otherAmountThreshold) < BigInt(intent.minOutRaw) ||
-    quote.slippageBps > intent.slippageBps
+    freshQuote.inputMint !== inputMint ||
+    freshQuote.outputMint !== outputMint ||
+    freshQuote.inAmount !== intent.maxInRaw ||
+    freshQuote.swapMode !== 'ExactIn' ||
+    !positiveRaw(freshQuote.outAmount) ||
+    !positiveRaw(freshQuote.otherAmountThreshold) ||
+    !Number.isInteger(freshQuote.slippageBps) ||
+    freshQuote.slippageBps < 0 ||
+    freshQuote.slippageBps > intent.slippageBps
   )
     throw new Error('Fresh Jupiter quote moved outside the reviewed terms');
+  // Applying the full tolerance again to a slightly lower quote can reject an
+  // otherwise acceptable execution. Tighten it; never lower the reviewed floor.
+  const requiredMinimum =
+    BigInt(freshQuote.otherAmountThreshold) > BigInt(intent.minOutRaw)
+      ? freshQuote.otherAmountThreshold
+      : intent.minOutRaw;
+  const quote = {
+    ...freshQuote,
+    ...reviewedQuoteFloor(
+      freshQuote.outAmount,
+      requiredMinimum,
+      Math.min(intent.slippageBps, freshQuote.slippageBps),
+    ),
+  };
   const swap = await deps.jupiter.postSwap({
     quoteResponse: quote,
     userPublicKey: intent.wallet,

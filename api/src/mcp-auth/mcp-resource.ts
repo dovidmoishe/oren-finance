@@ -534,6 +534,26 @@ export async function handleMcpRequest(
           } catch (error) {
             if (
               error instanceof SignerGateRejection &&
+              error.code === 'reviewed_terms_changed'
+            ) {
+              return {
+                content: [
+                  {
+                    type: 'text' as const,
+                    text: JSON.stringify({
+                      intentId,
+                      status: 'quote_changed',
+                      reason: 'reviewed_terms_changed',
+                      message:
+                        'The execution quote no longer meets the approved terms. Prepare a fresh quote and obtain fresh approval. No signing attempt was made for this rejection.',
+                    }),
+                  },
+                ],
+                isError: true,
+              };
+            }
+            if (
+              error instanceof SignerGateRejection &&
               [
                 'over_budget',
                 'inactive_delegation',
