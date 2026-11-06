@@ -239,6 +239,35 @@ describe('swap balance guard', () => {
 });
 
 describe('ApprovalRpc.inspect with an expectation', () => {
+  it.each([
+    [
+      { InsufficientFundsForRent: { account_index: 0 } },
+      'INSUFFICIENT_SOL_FOR_RENT',
+    ],
+    ['InsufficientFundsForFee', 'INSUFFICIENT_SOL_FOR_FEES'],
+  ])(
+    'identifies SOL funding failures without blaming USDC or RPC availability',
+    async (err, code) => {
+      const rpc = fakeRpc({
+        usdc: 50000000n,
+        stock: null,
+        lamports: 1750880,
+        err,
+      });
+      const service = new ApprovalRpc(rpc as never);
+      try {
+        await service.inspect(walletTx(), WALLET, buy);
+        throw new Error('expected rejection');
+      } catch (error) {
+        expect(
+          (error as { getResponse: () => unknown }).getResponse(),
+        ).toMatchObject({ code });
+        expect(error).toBeInstanceOf(Error);
+        expect((error as Error).message).toContain('SOL');
+      }
+    },
+  );
+
   it('simulates with the touched accounts and returns the fee when terms hold', async () => {
     const rpc = fakeRpc({
       usdc: 50_000_000n,

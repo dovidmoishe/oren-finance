@@ -1,5 +1,9 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
-import { simulationFailureCode } from './simulation-failure';
+import {
+  simulationFailureCode,
+  SOL_RENT_MESSAGE,
+  SOL_FEE_MESSAGE,
+} from './simulation-failure';
 import { isJupiterSlippageFailure } from './jupiter-slippage';
 import { VersionedTransaction } from '@solana/web3.js';
 import { createPublicKey, verify } from 'node:crypto';
@@ -74,9 +78,18 @@ export class ApprovalRpc {
       const program = instruction
         ? tx.message.staticAccountKeys[instruction.programIdIndex]?.toBase58()
         : undefined;
-      this.logger.warn(
-        `Transaction simulation rejected: ${simulationFailureCode(simulated.value.err)}`,
-      );
+      const failureCode = simulationFailureCode(simulated.value.err);
+      this.logger.warn(`Transaction simulation rejected: ${failureCode}`);
+      if (failureCode.startsWith('insufficient_rent_account_'))
+        throw new BadRequestException({
+          message: SOL_RENT_MESSAGE,
+          code: 'INSUFFICIENT_SOL_FOR_RENT',
+        });
+      if (failureCode === 'InsufficientFundsForFee')
+        throw new BadRequestException({
+          message: SOL_FEE_MESSAGE,
+          code: 'INSUFFICIENT_SOL_FOR_FEES',
+        });
       if (isJupiterSlippageFailure(simulated.value.err, program))
         throw new BadRequestException({
           message:

@@ -148,6 +148,30 @@ async function registeredTools(
 
 describe('MCP trade tool exposure', () => {
   beforeEach(() => jest.clearAllMocks());
+  it.each(['insufficient_sol_for_rent', 'insufficient_sol_for_fees'])(
+    'reports %s without pending status or browser fallback',
+    async (reason) => {
+      const tools = await registeredTools(
+        ['oren.read', 'oren.trade.prepare', 'oren.trade.execute'],
+        undefined,
+        {
+          intent: { id: 'intent-test', mode: 'delegated' },
+          gateError: new SignerGateRejection(reason),
+        },
+      );
+      const result = await tools.execute({
+        intentId: 'intent-test',
+        idempotencyKey: 'same-key-123456789',
+      });
+      expect(JSON.parse(result.content[0].text)).toMatchObject({
+        status: 'funding_required',
+        reason,
+        fundingAsset: 'SOL',
+        broadcast: false,
+      });
+      expect(tools.set).not.toHaveBeenCalled();
+    },
+  );
   it('reports quote movement as requiring fresh approval, not a pending submission or forced browser conversion', async () => {
     const tools = await registeredTools(
       ['oren.read', 'oren.trade.prepare', 'oren.trade.execute'],
