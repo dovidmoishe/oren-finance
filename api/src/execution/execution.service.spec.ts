@@ -43,6 +43,7 @@ describe('ExecutionService basket support', () => {
   };
   const selector = {
     selectAndQuote: jest.fn(),
+    withDecimals: jest.fn((variant: unknown) => Promise.resolve(variant)),
   };
   const quoteCache = {
     set: jest.fn(),
@@ -110,15 +111,20 @@ describe('ExecutionService basket support', () => {
   });
 
   it('acknowledges a submitted swap without waiting for RPC or portfolio refresh', async () => {
-    quoteCache.getPendingExecution.mockReturnValue({ executionId: 'execution-1', wallet });
+    quoteCache.getPendingExecution.mockReturnValue({
+      executionId: 'execution-1',
+      wallet,
+    });
     repository.submitAndEnqueue.mockResolvedValue({ id: 'execution-1' });
 
-    await expect(service.confirm({
-      executionId: 'execution-1',
-      quoteId: 'quote-NVDA',
-      wallet,
-      signature: 'signature-1',
-    })).resolves.toEqual({
+    await expect(
+      service.confirm({
+        executionId: 'execution-1',
+        quoteId: 'quote-NVDA',
+        wallet,
+        signature: 'signature-1',
+      }),
+    ).resolves.toEqual({
       executionId: 'execution-1',
       quoteId: 'quote-NVDA',
       wallet,
