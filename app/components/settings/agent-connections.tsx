@@ -1,0 +1,135 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { ArrowLeft01Icon, ArrowUpRight01Icon, Link01Icon, Shield01Icon } from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react";
+import Link from "next/link";
+import { useOrenAuth } from "@/components/auth/auth-context";
+import { Button } from "@/components/ui";
+import { mcpApiOrigin } from "@/services/mcp-api-origin";
+import { TradeGrant } from "@/app/settings/mcp/trade-grant";
+
+type Connection = { grantId: string; clientId: string; wallet: string; scopes: string; createdAt: string };
+
+function accessLabel(scopes: string) {
+  const permissions = scopes.split(/\s+/);
+  if (permissions.includes("oren.trade.execute")) return "Chat trading";
+  if (permissions.includes("oren.trade.prepare")) return "Browser trade review";
+  return "Read only";
+}
+
+export function AgentConnections({ connectionUid }: { connectionUid?: string } = {}) {
+  const auth = useOrenAuth();
+  return <ConnectionsContent connectionUid={connectionUid} key={`${auth.ready}:${auth.authenticated}:${auth.email ?? ""}:${auth.address ?? ""}`} />;
+}
+
+function ConnectionsContent({ connectionUid }: { connectionUid?: string }) {
+  const { authenticated, configured, ready, getAccessToken, open, email } = useOrenAuth();
+  const [result, setResult] = useState<{ connections: Connection[]; error?: string; loading: boolean }>({ connections: [], loading: true });
+  const [busy, setBusy] = useState<string>();
+  const [revokeError, setRevokeError] = useState<string>();
+  const [notice, setNotice] = useState<string>();
+  const [attempt, setAttempt] = useState(0);
+  const apiOrigin = mcpApiOrigin();
+
+  useEffect(() => {
+    if (!ready || !authenticated || !apiOrigin) return;
+    const controller = new AbortController();
+    void (async () => {
+      try {
+        const token = await getAccessToken();
+        if (controller.signal.aborted) return;
+        if (!token) throw new Error("Sign in again to manage connections.");
+        const response = await fetch(`${apiOrigin}/oauth/connections`, {
+          headers: { Authorization: `Bearer ${token}` }, cache: "no-store", signal: controller.signal,
+        });
+        if (!response.ok) throw new Error("Unable to load connections. Please try again.");
+        const connections = await response.json() as Connection[];
+        if (!controller.signal.aborted) setResult({ connections, loading: false });
+      } catch (cause) {
+        if (!controller.signal.aborted) setResult({ connections: [], loading: false, error: cause instanceof Error ? cause.message : "Unable to load connections." });
+      }
+    })();
+    return () => controller.abort();
+  }, [ready, authenticated, apiOrigin, getAccessToken, attempt]);
+
+  async function revoke(grantId: string) {
+    if (!apiOrigin || busy) return;
+    setBusy(grantId);
+    setRevokeError(undefined);
+    setNotice(undefined);
+    try {
+      const token = await getAccessToken();
+      if (!token) throw new Error("Sign in again to revoke this connection.");
+      const response = await fetch(`${apiOrigin}/oauth/connections/${encodeURIComponent(grantId)}/revoke`, { method: "POST", headers: { Authorization: `Bearer ${token}` } });
+      if (!response.ok) throw new Error("Unable to revoke this connection. Try again.");
+      setResult(current => ({ ...current, connections: current.connections.filter(item => item.grantId !== grantId) }));
+      setNotice("Connection revoked. This agent no longer has access through this connection.");
+    } catch (cause) {
+      setRevokeError(cause instanceof Error ? cause.message : "Unable to revoke this connection.");
+    } finally { setBusy(undefined); }
+  }
+
+  return (
+    <div className="mx-auto max-w-4xl pb-16 pt-3 sm:pt-7">
+      <Link href="/app" className="inline-flex items-center gap-1.5 text-sm text-muted hover:text-foreground"><HugeiconsIcon icon={ArrowLeft01Icon} size={16} aria-hidden="true" /> Back to dashboard</Link>
+      <div className="mb-8 mt-7 flex flex-wrap items-start justify-between gap-5">
+        <div>
+          <h1 className="font-display text-3xl font-semibold tracking-tight sm:text-4xl">Agent connections</h1>
+          <p className="mt-3 max-w-lg text-sm leading-relaxed text-muted">Manage the apps connected to Oren and the permission to trade from your chats.</p>
+        </div>
+        <Button href="/agents" size="sm">Connect an agent <HugeiconsIcon icon={ArrowUpRight01Icon} size={15} aria-hidden="true" /></Button>
+      </div>
+      {!ready ? (
+        <div className="rounded-2xl border border-border bg-panel p-8 text-sm text-muted" role="status">Loading your account…</div>
+      ) : !authenticated ? (
+        <section className="rounded-2xl border border-border bg-panel px-6 py-10 sm:px-10">
+          <HugeiconsIcon icon={Shield01Icon} size={28} className="text-muted" aria-hidden="true" />
+          <h2 className="mt-5 text-xl font-semibold">Your connections, under your control</h2>
+          <p className="mt-2 max-w-md text-sm leading-relaxed text-muted">Sign in to see your connected agents, review their access, and manage your chat trading limits.</p>
+          <Button className="mt-6" variant="primary" onClick={open} disabled={!configured}>Sign in to Oren</Button>
+          {!configured && <p className="mt-3 text-sm text-muted">Sign-in is unavailable right now.</p>}
+        </section>
+      ) : (
+        <>
+          <section aria-labelledby="connected-apps-heading" className="overflow-hidden rounded-2xl border border-border bg-panel">
+            <div className="border-b border-border px-5 py-5 sm:px-6">
+              <div className="flex items-center gap-2.5"><h2 id="connected-apps-heading" className="text-lg font-semibold">Connected apps</h2>{!result.loading && !result.error && apiOrigin && <span className="rounded-full bg-background px-2 py-0.5 text-xs text-muted">{result.connections.length}</span>}</div>
+              <p className="mt-1 text-sm text-muted">{email ? <>Connections for <span className="break-all">{email}</span>.</> : "Apps you have given access to your Oren account."} You can revoke access anytime.</p>
+            </div>
+            {!apiOrigin ? <p className="p-6 text-sm text-muted" role="status">Connections are unavailable right now. Please try again later.</p> : result.loading ? <p className="p-6 text-sm text-muted" role="status">Loading connections…</p> : result.error ? (
+              <div className="p-6"><p className="text-sm text-red-700" role="alert">{result.error}</p><Button className="mt-4" size="sm" onClick={() => { setResult({ connections: [], loading: true }); setAttempt(current => current + 1); }}>Try again</Button></div>
+            ) : result.connections.length === 0 ? (
+              <div className="px-6 py-10 text-center sm:py-14">
+                <span className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-background text-muted"><HugeiconsIcon icon={Link01Icon} size={24} aria-hidden="true" /></span>
+                <h3 className="mt-4 text-base font-semibold">Connect your first agent</h3>
+                <p className="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-muted">Bring Oren into Claude, Cursor, or Codex to research stocks and manage your portfolio from a chat.</p>
+                <Button href="/agents" className="mt-5" size="sm">View setup guide <HugeiconsIcon icon={ArrowUpRight01Icon} size={15} aria-hidden="true" /></Button>
+              </div>
+            ) : (
+              <ul className="divide-y divide-border">
+                {result.connections.map((connection, index) => (
+                  <li key={connection.grantId} className="p-5 sm:p-6">
+                    <div className="flex flex-wrap items-start justify-between gap-4">
+                      <div className="flex min-w-0 items-center gap-3"><span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-border bg-background"><HugeiconsIcon icon={Link01Icon} size={20} aria-hidden="true" /></span><div className="min-w-0"><h3 className="font-semibold">Agent connection {index + 1}</h3><p className="mt-1 text-xs text-muted">Connected {new Date(connection.createdAt).toLocaleDateString()}</p></div></div>
+                      <span className="rounded-full border border-border bg-background px-3 py-1 text-xs font-medium">{accessLabel(connection.scopes)}</span>
+                    </div>
+                    <p className="mt-4 text-sm text-muted">{accessLabel(connection.scopes) === "Chat trading" ? "Can request trades within your active chat trading permission and limits." : accessLabel(connection.scopes) === "Browser trade review" ? "Can read account data and prepare trades for you to review and sign in Oren." : "Can read account data. Cannot execute trades."}</p>
+                    <div className="mt-4 flex flex-wrap items-start justify-between gap-4">
+                      <details className="min-w-0 flex-1 text-xs text-muted"><summary className="w-fit cursor-pointer rounded py-2 font-medium focus-visible:outline-2">Connection details</summary><dl className="mt-2 grid gap-2 rounded-xl bg-background p-3"><div><dt className="font-medium text-foreground">Client ID</dt><dd className="mt-1 break-all">{connection.clientId}</dd></div><div><dt className="font-medium text-foreground">Wallet</dt><dd className="mt-1 break-all">{connection.wallet}</dd></div><div><dt className="font-medium text-foreground">Permissions</dt><dd className="mt-1 break-all">{connection.scopes}</dd></div></dl></details>
+                      <Button size="sm" disabled={!!busy} aria-label={`Revoke agent connection ${index + 1}`} onClick={() => void revoke(connection.grantId)}>{busy === connection.grantId ? "Revoking…" : "Revoke access"}</Button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+          {revokeError && <p className="mt-4 text-sm text-red-700" role="alert">{revokeError}</p>}
+          {notice && <p className="mt-4 text-sm" role="status">{notice}</p>}
+          <TradeGrant connectionUid={connectionUid} />
+          <p className="mt-5 flex items-start gap-2 px-1 text-xs leading-relaxed text-muted"><HugeiconsIcon icon={Shield01Icon} className="mt-0.5 shrink-0" size={15} aria-hidden="true" />App connections and chat trading permission are separate. Revoking an app connection leaves your trading permission in place; manage it above.</p>
+        </>
+      )}
+    </div>
+  );
+}
