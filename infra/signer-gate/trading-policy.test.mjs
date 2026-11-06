@@ -55,7 +55,7 @@ test('retains account order and argument decoder while fitting aggregate IDL lim
   assert.ok(conditions.reduce((sum,c)=>sum+Buffer.byteLength(JSON.stringify(c.idl)),0)<=131072);
   for(const c of conditions) {
     assert.deepEqual(c.idl.instructions[0].accounts,idl.instructions[0].accounts);
-    assert.deepEqual(c.idl.instructions[0].args,c.field.includes('.accounts.')?[]:idl.instructions[0].args);
+    assert.deepEqual(c.idl.instructions[0].args,idl.instructions[0].args);
   }
 });
 test('fails closed on invalid route identity, empty mints and excessive policy lifetime', () => {
@@ -63,17 +63,18 @@ test('fails closed on invalid route identity, empty mints and excessive policy l
     assert.throws(()=>buildTradingPolicy({...input,...changed}));
 });
 
-test('the complete production IDL fits with a 403-mint catalog and 100-value chunks', () => {
+test('complete instruction decoders fit a verified 100-mint list; broader lists fail closed', () => {
   const productionIdl = JSON.parse(readFileSync(new URL('../../api/src/mcp-auth/jupiter-shared-route.idl.json', import.meta.url)));
   const alphabet = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
   const mints = Array.from({length:403},(_,i)=>stock.slice(0,-3)+alphabet[Math.floor(i/3364)]+alphabet[Math.floor(i/58)%58]+alphabet[i%58]);
-  const p = buildTradingPolicy({...input,idl:productionIdl,stockMints:mints});
-  assert.equal(p.rules.length,16);
+  const p = buildTradingPolicy({...input,idl:productionIdl,stockMints:mints.slice(0,100)});
+  assert.equal(p.rules.length,4);
+  assert.throws(()=>buildTradingPolicy({...input,idl:productionIdl,stockMints:mints}),/at most 100/);
   assert.ok(p.rules.flatMap(r=>r.conditions).filter(c=>c.operator==='in').every(c=>c.value.length<=100));
-  assert.equal(p.rules.filter(r=>r.name.startsWith('allow bounded jupiter sell')).length,5);
-  assert.deepEqual(tradingPolicyIdl(p),productionIdl);
-  assert.doesNotThrow(()=>buildTradingPolicy({...input,idl:tradingPolicyIdl(p),stockMints:mints}));
-  const accountOnly = {rules:[{conditions:[{idl:p.rules[1].conditions[1].idl}]}]};
+  assert.equal(p.rules.filter(r=>r.name.startsWith('allow bounded jupiter sell')).length,1);
+  assert.deepEqual(tradingPolicyIdl(p).instructions[0].args.map(a=>a.name),productionIdl.instructions[0].args.map(a=>a.name));
+  assert.doesNotThrow(()=>buildTradingPolicy({...input,idl:tradingPolicyIdl(p),stockMints:mints.slice(0,100)}));
+  const accountOnly = {rules:[{conditions:[{idl:{...productionIdl,instructions:productionIdl.instructions.map(i=>({...i,args:[]}))}}]}]};
   assert.throws(()=>tradingPolicyIdl(accountOnly),/complete Jupiter/);
 });
 

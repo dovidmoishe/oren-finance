@@ -24,7 +24,7 @@ jobs:
         with:
           node-version: 22
       - run: node --test infra/preview/*.test.mjs
-      - run: node --test infra/signer-gate/trading-policy.test.mjs
+      - run: node --test infra/signer-gate/trading-policy.test.mjs infra/signer-gate/build-launch-policy.test.mjs
       - run: node --check infra/signer-gate/prepare-trading-policy.mjs && node --check infra/signer-gate/policy-owner.mjs
       - run: for script in infra/preview/*.sh; do bash -n "$script"; done
       - run: bash -n infra/mcp/enable-oauth.sh
