@@ -22,7 +22,7 @@ import {
 } from '../execution/swap-terms';
 import type { McpOAuthRuntime } from './oauth-runtime';
 import type { SignerGateClient } from './signer-gate.client';
-import { SignerGateRejection } from './signer-gate.errors';
+import { SignerGateRejection, publicGateFailureCode } from './signer-gate.errors';
 import { rawSellShares, rawSellReferenceUsd } from './delegated-amounts';
 
 export interface McpResourceDeps {
@@ -557,6 +557,7 @@ export async function handleMcpRequest(
                   text: JSON.stringify({
                     intentId,
                     status: 'pending_or_unavailable',
+                    reason: publicGateFailureCode(error),
                   }),
                 },
               ],
