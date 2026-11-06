@@ -1,4 +1,4 @@
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import type { Quote } from '../../types/quote';
 import { PriceMovedError } from '../common/errors/provider.errors';
 import { BasketCache } from './basket-cache';
@@ -82,8 +82,12 @@ describe('ExecutionService basket support', () => {
     getCancel: jest.fn(),
     deleteCancel: jest.fn(),
   };
+  const onchain = {
+    assertWalletTransaction: jest.fn(),
+  };
   const limitOrderRepository = {
     upsert: jest.fn(),
+    findByOrderKey: jest.fn(),
     updateStatus: jest.fn(),
     listByWallet: jest.fn(),
     toRecord: jest.fn(),
@@ -107,6 +111,7 @@ describe('ExecutionService basket support', () => {
       portfolio as never,
       tokens as never,
       intelligence as never,
+      onchain as never,
     );
   });
 
@@ -488,5 +493,141 @@ describe('ExecutionService basket support', () => {
         type: 'limit_buy',
       }),
     );
+  });
+
+  describe('limit order confirmation binding', () => {
+    const other = 'So11111111111111111111111111111111111111112';
+    const proposal = {
+      id: 'proposal-1',
+      side: 'buy',
+      assetId: 'nvda',
+      ticker: 'NVDA',
+      inputMint: 'usdc',
+      outputMint: 'stock',
+      makingAmount: 10,
+      takingAmount: 0.05,
+      limitPriceUsd: 200,
+      amountUsd: 10,
+      expiredAt: 1_900_000_000,
+    };
+    const prepared = {
+      proposalId: 'proposal-1',
+      wallet,
+      orderKey: 'order-1',
+      executionId: 'execution-1',
+    };
+
+    beforeEach(() => {
+      limitOrderCache.getProposal.mockReturnValue(proposal);
+      limitOrderCache.getPrepared.mockReturnValue(prepared);
+      onchain.assertWalletTransaction.mockResolvedValue({});
+      portfolio.getPortfolio.mockResolvedValue({});
+    });
+
+    it('rejects a confirm for a wallet other than the one prepared', async () => {
+      await expect(
+        service.confirmLimitOrder({
+          proposalId: 'proposal-1',
+          wallet: other,
+          signature: 'sig',
+        }),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      expect(limitOrderRepository.upsert).not.toHaveBeenCalled();
+      expect(repository.updateStatus).not.toHaveBeenCalled();
+    });
+
+    it('rejects a caller-supplied orderKey that differs from Jupiter', async () => {
+      await expect(
+        service.confirmLimitOrder({
+          proposalId: 'proposal-1',
+          wallet,
+          signature: 'sig',
+          orderKey: 'another-order',
+        }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(limitOrderRepository.upsert).not.toHaveBeenCalled();
+    });
+
+    it('verifies the signature on chain before recording the order', async () => {
+      onchain.assertWalletTransaction.mockRejectedValue(
+        new BadRequestException('Transaction was not signed by this wallet'),
+      );
+      await expect(
+        service.confirmLimitOrder({
+          proposalId: 'proposal-1',
+          wallet,
+          signature: 'forged',
+        }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(onchain.assertWalletTransaction).toHaveBeenCalledWith(
+        'forged',
+        wallet,
+        'order-1',
+      );
+      expect(limitOrderRepository.upsert).not.toHaveBeenCalled();
+    });
+
+    it('records a verified order under the prepared order key', async () => {
+      await service.confirmLimitOrder({
+        proposalId: 'proposal-1',
+        wallet,
+        signature: 'sig',
+      });
+      expect(limitOrderRepository.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          walletAddress: wallet,
+          orderKey: 'order-1',
+          openSignature: 'sig',
+        }),
+      );
+    });
+
+    it('rejects a cancel confirm from another wallet', async () => {
+      limitOrderCache.getCancel.mockReturnValue({
+        orderKey: 'order-1',
+        wallet,
+        executionId: 'execution-2',
+      });
+      await expect(
+        service.confirmCancelLimitOrder({
+          orderKey: 'order-1',
+          wallet: other,
+          signature: 'sig',
+        }),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      expect(limitOrderRepository.updateStatus).not.toHaveBeenCalled();
+    });
+
+    it('marks an order cancelled only after on-chain verification', async () => {
+      limitOrderCache.getCancel.mockReturnValue({
+        orderKey: 'order-1',
+        wallet,
+        executionId: 'execution-2',
+      });
+      await service.confirmCancelLimitOrder({
+        orderKey: 'order-1',
+        wallet,
+        signature: 'sig',
+      });
+      expect(onchain.assertWalletTransaction).toHaveBeenCalledWith(
+        'sig',
+        wallet,
+        'order-1',
+      );
+      expect(limitOrderRepository.updateStatus).toHaveBeenCalledWith(
+        'order-1',
+        { status: 'cancelled', closeSignature: 'sig' },
+      );
+    });
+
+    it('refuses to prepare a cancel for an order indexed under another wallet', async () => {
+      limitOrderRepository.findByOrderKey.mockResolvedValue({
+        walletAddress: other,
+      });
+      await expect(
+        service.prepareCancelLimitOrder({ orderKey: 'order-1', wallet }),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      expect(trigger.cancelOrder).not.toHaveBeenCalled();
+    });
   });
 });

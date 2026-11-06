@@ -85,16 +85,18 @@ export function prepareVaultUnlock(intent: VaultUnlockIntent) {
   });
 }
 
-export function confirmVaultLock(request: ConfirmVaultLockRequest) {
+export function confirmVaultLock(request: ConfirmVaultLockRequest, token?: string | null) {
   return apiRequest<ConfirmVaultResponse>("/vaults/confirm-lock", {
     method: "POST",
     body: request,
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
   });
 }
 
-export function confirmVaultUnlock(request: ConfirmVaultUnlockRequest) {
+export function confirmVaultUnlock(request: ConfirmVaultUnlockRequest, token?: string | null) {
   return apiRequest<ConfirmVaultResponse>("/vaults/confirm-unlock", {
     method: "POST",
     body: request,
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
   });
 }

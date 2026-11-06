@@ -1,5 +1,10 @@
 import { assertFinancialExecutionEnabled } from '../config/deployment';
-import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  Logger,
+} from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import bs58 from 'bs58';
 import type {
@@ -55,6 +60,7 @@ import {
 } from './jupiter/limit-order-math';
 import { LimitOrderCache } from './limit-order-cache';
 import { LimitOrderRepository } from './limit-order.repository';
+import { OnchainTransactions } from './onchain-transaction';
 import { QuoteCache } from './quote-cache';
 import { SwapRouter } from './swap-router';
 import {
@@ -81,6 +87,7 @@ export class ExecutionService {
     private readonly portfolio: PortfolioService,
     private readonly tokens: TokensService,
     private readonly intelligence: IntelligenceService,
+    private readonly onchain: OnchainTransactions,
   ) {}
 
   async getQuote(body: TradeIntent | QuoteRequest): Promise<Quote> {
@@ -667,16 +674,29 @@ export class ExecutionService {
 
     const proposal = this.limitOrders.getProposal(input.proposalId);
     const prepared = this.limitOrders.getPrepared(input.proposalId);
-    const orderKey = input.orderKey?.trim() || prepared.orderKey;
+    if (prepared.wallet !== wallet) {
+      throw new ForbiddenException(
+        'This limit order was prepared for a different wallet',
+      );
+    }
+    // The order account comes from Jupiter's prepare response, never the caller.
+    const orderKey = prepared.orderKey;
     if (!orderKey) {
       throw new BadRequestException(
         'orderKey is required to persist the limit order',
       );
     }
+    if (input.orderKey?.trim() && input.orderKey.trim() !== orderKey) {
+      throw new BadRequestException(
+        'orderKey does not match the prepared order',
+      );
+    }
+    const signature = input.signature.trim();
+    await this.onchain.assertWalletTransaction(signature, wallet, orderKey);
 
     await this.repository.updateStatus(prepared.executionId, {
       status: 'confirmed',
-      transactionSignature: input.signature.trim(),
+      transactionSignature: signature,
     });
 
     await this.limitOrderRepository.upsert({
@@ -693,7 +713,7 @@ export class ExecutionService {
       amountUsd: proposal.amountUsd,
       status: 'open',
       basis: proposal.basis,
-      openSignature: input.signature.trim(),
+      openSignature: signature,
       expiredAt: new Date(proposal.expiredAt * 1000),
     });
 
@@ -714,7 +734,7 @@ export class ExecutionService {
     return {
       proposalId: input.proposalId,
       wallet,
-      signature: input.signature.trim(),
+      signature,
       orderKey,
       status: 'confirmed',
       portfolioRefreshed,
@@ -838,6 +858,15 @@ export class ExecutionService {
       throw new BadRequestException('orderKey is required');
     }
 
+    const indexed = await this.limitOrderRepository.findByOrderKey(
+      input.orderKey.trim(),
+    );
+    if (indexed && indexed.walletAddress !== wallet) {
+      throw new ForbiddenException(
+        'This limit order does not belong to your wallet',
+      );
+    }
+
     const cancelled = await this.trigger.cancelOrder({
       maker: wallet,
       order: input.orderKey.trim(),
@@ -851,9 +880,6 @@ export class ExecutionService {
       );
     }
 
-    const indexed = await this.limitOrderRepository.findByOrderKey(
-      input.orderKey.trim(),
-    );
     const row = await this.repository.insert({
       walletAddress: wallet,
       type: 'limit_cancel',
@@ -900,21 +926,29 @@ export class ExecutionService {
       throw new BadRequestException('signature is required');
     }
 
-    const prepared = this.limitOrders.getCancel(input.orderKey.trim());
+    const orderKey = input.orderKey.trim();
+    const prepared = this.limitOrders.getCancel(orderKey);
+    if (prepared.wallet !== wallet) {
+      throw new ForbiddenException(
+        'This cancellation was prepared for a different wallet',
+      );
+    }
+    const signature = input.signature.trim();
+    await this.onchain.assertWalletTransaction(signature, wallet, orderKey);
     await this.repository.updateStatus(prepared.executionId, {
       status: 'confirmed',
-      transactionSignature: input.signature.trim(),
+      transactionSignature: signature,
     });
-    await this.limitOrderRepository.updateStatus(input.orderKey.trim(), {
+    await this.limitOrderRepository.updateStatus(orderKey, {
       status: 'cancelled',
-      closeSignature: input.signature.trim(),
+      closeSignature: signature,
     });
-    this.limitOrders.deleteCancel(input.orderKey.trim());
+    this.limitOrders.deleteCancel(orderKey);
 
     return {
-      orderKey: input.orderKey.trim(),
+      orderKey,
       wallet,
-      signature: input.signature.trim(),
+      signature,
       status: 'cancelled',
     };
   }

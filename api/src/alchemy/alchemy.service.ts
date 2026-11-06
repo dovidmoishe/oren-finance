@@ -11,6 +11,7 @@ import type {
   AlchemySignatureInfo,
   AlchemyTokenAccountRaw,
   AlchemyParsedTransaction,
+  AlchemyRawTransaction,
 } from './alchemy.types';
 
 @Injectable()
@@ -145,6 +146,20 @@ export class AlchemyService implements AlchemyProvider {
       {
         encoding: 'jsonParsed',
         commitment: 'finalized',
+        maxSupportedTransactionVersion: 0,
+      },
+    ]);
+  }
+
+  /** Exact transaction bytes at confirmed commitment, for verifying who signed what. */
+  async getConfirmedRawTransaction(
+    signature: string,
+  ): Promise<AlchemyRawTransaction | null> {
+    return this.client.call<AlchemyRawTransaction | null>('getTransaction', [
+      signature,
+      {
+        encoding: 'base64',
+        commitment: 'confirmed',
         maxSupportedTransactionVersion: 0,
       },
     ]);

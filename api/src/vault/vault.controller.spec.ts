@@ -1,6 +1,9 @@
+jest.mock('@privy-io/node', () => ({ PrivyClient: jest.fn() }));
 import { VaultController } from './vault.controller';
 
 describe('VaultController', () => {
+  const auth = { requireWallet: jest.fn().mockResolvedValue('user-1') };
+
   it('delegates prepare-lock to VaultService', async () => {
     const vault = {
       prepareLock: jest.fn().mockResolvedValue({
@@ -8,7 +11,7 @@ describe('VaultController', () => {
         transaction: 'base64',
       }),
     };
-    const controller = new VaultController(vault as never);
+    const controller = new VaultController(vault as never, auth as never);
 
     await expect(
       controller.prepareLock({
@@ -34,10 +37,10 @@ describe('VaultController', () => {
         portfolioRefreshed: true,
       }),
     };
-    const controller = new VaultController(vault as never);
+    const controller = new VaultController(vault as never, auth as never);
 
     await expect(
-      controller.confirmUnlock({
+      controller.confirmUnlock('Bearer token', {
         wallet: 'wallet',
         lockAddress: 'lockbox',
         signature: 'sig',
@@ -49,5 +52,32 @@ describe('VaultController', () => {
       status: 'confirmed',
       portfolioRefreshed: true,
     });
+  });
+
+  it('refuses confirm routes for callers who do not own the wallet', async () => {
+    const vault = { confirmLock: jest.fn(), confirmUnlock: jest.fn() };
+    const denied = new Error('Wallet is not linked to this account');
+    auth.requireWallet.mockRejectedValueOnce(denied).mockRejectedValueOnce(denied);
+    const controller = new VaultController(vault as never, auth as never);
+
+    await expect(
+      controller.confirmUnlock(undefined, {
+        wallet: 'victim',
+        lockAddress: 'lockbox',
+        signature: 'sig',
+      }),
+    ).rejects.toBe(denied);
+    await expect(
+      controller.confirmLock(undefined, {
+        wallet: 'victim',
+        lockAddress: 'lockbox',
+        signature: 'sig',
+        mint: 'mint',
+        amount: 1,
+        unlockAt: new Date(),
+      }),
+    ).rejects.toBe(denied);
+    expect(vault.confirmUnlock).not.toHaveBeenCalled();
+    expect(vault.confirmLock).not.toHaveBeenCalled();
   });
 });

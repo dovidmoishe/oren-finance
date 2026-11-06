@@ -29,8 +29,8 @@ interface ExecutionState {
   quoteTrade: (intent: TradeIntent) => Promise<QuoteResponse | undefined>;
   /** Re-quote the last intent. Automatic refreshes use the background lane. */
   refreshQuote: (options?: { manual?: boolean }) => Promise<QuoteResponse | undefined>;
-  prepareTrade: (request: PrepareExecutionRequest) => Promise<void>;
-  confirmTrade: (wallet: string, executionId: string, quoteId: string, signature: string) => Promise<void>;
+  prepareTrade: (request: PrepareExecutionRequest, token?: string | null) => Promise<void>;
+  confirmTrade: (wallet: string, executionId: string, quoteId: string, signature: string, token?: string | null) => Promise<void>;
   buildBasket: (intent: BasketIntent) => Promise<void>;
   prepareBasketTrades: (request: { basketId: string; wallet: string }) => Promise<void>;
   seedQuote: (quote: QuoteResponse, intent?: TradeIntent) => void;
@@ -109,21 +109,21 @@ export const useExecutionStore = create<ExecutionState>((set, get) => ({
       return undefined;
     }
   },
-  async prepareTrade(request) {
+  async prepareTrade(request, token) {
     const update = sessionSetter(set);
     update({ isLoading: true, error: undefined });
     try {
-      const prepared = await prepareExecution(request);
+      const prepared = await prepareExecution(request, token);
       update({ prepared, isLoading: false });
     } catch (error) {
       update({ error: error instanceof Error ? error.message : "Unable to prepare trade", isLoading: false });
     }
   },
-  async confirmTrade(wallet, executionId, quoteId, signature) {
+  async confirmTrade(wallet, executionId, quoteId, signature, token) {
     const update = sessionSetter(set);
     update({ isLoading: true, error: undefined });
     try {
-      const status = await confirmExecution({ wallet, executionId, quoteId, signature });
+      const status = await confirmExecution({ wallet, executionId, quoteId, signature }, token);
       update({ status, isLoading: false });
     } catch (error) {
       update({ error: error instanceof Error ? error.message : "Unable to confirm trade", isLoading: false });

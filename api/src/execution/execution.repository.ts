@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, desc, eq, inArray } from 'drizzle-orm';
+import { and, desc, eq, or } from 'drizzle-orm';
 import { DRIZZLE } from '../config/constants';
 import type { Database } from '../database/database.provider';
 import { executionJobs, executions } from '../database/schema';
@@ -71,7 +71,15 @@ export class ExecutionRepository {
           and(
             eq(executions.id, input.executionId),
             eq(executions.walletAddress, input.walletAddress),
-            inArray(executions.status, ['awaiting_signature', 'submitted']),
+            // A submitted execution may be re-confirmed with the same
+            // signature (approval retries), never re-pointed at another one.
+            or(
+              eq(executions.status, 'awaiting_signature'),
+              and(
+                eq(executions.status, 'submitted'),
+                eq(executions.transactionSignature, input.transactionSignature),
+              ),
+            ),
           ),
         )
         .returning();

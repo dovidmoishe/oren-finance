@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post } from '@nestjs/common';
+import { Body, Controller, Get, Headers, Param, Post } from '@nestjs/common';
 import { Type } from 'class-transformer';
 import {
   IsDate,
@@ -20,6 +20,7 @@ import type {
   PostPrepareUnlockRequest,
   PostPrepareUnlockResponse,
 } from '../../types/api';
+import { PrivyWalletAuth } from '../auth/privy-wallet-auth';
 import { VaultService } from './vault.service';
 
 class PrepareLockDto implements PostPrepareLockRequest {
@@ -114,7 +115,10 @@ class ConfirmUnlockDto implements PostConfirmUnlockRequest {
 
 @Controller('vaults')
 export class VaultController {
-  constructor(private readonly vault: VaultService) {}
+  constructor(
+    private readonly vault: VaultService,
+    private readonly auth: PrivyWalletAuth,
+  ) {}
 
   @Get(':wallet')
   list(@Param('wallet') wallet: string): Promise<GetVaultsResponse> {
@@ -136,16 +140,20 @@ export class VaultController {
   }
 
   @Post('confirm-lock')
-  confirmLock(
+  async confirmLock(
+    @Headers('authorization') authorization: string | undefined,
     @Body() body: ConfirmLockDto,
   ): Promise<PostConfirmLockResponse> {
+    await this.auth.requireWallet(authorization, body.wallet);
     return this.vault.confirmLock(body);
   }
 
   @Post('confirm-unlock')
-  confirmUnlock(
+  async confirmUnlock(
+    @Headers('authorization') authorization: string | undefined,
     @Body() body: ConfirmUnlockDto,
   ): Promise<PostConfirmUnlockResponse> {
+    await this.auth.requireWallet(authorization, body.wallet);
     return this.vault.confirmUnlock(body);
   }
 }
