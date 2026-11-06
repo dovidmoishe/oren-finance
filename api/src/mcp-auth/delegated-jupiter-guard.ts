@@ -1,10 +1,16 @@
 import {
   AddressLookupTableAccount,
   PublicKey,
+  SystemProgram,
   TransactionMessage,
   VersionedTransaction,
 } from '@solana/web3.js';
-import { TOKEN_2022_PROGRAM_ID, TOKEN_PROGRAM_ID } from '@solana/spl-token';
+import {
+  ASSOCIATED_TOKEN_PROGRAM_ID,
+  getAssociatedTokenAddressSync,
+  TOKEN_2022_PROGRAM_ID,
+  TOKEN_PROGRAM_ID,
+} from '@solana/spl-token';
 import idl from './jupiter-shared-route.idl.json';
 
 const JUPITER = 'JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4';
@@ -27,6 +33,9 @@ export interface DelegatedJupiterTerms {
   outputMint: string;
   sourceAta: string;
   destinationAta: string;
+  /** Resolved independently from the on-chain output mint by each cosigner. */
+  destinationTokenProgram?: string;
+  requireDestinationAccountCreation?: boolean;
   rawInput: string;
   quotedOutputRaw?: string;
   /** Independent cosigner may verify the saved floor without trusting a quote. */
@@ -36,6 +45,7 @@ export interface DelegatedJupiterTerms {
 }
 
 export interface DelegatedJupiterInspection {
+  createsDestinationAccount: boolean;
   rawInput: string;
   quotedOutputRaw: string;
   slippageBps: number;
@@ -158,6 +168,14 @@ function inspectComputeBudget(
   }
   if (units !== undefined && (units < 1 || units > 1_400_000))
     reject('compute unit limit out of range');
+  if (
+    microLamports !== undefined &&
+    units === undefined &&
+    instructions.some((item) =>
+      item.programId.equals(ASSOCIATED_TOKEN_PROGRAM_ID),
+    )
+  )
+    reject('priced account creation requires an explicit compute unit limit');
   const fee =
     (BigInt(units ?? 200_000) * (microLamports ?? 0n) + 999_999n) / 1_000_000n;
   if (fee > MAX_PRIORITY_FEE_LAMPORTS) reject('priority fee over cap');
@@ -210,9 +228,61 @@ export async function inspectDelegatedJupiterTransaction(
     (item) => item.programId.toBase58() === JUPITER,
   );
   if (jupiter.length !== 1) reject('expected exactly one Jupiter route');
+  const creates = instructions.filter((item) =>
+    item.programId.equals(ASSOCIATED_TOKEN_PROGRAM_ID),
+  );
+  if (creates.length > 1) reject('duplicate destination account creation');
+  if (expected.requireDestinationAccountCreation && creates.length !== 1)
+    reject('missing destination account creation');
+  for (const create of creates) {
+    if (
+      !expected.destinationTokenProgram ||
+      ![TOKEN_PROGRAM_ID.toBase58(), TOKEN_2022_PROGRAM_ID.toBase58()].includes(
+        expected.destinationTokenProgram,
+      ) ||
+      create.data.length !== 1 ||
+      create.data[0] !== 1 ||
+      create.keys.length !== 6 ||
+      instructions.indexOf(create) > instructions.indexOf(jupiter[0])
+    )
+      reject('invalid idempotent destination account creation');
+    const destination = getAssociatedTokenAddressSync(
+      new PublicKey(expected.outputMint),
+      new PublicKey(expected.wallet),
+      false,
+      new PublicKey(expected.destinationTokenProgram),
+    ).toBase58();
+    const accounts = [
+      expected.wallet,
+      destination,
+      expected.wallet,
+      expected.outputMint,
+      SystemProgram.programId.toBase58(),
+      expected.destinationTokenProgram,
+    ];
+    if (
+      destination !== expected.destinationAta ||
+      create.keys.some(
+        (key, index) => key.pubkey.toBase58() !== accounts[index],
+      ) ||
+      !create.keys[0].isSigner ||
+      !create.keys[0].isWritable ||
+      !create.keys[1].isWritable ||
+      create.keys.some(
+        (key) =>
+          !tx.message.staticAccountKeys.some((item) => item.equals(key.pubkey)),
+      )
+    )
+      reject('wrong destination account creation accounts');
+  }
   if (
     instructions.some(
-      (item) => ![JUPITER, COMPUTE_BUDGET].includes(item.programId.toBase58()),
+      (item) =>
+        ![
+          JUPITER,
+          COMPUTE_BUDGET,
+          ASSOCIATED_TOKEN_PROGRAM_ID.toBase58(),
+        ].includes(item.programId.toBase58()),
     )
   )
     reject('unapproved top-level instruction');
@@ -275,6 +345,7 @@ export async function inspectDelegatedJupiterTransaction(
   )
     reject('route output is below the reviewed minimum');
   return {
+    createsDestinationAccount: creates.length === 1,
     rawInput: args.in_amount,
     quotedOutputRaw: args.quoted_out_amount,
     slippageBps: args.slippage_bps,

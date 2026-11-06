@@ -1,5 +1,8 @@
 import { createHash, createPublicKey, randomUUID, verify } from 'node:crypto';
-import { policyAllowsStock } from './policy-stock-coverage';
+import {
+  policyAllowsStock,
+  policyAllowsDestinationAccount,
+} from './policy-stock-coverage';
 import {
   signingFailureDetails,
   signingOutcome,
@@ -31,6 +34,7 @@ import type { TokensService } from '../tokens/tokens.service';
 import type { ApprovalRpc } from '../execution/approval-rpc.service';
 import type { Connection } from '@solana/web3.js';
 import { buildGateJupiterRoute } from './gate-jupiter';
+import { USDC_MINT } from '../config/constants';
 import { delegatedUserAllowed } from '../mcp-auth/delegated-access';
 import {
   verifyOwnerProof,
@@ -445,8 +449,11 @@ export class SignerGateService {
       delegation.walletId,
       intent.wallet,
     );
-    await this.verifyPrivySigner(delegation, intent.stockMint ?? undefined);
-    return { intent, delegation };
+    const policy = await this.verifyPrivySigner(
+      delegation,
+      intent.stockMint ?? undefined,
+    );
+    return { intent, delegation, policy };
   }
 
   private async verifyPrivySigner(delegation: Delegation, stockMint?: string) {
@@ -479,6 +486,7 @@ export class SignerGateService {
       throw new Error('Privy signer policy changed');
     if (stockMint && !policyAllowsStock(policy, stockMint))
       throw new Error('Stock mint is outside the delegated policy allowlist');
+    return policy;
   }
 
   private response(execution: Execution) {
@@ -501,7 +509,7 @@ export class SignerGateService {
       !/^[A-Za-z0-9_-]{16,64}$/.test(idempotencyKey)
     )
       throw new Error('Invalid intent or idempotency key');
-    const { intent, delegation } = await this.ownedState(intentId);
+    const { intent, delegation, policy } = await this.ownedState(intentId);
     const [existing] = await this.deps.db
       .select()
       .from(mcpDelegatedExecutions)
@@ -513,6 +521,16 @@ export class SignerGateService {
       return this.reconcile(existing.id);
     }
     const fresh = await buildGateJupiterRoute(intent, this.deps);
+    if (
+      fresh.createsDestinationAccount &&
+      !policyAllowsDestinationAccount(
+        policy,
+        intent.side === 'buy' ? intent.stockMint! : USDC_MINT,
+      )
+    )
+      throw new Error(
+        'Destination account creation is outside the delegated policy',
+      );
     const requestExpiresAt = new Date(Date.now() + 30_000);
     const executionId = randomUUID();
     const request = this.deps.auth.signingRequest(
