@@ -1,18 +1,14 @@
 'use client';
 
-import { useEffect, useId, useState, useSyncExternalStore } from 'react';
+import { useEffect, useId, useState } from 'react';
 import { Copy01Icon, Tick02Icon } from '@hugeicons/core-free-icons';
 import { HugeiconsIcon } from '@hugeicons/react';
-import { mcpApiOrigin } from '@/services/mcp-api-origin';
 import { AGENT_CLIENTS, AgentLogo, isAgentClient, type AgentClient } from './agent-clients';
 import styles from './agents.module.css';
 
 const PRODUCTION_MCP_URL = 'https://api.oren.finance/mcp';
 
 type Client = AgentClient;
-
-/** The API origin is fixed per page load; there is nothing to subscribe to. */
-const subscribeNever = () => () => {};
 
 const CLIENTS: { id: Client; label: string; where: string }[] = [
   { id: 'claude', label: 'Claude', where: 'In Claude settings' },
@@ -58,8 +54,8 @@ export function AgentSetup() {
     window.addEventListener('hashchange', openFromHash);
     return () => window.removeEventListener('hashchange', openFromHash);
   }, []);
-  const origin = useSyncExternalStore(subscribeNever, mcpApiOrigin, () => undefined);
-  const url = origin ? `${origin}/mcp` : PRODUCTION_MCP_URL;
+  // Setup instructions always connect external clients to the public MCP server.
+  const url = PRODUCTION_MCP_URL;
 
   const cursorConfig = JSON.stringify({ mcpServers: { oren: { url } } }, null, 2);
 
