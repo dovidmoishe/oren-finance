@@ -40,6 +40,23 @@ type PrivyPolicy = Awaited<
   ReturnType<ReturnType<PrivyClient['policies']>['get']>
 >;
 
+/** Exact rule contents remain pinned by gatePolicyFingerprint. */
+export function gatePolicyRulesValid(
+  policy: PrivyPolicy,
+  sellsEnabled: boolean,
+) {
+  const rules = policy.rules;
+  if (!rules || rules.some((rule) => rule.method !== 'signTransaction'))
+    return false;
+  if (!sellsEnabled) return rules.length === 3;
+  return (
+    rules.length >= 4 &&
+    rules.length <= 46 &&
+    rules.some((rule) => rule.name === 'allow bounded jupiter buy') &&
+    rules.some((rule) => rule.name === 'allow bounded jupiter sell')
+  );
+}
+
 export interface SignerGateConfig {
   enabled: boolean;
   appId: string;
@@ -128,12 +145,7 @@ export class SignerGateService {
     if (
       policy.owner_id !== this.config.policyOwnerId ||
       policy.chain_type !== 'solana' ||
-      policy.rules?.length !== (this.config.sellsEnabled ? 4 : 3) ||
-      (this.config.sellsEnabled &&
-        !policy.rules.some(
-          (rule) => rule.name === 'allow bounded jupiter sell',
-        )) ||
-      policy.rules.some((rule) => rule.method !== 'signTransaction') ||
+      !gatePolicyRulesValid(policy, this.config.sellsEnabled) ||
       gatePolicyFingerprint(policy) !== this.config.policyHash
     )
       throw new Error('Privy policy differs from owner-reviewed terms');
@@ -457,12 +469,7 @@ export class SignerGateService {
       policy.owner_id !== this.config.policyOwnerId ||
       policy.chain_type !== 'solana' ||
       gatePolicyFingerprint(policy) !== this.config.policyHash ||
-      policy.rules?.length !== (this.config.sellsEnabled ? 4 : 3) ||
-      (this.config.sellsEnabled &&
-        !policy.rules.some(
-          (rule) => rule.name === 'allow bounded jupiter sell',
-        )) ||
-      policy.rules.some((rule) => rule.method !== 'signTransaction')
+      !gatePolicyRulesValid(policy, this.config.sellsEnabled)
     )
       throw new Error('Privy signer policy changed');
   }

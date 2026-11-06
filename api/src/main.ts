@@ -197,6 +197,8 @@ async function bootstrap() {
           );
         if (
           !independent ||
+          (env.PRIVY_MCP_SIGNER_POLICY_ID &&
+            delegation.policyId !== env.PRIVY_MCP_SIGNER_POLICY_ID) ||
           independent.expiresAt <= new Date() ||
           independent.status === 'revoked' ||
           (delegation.status === 'active' && independent.status !== 'active')
