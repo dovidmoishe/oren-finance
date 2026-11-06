@@ -23,7 +23,6 @@ import {
 import type { McpOAuthRuntime } from './oauth-runtime';
 import type { SignerGateClient } from './signer-gate.client';
 import { SignerGateRejection } from './signer-gate.errors';
-import { USDC_DECIMALS } from '../config/constants';
 import { rawSellShares, rawSellReferenceUsd } from './delegated-amounts';
 
 export interface McpResourceDeps {
@@ -212,7 +211,17 @@ export async function handleMcpRequest(
           side === 'sell'
             ? await deps.market.getStock(quote.assetId)
             : undefined;
-        const stockDecimals = quote.variant.decimals ?? USDC_DECIMALS;
+        const stockDecimals = quote.variant.decimals;
+        if (stockDecimals === undefined)
+          return {
+            content: [
+              {
+                type: 'text',
+                text: 'Token precision for this stock is unavailable. Try again shortly.',
+              },
+            ],
+            isError: true,
+          };
         const normalizedShares =
           side === 'sell' ? rawSellShares(maxIn, stockDecimals) : null;
         const referenceValueUsd =

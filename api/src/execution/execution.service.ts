@@ -512,7 +512,7 @@ export class ExecutionService {
         `No tradable variants for ${equity.ticker}`,
       );
     }
-    const variant = candidates[0];
+    const variant = await this.selector.withDecimals(candidates[0]);
     const stockDecimals = variant.decimals ?? USDC_DECIMALS;
 
     let amount: number;
@@ -945,7 +945,6 @@ export class ExecutionService {
       mint: stockMint,
       symbol: req.ticker ?? 'TOKEN',
       name: req.ticker ?? 'TOKEN',
-      decimals: USDC_DECIMALS,
       tradable: true,
     };
     let assetId = req.assetId ?? 'unknown';
@@ -965,6 +964,7 @@ export class ExecutionService {
     } catch {
       // keep placeholders
     }
+    variant = await this.selector.withDecimals(variant);
 
     const inputDecimals =
       req.inputMint === USDC_MINT

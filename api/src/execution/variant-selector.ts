@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import type { Equity, TokenizedEquity } from '../../types/equity';
 import type { TradeIntent } from '../../types/execution';
 import type { Quote } from '../../types/quote';
@@ -13,6 +13,7 @@ import {
   TokensNotFoundError,
 } from '../common/errors/provider.errors';
 import { TokensService } from '../tokens/tokens.service';
+import { StockDecimals } from './stock-decimals';
 import { SwapRouter, TITAN_MAX_VARIANT_QUOTES } from './swap-router';
 
 export interface VariantSelectionResult {
@@ -28,6 +29,7 @@ export class VariantSelector {
   constructor(
     private readonly tokens: TokensService,
     private readonly router: SwapRouter,
+    @Optional() private readonly decimals?: StockDecimals,
   ) {}
 
   async selectAndQuote(
@@ -129,12 +131,18 @@ export class VariantSelector {
     return results;
   }
 
+  /** The variant with its mint's real decimals; throws rather than guessing. */
+  async withDecimals(variant: TokenizedEquity): Promise<TokenizedEquity> {
+    return this.decimals ? this.decimals.forVariant(variant) : variant;
+  }
+
   private async buildQuoteForVariant(
     equity: Equity,
-    variant: TokenizedEquity,
+    catalogVariant: TokenizedEquity,
     intent: TradeIntent,
     titanEligible: boolean,
   ): Promise<Quote> {
+    const variant = await this.withDecimals(catalogVariant);
     const stockDecimals = variant.decimals ?? USDC_DECIMALS;
     const side = intent.side;
 
