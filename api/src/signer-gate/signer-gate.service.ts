@@ -1,5 +1,13 @@
 import { createHash, createPublicKey, randomUUID, verify } from 'node:crypto';
 import {
+  policyAllowsStock,
+  policyAllowsDestinationAccount,
+} from './policy-stock-coverage';
+import {
+  signingFailureDetails,
+  signingOutcome,
+} from '../mcp-auth/signing-outcome';
+import {
   formatRequestForAuthorizationSignature,
   generateAuthorizationSignature,
   PrivyClient,
@@ -26,6 +34,7 @@ import type { TokensService } from '../tokens/tokens.service';
 import type { ApprovalRpc } from '../execution/approval-rpc.service';
 import type { Connection } from '@solana/web3.js';
 import { buildGateJupiterRoute } from './gate-jupiter';
+import { USDC_MINT } from '../config/constants';
 import { delegatedUserAllowed } from '../mcp-auth/delegated-access';
 import {
   verifyOwnerProof,
@@ -39,6 +48,23 @@ type Execution = typeof mcpDelegatedExecutions.$inferSelect;
 type PrivyPolicy = Awaited<
   ReturnType<ReturnType<PrivyClient['policies']>['get']>
 >;
+
+/** Exact rule contents remain pinned by gatePolicyFingerprint. */
+export function gatePolicyRulesValid(
+  policy: PrivyPolicy,
+  sellsEnabled: boolean,
+) {
+  const rules = policy.rules;
+  if (!rules || rules.some((rule) => rule.method !== 'signTransaction'))
+    return false;
+  if (!sellsEnabled) return rules.length === 3;
+  return (
+    rules.length >= 4 &&
+    rules.length <= 46 &&
+    rules.some((rule) => rule.name === 'allow bounded jupiter buy') &&
+    rules.some((rule) => rule.name === 'allow bounded jupiter sell')
+  );
+}
 
 export interface SignerGateConfig {
   enabled: boolean;
@@ -128,12 +154,7 @@ export class SignerGateService {
     if (
       policy.owner_id !== this.config.policyOwnerId ||
       policy.chain_type !== 'solana' ||
-      policy.rules?.length !== (this.config.sellsEnabled ? 4 : 3) ||
-      (this.config.sellsEnabled &&
-        !policy.rules.some(
-          (rule) => rule.name === 'allow bounded jupiter sell',
-        )) ||
-      policy.rules.some((rule) => rule.method !== 'signTransaction') ||
+      !gatePolicyRulesValid(policy, this.config.sellsEnabled) ||
       gatePolicyFingerprint(policy) !== this.config.policyHash
     )
       throw new Error('Privy policy differs from owner-reviewed terms');
@@ -428,11 +449,14 @@ export class SignerGateService {
       delegation.walletId,
       intent.wallet,
     );
-    await this.verifyPrivySigner(delegation);
-    return { intent, delegation };
+    const policy = await this.verifyPrivySigner(
+      delegation,
+      intent.stockMint ?? undefined,
+    );
+    return { intent, delegation, policy };
   }
 
-  private async verifyPrivySigner(delegation: Delegation) {
+  private async verifyPrivySigner(delegation: Delegation, stockMint?: string) {
     if (
       delegation.signerId !== this.config.signerQuorumId ||
       delegation.policyId !== this.config.policyId ||
@@ -457,14 +481,12 @@ export class SignerGateService {
       policy.owner_id !== this.config.policyOwnerId ||
       policy.chain_type !== 'solana' ||
       gatePolicyFingerprint(policy) !== this.config.policyHash ||
-      policy.rules?.length !== (this.config.sellsEnabled ? 4 : 3) ||
-      (this.config.sellsEnabled &&
-        !policy.rules.some(
-          (rule) => rule.name === 'allow bounded jupiter sell',
-        )) ||
-      policy.rules.some((rule) => rule.method !== 'signTransaction')
+      !gatePolicyRulesValid(policy, this.config.sellsEnabled)
     )
       throw new Error('Privy signer policy changed');
+    if (stockMint && !policyAllowsStock(policy, stockMint))
+      throw new Error('Stock mint is outside the delegated policy allowlist');
+    return policy;
   }
 
   private response(execution: Execution) {
@@ -476,6 +498,7 @@ export class SignerGateService {
         ? { canonicalRequestBase64: canonical(execution).toString('base64') }
         : {}),
       chainSignature: execution.chainSignature ?? undefined,
+      ...signingOutcome(execution.errorCode, execution.chainSignature),
     };
   }
 
@@ -486,7 +509,7 @@ export class SignerGateService {
       !/^[A-Za-z0-9_-]{16,64}$/.test(idempotencyKey)
     )
       throw new Error('Invalid intent or idempotency key');
-    const { intent, delegation } = await this.ownedState(intentId);
+    const { intent, delegation, policy } = await this.ownedState(intentId);
     const [existing] = await this.deps.db
       .select()
       .from(mcpDelegatedExecutions)
@@ -495,9 +518,19 @@ export class SignerGateService {
     if (existing) {
       if (existing.idempotencyKey !== idempotencyKey)
         throw new Error('Intent was already claimed with another key');
-      return this.response(existing);
+      return this.reconcile(existing.id);
     }
     const fresh = await buildGateJupiterRoute(intent, this.deps);
+    if (
+      fresh.createsDestinationAccount &&
+      !policyAllowsDestinationAccount(
+        policy,
+        intent.side === 'buy' ? intent.stockMint! : USDC_MINT,
+      )
+    )
+      throw new Error(
+        'Destination account creation is outside the delegated policy',
+      );
     const requestExpiresAt = new Date(Date.now() + 30_000);
     const executionId = randomUUID();
     const request = this.deps.auth.signingRequest(
@@ -616,16 +649,25 @@ export class SignerGateService {
           request_expiry: execution.requestExpiresAt.getTime(),
         });
       signed = result.signed_transaction;
-    } catch {
+    } catch (error) {
+      const failure = signingFailureDetails(error);
+      console.error(
+        'Privy delegated signing failed',
+        JSON.stringify({ executionId: execution.id, ...failure }),
+      );
       await this.deps.db
         .update(mcpDelegatedExecutions)
         .set({
           state: 'pending',
-          errorCode: 'privy_uncertain',
+          errorCode: failure.errorCode,
           updatedAt: new Date(),
         })
         .where(eq(mcpDelegatedExecutions.id, execution.id));
-      return { executionId, state: 'pending' as const };
+      return {
+        executionId,
+        state: 'pending' as const,
+        ...signingOutcome(failure.errorCode),
+      };
     }
     const chainSignature = this.deps.rpc.validateSigned(
       execution.unsignedTransaction,
@@ -691,22 +733,60 @@ export class SignerGateService {
       .where(eq(mcpDelegatedExecutions.id, executionId))
       .limit(1);
     if (!execution) throw new Error('Execution unavailable');
+    let expiredUnsignedSigning = false;
     if (
-      execution.state === 'challenged' &&
-      execution.requestExpiresAt <= new Date()
+      execution.state === 'pending' &&
+      !execution.chainSignature &&
+      !execution.signedTransaction &&
+      execution.requestExpiresAt <= new Date() &&
+      (execution.errorCode === 'privy_uncertain' ||
+        /^privy_rejected_(400|401|403|404|409|422)$/.test(
+          execution.errorCode ?? '',
+        )) &&
+      Number.isSafeInteger(execution.lastValidBlockHeight) &&
+      execution.lastValidBlockHeight! > 0
+    ) {
+      const [intent] = await this.deps.db
+        .select({ wallet: mcpTradeIntents.wallet })
+        .from(mcpTradeIntents)
+        .where(eq(mcpTradeIntents.id, execution.intentId))
+        .limit(1);
+      expiredUnsignedSigning =
+        !!intent &&
+        !(await this.deps.rpc.blockhashValid(
+          execution.unsignedTransaction,
+          intent.wallet,
+          execution.lastValidBlockHeight!,
+        ));
+    }
+    if (
+      (execution.state === 'challenged' &&
+        execution.requestExpiresAt <= new Date()) ||
+      expiredUnsignedSigning
     ) {
       const expired = await this.deps.db.transaction(async (tx) => {
         const [claimed] = await tx
           .update(mcpDelegatedExecutions)
           .set({
             state: 'failed',
-            errorCode: 'unused_challenge_expired',
+            errorCode: expiredUnsignedSigning
+              ? 'signing_expired'
+              : 'unused_challenge_expired',
             updatedAt: new Date(),
           })
           .where(
             and(
               eq(mcpDelegatedExecutions.id, executionId),
-              eq(mcpDelegatedExecutions.state, 'challenged'),
+              eq(
+                mcpDelegatedExecutions.state,
+                expiredUnsignedSigning ? 'pending' : 'challenged',
+              ),
+              ...(expiredUnsignedSigning
+                ? [
+                    isNull(mcpDelegatedExecutions.chainSignature),
+                    isNull(mcpDelegatedExecutions.signedTransaction),
+                  ]
+                : []),
             ),
           )
           .returning({ id: mcpDelegatedExecutions.id });

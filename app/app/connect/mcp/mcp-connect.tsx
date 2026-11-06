@@ -3,7 +3,14 @@
 import { useEffect, useState } from 'react';
 import { useOrenAuth } from '@/components/auth/auth-context';
 import Link from 'next/link';
+import Image from 'next/image';
+import { HugeiconsIcon } from '@hugeicons/react';
+import { ArrowRight01Icon, ChartLineData01Icon, Shield01Icon, Wallet01Icon, ComputerIcon } from '@hugeicons/core-free-icons';
+import { OrenLogo } from '@/components/brand/oren-logo';
+import styles from './mcp-connect.module.css';
 import { mcpApiOrigin } from '@/services/mcp-api-origin';
+import { mcpConnector } from '@/services/mcp-connector';
+import { mcpEnrollmentLinks } from '@/services/mcp-enrollment-flow';
 
 type Interaction = {
   clientId: string;
@@ -42,6 +49,10 @@ function McpConnection({ uid }: { uid: string }) {
   const apiOrigin = mcpApiOrigin();
   const requestsExecute = details?.scope.split(/\s+/).includes('oren.trade.execute') ?? false;
   const needsNativeConsent = details?.requiresNativeConsent === true;
+  const connector = mcpConnector(details?.callbackUrl);
+  const appName = connector?.name ?? 'your app';
+  const scopes = details?.scope.split(/\s+/) ?? [];
+  const unavailable = !uid || !apiOrigin;
 
   useEffect(() => {
     if (!uid || !apiOrigin) return;
@@ -114,54 +125,90 @@ function McpConnection({ uid }: { uid: string }) {
   }
 
   return (
-    <main className="mx-auto max-w-lg px-5 py-16 text-foreground">
-      <h1 className="text-3xl font-semibold">Connect Oren</h1>
-      <p className="mt-3 text-muted">Sign in with the same email and one-time code you use for Oren.</p>
-      {details && <div className="mt-8 rounded-2xl border border-border bg-panel p-5">
-        <p className="text-sm text-muted">Connection ID</p>
-        <p className="mt-1 break-all font-medium">{details.clientId}</p>
-        <p className="mt-5 text-sm text-muted">Return to</p>
-        <p className="mt-1 break-all font-medium">{details.callbackDestination}</p>
-        <p className="mt-1 break-all text-xs text-muted">{details.callbackUrl}</p>
-        {needsNativeConsent && <div className="mt-5 rounded-xl border border-border p-4">
-          <p className="text-sm font-medium">Confirm the app you opened</p>
-          <p className="mt-2 text-sm text-muted">This callback returns access to a local app. Oren cannot verify that it is Cursor or Codex. Another program on your device can use the same callback.</p>
-          <label className="mt-4 flex items-start gap-3 text-sm">
+    <main className={styles.page}>
+      <section aria-labelledby="connection-title" className={styles.card}>
+        <div aria-hidden="true" className={styles.brands}>
+          <div className={styles.logoTile}><OrenLogo size={52} /></div>
+          <div className={styles.connector}><span /><span /><span /></div>
+          <div className={`${styles.logoTile} ${connector?.name === 'Claude' ? styles.claudeTile : ''}`}>
+            {connector ? <Image alt="" src={connector.logo} width={37} height={37} /> : <HugeiconsIcon icon={ComputerIcon} size={32} />}
+          </div>
+        </div>
+        <header className={styles.heading}>
+          <h1 id="connection-title">{details ? `Connect Oren to ${appName}` : 'Connect to Oren'}</h1>
+          {!auth.authenticated && <p>Sign in to continue.</p>}
+        </header>
+        {!details && !error && !unavailable && <p className={styles.loading} role="status">Loading your connection request…</p>}
+        {details && <>
+          <div className={styles.permissions}>
+            {scopes.includes('oren.read') && <div className={styles.permission}>
+              <HugeiconsIcon icon={ChartLineData01Icon} size={20} />
+              <div><h3>View your portfolio and market data</h3></div>
+            </div>}
+            {scopes.includes('oren.trade.prepare') && <div className={styles.permission}>
+              <HugeiconsIcon icon={Wallet01Icon} size={20} />
+              <div><h3>Prepare trades for your review</h3></div>
+            </div>}
+            {requestsExecute && <div className={styles.permission}>
+              <HugeiconsIcon icon={Shield01Icon} size={20} />
+              <div><h3>Place trades within your limits</h3></div>
+            </div>}
+            {!requestsExecute && <p className={styles.reviewNote}>Trades need your review and signature in Oren.</p>}
+          </div>
+          {needsNativeConsent ? <div className={styles.notice}>
+            <h2>Confirm your app</h2>
+            <p>Oren cannot verify which local app receives access. Another app on your device could use this address.</p>
+            <p className={styles.callback}>{details.callbackUrl}</p>
+            <label className={styles.checkbox}>
             <input checked={allowNativeClient} className="mt-1" onChange={(event) => setAllowNativeClient(event.target.checked)} type="checkbox" />
             <span>I started this connection from an app I trust on this device.</span>
-          </label>
-        </div>}
-        <p className="mt-5 text-sm text-muted">Access requested</p>
-        <p className="mt-1">
-          {details.scope.includes('oren.read') ? 'Read your portfolio and stock market data. ' : ''}
-          {details.scope.includes('oren.trade.prepare') ? 'Prepare stock buys and sells for review. ' : ''}
-          {requestsExecute
-            ? 'If you grant chat trading below, your agent app can execute trades within your active limits while this connection and delegation remain active.'
-            : 'The agent cannot sign or submit a trade with this connection.'}
-        </p>
-        {requestsExecute && delegation?.enabled && <>
-          <p className="mt-5 text-sm">Up to ${delegation.perTradeUsd} per trade and ${delegation.dailyUsd} in any rolling 24 hours. Used: ${delegation.usedTodayUsd}. {delegation.sides?.join(' and ')} only. Maximum slippage: {delegation.maxSlippageBps} bps. Expires {delegation.expiresAt ? new Date(delegation.expiresAt).toLocaleString() : 'soon'}.</p>
-          <label className="mt-4 flex items-start gap-3 text-sm">
+            </label>
+          </div> : <p className={styles.destination}>Connecting to <strong>{details.callbackDestination}</strong></p>}
+          {requestsExecute && delegation?.enabled && <div className={styles.notice}>
+            <h2>Your trading limits</h2>
+            <dl className={styles.limits}>
+              <div><dt>Per trade</dt><dd>${delegation.perTradeUsd}</dd></div>
+              <div><dt>Rolling 24 hours</dt><dd>${delegation.dailyUsd}</dd></div>
+              <div><dt>Used in this window</dt><dd>${delegation.usedTodayUsd}</dd></div>
+              <div><dt>Allowed trades</dt><dd>{delegation.sides?.join(' and ')}</dd></div>
+              <div><dt>Price tolerance</dt><dd>{delegation.maxSlippageBps == null ? 'Unavailable' : `${delegation.maxSlippageBps / 100}%`}</dd></div>
+              <div><dt>Expires</dt><dd>{delegation.expiresAt ? new Date(delegation.expiresAt).toLocaleString() : 'soon'}</dd></div>
+            </dl>
+            <label className={styles.checkbox}>
             <input checked={allowExecute} className="mt-1" onChange={(event) => setAllowExecute(event.target.checked)} type="checkbox" />
-            <span>I allow this agent connection to execute trades within these limits. I can revoke it in settings.</span>
-          </label>
+            <span>I allow {appName} to trade within these limits while this connection and trading permission are active.</span>
+            </label>
+          </div>}
+          {requestsExecute && delegation && !delegation.enabled && <div className={styles.notice}>
+            <h2>Chat trading is off</h2>
+            <p>Set your trading limits, then return here to finish connecting.</p>
+            <Link className={styles.primary} href={mcpEnrollmentLinks(uid).settings}>Set up chat trading</Link>
+          </div>}
+          {requestsExecute && authenticated && !delegation && !delegationError && <p className={styles.loading} role="status">Checking your trading limits…</p>}
+          <details className={styles.details}>
+            <summary>Connection details</summary>
+            <dl><dt>Connection ID</dt><dd>{details.clientId}</dd><dt>Return address</dt><dd>{details.callbackUrl}</dd></dl>
+          </details>
         </>}
-        {requestsExecute && delegation && !delegation.enabled && <p className="mt-5 text-sm">Chat trading is not active. Enable it in <Link className="underline" href="/settings/mcp">Agent connections</Link> before connecting your agent app.</p>}
-      </div>}
-      {error && <p className="mt-5 text-sm text-red-700" role="alert">{error}</p>}
-      {delegationError && <p className="mt-5 text-sm text-red-700" role="alert">{delegationError}</p>}
-      {!auth.configured && <p className="mt-5 text-sm text-red-700" role="alert">Email sign-in is temporarily unavailable.</p>}
+      {unavailable && <p className={styles.error} role="alert">{!uid ? 'Open a new connection from your app to get started.' : 'Connections are temporarily unavailable. Please try again later.'}</p>}
+      {error && <p className={styles.error} role="alert">{error}</p>}
+      {delegationError && <p className={styles.error} role="alert">{delegationError}</p>}
+      {!auth.configured && <p className={styles.error} role="alert">Email sign-in is temporarily unavailable.</p>}
       {!auth.authenticated ? (
-        <button className="mt-6 rounded-xl bg-foreground px-5 py-3 text-white disabled:opacity-50" disabled={!auth.configured || !auth.ready} onClick={auth.open} type="button">
-          {auth.ready ? 'Sign in with email code' : 'Loading sign-in…'}
+        <button className={styles.primary} disabled={unavailable || !details || !auth.configured || !auth.ready} onClick={auth.open} type="button">
+          {auth.ready ? 'Sign in to Oren' : 'Loading sign-in…'}
+          <HugeiconsIcon icon={ArrowRight01Icon} size={18} />
         </button>
       ) : (
-        <button className="mt-6 rounded-xl bg-foreground px-5 py-3 text-white disabled:opacity-50" disabled={!details || !auth.address || busy || (needsNativeConsent && !allowNativeClient) || (requestsExecute && (!allowExecute || !delegation?.enabled || !delegation.delegationId))} onClick={() => void authorize()} type="button">
-          {busy ? 'Connecting…' : auth.address ? 'Allow connection' : 'Preparing your wallet…'}
+        <button className={styles.primary} disabled={unavailable || !details || !auth.address || busy || (needsNativeConsent && !allowNativeClient) || (requestsExecute && (!allowExecute || !delegation?.enabled || !delegation.delegationId))} onClick={() => void authorize()} type="button">
+          {busy ? 'Connecting…' : auth.address ? (connector ? `Connect to ${appName}` : 'Allow connection') : 'Getting your account ready…'}
+          {!busy && <HugeiconsIcon icon={ArrowRight01Icon} size={18} />}
         </button>
       )}
-      <p className="mt-6 text-sm text-muted">
-        You can revoke this connection anytime in <Link className="underline" href="/settings/mcp">Agent connections</Link>.
+      {!auth.authenticated && <p className={styles.signInNote}>We’ll email you a sign-in code.</p>}
+      </section>
+      <p className={styles.footer}>
+        You can disconnect anytime in <Link href={mcpEnrollmentLinks(uid).settings}>Agent connections</Link>.
       </p>
     </main>
   );

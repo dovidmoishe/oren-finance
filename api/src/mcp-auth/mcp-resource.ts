@@ -16,14 +16,21 @@ import type { MarketService } from '../market/market.service';
 import type { PortfolioService } from '../portfolio/portfolio.service';
 import type { ExecutionService } from '../execution/execution.service';
 import {
+  SOL_RENT_MESSAGE,
+  SOL_FEE_MESSAGE,
+} from '../execution/simulation-failure';
+import {
   enforcedMinimumOut,
   rawIn,
   reviewedTermsFor,
 } from '../execution/swap-terms';
 import type { McpOAuthRuntime } from './oauth-runtime';
 import type { SignerGateClient } from './signer-gate.client';
-import { SignerGateRejection } from './signer-gate.errors';
-import { USDC_DECIMALS } from '../config/constants';
+import {
+  SignerGateRejection,
+  publicGateFailureCode,
+} from './signer-gate.errors';
+import { signingOutcome } from './signing-outcome';
 import { rawSellShares, rawSellReferenceUsd } from './delegated-amounts';
 
 export interface McpResourceDeps {
@@ -212,7 +219,17 @@ export async function handleMcpRequest(
           side === 'sell'
             ? await deps.market.getStock(quote.assetId)
             : undefined;
-        const stockDecimals = quote.variant.decimals ?? USDC_DECIMALS;
+        const stockDecimals = quote.variant.decimals;
+        if (stockDecimals === undefined)
+          return {
+            content: [
+              {
+                type: 'text',
+                text: 'Token precision for this stock is unavailable. Try again shortly.',
+              },
+            ],
+            isError: true,
+          };
         const normalizedShares =
           side === 'sell' ? rawSellShares(maxIn, stockDecimals) : null;
         const referenceValueUsd =
@@ -374,8 +391,14 @@ export async function handleMcpRequest(
         },
       );
     const openTradeReview = async ({ intentId }: { intentId: string }) => {
+      const unavailable = {
+        content: [
+          { type: 'text' as const, text: 'Intent expired or unavailable.' },
+        ],
+        isError: true,
+      };
       const [intent] = await deps.db
-        .select({ id: mcpTradeIntents.id })
+        .select({ id: mcpTradeIntents.id, mode: mcpTradeIntents.mode })
         .from(mcpTradeIntents)
         .where(
           and(
@@ -385,18 +408,29 @@ export async function handleMcpRequest(
             eq(mcpTradeIntents.userId, connection.userId),
             eq(mcpTradeIntents.wallet, connection.wallet),
             gt(mcpTradeIntents.expiresAt, new Date()),
-            eq(mcpTradeIntents.mode, 'browser'),
             eq(mcpTradeIntents.status, 'prepared'),
           ),
         )
         .limit(1);
-      if (!intent)
-        return {
-          content: [
-            { type: 'text' as const, text: 'Intent expired or unavailable.' },
-          ],
-          isError: true,
-        };
+      if (!intent) return unavailable;
+      if (intent.mode === 'delegated') {
+        // Some clients (Claude.ai) will not execute trades. Hand a still-prepared
+        // delegated intent to browser review, as the gate-rejection path does;
+        // once converted the delegated path can no longer execute it.
+        const [converted] = await deps.db
+          .update(mcpTradeIntents)
+          .set({ mode: 'browser', delegationId: null })
+          .where(
+            and(
+              eq(mcpTradeIntents.id, intentId),
+              eq(mcpTradeIntents.status, 'prepared'),
+              eq(mcpTradeIntents.mode, 'delegated'),
+              gt(mcpTradeIntents.expiresAt, new Date()),
+            ),
+          )
+          .returning({ id: mcpTradeIntents.id });
+        if (!converted) return unavailable;
+      } else if (intent.mode !== 'browser') return unavailable;
       const result = {
         intentId,
         status: 'browser_approval_required',
@@ -411,7 +445,7 @@ export async function handleMcpRequest(
       {
         title: 'Open trade review',
         description:
-          'Get the Oren browser review link for a prepared buy or sell intent. The user signs there.',
+          'Get the Oren browser review link for a prepared buy or sell intent. The user signs there. Works for delegated intents too: the intent moves to browser review and can no longer be executed by execute_trade.',
         inputSchema: z.object({ intentId: z.uuid() }),
       },
       openTradeReview,
@@ -496,11 +530,59 @@ export async function handleMcpRequest(
                     intentId,
                     status: result.state,
                     signature: result.chainSignature,
+                    ...signingOutcome(result.reason, result.chainSignature),
                   }),
                 },
               ],
             };
           } catch (error) {
+            if (
+              error instanceof SignerGateRejection &&
+              [
+                'insufficient_sol_for_rent',
+                'insufficient_sol_for_fees',
+              ].includes(error.code)
+            ) {
+              return {
+                content: [
+                  {
+                    type: 'text' as const,
+                    text: JSON.stringify({
+                      intentId,
+                      status: 'funding_required',
+                      reason: error.code,
+                      message:
+                        error.code === 'insufficient_sol_for_rent'
+                          ? SOL_RENT_MESSAGE
+                          : SOL_FEE_MESSAGE,
+                      fundingAsset: 'SOL',
+                      broadcast: false,
+                    }),
+                  },
+                ],
+                isError: true,
+              };
+            }
+            if (
+              error instanceof SignerGateRejection &&
+              error.code === 'reviewed_terms_changed'
+            ) {
+              return {
+                content: [
+                  {
+                    type: 'text' as const,
+                    text: JSON.stringify({
+                      intentId,
+                      status: 'quote_changed',
+                      reason: 'reviewed_terms_changed',
+                      message:
+                        'The execution quote no longer meets the approved terms. Prepare a fresh quote and obtain fresh approval. No signing attempt was made for this rejection.',
+                    }),
+                  },
+                ],
+                isError: true,
+              };
+            }
             if (
               error instanceof SignerGateRejection &&
               [
@@ -531,6 +613,7 @@ export async function handleMcpRequest(
                   text: JSON.stringify({
                     intentId,
                     status: 'pending_or_unavailable',
+                    reason: publicGateFailureCode(error),
                   }),
                 },
               ],
@@ -580,11 +663,13 @@ export async function handleMcpRequest(
               ? intent.status
               : 'browser_approval_required';
         let signature: string | undefined;
+        let signingDetails = {};
         if (intent.mode === 'delegated') {
           const [execution] = await deps.db
             .select({
               state: mcpDelegatedExecutions.state,
               chainSignature: mcpDelegatedExecutions.chainSignature,
+              errorCode: mcpDelegatedExecutions.errorCode,
             })
             .from(mcpDelegatedExecutions)
             .where(eq(mcpDelegatedExecutions.intentId, intentId))
@@ -592,6 +677,7 @@ export async function handleMcpRequest(
           if (execution) {
             status = execution.state;
             signature = execution.chainSignature ?? undefined;
+            signingDetails = signingOutcome(execution.errorCode, signature);
           }
         }
         if (intent.approvalId) {
@@ -626,6 +712,7 @@ export async function handleMcpRequest(
                 intentId,
                 status,
                 signature,
+                ...signingDetails,
                 observedAt: new Date().toISOString(),
               }),
             },

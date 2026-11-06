@@ -63,7 +63,7 @@ import {
   type ReviewedTerms,
   type SwapExpectation,
 } from './swap-terms';
-import { VariantSelector } from './variant-selector';
+import { VariantSelector, scaledSellAmount } from './variant-selector';
 
 @Injectable()
 export class ExecutionService {
@@ -512,7 +512,7 @@ export class ExecutionService {
         `No tradable variants for ${equity.ticker}`,
       );
     }
-    const variant = candidates[0];
+    const variant = await this.selector.withDecimals(candidates[0]);
     const stockDecimals = variant.decimals ?? USDC_DECIMALS;
 
     let amount: number;
@@ -535,6 +535,7 @@ export class ExecutionService {
         amount,
         limitPriceUsd: intent.limitPriceUsd,
         stockDecimals,
+        stockMultiplier: variant.uiMultiplier,
         marketPriceUsd: equity.price,
       });
     } catch (err) {
@@ -945,7 +946,6 @@ export class ExecutionService {
       mint: stockMint,
       symbol: req.ticker ?? 'TOKEN',
       name: req.ticker ?? 'TOKEN',
-      decimals: USDC_DECIMALS,
       tradable: true,
     };
     let assetId = req.assetId ?? 'unknown';
@@ -965,6 +965,7 @@ export class ExecutionService {
     } catch {
       // keep placeholders
     }
+    variant = await this.selector.withDecimals(variant);
 
     const inputDecimals =
       req.inputMint === USDC_MINT
@@ -993,7 +994,10 @@ export class ExecutionService {
       outputSymbol: req.outputMint === USDC_MINT ? 'USDC' : variant.symbol,
       inputDecimals,
       outputDecimals,
-      amountUi: req.amount,
+      amountUi:
+        req.inputMint === stockMint && req.inputMint !== USDC_MINT
+          ? scaledSellAmount(req.amount, inputDecimals, variant.uiMultiplier)
+          : req.amount,
       amountUsd,
       slippageBps: req.slippageBps ?? DEFAULT_SLIPPAGE_BPS,
       wallet: req.wallet,

@@ -74,6 +74,10 @@ export async function inspectApiTradeTransaction(
       outputMint,
       sourceAta: intent.side === 'buy' ? usdcAta : stockAta,
       destinationAta: intent.side === 'buy' ? stockAta : usdcAta,
+      destinationTokenProgram: (intent.side === 'buy'
+        ? mintAccount.owner
+        : TOKEN_PROGRAM_ID
+      ).toBase58(),
       rawInput: intent.maxInRaw,
       maxInputRaw: intent.maxInRaw,
       minimumOutputRaw: intent.minOutRaw,

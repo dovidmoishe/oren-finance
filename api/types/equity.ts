@@ -30,6 +30,11 @@ export interface TokenizedEquity {
   name: string;
   issuer?: string;
   decimals?: number;
+  /**
+   * Token-2022 scaled-UI multiplier in effect now (xStocks): shares shown =
+   * raw / 10^decimals * uiMultiplier. Read from the mint; 1 when unscaled.
+   */
+  uiMultiplier?: number;
   liquidity?: number;
   liquidityTier?: string;
   trustTier?: string;

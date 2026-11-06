@@ -1,6 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { Shield01Icon } from "@hugeicons/core-free-icons";
+import { TradeGrantEditor } from "./trade-grant-editor";
+import { ConnectionNextStep } from "./connection-next-step";
+import styles from "./trade-grant.module.css";
 import { useOrenAuth } from "@/components/auth/auth-context";
 import { mcpApiOrigin } from "@/services/mcp-api-origin";
 import { validateGrantPermission, validateTrustedTradeSigner, type GrantSettings } from "@/services/mcp-grant-authorization";
@@ -32,7 +37,7 @@ type GrantState = {
   expiresAt?: string;
 };
 
-export function TradeGrant() {
+export function TradeGrant({ connectionUid }: { connectionUid?: string }) {
   const auth = useOrenAuth();
   const { authenticated, ready, getAccessToken } = auth;
   const apiOrigin = mcpApiOrigin();
@@ -42,12 +47,6 @@ export function TradeGrant() {
   };
   const [grant, setGrant] = useState<GrantState>();
   const [pending, setPending] = useState<PendingGrant>();
-  const [allowSell, setAllowSell] = useState(false);
-  const [perTradeUsd, setPerTradeUsd] = useState(25);
-  const [dailyUsd, setDailyUsd] = useState(50);
-  const [maxSlippageBps, setMaxSlippageBps] = useState(50);
-  const [durationHours, setDurationHours] = useState(24);
-  const [acknowledged, setAcknowledged] = useState(false);
   const [revokeAcknowledged, setRevokeAcknowledged] = useState(false);
   const [cleanupWallet, setCleanupWallet] = useState<string>();
   const [busy, setBusy] = useState(false);
@@ -110,19 +109,12 @@ export function TradeGrant() {
     return response.json() as Promise<T>;
   }
 
-  async function prepare() {
-    if (!acknowledged || busy || !auth.address) return;
+  async function prepare(settings: GrantSettings) {
+    if (busy || !auth.address) return;
     setBusy(true);
     setError(undefined);
     setNotice(undefined);
     try {
-      const settings = {
-        allowSell,
-        perTradeUsd,
-        dailyUsd,
-        maxSlippageBps,
-        durationHours,
-      };
       const authorization = await ownerAuthorization("prepare", settings);
       const saved = await post<PendingGrant>("prepare", { settings, authorization });
       if (saved.wallet !== auth.address)
@@ -169,7 +161,7 @@ export function TradeGrant() {
       setPending(undefined);
       await refresh();
       setNotice(
-        "Chat trading permission is active. Reconnect your agent app (Claude, Cursor or Codex) to grant execute access.",
+        "Chat trading permission is active.",
       );
     } catch (cause) {
       setError(
@@ -192,7 +184,7 @@ export function TradeGrant() {
       setPending(undefined);
       await refresh();
       setNotice(
-        "Privy signer and policy were verified. Reconnect your agent app for execute access.",
+        "Your trading permission was verified.",
       );
     } catch (cause) {
       setError(
@@ -269,12 +261,11 @@ export function TradeGrant() {
 
   if (!auth.authenticated) return null;
   return (
-    <section className="mt-10 rounded-2xl border border-border bg-panel p-5">
-      <h2 className="text-xl font-semibold">Chat trading permission</h2>
-      <p className="mt-2 text-sm text-muted">
-        Grant a revocable, limited signer to your embedded wallet. Claude, Cursor
-        and Codex need a fresh connection after activation.
-      </p>
+    <section className={styles.card}>
+      <div className={styles.heading}>
+        <span className={styles.headingIcon}><HugeiconsIcon icon={Shield01Icon} size={22} strokeWidth={1.5} aria-hidden="true" /></span>
+        <div><h2>Chat trading permission</h2><p>Let your agent trade within limits you control. Review your permission before activating it.</p></div>
+      </div>
       {grant?.reenrollmentRequired && <p className="mt-4 text-sm">
         Renew your chat trading permission to use the new security checks. Revoke
         this permission and remove its wallet signers, then review a new grant.
@@ -334,7 +325,7 @@ export function TradeGrant() {
       {!grant?.enabled && pending && (
         <div className="mt-5 text-sm">
           <p>
-            Review the exact grant for wallet{" "}
+            Review permission for wallet{" "}
             <span className="break-all">{pending.wallet}</span>.
           </p>
           <p>
@@ -354,7 +345,7 @@ export function TradeGrant() {
             disabled={busy || pending.wallet !== auth.address}
             onClick={() => void addSigner()}
           >
-            Add signer in Privy and activate
+            Confirm in wallet and activate
           </button>
           <button
             className="ml-3 mt-4 rounded-xl border border-border px-4 py-2 disabled:opacity-50"
@@ -362,7 +353,7 @@ export function TradeGrant() {
             disabled={busy}
             onClick={() => void verifySigner()}
           >
-            Verify an added signer
+            Already added? Verify permission
           </button>
           <p className="mt-3 text-muted">
             Canceling this grant removes every signer on the wallet in Privy.
@@ -386,91 +377,8 @@ export function TradeGrant() {
         </div>
       )}
       {!grant?.enabled && !pending && grant?.canEnroll && (
-        <div className="mt-5 grid gap-3 text-sm">
-          <label>
-            Permission
-            <select
-              className="mt-1 w-full rounded-lg border border-border bg-background p-2"
-              value={allowSell ? "both" : "buy"}
-              onChange={(event) => setAllowSell(event.target.value === "both")}
-            >
-              <option value="buy">Buy only</option>
-              {grant.sellAvailable && (
-                <option value="both">Buy and sell</option>
-              )}
-            </select>
-          </label>
-          <label>
-            Maximum USD per trade
-            <input
-              className="mt-1 w-full rounded-lg border border-border bg-background p-2"
-              type="number"
-              min="0.01"
-              max="25"
-              step="0.01"
-              value={perTradeUsd}
-              onChange={(event) => setPerTradeUsd(Number(event.target.value))}
-            />
-          </label>
-          <label>
-            Maximum USD per rolling 24 hours
-            <input
-              className="mt-1 w-full rounded-lg border border-border bg-background p-2"
-              type="number"
-              min="0.01"
-              max="50"
-              step="0.01"
-              value={dailyUsd}
-              onChange={(event) => setDailyUsd(Number(event.target.value))}
-            />
-          </label>
-          <label>
-            Maximum slippage, basis points
-            <input
-              className="mt-1 w-full rounded-lg border border-border bg-background p-2"
-              type="number"
-              min="1"
-              max="50"
-              step="1"
-              value={maxSlippageBps}
-              onChange={(event) =>
-                setMaxSlippageBps(Number(event.target.value))
-              }
-            />
-          </label>
-          <label>
-            Grant duration, hours
-            <input
-              className="mt-1 w-full rounded-lg border border-border bg-background p-2"
-              type="number"
-              min="1"
-              max="24"
-              step="1"
-              value={durationHours}
-              onChange={(event) => setDurationHours(Number(event.target.value))}
-            />
-          </label>
-          <p className="text-muted">
-            Enrollment requires a wallet with zero existing signers. Privy
-            currently removes every signer on revocation.
-          </p>
-          <label className="flex gap-2">
-            <input
-              type="checkbox"
-              checked={acknowledged}
-              onChange={(event) => setAcknowledged(event.target.checked)}
-            />
-            <span>I want to prepare these limits for my embedded wallet.</span>
-          </label>
-          <button
-            className="w-fit rounded-xl bg-foreground px-4 py-2 text-white disabled:opacity-50"
-            type="button"
-            disabled={busy || !acknowledged}
-            onClick={() => void prepare()}
-          >
-            Review signer grant
-          </button>
-        </div>
+        <TradeGrantEditor key={String(grant.sellAvailable)} sellAvailable={grant.sellAvailable === true} busy={busy}
+          signerConfigured={Boolean(trustedSigner.signerId && trustedSigner.policyId)} onReview={prepare} />
       )}
       {!grant?.enabled && !pending && grant && !grant.canEnroll && (
         <p className="mt-4 text-sm text-muted">
@@ -478,6 +386,7 @@ export function TradeGrant() {
           review remains available.
         </p>
       )}
+      {grant?.enabled && <ConnectionNextStep uid={connectionUid} />}
       {error && (
         <p className="mt-4 text-sm text-red-700" role="alert">
           {error}
