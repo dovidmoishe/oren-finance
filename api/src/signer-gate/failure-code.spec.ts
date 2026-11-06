@@ -22,6 +22,14 @@ describe('bounded gate rejection reasons', () => {
   });
   it.each([
     [
+      'Headless Jupiter requires an existing source token account',
+      'unsupported_route',
+    ],
+    [
+      'Destination account creation is outside the delegated policy',
+      'unsupported_route',
+    ],
+    [
       'This transaction could not be simulated. Check your USDC and SOL balances and request a fresh quote.',
       'simulation_failed',
     ],
