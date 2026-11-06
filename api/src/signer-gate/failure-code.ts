@@ -2,6 +2,10 @@
 export function gateFailureCode(error: unknown): string {
   const reason = error instanceof Error ? error.message : '';
   switch (reason) {
+    case SOL_RENT_MESSAGE:
+      return 'insufficient_sol_for_rent';
+    case SOL_FEE_MESSAGE:
+      return 'insufficient_sol_for_fees';
     case 'Delegated trade over_budget':
       return 'over_budget';
     case 'Delegated trade inactive':
@@ -29,3 +33,7 @@ export function gateFailureCode(error: unknown): string {
       return 'gate_rejected';
   }
 }
+import {
+  SOL_RENT_MESSAGE,
+  SOL_FEE_MESSAGE,
+} from '../execution/simulation-failure';
