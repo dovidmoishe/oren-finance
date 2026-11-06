@@ -45,6 +45,7 @@ export interface DelegatedJupiterTerms {
 }
 
 export interface DelegatedJupiterInspection {
+  createsDestinationAccount: boolean;
   rawInput: string;
   quotedOutputRaw: string;
   slippageBps: number;
@@ -336,6 +337,7 @@ export async function inspectDelegatedJupiterTransaction(
   )
     reject('route output is below the reviewed minimum');
   return {
+    createsDestinationAccount: creates.length === 1,
     rawInput: args.in_amount,
     quotedOutputRaw: args.quoted_out_amount,
     slippageBps: args.slippage_bps,

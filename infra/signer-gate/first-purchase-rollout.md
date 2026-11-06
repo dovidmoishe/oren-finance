@@ -8,6 +8,9 @@ The payer and owner must be that wallet. The source account must already exist.
 All creation accounts remain static, and simulation still enforces the original
 input/output limits and existing SOL fee/rent caps. No arbitrary transfers,
 source-account creation, extra signers or extra setup instructions are allowed.
+Before reserving a trade, the gate checks that its fingerprint-verified policy
+also covers creation for this output mint. An old swap-only policy retains
+browser fallback rather than causing a rejected signing call and pending budget.
 
 Policy generation preserves existing behavior unless the operator explicitly
 passes `--allow-destination-account-creation` to `prepare-trading-policy.mjs`.

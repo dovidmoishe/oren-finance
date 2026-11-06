@@ -25,6 +25,7 @@ import { reviewedQuoteFloor } from './reviewed-quote';
 type Intent = typeof mcpTradeIntents.$inferSelect;
 
 export type GateRoute = {
+  createsDestinationAccount: boolean;
   transaction: string;
   rawInput: string;
   quotedOutputRaw: string;
@@ -165,7 +166,7 @@ export async function buildGateJupiterRoute(
     protectedKeys,
     resolve,
   );
-  await inspectDelegatedJupiterTransaction(
+  const inspection = await inspectDelegatedJupiterTransaction(
     transaction,
     {
       wallet: intent.wallet,
@@ -203,6 +204,7 @@ export async function buildGateJupiterRoute(
     quotedProceedsUsd = microsUsd(BigInt(quote.outAmount));
   }
   return {
+    createsDestinationAccount: inspection.createsDestinationAccount,
     transaction,
     rawInput: quote.inAmount,
     quotedOutputRaw: quote.outAmount,
