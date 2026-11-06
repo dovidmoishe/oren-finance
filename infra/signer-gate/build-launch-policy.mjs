@@ -1,0 +1,59 @@
+export function compactRouteIdl(idl) {
+  const result = structuredClone(idl), letters = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  const label = n => n < 52 ? letters[n] : letters[Math.floor(n / 52) - 1] + letters[n % 52];
+  if (result.types.length > 2704) throw new Error('Too many IDL types');
+  result.metadata = {name:result.metadata?.name??'jupiter',version:result.metadata?.version??'0.1.0',spec:result.metadata?.spec??'0.1.0'};
+  const names = new Map(result.types.map((d, n) => [d.name, label(n)]));
+  const type = t => {
+    if (typeof t === 'string') return t;
+    if (t.defined) { const name = names.get(typeof t.defined === 'string' ? t.defined : t.defined.name); if (!name) throw new Error('Missing IDL type'); return { defined: { name } }; }
+    if (t.vec) return { vec: type(t.vec) };
+    if (t.option) return { option: type(t.option) };
+    if (t.array) return { array: [type(t.array[0]), t.array[1]] };
+    throw new Error('Unsupported IDL type');
+  };
+  for (const d of result.types) {
+    d.name = names.get(d.name);
+    if (d.type.kind === 'struct') d.type.fields = d.type.fields.map((f,n)=>({name:label(n),type:type(f.type)}));
+    else if (d.type.kind === 'enum') d.type.variants = d.type.variants.map((v,n)=>({name:label(n),...(v.fields?.length?{fields:v.fields.map(f=>type(f.type??f))}:{})}));
+    else throw new Error('Unsupported IDL definition');
+  }
+  for (const i of result.instructions) {
+    i.accounts = i.accounts.map(a=>({name:a.name,...(a.address?{address:a.address}:{})}));
+    for (const a of i.args) a.type=type(a.type);
+  }
+  return result;
+}
+
+/** Provisioning never silently chooses a subset or expands an approved list. */
+export function selectLaunchMints(catalogMints, reviewedMints) {
+  if (!Array.isArray(reviewedMints) || !reviewedMints.length || reviewedMints.length > 100 || new Set(reviewedMints).size !== reviewedMints.length)
+    throw Error('Provide an explicitly reviewed list of 1..100 unique stock mints');
+  const tradable = new Set(catalogMints);
+  if (reviewedMints.some(m => typeof m !== 'string' || !/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(m) || !tradable.has(m) || m === 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v'))
+    throw Error('Reviewed launch list contains a nontradable or invalid stock mint');
+  return [...reviewedMints].sort();
+}
+/** Build a bounded launch policy within Privy's 128 KiB aggregate IDL limit. */
+export function buildLaunchPolicy(template, selectedMints) {
+  const mints=[...new Set(selectedMints)];
+  const usdc='EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
+  if(!mints.length||mints.length>100||mints.includes(usdc)||mints.some(m=>typeof m!=='string'||!/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(m)))throw Error('Invalid launch mint list');
+  const full=template.rules.flatMap(r=>r.conditions??[]).find(c=>c.idl?.instructions?.length===1&&c.idl.instructions[0].name==='shared_accounts_route'&&Array.isArray(c.idl.types)&&c.idl.instructions[0].args?.length)?.idl;
+  if(!full||full.address!=='JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4')throw Error('Missing canonical Jupiter IDL');
+  const idl=compactRouteIdl(full),clean=r=>({name:r.name,method:r.method,action:r.action,conditions:structuredClone(r.conditions)});
+  const expiry=template.rules.find(r=>r.action==='DENY'&&r.conditions?.some(c=>c.field_source==='system'&&c.field==='current_unix_timestamp'&&c.operator==='gte'));
+  const compute=template.rules.find(r=>r.name==='allow compute budget');
+  if(!expiry||!compute||compute.conditions?.length!==1||compute.conditions[0].value!=='ComputeBudget111111111111111111111111111111')throw Error('Missing expiry or compute guard');
+  const C=(field,operator,value)=>({field_source:'solana_instruction_data',field:'shared_accounts_route.'+field,operator,value,idl});
+  const rule=side=>({name:'allow bounded jupiter '+side,method:'signTransaction',action:'ALLOW',conditions:[
+    {field_source:'solana_program_instruction',field:'programId',operator:'eq',value:full.address},
+    C(side==='buy'?'args.in_amount':'args.quoted_out_amount','lte','25000000'),
+    C('args.slippage_bps','lte','50'),C('args.platform_fee_bps','eq','0'),
+    C('accounts.source_mint',side==='buy'?'eq':'in',side==='buy'?usdc:mints),
+    C('accounts.destination_mint',side==='buy'?'in':'eq',side==='buy'?mints:usdc),
+  ]});
+  const rules=[clean(expiry),clean(compute),rule('buy'),rule('sell')];
+  if(rules.flatMap(r=>r.conditions).reduce((n,c)=>n+(c.idl?Buffer.byteLength(JSON.stringify(c.idl)):0),0)>128*1024)throw Error('Policy exceeds aggregate IDL limit');
+  return {...structuredClone(template),rules};
+}

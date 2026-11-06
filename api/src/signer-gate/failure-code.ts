@@ -9,6 +9,7 @@ export function gateFailureCode(error: unknown): string {
       return 'inactive_delegation';
     case 'Headless Jupiter requires existing source and destination token accounts':
     case 'Stock mint uses an unsupported token program':
+    case 'Stock mint is outside the delegated policy allowlist':
       return 'unsupported_route';
     case 'This transaction could not be simulated. Check your USDC and SOL balances and request a fresh quote.':
       return 'simulation_failed';
@@ -16,6 +17,7 @@ export function gateFailureCode(error: unknown): string {
       return 'transaction_expired';
     case 'This trade no longer matches the terms you reviewed. Review a fresh quote.':
     case 'Fresh Jupiter quote moved outside the reviewed terms':
+    case 'The price moved outside the approved tolerance. Request a fresh quote and review its minimum proceeds.':
       return 'reviewed_terms_changed';
     case 'Prepared intent is unavailable for delegation':
       return 'intent_unavailable';

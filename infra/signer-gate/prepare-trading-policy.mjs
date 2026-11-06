@@ -6,6 +6,7 @@ import tokensService from '/app/dist/src/tokens/tokens.service.js';
 import gate from '/app/dist/src/signer-gate/signer-gate.service.js';
 import { buildTradingPolicy, samePolicySemantics, tradingPolicyIdl } from './trading-policy.mjs';
 import { preparePolicyOwner } from './policy-owner.mjs';
+import { selectLaunchMints } from './build-launch-policy.mjs';
 
 const required = key => { if (!process.env[key]) throw new Error(`Missing ${key}`); return process.env[key]; };
 const privy = new PrivyClient({ appId: required('PRIVY_APP_ID'), appSecret: required('PRIVY_APP_SECRET') });
@@ -26,7 +27,9 @@ while (hasMore) {
   offset += 200;
   hasMore = page.hasMore;
 }
-const stockMints = stocks.flatMap(stock => stock.variants.filter(variant => variant.tradable).map(variant => variant.mint));
+const catalogMints = stocks.flatMap(stock => stock.variants.filter(variant => variant.tradable).map(variant => variant.mint));
+const reviewedMints = JSON.parse(readFileSync(required('SIGNER_GATE_LAUNCH_MINTS_FILE'), 'utf8'));
+const stockMints = selectLaunchMints(catalogMints, reviewedMints);
 const resultPath = '/state/trading-policy.json';
 const existing = existsSync(resultPath) ? JSON.parse(readFileSync(resultPath, 'utf8')) : null;
 const expiresAtUnix = existing?.expiresAtUnix ?? Math.floor(Date.now() / 1000) + 7 * 86400;
@@ -34,7 +37,7 @@ const set = process.argv.includes('--create') ? await preparePolicyOwner(privy) 
 const candidate = buildTradingPolicy({ idl, stockMints, ownerId: set.ownerId, expiresAtUnix });
 const fingerprint = gate.gatePolicyFingerprint(candidate);
 if (existing?.policyId && existing.candidateFingerprint !== fingerprint) throw new Error('Saved candidate differs from the catalog or policy; review a new state directory');
-const result = { priorPolicyId: prior.id, candidate, fingerprint, candidateFingerprint: fingerprint, expiresAtUnix, stockMintCount: new Set(stockMints).size };
+const result = { priorPolicyId: prior.id, candidate, fingerprint, candidateFingerprint: fingerprint, expiresAtUnix, stockMintCount: stockMints.length, reviewedMints: stockMints, catalogTradableMintCount: new Set(catalogMints).size };
 writeFileSync(resultPath, JSON.stringify(result), { mode: 0o600 });
 if (process.argv.includes('--create')) {
   const policy = existing?.policyId ? await privy.policies().get(existing.policyId) : await privy.policies().create({ ...candidate, idempotency_key: `oren-trading-${createHash('sha256').update(JSON.stringify(candidate)).digest('hex').slice(0, 40)}` });

@@ -25,9 +25,11 @@ function fixture() {
     state: 'challenged', unsignedTransaction: unsigned,
     privyRequest: request, requestExpiresAt: expiresAt,
     signedTransaction: null, chainSignature: null,
+    wallet: 'wallet-proof-address',
   };
   const events = [];
   const db = {
+    transaction: async (callback) => callback(db),
     select: () => ({ from: () => ({ where: () => ({ limit: async () => [execution] }) }) }),
     update: () => ({ set: (values) => ({ where: () => {
       Object.assign(execution, values);
@@ -39,6 +41,7 @@ function fixture() {
   let broadcastCalls = 0;
   let sign = async () => { throw new Error('unconfigured'); };
   let broadcast = async () => { throw new Error('unconfigured'); };
+  let blockhashValid = async () => true;
   const config = {
     enabled: true, appId: 'app-test', appSecret: 'secret-test',
     apiPublicKeyDerBase64: apiPublic, gatePrivateKeyDerBase64: gatePrivate,
@@ -51,7 +54,7 @@ function fixture() {
       signCalls++;
       return sign(...args);
     } }) }) },
-    rpc: { validateSigned: () => 'chain-signature', broadcast: async (...args) => {
+    rpc: { blockhashValid: (...args) => blockhashValid(...args), validateSigned: () => 'chain-signature', broadcast: async (...args) => {
       broadcastCalls++;
       return broadcast(...args);
     } },
@@ -61,6 +64,7 @@ function fixture() {
     input: formatRequestForAuthorizationSignature(request) });
   return { service, execution, events, apiSignature, apiPrivate,
     get signCalls() { return signCalls; }, get broadcastCalls() { return broadcastCalls; },
+    setBlockhashValid: (value) => { blockhashValid = value; },
     setSign: (value) => { sign = value; }, setBroadcast: (value) => { broadcast = value; } };
 }
 
@@ -115,4 +119,26 @@ test('signature over a different canonical request is rejected', async () => {
   await assert.rejects(f.service.complete(f.execution.id, wrong),
     /API authorization signature is invalid/);
   assert.equal(f.signCalls, 0);
+});
+
+test('unsigned signing uncertainty is resolved only after finalized blockhash expiry proof', async () => {
+  const f = fixture();
+  Object.assign(f.execution, {state:'pending',errorCode:'privy_uncertain', requestExpiresAt:new Date(Date.now()-1000),lastValidBlockHeight:123});
+  assert.equal((await f.service.reconcile(f.execution.id)).state,'pending');
+  f.setBlockhashValid(async () => false);
+  assert.equal((await f.service.reconcile(f.execution.id)).state,'failed');
+  assert.equal(f.execution.errorCode,'signing_expired');
+  assert.equal(f.signCalls,0);
+  assert.equal(f.broadcastCalls,0);
+});
+
+test('quote/request expiry alone and missing finality metadata never clear signing uncertainty', async () => {
+  const f = fixture();
+  Object.assign(f.execution, {state:'pending',errorCode:'privy_uncertain',requestExpiresAt:new Date(Date.now()-1000)});
+  f.setBlockhashValid(async () => { throw Error('must not guess expiry'); });
+  assert.equal((await f.service.reconcile(f.execution.id)).state,'pending');
+  Object.assign(f.execution,{lastValidBlockHeight:123});
+  f.setBlockhashValid(async () => { throw Error('RPC unavailable'); });
+  await assert.rejects(f.service.reconcile(f.execution.id),/RPC unavailable/);
+  assert.equal(f.execution.state,'pending');
 });

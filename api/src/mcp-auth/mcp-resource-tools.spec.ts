@@ -6,6 +6,7 @@ import { USDC_MINT } from '../config/constants';
 import type { Quote } from '../../types/quote';
 import { uiAmountToRaw } from '../execution/jupiter/jupiter.mapper';
 import { rawSellReferenceUsd } from './delegated-amounts';
+import { SignerGateRejection } from './signer-gate.errors';
 
 jest.mock('@modelcontextprotocol/server', () => ({
   McpServer: jest.fn().mockImplementation(() => ({
@@ -23,7 +24,11 @@ jest.mock('@modelcontextprotocol/node', () => ({
 async function registeredTools(
   scopes: string[],
   quote?: Quote,
-  review?: { intent?: { id: string; mode: string }; converted?: boolean },
+  review?: {
+    intent?: { id: string; mode: string };
+    converted?: boolean;
+    gateError?: Error;
+  },
 ) {
   const connection = {
     grantId: 'grant-1',
@@ -95,7 +100,7 @@ async function registeredTools(
         },
       },
     },
-    gate: {},
+    gate: { execute: jest.fn().mockRejectedValue(review?.gateError) },
     delegatedSides: { buy: true, sell: true },
     execution: { getQuote: jest.fn().mockResolvedValue(quote) },
     market: { getStock: jest.fn().mockResolvedValue({ price: 100 }) },
@@ -119,6 +124,12 @@ async function registeredTools(
     names: registrations.map(([name]) => name),
     values,
     set,
+    execute: registrations.find(
+      ([name]) => name === 'execute_trade',
+    )?.[2] as (input: {
+      intentId: string;
+      idempotencyKey: string;
+    }) => Promise<{ content: { text: string }[]; isError?: boolean }>,
     review: registrations.find(
       ([name]) => name === 'review_trade',
     )?.[2] as (input: {
@@ -137,6 +148,25 @@ async function registeredTools(
 
 describe('MCP trade tool exposure', () => {
   beforeEach(() => jest.clearAllMocks());
+  it('reports quote movement as requiring fresh approval, not a pending submission or forced browser conversion', async () => {
+    const tools = await registeredTools(
+      ['oren.read', 'oren.trade.prepare', 'oren.trade.execute'],
+      undefined,
+      {
+        intent: { id: 'intent-test', mode: 'delegated' },
+        gateError: new SignerGateRejection('reviewed_terms_changed'),
+      },
+    );
+    const result = await tools.execute({
+      intentId: 'intent-test',
+      idempotencyKey: 'same-key-123456789',
+    });
+    expect(JSON.parse(result.content[0].text)).toMatchObject({
+      status: 'quote_changed',
+      reason: 'reviewed_terms_changed',
+    });
+    expect(tools.set).not.toHaveBeenCalled();
+  });
 
   it('offers the delegated path without browser-only buy aliases to an execute connection', async () => {
     const { names: tools } = await registeredTools([
