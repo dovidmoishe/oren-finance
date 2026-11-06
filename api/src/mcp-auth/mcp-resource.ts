@@ -374,8 +374,14 @@ export async function handleMcpRequest(
         },
       );
     const openTradeReview = async ({ intentId }: { intentId: string }) => {
+      const unavailable = {
+        content: [
+          { type: 'text' as const, text: 'Intent expired or unavailable.' },
+        ],
+        isError: true,
+      };
       const [intent] = await deps.db
-        .select({ id: mcpTradeIntents.id })
+        .select({ id: mcpTradeIntents.id, mode: mcpTradeIntents.mode })
         .from(mcpTradeIntents)
         .where(
           and(
@@ -385,18 +391,29 @@ export async function handleMcpRequest(
             eq(mcpTradeIntents.userId, connection.userId),
             eq(mcpTradeIntents.wallet, connection.wallet),
             gt(mcpTradeIntents.expiresAt, new Date()),
-            eq(mcpTradeIntents.mode, 'browser'),
             eq(mcpTradeIntents.status, 'prepared'),
           ),
         )
         .limit(1);
-      if (!intent)
-        return {
-          content: [
-            { type: 'text' as const, text: 'Intent expired or unavailable.' },
-          ],
-          isError: true,
-        };
+      if (!intent) return unavailable;
+      if (intent.mode === 'delegated') {
+        // Some clients (Claude.ai) will not execute trades. Hand a still-prepared
+        // delegated intent to browser review, as the gate-rejection path does;
+        // once converted the delegated path can no longer execute it.
+        const [converted] = await deps.db
+          .update(mcpTradeIntents)
+          .set({ mode: 'browser', delegationId: null })
+          .where(
+            and(
+              eq(mcpTradeIntents.id, intentId),
+              eq(mcpTradeIntents.status, 'prepared'),
+              eq(mcpTradeIntents.mode, 'delegated'),
+              gt(mcpTradeIntents.expiresAt, new Date()),
+            ),
+          )
+          .returning({ id: mcpTradeIntents.id });
+        if (!converted) return unavailable;
+      } else if (intent.mode !== 'browser') return unavailable;
       const result = {
         intentId,
         status: 'browser_approval_required',
@@ -411,7 +428,7 @@ export async function handleMcpRequest(
       {
         title: 'Open trade review',
         description:
-          'Get the Oren browser review link for a prepared buy or sell intent. The user signs there.',
+          'Get the Oren browser review link for a prepared buy or sell intent. The user signs there. Works for delegated intents too: the intent moves to browser review and can no longer be executed by execute_trade.',
         inputSchema: z.object({ intentId: z.uuid() }),
       },
       openTradeReview,
