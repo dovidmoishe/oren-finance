@@ -98,7 +98,7 @@ export function PrivySession({ children }: { children: React.ReactNode }) {
   const embeddedSigner = standardWallets.find(
     (wallet): wallet is PrivyStandardWallet =>
       wallet.name === "Privy" && "isPrivyWallet" in wallet &&
-      wallet.isPrivyWallet === true && "privy:" in wallet.features,
+      wallet.isPrivyWallet === true && "solana:signMessage" in wallet.features,
   );
   const { createWallet } = useCreateWallet();
   const { signMessage } = useSignMessage();
@@ -327,14 +327,30 @@ export function PrivySession({ children }: { children: React.ReactNode }) {
               !message.startsWith("Oren chat trading permission\n") || message.length > 4096)
             throw new Error("Review chat trading with your active wallet.");
           const bytes = new TextEncoder().encode(message);
+          const signerAccount = embeddedSigner?.accounts.find(
+            (account) => account.address === wallet,
+          );
+          // This SDK gates its account list on legacy (Ethereum) readiness.
+          // For an empty list, public account metadata can come from the
+          // authenticated, selected embedded account instead. Privy still
+          // recovers that exact wallet and requires its owner confirmation.
+          const messageAccount = signerAccount ?? (
+            embeddedSigner?.accounts.length === 0 && account.active?.address === wallet
+              ? { address: wallet, publicKey: new PublicKey(wallet).toBytes(),
+                  chains: ["solana:mainnet"] as const,
+                  features: ["solana:signMessage"] as const }
+              : undefined
+          );
           // Linked account identity can restore before the connected-wallet
-          // adapter. Privy's own standard feature signs for this exact owned
-          // address and retains its wallet recovery and confirmation UI.
+          // adapter. The Wallet Standard feature retains Privy's internal
+          // method receiver, recovery flow and confirmation UI.
           let result: { signature: Uint8Array };
           if (active?.address === wallet) {
             result = await signMessage({ message: bytes, wallet: active });
-          } else if (embeddedSigner) {
-            result = await embeddedSigner.features["privy:"].privy.signMessage({ address: wallet, message: bytes });
+          } else if (embeddedSigner && messageAccount) {
+            const [signed] = await embeddedSigner.features["solana:signMessage"].signMessage({ account: messageAccount, message: bytes });
+            if (!signed) throw new Error("Your wallet did not return a permission signature. Review permission again.");
+            result = signed;
           } else {
             throw new Error("Your wallet is still restoring. Wait a moment, then review permission again.");
           }
