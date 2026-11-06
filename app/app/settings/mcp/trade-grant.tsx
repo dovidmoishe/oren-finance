@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Shield01Icon } from "@hugeicons/core-free-icons";
 import { TradeGrantEditor } from "./trade-grant-editor";
+import { ConnectionNextStep } from "./connection-next-step";
 import styles from "./trade-grant.module.css";
 import { useOrenAuth } from "@/components/auth/auth-context";
 import { mcpApiOrigin } from "@/services/mcp-api-origin";
@@ -36,7 +37,7 @@ type GrantState = {
   expiresAt?: string;
 };
 
-export function TradeGrant() {
+export function TradeGrant({ connectionUid }: { connectionUid?: string }) {
   const auth = useOrenAuth();
   const { authenticated, ready, getAccessToken } = auth;
   const apiOrigin = mcpApiOrigin();
@@ -160,7 +161,7 @@ export function TradeGrant() {
       setPending(undefined);
       await refresh();
       setNotice(
-        "Chat trading permission is active. Reconnect your agent app (Claude, Cursor or Codex) to grant execute access.",
+        "Chat trading permission is active.",
       );
     } catch (cause) {
       setError(
@@ -183,7 +184,7 @@ export function TradeGrant() {
       setPending(undefined);
       await refresh();
       setNotice(
-        "Privy signer and policy were verified. Reconnect your agent app for execute access.",
+        "Your trading permission was verified.",
       );
     } catch (cause) {
       setError(
@@ -376,7 +377,7 @@ export function TradeGrant() {
         </div>
       )}
       {!grant?.enabled && !pending && grant?.canEnroll && (
-        <TradeGrantEditor sellAvailable={grant.sellAvailable === true} busy={busy}
+        <TradeGrantEditor key={String(grant.sellAvailable)} sellAvailable={grant.sellAvailable === true} busy={busy}
           signerConfigured={Boolean(trustedSigner.signerId && trustedSigner.policyId)} onReview={prepare} />
       )}
       {!grant?.enabled && !pending && grant && !grant.canEnroll && (
@@ -385,6 +386,7 @@ export function TradeGrant() {
           review remains available.
         </p>
       )}
+      {grant?.enabled && <ConnectionNextStep uid={connectionUid} />}
       {error && (
         <p className="mt-4 text-sm text-red-700" role="alert">
           {error}

@@ -14,10 +14,10 @@ export function TradeGrantEditor({ sellAvailable, busy, signerConfigured, onRevi
   onReview: (settings: GrantSettings) => Promise<void>;
 }) {
   const id = useId();
-  const [draft, setDraft] = useState<GrantDraft>({ perTradeUsd: "25", dailyUsd: "50", slippagePercent: "0.5", durationHours: "24", allowSell: false });
+  const [draft, setDraft] = useState<GrantDraft>({ perTradeUsd: "25", dailyUsd: "50", slippagePercent: "0.5", durationHours: "24" });
   const [acknowledged, setAcknowledged] = useState(false);
   const [error, setError] = useState<string>();
-  function update(field: keyof GrantDraft, value: string | boolean) {
+  function update(field: keyof GrantDraft, value: string) {
     setDraft(current => ({ ...current, [field]: value }));
     setAcknowledged(false);
     setError(undefined);
@@ -34,11 +34,9 @@ export function TradeGrantEditor({ sellAvailable, busy, signerConfigured, onRevi
         <div className={styles.permission}>
           <div>
             <span className={styles.label}>What your agent can do</span>
-            <p>{sellAvailable ? "Choose which trades to allow." : "Buy stocks within the limits you set."}</p>
+            <p>{sellAvailable ? "Buy and sell stocks within the limits you set." : "Buy stocks within the limits you set."}</p>
           </div>
-          {sellAvailable ? <select aria-label="Trading permission" value={draft.allowSell ? "both" : "buy"} onChange={event => update("allowSell", event.target.value === "both")}>
-            <option value="buy">Buy only</option><option value="both">Buy and sell</option>
-          </select> : <span className={styles.badge}>Buy only</span>}
+          <span className={styles.badge}>{sellAvailable ? "Buy and sell" : "Buy only"}</span>
         </div>
         {!sellAvailable && <p className={styles.caption}>Selling in chat is not available yet. You can still review sells in Oren.</p>}
         <div className={styles.grid}>
@@ -73,9 +71,9 @@ export function TradeGrantEditor({ sellAvailable, busy, signerConfigured, onRevi
         <details className={styles.details}>
           <summary>How wallet permission works</summary>
           <p>This adds a limited signer to your embedded wallet. Enrollment requires no existing wallet signers. Revoking removes every signer from this wallet in Privy.</p>
-          <p>After activation, reconnect Claude, Cursor or Codex to allow trading within these limits.</p>
+          <p>After activation, continue your agent connection to approve trading within these limits.</p>
         </details>
-        <label className={styles.checkbox}><input type="checkbox" checked={acknowledged} onChange={event => setAcknowledged(event.target.checked)} /><span>I’ve reviewed these limits and want to prepare this wallet permission.</span></label>
+        <label className={styles.checkbox}><input type="checkbox" checked={acknowledged} onChange={event => setAcknowledged(event.target.checked)} /><span>I’ve reviewed these limits and allow my agent to {sellAvailable ? "buy and sell" : "buy"} within them.</span></label>
       </fieldset>
       {!signerConfigured && <p className={styles.warning} role="alert"><HugeiconsIcon icon={InformationCircleIcon} size={18} aria-hidden="true" /><span>Chat trading setup is temporarily unavailable. Oren’s trusted signer configuration needs an update. You can still review trades in Oren.</span></p>}
       {error && <p className={styles.error} role="alert">{error}</p>}

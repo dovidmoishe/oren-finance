@@ -3,7 +3,7 @@ import test from 'node:test';
 import { parseGrantSettings } from '../services/mcp-grant-settings.ts';
 import { validateMcpSignerConfig } from '../scripts/validate-mcp-signer-config.mjs';
 
-const draft = { perTradeUsd: '25', dailyUsd: '50', slippagePercent: '0.5', durationHours: '24', allowSell: false };
+const draft = { perTradeUsd: '25', dailyUsd: '50', slippagePercent: '0.5', durationHours: '24' };
 test('displayed percentage becomes exact basis points in signed terms', () => {
   assert.deepEqual(parseGrantSettings(draft, false), { perTradeUsd: 25, dailyUsd: 50, maxSlippageBps: 50, durationHours: 24, allowSell: false });
   assert.equal(parseGrantSettings({ ...draft, slippagePercent: '0.29' }, false).maxSlippageBps, 29);
@@ -14,9 +14,9 @@ test('rejects empty, nonfinite, out-of-range and overprecise limits', () => {
     for (const value of values) assert.throws(() => parseGrantSettings({ ...draft, [key]: value }, false), `${key}=${value}`);
   }
 });
-test('selling requires server-advertised availability', () => {
-  assert.throws(() => parseGrantSettings({ ...draft, allowSell: true }, false), /not available/);
-  assert.equal(parseGrantSettings({ ...draft, allowSell: true }, true).allowSell, true);
+test('new grants include buys and sells when available, without a side selection', () => {
+  assert.equal(parseGrantSettings(draft, true).allowSell, true);
+  assert.equal(parseGrantSettings(draft, false).allowSell, false);
 });
 test('production image builds require both trusted signer pins; previews remain read/review only', () => {
   const env = { NEXT_PUBLIC_DEPLOYMENT_ENV: 'production', NEXT_PUBLIC_MCP_SIGNER_QUORUM_ID: 'quorum', NEXT_PUBLIC_MCP_SIGNER_POLICY_ID: 'policy' };
