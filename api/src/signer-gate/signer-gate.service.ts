@@ -1,5 +1,9 @@
 import { createHash, createPublicKey, randomUUID, verify } from 'node:crypto';
 import {
+  signingFailureDetails,
+  signingOutcome,
+} from '../mcp-auth/signing-outcome';
+import {
   formatRequestForAuthorizationSignature,
   generateAuthorizationSignature,
   PrivyClient,
@@ -483,6 +487,7 @@ export class SignerGateService {
         ? { canonicalRequestBase64: canonical(execution).toString('base64') }
         : {}),
       chainSignature: execution.chainSignature ?? undefined,
+      ...signingOutcome(execution.errorCode, execution.chainSignature),
     };
   }
 
@@ -623,16 +628,25 @@ export class SignerGateService {
           request_expiry: execution.requestExpiresAt.getTime(),
         });
       signed = result.signed_transaction;
-    } catch {
+    } catch (error) {
+      const failure = signingFailureDetails(error);
+      console.error(
+        'Privy delegated signing failed',
+        JSON.stringify({ executionId: execution.id, ...failure }),
+      );
       await this.deps.db
         .update(mcpDelegatedExecutions)
         .set({
           state: 'pending',
-          errorCode: 'privy_uncertain',
+          errorCode: failure.errorCode,
           updatedAt: new Date(),
         })
         .where(eq(mcpDelegatedExecutions.id, execution.id));
-      return { executionId, state: 'pending' as const };
+      return {
+        executionId,
+        state: 'pending' as const,
+        ...signingOutcome(failure.errorCode),
+      };
     }
     const chainSignature = this.deps.rpc.validateSigned(
       execution.unsignedTransaction,
