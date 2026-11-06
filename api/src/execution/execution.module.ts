@@ -29,6 +29,7 @@ import { TitanClient } from './titan/titan.client';
 import { TitanService } from './titan/titan.service';
 import { TitanTxBuilder } from './titan/titan-tx.builder';
 import { VariantSelector } from './variant-selector';
+import { StockDecimals } from './stock-decimals';
 import { LimitOrderFillPoller } from './limit-order-fill.poller';
 
 @Module({
@@ -60,6 +61,7 @@ import { LimitOrderFillPoller } from './limit-order-fill.poller';
     SwapRouter,
     QuoteCache,
     VariantSelector,
+    StockDecimals,
     ExecutionRepository,
     LimitOrderRepository,
     ExecutionService,

@@ -18,12 +18,12 @@ function accessLabel(scopes: string) {
   return "Read only";
 }
 
-export function AgentConnections() {
+export function AgentConnections({ connectionUid }: { connectionUid?: string } = {}) {
   const auth = useOrenAuth();
-  return <ConnectionsContent key={`${auth.ready}:${auth.authenticated}:${auth.email ?? ""}:${auth.address ?? ""}`} />;
+  return <ConnectionsContent connectionUid={connectionUid} key={`${auth.ready}:${auth.authenticated}:${auth.email ?? ""}:${auth.address ?? ""}`} />;
 }
 
-function ConnectionsContent() {
+function ConnectionsContent({ connectionUid }: { connectionUid?: string }) {
   const { authenticated, configured, ready, getAccessToken, open, email } = useOrenAuth();
   const [result, setResult] = useState<{ connections: Connection[]; error?: string; loading: boolean }>({ connections: [], loading: true });
   const [busy, setBusy] = useState<string>();
@@ -126,7 +126,7 @@ function ConnectionsContent() {
           </section>
           {revokeError && <p className="mt-4 text-sm text-red-700" role="alert">{revokeError}</p>}
           {notice && <p className="mt-4 text-sm" role="status">{notice}</p>}
-          <TradeGrant />
+          <TradeGrant connectionUid={connectionUid} />
           <p className="mt-5 flex items-start gap-2 px-1 text-xs leading-relaxed text-muted"><HugeiconsIcon icon={Shield01Icon} className="mt-0.5 shrink-0" size={15} aria-hidden="true" />App connections and chat trading permission are separate. Revoking an app connection leaves your trading permission in place; manage it above.</p>
         </>
       )}

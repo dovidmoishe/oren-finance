@@ -1,5 +1,6 @@
 import type { TradeSide } from '../../../types/quote';
 import { USDC_DECIMALS } from '../../config/constants';
+import { stockSharesToRaw } from '../scaled-amount';
 
 /** Jupiter Trigger V1 minimum making notional (~$5). */
 export const LIMIT_ORDER_MIN_USD = 5;
@@ -10,6 +11,8 @@ export interface LimitRateInput {
   amount: number;
   limitPriceUsd: number;
   stockDecimals: number;
+  /** Scaled-UI multiplier (xStocks); share amounts are divided by it for raw units. */
+  stockMultiplier?: number;
   marketPriceUsd?: number;
 }
 
@@ -32,6 +35,8 @@ export function computeLimitOrderAmounts(
   input: LimitRateInput,
 ): LimitRateResult {
   const { side, amount, limitPriceUsd, stockDecimals, marketPriceUsd } = input;
+  const stockRaw = (shares: number) =>
+    String(stockSharesToRaw(shares, stockDecimals, input.stockMultiplier ?? 1));
 
   if (!Number.isFinite(amount) || amount <= 0) {
     throw new Error('amount must be > 0');
@@ -58,7 +63,7 @@ export function computeLimitOrderAmounts(
       makingAmount,
       takingAmount,
       makingAmountRaw: toRawAmount(makingAmount, USDC_DECIMALS),
-      takingAmountRaw: toRawAmount(takingAmount, stockDecimals),
+      takingAmountRaw: stockRaw(takingAmount),
       amountUsd,
       wouldFillImmediately,
     };
@@ -80,7 +85,7 @@ export function computeLimitOrderAmounts(
   return {
     makingAmount,
     takingAmount,
-    makingAmountRaw: toRawAmount(makingAmount, stockDecimals),
+    makingAmountRaw: stockRaw(makingAmount),
     takingAmountRaw: toRawAmount(takingAmount, USDC_DECIMALS),
     amountUsd,
     wouldFillImmediately,

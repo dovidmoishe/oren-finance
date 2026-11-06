@@ -30,6 +30,9 @@ builds use the same names in `app/.env.local`. The quorum must match the API's
 `PRIVY_MCP_SIGNER_QUORUM_ID` and the gate's `SIGNER_GATE_QUORUM_ID`; the policy must
 match `SIGNER_GATE_POLICY_ID`. These identifiers are public, not private keys.
 Missing or mismatched pins disable enrollment before Privy adds a signer.
+The production image build also fails when either pin is missing. Changing
+repository variables takes effect only in a new web build; publish a new
+release SHA rather than reusing an existing immutable image tag.
 Rotation requires a reviewed web rebuild; never populate these pins from a
 runtime API response.
 
@@ -136,6 +139,37 @@ delegated execution. The 2-of-2 unfunded proof alone is not a live-trading relea
 
 ### Opening delegated trading to all users
 
+The original three-rule policy is a disposable, wallet-specific $1 TSLAx buy
+proof. Public enrollment flags alone do not turn it into a public trading policy.
+For public buy/sell access, prepare a **new** policy with
+`trading-policy.mjs` and `prepare-trading-policy.mjs` in a one-off container.
+Keep its separate owner key in a mode-600 provisioning file outside the running
+API/gate mounts. Never update an enrolled policy in place to add selling.
+
+The verified launch policy supports an explicitly reviewed list of at most 100
+stock mints. It uses complete, compact Jupiter IDLs in every condition: the
+account-only IDLs used by the earlier 403-mint candidate caused Privy signing
+rejections. Complete IDLs across that broader catalog exceed Privy's 128 KiB
+aggregate limit. Do not silently truncate the catalog or remove financial guards.
+The four rules enforce expiry, compute-budget instructions, bounded USDC buys and
+bounded USDC sell proceeds, 50 bps maximum slippage and zero platform fees.
+Mints outside the pinned policy are detected before signing and require browser
+review. All wallet, account, raw-amount, daily-budget and authorization checks on
+the API and gate remain enforced independently.
+
+For each rotation, write the approved mint addresses as a JSON array in a private
+state file, for example `/state/launch-mints.json`, and set
+`SIGNER_GATE_LAUNCH_MINTS_FILE=/state/launch-mints.json` in the one-off provisioning
+container. `prepare-trading-policy.mjs` requires this file, validates its 1..100
+unique entries against the complete current tradable catalog, and records the
+reviewed subset in the candidate checkpoint. Newly listed stocks never expand
+that reviewed subset automatically. A missing, stale or broader list fails closed.
+Rebuild the pinned web release and require explicit user re-enrollment when the
+production policy ID changes. Policy creation and sign-only diagnostics are not
+evidence of a funded, broadcast trade; verify those separately.
+Use a fresh private `/state` directory for each rotation; an existing directory
+is an idempotent checkpoint for one candidate, including its fixed expiry.
+
 Set `MCP_DELEGATED_TRADES_PUBLIC=true` on the API **and** `SIGNER_GATE_PUBLIC=true`
 on the gate. Each service checks its own flag, so both must agree before any
 non-allowlisted user can enroll or trade; with either flag off, the named
@@ -153,7 +187,7 @@ Turn the flags off to return to the allowlist without a redeploy of code.
   challenge that never reached Privy can be reconciled as a definite failure.
 - `signing` or `pending` without signed bytes: Privy may have signed even if
   its response timed out. Do not build new bytes or release the reservation.
-  Inspect Privy request/idempotency logs and the wallet's chain history, then
+  A pending unsigned attempt can be failed only after the request window closes and finalized block-height plus blockhash checks prove that its exact transaction is no longer valid. Never infer this from quote expiry alone. Inspect recorded signing metadata and chain history before any replacement, then
   resolve manually. The API returns pending to MCP.
 - `signed`, `broadcast` or `pending` with signed bytes: the database contains
   the only transaction allowed for this intent. Reconcile the saved chain

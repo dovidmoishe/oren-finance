@@ -33,14 +33,14 @@ function fixture({ authenticated = true, ready = true, apiOrigin = 'https://api.
       if (name === 'next/link') return { default: ({ children, ...props }) => createElement('a', props, children) };
       if (name === '@hugeicons/core-free-icons') return {};
       if (name === '@hugeicons/react') return { HugeiconsIcon: () => null };
-      if (name === '@/app/settings/mcp/trade-grant') return { TradeGrant: () => createElement('section', null, 'Chat trading permission') };
+      if (name === '@/app/settings/mcp/trade-grant') return { TradeGrant: ({ connectionUid }) => createElement('section', { 'data-connection': connectionUid }, 'Chat trading permission') };
       if (name === '@/components/ui') return { Button: ({ children, ...props }) => { buttons.push(props); return createElement(props.href ? 'a' : 'button', props, children); } };
       return require(name);
     },
   });
   return {
     auth, buttons,
-    render() { cursor = 0; buttons.length = 0; effects.length = 0; return renderToStaticMarkup(compiled.exports.AgentConnections()); },
+    render(connectionUid) { cursor = 0; buttons.length = 0; effects.length = 0; return renderToStaticMarkup(compiled.exports.AgentConnections({ connectionUid })); },
     async load() { effects[0](); await new Promise(resolve => setImmediate(resolve)); },
     key() { return compiled.exports.AgentConnections().key; },
   };
@@ -98,4 +98,9 @@ test('changing accounts remounts connection and trading state', () => {
   const before = f.key();
   f.auth.email = 'another@example.test';
   assert.notEqual(f.key(), before);
+});
+
+
+test('pending interaction reaches the trading permission continuation', () => {
+  assert.match(fixture().render('pending_42'), /data-connection="pending_42"/);
 });

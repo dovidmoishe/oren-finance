@@ -7,6 +7,9 @@ export type GateResult = {
   executionId: string;
   state: string;
   chainSignature?: string;
+  submissionState?: string;
+  reason?: string;
+  message?: string;
 };
 
 /** MCP API holds only one Privy quorum key; the gate holds the other. */
