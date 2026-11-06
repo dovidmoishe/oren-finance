@@ -22,7 +22,11 @@ import {
 } from '../execution/swap-terms';
 import type { McpOAuthRuntime } from './oauth-runtime';
 import type { SignerGateClient } from './signer-gate.client';
-import { SignerGateRejection, publicGateFailureCode } from './signer-gate.errors';
+import {
+  SignerGateRejection,
+  publicGateFailureCode,
+} from './signer-gate.errors';
+import { signingOutcome } from './signing-outcome';
 import { rawSellShares, rawSellReferenceUsd } from './delegated-amounts';
 
 export interface McpResourceDeps {
@@ -522,6 +526,7 @@ export async function handleMcpRequest(
                     intentId,
                     status: result.state,
                     signature: result.chainSignature,
+                    ...signingOutcome(result.reason, result.chainSignature),
                   }),
                 },
               ],
@@ -607,11 +612,13 @@ export async function handleMcpRequest(
               ? intent.status
               : 'browser_approval_required';
         let signature: string | undefined;
+        let signingDetails = {};
         if (intent.mode === 'delegated') {
           const [execution] = await deps.db
             .select({
               state: mcpDelegatedExecutions.state,
               chainSignature: mcpDelegatedExecutions.chainSignature,
+              errorCode: mcpDelegatedExecutions.errorCode,
             })
             .from(mcpDelegatedExecutions)
             .where(eq(mcpDelegatedExecutions.intentId, intentId))
@@ -619,6 +626,7 @@ export async function handleMcpRequest(
           if (execution) {
             status = execution.state;
             signature = execution.chainSignature ?? undefined;
+            signingDetails = signingOutcome(execution.errorCode, signature);
           }
         }
         if (intent.approvalId) {
@@ -653,6 +661,7 @@ export async function handleMcpRequest(
                 intentId,
                 status,
                 signature,
+                ...signingDetails,
                 observedAt: new Date().toISOString(),
               }),
             },
