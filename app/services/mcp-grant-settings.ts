@@ -5,7 +5,6 @@ export type GrantDraft = {
   dailyUsd: string;
   slippagePercent: string;
   durationHours: string;
-  allowSell: boolean;
 };
 
 export function parseGrantSettings(draft: GrantDraft, sellAvailable: boolean): GrantSettings {
@@ -23,6 +22,5 @@ export function parseGrantSettings(draft: GrantDraft, sellAvailable: boolean): G
   const durationHours = Number(draft.durationHours);
   if (!draft.durationHours.trim() || !Number.isInteger(durationHours) || durationHours < 1 || durationHours > 24)
     throw new Error("Choose a duration between 1 and 24 hours.");
-  if (draft.allowSell && !sellAvailable) throw new Error("Chat selling is not available yet.");
-  return { perTradeUsd, dailyUsd, maxSlippageBps: Math.round(Number(draft.slippagePercent) * 100), durationHours, allowSell: draft.allowSell };
+  return { perTradeUsd, dailyUsd, maxSlippageBps: Math.round(Number(draft.slippagePercent) * 100), durationHours, allowSell: sellAvailable };
 }
