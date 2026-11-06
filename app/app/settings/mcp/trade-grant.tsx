@@ -386,6 +386,8 @@ export function TradeGrant({ connectionUid }: { connectionUid?: string }) {
           review remains available.
         </p>
       )}
+      {!apiOrigin && <p className="mt-4 text-sm text-muted" role="status">Chat trading settings are unavailable right now.</p>}
+      {apiOrigin && !grant && !error && <p className="mt-4 text-sm text-muted" role="status">Loading chat trading permission…</p>}
       {grant?.enabled && <ConnectionNextStep uid={connectionUid} />}
       {error && (
         <p className="mt-4 text-sm text-red-700" role="alert">

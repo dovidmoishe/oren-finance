@@ -1,9 +1,9 @@
-import { McpConnections } from "./connections";
+import { redirect } from "next/navigation";
 import { mcpEnrollmentLinks } from "@/services/mcp-enrollment-flow";
 
-export default async function Page({ searchParams }: {
+export default async function McpConnectionsPage({ searchParams }: {
   searchParams: Promise<{ connection?: string | string[] }>;
 }) {
   const { connection } = await searchParams;
-  return <McpConnections connectionUid={mcpEnrollmentLinks(connection).connection ? connection as string : undefined} />;
+  redirect(mcpEnrollmentLinks(connection).settings);
 }

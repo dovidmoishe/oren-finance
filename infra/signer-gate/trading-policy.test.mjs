@@ -55,7 +55,7 @@ test('retains account order and argument decoder while fitting aggregate IDL lim
   assert.ok(conditions.reduce((sum,c)=>sum+Buffer.byteLength(JSON.stringify(c.idl)),0)<=131072);
   for(const c of conditions) {
     assert.deepEqual(c.idl.instructions[0].accounts,idl.instructions[0].accounts);
-    assert.deepEqual(c.idl.instructions[0].args,c.field.includes('.accounts.')?[]:idl.instructions[0].args);
+    assert.deepEqual(c.idl.instructions[0].args,idl.instructions[0].args);
   }
 });
 test('fails closed on invalid route identity, empty mints and excessive policy lifetime', () => {
@@ -63,17 +63,22 @@ test('fails closed on invalid route identity, empty mints and excessive policy l
     assert.throws(()=>buildTradingPolicy({...input,...changed}));
 });
 
-test('the complete production IDL fits with a 403-mint catalog and 100-value chunks', () => {
+test('complete instruction decoders fit a verified 100-mint list; broader lists fail closed', () => {
   const productionIdl = JSON.parse(readFileSync(new URL('../../api/src/mcp-auth/jupiter-shared-route.idl.json', import.meta.url)));
   const alphabet = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
   const mints = Array.from({length:403},(_,i)=>stock.slice(0,-3)+alphabet[Math.floor(i/3364)]+alphabet[Math.floor(i/58)%58]+alphabet[i%58]);
-  const p = buildTradingPolicy({...input,idl:productionIdl,stockMints:mints});
-  assert.equal(p.rules.length,16);
+  const p = buildTradingPolicy({...input,idl:productionIdl,stockMints:mints.slice(0,100)});
+  assert.equal(p.rules.length,4);
+  const withCreation = buildTradingPolicy({...input,idl:productionIdl,stockMints:mints.slice(0,100),allowDestinationAccountCreation:true});
+  assert.equal(withCreation.rules.length,6);
+  assert.ok(withCreation.rules.flatMap(r=>r.conditions).reduce((n,c)=>n+(c.idl?Buffer.byteLength(JSON.stringify(c.idl)):0),0)<=131072);
+  assert.ok(withCreation.rules.flatMap(r=>r.conditions).filter(c=>c.operator==='in').every(c=>c.value.length<=100));
+  assert.throws(()=>buildTradingPolicy({...input,idl:productionIdl,stockMints:mints}),/at most 100/);
   assert.ok(p.rules.flatMap(r=>r.conditions).filter(c=>c.operator==='in').every(c=>c.value.length<=100));
-  assert.equal(p.rules.filter(r=>r.name.startsWith('allow bounded jupiter sell')).length,5);
-  assert.deepEqual(tradingPolicyIdl(p),productionIdl);
-  assert.doesNotThrow(()=>buildTradingPolicy({...input,idl:tradingPolicyIdl(p),stockMints:mints}));
-  const accountOnly = {rules:[{conditions:[{idl:p.rules[1].conditions[1].idl}]}]};
+  assert.equal(p.rules.filter(r=>r.name.startsWith('allow bounded jupiter sell')).length,1);
+  assert.deepEqual(tradingPolicyIdl(p).instructions[0].args.map(a=>a.name),productionIdl.instructions[0].args.map(a=>a.name));
+  assert.doesNotThrow(()=>buildTradingPolicy({...input,idl:tradingPolicyIdl(p),stockMints:mints.slice(0,100)}));
+  const accountOnly = {rules:[{conditions:[{idl:{...productionIdl,instructions:productionIdl.instructions.map(i=>({...i,args:[]}))}}]}]};
   assert.throws(()=>tradingPolicyIdl(accountOnly),/complete Jupiter/);
 });
 
@@ -84,4 +89,27 @@ test('readback ignores object-key order and provider IDs but rejects changed pol
   assert.equal(samePolicySemantics(policy,stored),true);
   stored.rules[0].conditions[0].value = '999999';
   assert.equal(samePolicySemantics(policy,stored),false);
+});
+
+test('account creation is opt-in, restricted to reviewed mints/programs, and keeps all swap guards', () => {
+  const p = buildTradingPolicy({...input, allowDestinationAccountCreation: true});
+  assert.deepEqual(p.rules.slice(0,4), policy.rules);
+  assert.equal(p.rules.length,6);
+  const ataRules = p.rules.slice(4);
+  for (const rule of ataRules) {
+    assert.equal(rule.method, 'signTransaction');
+    assert.equal(rule.action, 'ALLOW');
+    const decoders = rule.conditions.filter(c=>c.idl);
+    assert.equal(decoders.length,3);
+    for (const c of decoders) {
+      assert.deepEqual(c.idl.instructions[0].discriminator,[1]);
+      assert.deepEqual(c.idl.instructions[0].args,[]);
+      assert.deepEqual(c.idl.instructions[0].accounts.map(a=>a.name),['payer','associated_token','owner','mint','system_program','token_program']);
+    }
+    assert.equal(rule.conditions[0].value,'ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL');
+    assert.ok(rule.conditions.some(c=>c.field==='create_idempotent.accounts.system_program' && c.value==='11111111111111111111111111111111'));
+  }
+  assert.deepEqual(ataRules[0].conditions.find(c=>c.field==='create_idempotent.accounts.mint').value,[stock]);
+  assert.equal(ataRules[1].conditions.find(c=>c.field==='create_idempotent.accounts.mint').value,usdc);
+  assert.ok(p.rules.flatMap(r=>r.conditions).reduce((n,c)=>n+(c.idl?Buffer.byteLength(JSON.stringify(c.idl)):0),0)<128*1024);
 });
