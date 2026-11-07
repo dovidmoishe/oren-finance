@@ -17,6 +17,7 @@ import {
   LOGIN_WINDOW_MS,
   TEMP_PASSWORD_TTL_MS,
   canManageAccounts,
+  canAccessDashboard,
   canReadReports,
   invitationPermissions,
   normalizeEmail,
@@ -80,7 +81,7 @@ export class AdminAuthService {
       await this.repository.markTemporaryUsed(account.id, now);
     }
     const sessionId = newSecret();
-    const csrfToken = newSecret();
+    const csrfToken = secretHash(`csrf:${sessionId}`);
     const lifetime = sessionLifetime(principal.mustChangePassword);
     await this.repository.createSession({
       idHash: secretHash(sessionId),
@@ -108,6 +109,36 @@ export class AdminAuthService {
     const account = await this.accountForSession(sessionId, false);
     if (!account) throw new UnauthorizedException();
     if (!canReadReports(toPrincipal(account))) throw new ForbiddenException();
+  }
+
+  async session(sessionId: string | undefined) {
+    if (!sessionId) throw new UnauthorizedException();
+    const csrfToken = secretHash(`csrf:${sessionId}`);
+    // Sessions created before restorable CSRF tokens must sign in again.
+    const account = await this.accountForSession(sessionId, csrfToken);
+    if (!account) throw new UnauthorizedException();
+    return {
+      id: account.id,
+      email: account.email,
+      isMaster: account.isMaster,
+      permissions: account.permissions,
+      mustChangePassword: account.mustChangePassword,
+      csrfToken,
+    };
+  }
+
+  async dashboardActor(sessionId: string | undefined): Promise<void> {
+    const account = await this.accountForSession(sessionId, false);
+    if (!account) throw new UnauthorizedException();
+    if (!canAccessDashboard(toPrincipal(account)))
+      throw new ForbiddenException();
+  }
+
+  async masterActor(sessionId: string | undefined): Promise<void> {
+    const account = await this.accountForSession(sessionId, false);
+    if (!account) throw new UnauthorizedException();
+    if (!canManageAccounts(toPrincipal(account)))
+      throw new ForbiddenException();
   }
 
   async logout(
@@ -210,7 +241,13 @@ export class AdminAuthService {
     const actor = await this.requireAccount(input.sessionId, input.csrfToken);
     if (!canManageAccounts(toPrincipal(actor))) throw new ForbiddenException();
     const target = await this.repository.findById(input.accountId);
-    if (!target || target.isMaster) throw new ForbiddenException();
+    if (
+      !target ||
+      target.isMaster ||
+      target.status === 'revoked' ||
+      target.revokedAt
+    )
+      throw new ForbiddenException();
     const plaintext = temporaryPassword();
     const expiresAt = new Date(Date.now() + TEMP_PASSWORD_TTL_MS);
     await this.repository.rotateTemporary(
@@ -286,7 +323,10 @@ export class AdminAuthService {
         return null;
       }
     }
-    return this.repository.findById(session.accountId);
+    const account = await this.repository.findById(session.accountId);
+    if (!account || account.status === 'revoked' || account.revokedAt)
+      return null;
+    return account;
   }
 
   private async throttled(
