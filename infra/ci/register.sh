@@ -7,11 +7,15 @@ TOKEN=${TOKEN//$'\r'/}
 [[ -n "$TOKEN" ]]
 export ACTIONS_RUNNER_INPUT_TOKEN="$TOKEN"
 unset TOKEN
-for spec in oren-ci-build:build oren-ci-control:control-1 oren-ci-control:control-2; do
+for spec in oren-ci-build:build oren-ci-release:release oren-ci-control:control-1 oren-ci-control:control-2; do
   account=${spec%:*}; lane=${spec#*:}; directory="/home/$account/runner-$lane"; id=$(id -u "$account")
   label=oren-control
   [[ "$lane" != build ]] || label=oren-build
+  [[ "$lane" != release ]] || label=oren-release
   if [[ ! -f "$directory/.runner" ]]; then
+    for file in .path .env; do
+      [[ ! -f "$directory/$file" ]] || chown "$account:$account" "$directory/$file"
+    done
     (cd "$directory"; runuser -u "$account" -- ./config.sh --unattended --disableupdate \
       --url https://github.com/dovidmoishe/oren-finance --name "oren-vps-$lane" --labels "$label" --work _work)
   fi
@@ -20,6 +24,7 @@ for spec in oren-ci-build:build oren-ci-control:control-1 oren-ci-control:contro
   chmod -R g+rX,o-rwx "$directory"
   chown -R "$account:$account" "$directory/_work" "$directory/_diag"
   runuser -u "$account" -- env XDG_RUNTIME_DIR="/run/user/$id" DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$id/bus" systemctl --user daemon-reload
-  runuser -u "$account" -- env XDG_RUNTIME_DIR="/run/user/$id" DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$id/bus" systemctl --user enable --now "oren-runner-$lane.service"
+  runuser -u "$account" -- env XDG_RUNTIME_DIR="/run/user/$id" DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$id/bus" systemctl --user enable "oren-runner-$lane.service"
+  runuser -u "$account" -- env XDG_RUNTIME_DIR="/run/user/$id" DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$id/bus" systemctl --user restart "oren-runner-$lane.service"
 done
 unset ACTIONS_RUNNER_INPUT_TOKEN

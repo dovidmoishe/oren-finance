@@ -1,5 +1,5 @@
 {
-  "description": "current 2 CPU / 7424 MiB VPS; one build worker and two lightweight control listeners",
+  "description": "current 2 CPU / 7424 MiB VPS; isolated PR/release listeners share one heavy slot and resource ceiling; two control listeners",
   "buildMemory": "4G",
   "buildCpuQuota": "125%",
   "controlMemory": "768M",

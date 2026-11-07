@@ -66,6 +66,20 @@ jobs:
           docker compose -f deploy.yml config --quiet
           printf 'POSTGRES_URL=postgres://oren_test:test-password@db:5432/oren_mcp_test\n' > .env.api
           docker compose --profile delegated-trades -f deploy.yml config --quiet
+      - name: Verify production image pins override tags
+        env:
+          GHCR_OWNER: example
+          IMAGE_TAG: test-image
+          POSTGRES_USER: oren_test
+          POSTGRES_PASSWORD: test-password
+          POSTGRES_DB: oren_mcp_test
+          DOMAIN: production.example.com
+          API_DOMAIN: api.production.example.com
+          OREN_API_IMAGE: ghcr.io/example/oren-api@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+          OREN_APP_IMAGE: ghcr.io/example/oren-app@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+        run: |
+          docker compose --profile delegated-trades -f deploy.yml config --format json > "$RUNNER_TEMP/pinned-compose.json"
+          node --input-type=module -e "import fs from 'node:fs'; import assert from 'node:assert/strict'; const c=JSON.parse(fs.readFileSync(process.argv[1])); for (const s of ['api','api-migrate','signer-gate']) assert.equal(c.services[s].image,process.env.OREN_API_IMAGE); assert.equal(c.services.app.image,process.env.OREN_APP_IMAGE);" "$RUNNER_TEMP/pinned-compose.json"
       - name: Verify two disposable preview databases are isolated
         run: bash infra/preview/isolation.sh
       - name: Validate Caddy with a generated preview route
@@ -142,6 +156,14 @@ jobs:
             -v api_password=api_test_password \
             -v gate_password=gate_test_password < ../infra/signer-gate/roles.sql
           node scripts/test-signer-gate-roles.mjs
+      - name: Verify migration readability from a restrictive checkout
+        run: |
+          chmod -R go-rwx lib/db
+          chmod go-rwx package.json
+          docker build -t "oren-api-ci:$GITHUB_SHA" .
+          docker run --rm -i --read-only --network none --cap-drop ALL --security-opt no-new-privileges \
+            --memory 512m --entrypoint node "oren-api-ci:$GITHUB_SHA" \
+            --input-type=module - < ../infra/ci/runtime-readable.mjs
 
   app-check:
     name: App ${{ matrix.check }}
