@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, eq, gte, inArray, lt, sql } from 'drizzle-orm';
+import { and, eq, gte, inArray, isNull, lt, or, sql } from 'drizzle-orm';
 import { DRIZZLE } from '../../config/constants';
 import type { Database } from '../../database/database.provider';
 import {
@@ -441,6 +441,7 @@ export class GrowthRepository {
       dailyUniques: number;
     }>,
     days: string[],
+    frozen: boolean,
   ): Promise<void> {
     await this.db.transaction(async (tx) => {
       for (const day of days) {
@@ -457,39 +458,94 @@ export class GrowthRepository {
       if (rows.length > 0) {
         await tx
           .insert(growthDailyMetrics)
-          .values(rows.map((row) => ({ ...row, timezone, frozen: false })));
+          .values(rows.map((row) => ({ ...row, timezone, frozen })))
+          .onConflictDoNothing({
+            target: [
+              growthDailyMetrics.day,
+              growthDailyMetrics.timezone,
+              growthDailyMetrics.grain,
+              growthDailyMetrics.source,
+              growthDailyMetrics.dimension,
+            ],
+          });
       }
     });
   }
 
-  async freezeBefore(day: string): Promise<void> {
+  async claimRollup(
+    owner: string,
+  ): Promise<{ acquired: boolean; identitiesExact: boolean }> {
     await this.db
-      .update(growthDailyMetrics)
-      .set({ frozen: true })
+      .insert(growthCheckpoints)
+      .values({ name: 'rollup' })
+      .onConflictDoNothing();
+    const stale = new Date(Date.now() - 10 * 60 * 1000);
+    const rows = await this.db
+      .update(growthCheckpoints)
+      .set({ lockedAt: new Date(), lockOwner: owner, updatedAt: new Date() })
       .where(
         and(
-          sql`${growthDailyMetrics.day} < ${day}`,
-          eq(growthDailyMetrics.frozen, false),
+          eq(growthCheckpoints.name, 'rollup'),
+          or(
+            isNull(growthCheckpoints.lockedAt),
+            lt(growthCheckpoints.lockedAt, stale),
+          ),
+        ),
+      )
+      .returning({ identitiesExact: growthCheckpoints.identitiesExact });
+    return {
+      acquired: rows.length > 0,
+      identitiesExact: rows[0]?.identitiesExact ?? true,
+    };
+  }
+
+  async releaseRollup(owner: string): Promise<void> {
+    await this.db
+      .update(growthCheckpoints)
+      .set({ lockedAt: null, lockOwner: null, updatedAt: new Date() })
+      .where(
+        and(
+          eq(growthCheckpoints.name, 'rollup'),
+          eq(growthCheckpoints.lockOwner, owner),
         ),
       );
   }
 
-  async purgeRaw(cutoff: Date, limit: number): Promise<void> {
-    await this.db.execute(sql`
+  async identitiesExact(): Promise<boolean> {
+    const [row] = await this.db
+      .select({ identitiesExact: growthCheckpoints.identitiesExact })
+      .from(growthCheckpoints)
+      .where(eq(growthCheckpoints.name, 'rollup'))
+      .limit(1);
+    return row?.identitiesExact ?? true;
+  }
+
+  async purgeRaw(cutoff: Date, limit: number): Promise<number> {
+    const rows = await this.db.execute<{ id: string }>(sql`
       DELETE FROM growth_pageviews
       WHERE id IN (
         SELECT id FROM growth_pageviews WHERE occurred_at < ${cutoff} LIMIT ${limit}
       )
+      RETURNING id
     `);
+    return Array.isArray(rows) ? rows.length : 0;
   }
 
-  async purgeIdentities(cutoff: Date): Promise<void> {
-    await this.db
+  async purgeIdentities(cutoff: Date): Promise<number> {
+    const visitors = await this.db
       .delete(growthVisitors)
-      .where(sql`${growthVisitors.lastSeenAt} < ${cutoff}`);
+      .where(sql`${growthVisitors.lastSeenAt} < ${cutoff}`)
+      .returning({ visitorHash: growthVisitors.visitorHash });
     await this.db
       .delete(growthSessions)
       .where(sql`${growthSessions.lastSeenAt} < ${cutoff}`);
+    if (visitors.length > 0) {
+      await this.db
+        .update(growthCheckpoints)
+        .set({ identitiesExact: false, updatedAt: new Date() })
+        .where(eq(growthCheckpoints.name, 'rollup'));
+    }
+    return visitors.length;
   }
 
   async markCheckpoint(name: string): Promise<void> {

@@ -22,12 +22,18 @@ import {
   additivePageviews,
   allTimeFromDailyUniques,
   buildFunnel,
+  closedPageviews,
   compareSlices,
   retention,
 } from './growth-metrics';
 import { observeGrowth } from './growth-observe';
 import { assertPublicReport } from './growth-privacy';
-import { dayBounds, zonedDay } from './growth-time';
+import {
+  dayBounds,
+  dayIsPartial,
+  retentionBoundary,
+  zonedDay,
+} from './growth-time';
 import { countTrades } from './growth-trades';
 
 const NOW = new Date('2026-11-07T18:00:00.000Z');
@@ -80,6 +86,40 @@ describe('collection filters', () => {
       status: 'rejected',
       reason: 'personal_field',
     });
+    expect(
+      decideCollect(
+        {
+          event: 'research_success',
+          eventId: '11111111-1111-4111-8111-111111111111',
+          path: '/agents',
+          visitorId: '22222222-2222-4222-8222-222222222222',
+          sessionId: '33333333-3333-4333-8333-333333333333',
+          occurredAt: NOW.toISOString(),
+        },
+        NOW,
+        pepper,
+        ['localhost'],
+      ),
+    ).toMatchObject({ status: 'rejected', reason: 'event' });
+    const page = decideCollect(
+      {
+        event: 'pageview',
+        eventId: '11111111-1111-4111-8111-111111111111',
+        path: '/agents',
+        visitorId: '22222222-2222-4222-8222-222222222222',
+        sessionId: '33333333-3333-4333-8333-333333333333',
+        occurredAt: NOW.toISOString(),
+        utm: { campaign: 'oren_rpt_secretvalue', source: 'x' },
+      },
+      NOW,
+      pepper,
+      ['localhost'],
+    );
+    expect(page.status).toBe('pageview');
+    if (page.status === 'pageview') {
+      expect(page.draft.utmCampaign).toBeUndefined();
+      expect(page.draft.utmSource).toBe('x');
+    }
   });
 
   it('keeps a caddy page and ignores an API hit, with a stable idempotency key', () => {
@@ -348,6 +388,13 @@ describe('funnel, trades, and comparisons', () => {
           toolName: 'get_stock',
           accountHash: 'a',
         },
+        {
+          occurredAt: '2026-11-03T01:00:00.000Z',
+          eventType: 'mcp_stock_context',
+          toolName: 'get_stock',
+          lane: 'mcp',
+          accountHash: 'a',
+        },
       ],
       connections: [
         {
@@ -366,6 +413,11 @@ describe('funnel, trades, and comparisons', () => {
       oauthExpired: 1,
       researchCalls: 1,
       researchAccounts: 1,
+      mcpResearchActivation: {
+        status: 'unavailable',
+        reason: 'no_mcp_research_tool',
+      },
+      mcpStockContext: { tool: 'get_stock', calls: 1, accounts: 1 },
     });
     assertPublicReport(report);
   });
@@ -439,7 +491,28 @@ describe('funnel, trades, and comparisons', () => {
     ).toBe('unavailable');
   });
 
-  it('rolls a shared visitor once per day and freezes raw data in-process', () => {
+  it('keeps a partial WAT day out of raw deletion and out of a closed pageview total', () => {
+    const now = new Date('2026-11-07T10:00:00.000Z');
+    const boundary = retentionBoundary(now, 30);
+    expect(boundary.purgeBefore.toISOString()).toBe('2026-10-07T23:00:00.000Z');
+    expect(dayIsPartial('2026-11-07', 'Africa/Lagos', now)).toBe(true);
+    expect(dayIsPartial('2026-11-06', 'Africa/Lagos', now)).toBe(false);
+    const totals = closedPageviews(
+      [
+        { day: '2026-11-06', status: 'exact' as const, value: 10 },
+        { day: '2026-11-07', status: 'exact' as const, value: 4 },
+      ],
+      new Set(['2026-11-07']),
+    );
+    expect(totals.total).toEqual({ status: 'exact', value: 10 });
+    expect(totals.daily[1]).toMatchObject({
+      status: 'partial',
+      reason: 'civil_day_still_open',
+    });
+    expect(() => assertPublicReport({ note: 'oren_rpt_secret' })).toThrow();
+  });
+
+  it('rolls a shared visitor once per day and does not treat that sum as lifetime', () => {
     const rolled = rollPageviews(
       [
         row('2026-10-29T10:00:00.000Z', 'v1', 's1'),

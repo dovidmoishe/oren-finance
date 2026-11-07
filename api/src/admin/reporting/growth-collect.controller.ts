@@ -3,6 +3,7 @@ import {
   Body,
   Controller,
   HttpCode,
+  HttpException,
   Inject,
   Post,
   Req,
@@ -27,8 +28,9 @@ export class GrowthCollectController {
   @HttpCode(204)
   async collect(@Body() body: unknown, @Req() request: Request): Promise<void> {
     if (!this.env.GROWTH_COLLECT_ENABLED) return;
-    if (!this.allowed(request))
-      throw new BadRequestException({ reason: 'rate_limited' });
+    if (!this.allowed(request)) {
+      throw new HttpException({ reason: 'rate_limited' }, 429);
+    }
     if (!body || typeof body !== 'object')
       throw new BadRequestException({ reason: 'body' });
     const decision = decideCollect(

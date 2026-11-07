@@ -9,7 +9,8 @@ Base commit for this work: `9d925f803875489a7b39b47906e5064a9647acfb`.
 - Nest module `api/src/admin` with collection, report, and import controllers.
 - `marketing.read` for reports and `marketing.import` for aggregate imports. Neither permission is full admin, and neither can sign or broadcast a trade.
 - Durable pageviews in Postgres, daily rollups inside the existing API process, and configurable raw-data retention.
-- Funnel events for setup, OAuth outcomes, and the first successful in-app `getStockResearch` result.
+- Funnel events for setup, OAuth outcomes, in-app `getStockResearch`, and successful MCP `get_stock` as `mcp_stock_context`.
+- MCP research activation is reported `unavailable`. The read tools are `get_portfolio`, `search_stocks`, and `get_stock`. `get_stock` is canonical stock detail, not a research report. Search and portfolio reads are not counted. In-app research stays a separate channel.
 - Trade counts read from the existing intent, approval, and execution tables. Signing and transaction behavior are unchanged.
 - A provenance-aware import format. The November 2026 recovery file is a fixture and a manual import source. It is not loaded by deploy and it is not a baseline.
 
@@ -18,7 +19,6 @@ Base commit for this work: `9d925f803875489a7b39b47906e5064a9647acfb`.
 - No marketer UI. The website collects visits and carries attribution. Reports are API responses for a future page or for her own site.
 - No X, BulkPublish, or revenue sync, and no invented charges. Those series stay `unavailable` until a manual import.
 - No experiment assignment engine and no significance claim.
-- No MCP research-report tool. `get_stock` is not counted as research activation.
 - No production role grant and no production history import were run.
 - No live trade was verified.
 
@@ -43,7 +43,8 @@ A future frontend should use the marketer's own Oren login. The API checks her g
 | Lifetime uniques | Distinct durable visitor ids still inside identity retention. Unavailable once those keys are purged. Never the sum of daily uniques. |
 | People | Unavailable. Oren has accounts, not a person id. |
 | Connection | A row in `mcp_connections`. A setup click, a refused prompt, a failed prompt, and an expired or revoked grant are not connections. |
-| Research activation | A successful in-app `getStockResearch` result. The prompt and tool payload are not stored. |
+| Research activation | In-app `getStockResearch` only. MCP research activation is unavailable. Prompts are not stored. |
+| MCP stock context | A successful `get_stock` call. Canonical stock detail, not a research report. |
 | Prepared trade | One intent, or one browser execution that is not already tied to an intent. |
 | Confirmed trade | A confirmed intent, once. The linked execution is not counted again. Browser and delegated lanes stay separate. |
 
@@ -51,7 +52,7 @@ Dates accept `UTC` and `Africa/Lagos` (WAT, UTC+1, no daylight saving). A missin
 
 ## Decisions that need Dave
 
-1. Count MCP `get_stock` as research, or leave research activation on `getStockResearch` only until an MCP research tool exists.
+1. Add an MCP research tool later if the marketer needs that activation. `get_stock` stays stock context.
 2. Whether `marketing.import` should stay a separate grant. The read role cannot import.
 3. Replace `CORS_ORIGIN=*` with the real site origins before a browser on another domain calls the report API.
 4. Whether to import the recovery file into production later. This branch does not.

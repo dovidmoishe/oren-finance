@@ -58,6 +58,7 @@ function walk(value: unknown, path: string): void {
 function looksPersonal(value: string): boolean {
   return (
     value.includes('did:privy:') ||
+    value.includes('oren_rpt_') ||
     /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(value) ||
     /^(?:\d{1,3}\.){3}\d{1,3}$/.test(value)
   );

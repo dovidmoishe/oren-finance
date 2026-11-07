@@ -4,9 +4,9 @@ import type { AppEnv } from '../../config/env.schema';
 import { digest } from './growth-privacy';
 import { assertPublicReport } from './growth-privacy';
 import {
-  additivePageviews,
   allTimeFromDailyUniques,
   buildFunnel,
+  closedPageviews,
   compareSlices,
   FUNNEL_DEFINITIONS,
   retention,
@@ -22,6 +22,7 @@ import { countTrades } from './growth-trades';
 import {
   assertTimezone,
   dayBounds,
+  dayIsPartial,
   eachDay,
   type ReportTimezone,
 } from './growth-time';
@@ -86,15 +87,25 @@ export class GrowthReportService {
     const imported = resolveDaily(observations, 'page_views', from, to);
     const combined = combineDaily(telemetry, imported);
     const bounds = rangeBounds(from, to, timezone);
+    const now = new Date();
+    const identitiesExact = await this.repository.identitiesExact();
     const identitiesCover =
       bounds.start.getTime() >=
-      Date.now() -
+      now.getTime() -
         this.env.GROWTH_IDENTITY_RETENTION_DAYS * 24 * 60 * 60 * 1000;
+    const closed = closedPageviews(
+      combined,
+      new Set(
+        combined
+          .filter((day) => dayIsPartial(day.day, timezone, now))
+          .map((day) => day.day),
+      ),
+    );
     const report = {
       timezone,
       definitions: FUNNEL_DEFINITIONS,
-      pageviews: additivePageviews(combined),
-      daily: combined,
+      pageviews: closed.total,
+      daily: closed.daily,
       dailyUniques: {
         status: 'unavailable' as const,
         value: null,
@@ -104,20 +115,26 @@ export class GrowthReportService {
           .map((row) => ({ day: row.day, value: row.dailyUniques })),
       },
       lifetimeUniques: allTimeFromDailyUniques(),
-      distinctDurableVisitorsFirstSeenInRange: identitiesCover
+      distinctDurableVisitorsFirstSeenInRange: !identitiesExact
         ? {
-            status: 'exact' as const,
-            value: await this.repository.durableVisitors(
-              bounds.start,
-              bounds.end,
-            ),
-            note: 'First-seen durable visitors in this range. Not a sum of daily uniques and not people.',
-          }
-        : {
             status: 'unavailable' as const,
             value: null,
-            reason: 'identity_retention_does_not_cover_the_range',
-          },
+            reason: 'identity_keys_purged',
+          }
+        : identitiesCover
+          ? {
+              status: 'exact' as const,
+              value: await this.repository.durableVisitors(
+                bounds.start,
+                bounds.end,
+              ),
+              note: 'First-seen durable visitors in this range. Not a sum of daily uniques and not people.',
+            }
+          : {
+              status: 'unavailable' as const,
+              value: null,
+              reason: 'identity_retention_does_not_cover_the_range',
+            },
       historicalWindowPageviews: resolveWindow(
         observations,
         'window_page_views',
@@ -191,38 +208,25 @@ export class GrowthReportService {
         ? dimension
         : 'campaign';
     const bounds = rangeBounds(from, to, 'UTC');
-    const rows = await this.repository.pageviewsBetween(
-      bounds.start,
-      bounds.end,
-    );
-    if (rows.length > 50000) {
-      return {
-        status: 'unavailable' as const,
-        reason: 'sample_too_large_for_exact_comparison',
-        rows: [],
-      };
-    }
-    const events = await this.repository.funnelEvents(bounds.start, bounds.end);
+    const [metrics, events] = await Promise.all([
+      this.repository.dailyMetrics(from, to, 'UTC'),
+      this.repository.funnelEvents(bounds.start, bounds.end),
+    ]);
     const groups = new Map<
       string,
-      { visitors: Set<string>; connections: number; research: Set<string> }
+      { pageviews: number; connections: number; research: Set<string> }
     >();
-    for (const row of rows) {
-      if (row.source !== 'beacon' || row.visitorStability !== 'durable')
-        continue;
-      const key =
-        keyName === 'campaign'
-          ? row.utmCampaign || '(none)'
-          : keyName === 'content'
-            ? row.utmContent || '(none)'
-            : row.utmTerm || '(none)';
-      const group = groups.get(key) ?? {
-        visitors: new Set<string>(),
-        connections: 0,
-        research: new Set<string>(),
-      };
-      group.visitors.add(row.visitorHash);
-      groups.set(key, group);
+    if (keyName === 'campaign') {
+      for (const row of metrics) {
+        if (row.grain !== 'campaign' || row.source !== 'beacon') continue;
+        const group = groups.get(row.dimension) ?? {
+          pageviews: 0,
+          connections: 0,
+          research: new Set<string>(),
+        };
+        group.pageviews += row.pageviews;
+        groups.set(row.dimension, group);
+      }
     }
     for (const event of events) {
       const key =
@@ -234,25 +238,36 @@ export class GrowthReportService {
               ? event.term || '(none)'
               : event.campaign || '(none)';
       const group = groups.get(key) ?? {
-        visitors: new Set<string>(),
+        pageviews: 0,
         connections: 0,
         research: new Set<string>(),
       };
       if (event.eventType === 'oauth_completed') group.connections += 1;
-      if (event.eventType === 'research_success' && event.accountHash) {
+      if (
+        event.eventType === 'research_success' &&
+        event.toolName === 'getStockResearch' &&
+        event.accountHash
+      ) {
         group.research.add(event.accountHash);
       }
       groups.set(key, group);
     }
-    const report = compareSlices(
-      [...groups.entries()].map(([key, group]) => ({
-        key,
-        sampleSize: group.visitors.size,
-        connections: group.connections,
-        researchAccounts: group.research.size,
-      })),
-      this.env.GROWTH_MIN_COMPARISON_SAMPLE,
-    );
+    const report = {
+      denominator: keyName === 'campaign' ? 'pageviews' : 'unavailable',
+      uniqueVisitors: {
+        status: 'unavailable' as const,
+        reason: 'not_the_sum_of_daily_uniques',
+      },
+      ...compareSlices(
+        [...groups.entries()].map(([key, group]) => ({
+          key,
+          sampleSize: keyName === 'campaign' ? group.pageviews : 0,
+          connections: group.connections,
+          researchAccounts: group.research.size,
+        })),
+        this.env.GROWTH_MIN_COMPARISON_SAMPLE,
+      ),
+    };
     assertPublicReport(report);
     return report;
   }
