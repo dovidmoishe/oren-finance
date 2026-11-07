@@ -9,14 +9,21 @@ for account in oren-ci-build oren-ci-release oren-ci-control; do
     echo "Wait for $account jobs to finish before provisioning" >&2; exit 1
   fi
 done
+for spec in oren-ci-build:build oren-ci-release:release oren-ci-control:control-1 oren-ci-control:control-2; do
+  account=${spec%:*}; lane=${spec#*:}
+  if id "$account" >/dev/null 2>&1; then
+    id=$(id -u "$account")
+    runuser -u "$account" -- env XDG_RUNTIME_DIR="/run/user/$id" DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$id/bus" systemctl --user disable --now "oren-runner-$lane.service" 2>/dev/null || true
+  fi
+done
 ROOT=/opt/oren-ci
 install -d -m 755 "$ROOT" "$ROOT/bin" "$ROOT/downloads" "$ROOT/toolchain"
 install -m 755 "$SOURCE/network.sh" "$SOURCE/job-started.sh" "$SOURCE/job-completed.sh" "$ROOT/bin/"
-install -m 755 "$SOURCE/hold-build-slot.sh" "$SOURCE/control-started.sh" "$ROOT/bin/"
-install -m 644 "$SOURCE/trusted-job.mjs" "$ROOT/bin/"
+install -m 755 "$SOURCE/control-started.sh" "$ROOT/bin/"
+install -m 644 "$SOURCE/admission.py" "$SOURCE/lease-client.py" "$SOURCE/trusted-job.mjs" "$ROOT/bin/"
 export DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=l
 apt-get update -qq
-apt-get install -y --no-install-recommends uidmap dbus-user-session slirp4netns fuse-overlayfs curl jq git unzip zip
+apt-get install -y --no-install-recommends uidmap dbus-user-session slirp4netns fuse-overlayfs curl jq git unzip zip python3-minimal
 getent group oren-ci-workers >/dev/null || groupadd --system oren-ci-workers
 for account in oren-ci-build oren-ci-release oren-ci-control; do
   if ! id "$account" >/dev/null 2>&1; then useradd --create-home --shell /bin/bash "$account"; fi
@@ -30,10 +37,7 @@ CONTROL_ID=$(id -u oren-ci-control)
 usermod -a -G oren-ci-workers oren-ci-build
 usermod -a -G oren-ci-workers oren-ci-release
 install -d -m 750 -o root -g oren-ci-workers /run/oren-ci-build
-touch /run/oren-ci-build/slot.lock
-chown root:oren-ci-workers /run/oren-ci-build/slot.lock
-chmod 660 /run/oren-ci-build/slot.lock
-printf 'd /run/oren-ci-build 0750 root oren-ci-workers -\nf /run/oren-ci-build/slot.lock 0660 root oren-ci-workers -\n' > /etc/tmpfiles.d/oren-ci.conf
+printf 'd /run/oren-ci-build 0750 root oren-ci-workers -\n' > /etc/tmpfiles.d/oren-ci.conf
 
 cd "$ROOT/downloads"
 RUNNER=actions-runner-linux-x64-2.338.2.tar.gz
@@ -51,23 +55,10 @@ grep "  $NODE\$" node-SHASUMS256.txt | sha256sum -c -
 if [[ ! -d "$ROOT/toolchain/node-v22.23.4-linux-x64" ]]; then tar -xJf "$NODE" -C "$ROOT/toolchain"; fi
 
 install -d "/etc/systemd/system/user-$CONTROL_ID.slice.d"
-cat > /etc/systemd/system/oren-ci-build.slice <<EOF
-[Unit]
-Description=Shared resource ceiling for isolated PR and production builders
-[Slice]
-MemoryAccounting=yes
-MemoryHigh=3840M
-MemoryMax=4G
-MemorySwapMax=0
-CPUAccounting=yes
-CPUQuota=125%
-CPUWeight=25
-TasksMax=2048
-EOF
 cat > "/etc/systemd/system/user-$CONTROL_ID.slice.d/oren-ci.conf" <<EOF
 [Slice]
 MemoryAccounting=yes
-MemoryMax=768M
+MemoryMax=512M
 MemorySwapMax=0
 CPUAccounting=yes
 CPUQuota=25%
@@ -75,14 +66,25 @@ CPUWeight=50
 TasksMax=512
 EOF
 for id in "$BUILD_ID" "$RELEASE_ID"; do
-  install -d "/etc/systemd/system/user@$id.service.d"
+  install -d "/etc/systemd/system/user@$id.service.d" "/etc/systemd/system/user-$id.slice.d"
+  cat > "/etc/systemd/system/user-$id.slice.d/oren-ci.conf" <<EOF
+[Slice]
+MemoryAccounting=yes
+MemoryHigh=448M
+MemoryMax=512M
+MemorySwapMax=0
+CPUAccounting=yes
+CPUQuota=5%
+CPUWeight=25
+TasksMax=2048
+EOF
   cat > "/etc/systemd/system/user@$id.service.d/oren-ci.conf" <<EOF
 [Service]
-Slice=oren-ci-build.slice
 Delegate=cpu cpuset io memory pids
 [Unit]
 Requires=oren-ci-network.service
-After=oren-ci-network.service
+Wants=oren-ci-admission.service
+After=oren-ci-network.service oren-ci-admission.service
 EOF
 done
 cat > /etc/systemd/system/oren-ci-network.service <<EOF
@@ -96,18 +98,48 @@ RemainAfterExit=yes
 [Install]
 WantedBy=multi-user.target
 EOF
+cat > /etc/systemd/system/oren-ci-admission.service <<EOF
+[Unit]
+Description=Bound and serialize isolated CI builders
+After=dbus.service
+[Service]
+ExecStart=/usr/bin/python3 $ROOT/bin/admission.py
+Restart=always
+RestartSec=2
+MemoryMax=128M
+CPUQuota=5%
+TasksMax=64
+UMask=0077
+NoNewPrivileges=yes
+ProtectHome=yes
+PrivateTmp=yes
+[Install]
+WantedBy=multi-user.target
+EOF
 systemctl daemon-reload
 systemctl enable oren-ci-network.service
 systemctl restart oren-ci-network.service
+systemctl enable oren-ci-admission.service
+systemctl restart oren-ci-admission.service
 for account in oren-ci-build oren-ci-release oren-ci-control; do
   loginctl enable-linger "$account"
-  systemctl restart "user@$(id -u "$account").service"
+  id=$(id -u "$account")
+  if [[ "$account" != oren-ci-control ]]; then
+    systemctl set-property --runtime "user-$id.slice" MemoryMax=3840M MemoryHigh=3584M CPUQuota=120%
+  fi
+  systemctl restart "user@$id.service"
+  if [[ "$account" != oren-ci-control ]]; then
+    systemctl set-property --runtime "user-$id.slice" MemoryMax=512M MemoryHigh=448M CPUQuota=5%
+  fi
 done
 for account in oren-ci-build oren-ci-release; do
   id=$(id -u "$account")
+  # Registration/listeners remain stopped during serial daemon bootstrap.
+  systemctl set-property --runtime "user-$id.slice" MemoryMax=3840M MemoryHigh=3584M CPUQuota=120%
   runuser -u "$account" -- env XDG_RUNTIME_DIR="/run/user/$id" DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$id/bus" dockerd-rootless-setuptool.sh install --force
   runuser -u "$account" -- env XDG_RUNTIME_DIR="/run/user/$id" DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$id/bus" systemctl --user enable --now docker
   runuser -u "$account" -- env DOCKER_HOST="unix:///run/user/$id/docker.sock" docker info --format '{{.DockerRootDir}} {{.CgroupVersion}} {{.CgroupDriver}}'
+  systemctl set-property --runtime "user-$id.slice" MemoryMax=512M MemoryHigh=448M CPUQuota=5%
 done
 for spec in oren-ci-build:build oren-ci-release:release oren-ci-control:control-1 oren-ci-control:control-2; do
   account=${spec%:*}; lane=${spec#*:}; directory="/home/$account/runner-$lane"

@@ -40,7 +40,8 @@ test('production publishers cannot share PR identities, daemons or remote caches
   assert.match(job(production,'deploy'), /Select immutable production images/);
   assert.match(job(production,'deploy'), /\/opt\/oren\/releases\/\$IMAGE_TAG.env/);
   const provision=readFileSync(new URL('./provision.sh',import.meta.url),'utf8');
-  assert.match(provision,/Slice=oren-ci-build.slice/);
+  assert.doesNotMatch(provision,/Slice=oren-ci-build.slice/);
+  assert.match(provision,/oren-ci-admission.service/);
   assert.match(provision,/oren-ci-release/);
   assert.match(provision,/mask=0022/);
   const docker=readFileSync(new URL('../../api/Dockerfile',import.meta.url),'utf8');
