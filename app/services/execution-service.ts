@@ -1,4 +1,9 @@
 import { apiRequest } from "./api-client";
+
+/** These routes require the Privy session of the wallet they act for. */
+function authHeaders(token: string | null | undefined): Record<string, string> {
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
 import type {
   BasketIntent,
   BasketResponse,
@@ -30,17 +35,19 @@ export function refreshExecutionQuote(intent: TradeIntent) {
   return getExecutionQuote({ ...intent, autoRefresh: true });
 }
 
-export function prepareExecution(request: PrepareExecutionRequest) {
+export function prepareExecution(request: PrepareExecutionRequest, token?: string | null) {
   return apiRequest<ExecutionPreparedTransaction>("/execution/prepare", {
     method: "POST",
     body: request,
+    headers: authHeaders(token),
   });
 }
 
-export function confirmExecution(request: ConfirmExecutionRequest) {
+export function confirmExecution(request: ConfirmExecutionRequest, token?: string | null) {
   return apiRequest<ExecutionStatus>("/execution/confirm", {
     method: "POST",
     body: request,
+    headers: authHeaders(token),
   });
 }
 
@@ -65,25 +72,33 @@ export function proposeLimitOrder(intent: LimitOrderIntent) {
   });
 }
 
-export function prepareLimitOrder(request: {
-  proposalId: string;
-  wallet: string;
-}) {
+export function prepareLimitOrder(
+  request: {
+    proposalId: string;
+    wallet: string;
+  },
+  token?: string | null,
+) {
   return apiRequest<PreparedLimitOrder>("/execution/limit-order/prepare", {
     method: "POST",
     body: request,
+    headers: authHeaders(token),
   });
 }
 
-export function confirmLimitOrder(request: {
-  proposalId: string;
-  wallet: string;
-  signature: string;
-  orderKey?: string;
-}) {
+export function confirmLimitOrder(
+  request: {
+    proposalId: string;
+    wallet: string;
+    signature: string;
+    orderKey?: string;
+  },
+  token?: string | null,
+) {
   return apiRequest<LimitOrderConfirmResponse>("/execution/limit-order/confirm", {
     method: "POST",
     body: request,
+    headers: authHeaders(token),
   });
 }
 
@@ -97,29 +112,37 @@ export function listLimitOrders(
   );
 }
 
-export function prepareCancelLimitOrder(request: {
-  orderKey: string;
-  wallet: string;
-}) {
+export function prepareCancelLimitOrder(
+  request: {
+    orderKey: string;
+    wallet: string;
+  },
+  token?: string | null,
+) {
   return apiRequest<PreparedLimitCancel>(
     "/execution/limit-order/prepare-cancel",
     {
       method: "POST",
       body: request,
+      headers: authHeaders(token),
     },
   );
 }
 
-export function confirmCancelLimitOrder(request: {
-  orderKey: string;
-  wallet: string;
-  signature: string;
-}) {
+export function confirmCancelLimitOrder(
+  request: {
+    orderKey: string;
+    wallet: string;
+    signature: string;
+  },
+  token?: string | null,
+) {
   return apiRequest<LimitOrderCancelConfirmResponse>(
     "/execution/limit-order/confirm-cancel",
     {
       method: "POST",
       body: request,
+      headers: authHeaders(token),
     },
   );
 }

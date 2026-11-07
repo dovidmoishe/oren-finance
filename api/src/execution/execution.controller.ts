@@ -1,4 +1,12 @@
-import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Headers,
+  Param,
+  Post,
+  Query,
+} from '@nestjs/common';
 import {
   IsBoolean,
   IsIn,
@@ -32,6 +40,7 @@ import type {
 } from '../../types/limit-order';
 import type { TradeSide } from '../../types/quote';
 import type { LimitZoneBasis } from '../../types/analysis';
+import { PrivyWalletAuth } from '../auth/privy-wallet-auth';
 import { ExecutionService } from './execution.service';
 import { publicQuote } from './swap-terms';
 
@@ -260,7 +269,10 @@ class LimitOrderCancelConfirmDto {
 
 @Controller('execution')
 export class ExecutionController {
-  constructor(private readonly execution: ExecutionService) {}
+  constructor(
+    private readonly execution: ExecutionService,
+    private readonly auth: PrivyWalletAuth,
+  ) {}
 
   @Post('quote')
   async quote(
@@ -274,16 +286,20 @@ export class ExecutionController {
   }
 
   @Post('prepare')
-  prepare(
+  async prepare(
+    @Headers('authorization') authorization: string | undefined,
     @Body() body: ExecutionPrepareDto,
   ): Promise<PostExecutionPrepareResponse> {
+    await this.auth.requireWallet(authorization, body.wallet);
     return this.execution.prepare(body);
   }
 
   @Post('confirm')
-  confirm(
+  async confirm(
+    @Headers('authorization') authorization: string | undefined,
     @Body() body: ExecutionConfirmDto,
   ): Promise<PostExecutionConfirmResponse> {
+    await this.auth.requireWallet(authorization, body.wallet);
     return this.execution.confirm(body);
   }
 
@@ -315,14 +331,20 @@ export class ExecutionController {
   }
 
   @Post('limit-order/prepare')
-  prepareLimitOrder(
+  async prepareLimitOrder(
+    @Headers('authorization') authorization: string | undefined,
     @Body() body: LimitOrderPrepareDto,
   ): Promise<PreparedLimitOrder> {
+    await this.auth.requireWallet(authorization, body.wallet);
     return this.execution.prepareLimitOrder(body);
   }
 
   @Post('limit-order/confirm')
-  confirmLimitOrder(@Body() body: LimitOrderConfirmDto) {
+  async confirmLimitOrder(
+    @Headers('authorization') authorization: string | undefined,
+    @Body() body: LimitOrderConfirmDto,
+  ) {
+    await this.auth.requireWallet(authorization, body.wallet);
     return this.execution.confirmLimitOrder(body);
   }
 
@@ -337,14 +359,20 @@ export class ExecutionController {
   }
 
   @Post('limit-order/prepare-cancel')
-  prepareCancelLimitOrder(
+  async prepareCancelLimitOrder(
+    @Headers('authorization') authorization: string | undefined,
     @Body() body: LimitOrderCancelPrepareDto,
   ): Promise<PreparedLimitCancel> {
+    await this.auth.requireWallet(authorization, body.wallet);
     return this.execution.prepareCancelLimitOrder(body);
   }
 
   @Post('limit-order/confirm-cancel')
-  confirmCancelLimitOrder(@Body() body: LimitOrderCancelConfirmDto) {
+  async confirmCancelLimitOrder(
+    @Headers('authorization') authorization: string | undefined,
+    @Body() body: LimitOrderCancelConfirmDto,
+  ) {
+    await this.auth.requireWallet(authorization, body.wallet);
     return this.execution.confirmCancelLimitOrder(body);
   }
 }
