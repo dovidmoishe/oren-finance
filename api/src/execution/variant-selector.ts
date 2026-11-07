@@ -14,6 +14,7 @@ import {
 } from '../common/errors/provider.errors';
 import { TokensService } from '../tokens/tokens.service';
 import { StockDecimals } from './stock-decimals';
+import { rawToQuoteAmount, stockSharesToRaw } from './scaled-amount';
 import { SwapRouter, TITAN_MAX_VARIANT_QUOTES } from './swap-router';
 
 export interface VariantSelectionResult {
@@ -191,13 +192,36 @@ export class VariantSelector {
       outputSymbol: 'USDC',
       inputDecimals: stockDecimals,
       outputDecimals: USDC_DECIMALS,
-      amountUi: amount,
+      amountUi: scaledSellAmount(amount, stockDecimals, variant.uiMultiplier),
       amountUsd,
       slippageBps: intent.slippageBps,
       wallet: intent.wallet,
       titanEligible,
       lane: intent.autoRefresh ? 'background' : 'priority',
     });
+  }
+}
+
+/**
+ * Shares the user asked to sell, as the unscaled amount the swap converts to
+ * raw units. xStocks show raw * multiplier, so the raw amount is divided by it
+ * and rounded down; otherwise "sell all" asks for more than the wallet holds.
+ */
+export function scaledSellAmount(
+  shares: number,
+  decimals: number,
+  multiplier: number | undefined,
+): number {
+  if (!multiplier || multiplier === 1) return shares;
+  try {
+    return rawToQuoteAmount(
+      stockSharesToRaw(shares, decimals, multiplier),
+      decimals,
+    );
+  } catch (error) {
+    throw new JupiterBadRequestError(
+      error instanceof Error ? error.message : 'Invalid share amount',
+    );
   }
 }
 

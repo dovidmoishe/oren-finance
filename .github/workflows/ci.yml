@@ -17,14 +17,22 @@ concurrency:
 jobs:
   preview-infra:
     name: Preview infrastructure tests
-    runs-on: ubuntu-24.04
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: [self-hosted, linux, x64, oren-build]
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
+      - name: Configure disposable preview fixture paths
+        run: |
+          echo "PREVIEW_PROVIDER_ENV=$RUNNER_TEMP/ci-preview-provider.env" >> "$GITHUB_ENV"
+          echo "PREVIEW_OAUTH_ENV=$RUNNER_TEMP/ci-preview-oauth.env" >> "$GITHUB_ENV"
+          echo "PREVIEW_ACCESS_ENV=$RUNNER_TEMP/ci-preview-access.env" >> "$GITHUB_ENV"
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - run: node --test infra/preview/*.test.mjs
-      - run: node --test infra/signer-gate/trading-policy.test.mjs
+      - run: node --test infra/ci/*.test.mjs infra/preview/*.test.mjs infra/docs/*.test.mjs
+      - run: for script in infra/ci/*.sh; do bash -n "$script"; done
+      - run: node --test infra/signer-gate/trading-policy.test.mjs infra/signer-gate/build-launch-policy.test.mjs
       - run: node --check infra/signer-gate/prepare-trading-policy.mjs && node --check infra/signer-gate/policy-owner.mjs
       - run: for script in infra/preview/*.sh; do bash -n "$script"; done
       - run: bash -n infra/mcp/enable-oauth.sh
@@ -41,8 +49,7 @@ jobs:
           PREVIEW_HOST: pr-42.preview.example.com
           DB_PASSWORD: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
         run: |
-          sudo install -d /opt/oren/preview/stacks/pr-42
-          sudo touch /opt/oren/preview/provider.env /opt/oren/preview/access.env /opt/oren/preview/stacks/pr-42/oauth.env
+          touch "$PREVIEW_PROVIDER_ENV" "$PREVIEW_ACCESS_ENV" "$PREVIEW_OAUTH_ENV"
           docker compose -f infra/preview/compose.yml config --quiet
           docker compose -f infra/preview/access.compose.yml config --quiet
       - name: Validate production signer-gate Compose profile
@@ -59,6 +66,20 @@ jobs:
           docker compose -f deploy.yml config --quiet
           printf 'POSTGRES_URL=postgres://oren_test:test-password@db:5432/oren_mcp_test\n' > .env.api
           docker compose --profile delegated-trades -f deploy.yml config --quiet
+      - name: Verify production image pins override tags
+        env:
+          GHCR_OWNER: example
+          IMAGE_TAG: test-image
+          POSTGRES_USER: oren_test
+          POSTGRES_PASSWORD: test-password
+          POSTGRES_DB: oren_mcp_test
+          DOMAIN: production.example.com
+          API_DOMAIN: api.production.example.com
+          OREN_API_IMAGE: ghcr.io/example/oren-api@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+          OREN_APP_IMAGE: ghcr.io/example/oren-app@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+        run: |
+          docker compose --profile delegated-trades -f deploy.yml config --format json > "$RUNNER_TEMP/pinned-compose.json"
+          node --input-type=module -e "import fs from 'node:fs'; import assert from 'node:assert/strict'; const c=JSON.parse(fs.readFileSync(process.argv[1])); for (const s of ['api','api-migrate','signer-gate']) assert.equal(c.services[s].image,process.env.OREN_API_IMAGE); assert.equal(c.services.app.image,process.env.OREN_APP_IMAGE);" "$RUNNER_TEMP/pinned-compose.json"
       - name: Verify two disposable preview databases are isolated
         run: bash infra/preview/isolation.sh
       - name: Validate Caddy with a generated preview route
@@ -69,8 +90,9 @@ jobs:
           docker run --rm -e DOMAIN=production.example.com -e API_DOMAIN=api.production.example.com -v "$PWD/Caddyfile:/etc/caddy/Caddyfile:ro" -v "$RUNNER_TEMP/caddy-previews:/etc/caddy/previews:ro" caddy:2.10.2-alpine caddy validate --config /etc/caddy/Caddyfile
   api:
     name: API test and build
-    runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: [self-hosted, linux, x64, oren-build]
+    timeout-minutes: 45
     services:
       postgres:
         image: postgres:16-alpine
@@ -79,19 +101,23 @@ jobs:
           POSTGRES_PASSWORD: oren_test
           POSTGRES_DB: oren_mcp_test
         ports:
-          - 5432:5432
+          - '127.0.0.1::5432'
         options: >-
           --health-cmd "pg_isready -U oren_test -d oren_mcp_test"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
-    env:
-      MCP_TEST_POSTGRES_URL: postgres://oren_test:oren_test@127.0.0.1:5432/oren_mcp_test
     defaults:
       run:
         working-directory: api
     steps:
       - uses: actions/checkout@v4
+      - name: Configure disposable Postgres connection
+        env:
+          TEST_DB_PORT: ${{ job.services.postgres.ports['5432'] }}
+        run: |
+          [[ "$TEST_DB_PORT" =~ ^[0-9]+$ ]]
+          echo "MCP_TEST_POSTGRES_URL=postgres://oren_test:oren_test@127.0.0.1:$TEST_DB_PORT/oren_mcp_test" >> "$GITHUB_ENV"
       - uses: pnpm/action-setup@v4
         with:
           version: 11.22.0
@@ -122,19 +148,28 @@ jobs:
       - run: pnpm run test:mcp:gate
       - run: pnpm run test:mcp:registration
       - name: Apply restricted signer-gate roles to disposable Postgres
+        env:
+          TEST_DB_CONTAINER: ${{ job.services.postgres.id }}
         run: |
-          docker run --rm --network host \
-            -v "$PWD/../infra/signer-gate/roles.sql:/roles.sql:ro" \
-            -e PGPASSWORD=oren_test postgres:16-alpine \
-            psql -h 127.0.0.1 -U oren_test -d oren_mcp_test \
+          docker exec -i -e PGPASSWORD=oren_test "$TEST_DB_CONTAINER" \
+            psql -U oren_test -d oren_mcp_test \
             -v api_password=api_test_password \
-            -v gate_password=gate_test_password -f /roles.sql
+            -v gate_password=gate_test_password < ../infra/signer-gate/roles.sql
           node scripts/test-signer-gate-roles.mjs
+      - name: Verify migration readability from a restrictive checkout
+        run: |
+          chmod -R go-rwx lib/db
+          chmod go-rwx package.json
+          docker build -t "oren-api-ci:$GITHUB_SHA" .
+          docker run --rm -i --read-only --network none --cap-drop ALL --security-opt no-new-privileges \
+            --memory 512m --entrypoint node "oren-api-ci:$GITHUB_SHA" \
+            --input-type=module - < ../infra/ci/runtime-readable.mjs
 
   app-check:
     name: App ${{ matrix.check }}
-    runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: [self-hosted, linux, x64, oren-build]
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
@@ -176,7 +211,7 @@ jobs:
     name: App test, lint, and build
     needs: app-check
     if: always()
-    runs-on: ubuntu-24.04
+    runs-on: [self-hosted, linux, x64, oren-build]
     steps:
       - name: Require all web checks
         env:

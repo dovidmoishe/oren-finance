@@ -1,5 +1,10 @@
 import { assertFinancialExecutionEnabled } from '../config/deployment';
-import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  Logger,
+} from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import bs58 from 'bs58';
 import type {
@@ -55,6 +60,10 @@ import {
 } from './jupiter/limit-order-math';
 import { LimitOrderCache } from './limit-order-cache';
 import { LimitOrderRepository } from './limit-order.repository';
+import {
+  assertSignedPreparedTransaction,
+  OnchainTransactions,
+} from './onchain-transaction';
 import { QuoteCache } from './quote-cache';
 import { SwapRouter } from './swap-router';
 import {
@@ -63,7 +72,7 @@ import {
   type ReviewedTerms,
   type SwapExpectation,
 } from './swap-terms';
-import { VariantSelector } from './variant-selector';
+import { VariantSelector, scaledSellAmount } from './variant-selector';
 
 @Injectable()
 export class ExecutionService {
@@ -81,6 +90,7 @@ export class ExecutionService {
     private readonly portfolio: PortfolioService,
     private readonly tokens: TokensService,
     private readonly intelligence: IntelligenceService,
+    private readonly onchain: OnchainTransactions,
   ) {}
 
   async getQuote(body: TradeIntent | QuoteRequest): Promise<Quote> {
@@ -422,7 +432,7 @@ export class ExecutionService {
       status: 'awaiting_signature',
     });
 
-    this.cache.attachExecution(quote.id, row.id, wallet);
+    this.cache.attachExecution(quote.id, row.id, wallet, prepared.transaction);
     return {
       prepared: { ...prepared, executionId: row.id },
       quote,
@@ -445,31 +455,42 @@ export class ExecutionService {
       throw new BadRequestException('signature is required');
     }
 
-    const cached = this.cache.getPendingExecution(input.quoteId);
-    const executionId = input.executionId?.trim() || cached?.executionId;
-
-    if (!executionId) {
+    const pending = this.cache.getPendingExecution(input.quoteId);
+    if (!pending?.transaction || pending.wallet !== wallet) {
       throw new ExecutionNotFoundError(
         `No pending execution for quote ${input.quoteId}`,
       );
     }
+    const requestedId = input.executionId?.trim();
+    if (requestedId && requestedId !== pending.executionId) {
+      throw new BadRequestException(
+        'executionId does not match the prepared quote',
+      );
+    }
+    const signature = input.signature.trim();
+    // The signature has to be for this prepared message. Another confirmed
+    // transaction cannot be attached, including one submitted before approval
+    // tracks the real signature.
+    assertSignedPreparedTransaction(pending.transaction, signature, wallet);
 
     const submitted = await this.repository.submitAndEnqueue({
-      executionId,
+      executionId: pending.executionId,
       walletAddress: wallet,
-      transactionSignature: input.signature.trim(),
+      transactionSignature: signature,
     });
     if (!submitted) {
-      throw new ExecutionNotFoundError(`Execution not found: ${executionId}`);
+      throw new ExecutionNotFoundError(
+        `Execution not found: ${pending.executionId}`,
+      );
     }
 
     this.cache.delete(input.quoteId);
 
     return {
-      executionId,
+      executionId: pending.executionId,
       quoteId: input.quoteId,
       wallet,
-      signature: input.signature.trim(),
+      signature,
       status: 'submitted',
       trackingStatus: 'pending',
     };
@@ -535,6 +556,7 @@ export class ExecutionService {
         amount,
         limitPriceUsd: intent.limitPriceUsd,
         stockDecimals,
+        stockMultiplier: variant.uiMultiplier,
         marketPriceUsd: equity.price,
       });
     } catch (err) {
@@ -666,16 +688,43 @@ export class ExecutionService {
 
     const proposal = this.limitOrders.getProposal(input.proposalId);
     const prepared = this.limitOrders.getPrepared(input.proposalId);
-    const orderKey = input.orderKey?.trim() || prepared.orderKey;
+    if (prepared.wallet !== wallet) {
+      throw new ForbiddenException(
+        'This limit order was prepared for a different wallet',
+      );
+    }
+    // The order account comes from Jupiter's prepare response, never the caller.
+    const orderKey = prepared.orderKey;
     if (!orderKey) {
       throw new BadRequestException(
         'orderKey is required to persist the limit order',
       );
     }
+    if (input.orderKey?.trim() && input.orderKey.trim() !== orderKey) {
+      throw new BadRequestException(
+        'orderKey does not match the prepared order',
+      );
+    }
+    if (!prepared.transaction) {
+      throw new BadRequestException('Prepared transaction expired');
+    }
+    const signature = input.signature.trim();
+    await this.onchain.assertPreparedTransaction(
+      signature,
+      wallet,
+      prepared.transaction,
+      orderKey,
+    );
+    const existing = await this.limitOrderRepository.findByOrderKey(orderKey);
+    if (existing && existing.walletAddress !== wallet) {
+      throw new ForbiddenException(
+        'This limit order does not belong to your wallet',
+      );
+    }
 
     await this.repository.updateStatus(prepared.executionId, {
       status: 'confirmed',
-      transactionSignature: input.signature.trim(),
+      transactionSignature: signature,
     });
 
     await this.limitOrderRepository.upsert({
@@ -692,7 +741,7 @@ export class ExecutionService {
       amountUsd: proposal.amountUsd,
       status: 'open',
       basis: proposal.basis,
-      openSignature: input.signature.trim(),
+      openSignature: signature,
       expiredAt: new Date(proposal.expiredAt * 1000),
     });
 
@@ -713,7 +762,7 @@ export class ExecutionService {
     return {
       proposalId: input.proposalId,
       wallet,
-      signature: input.signature.trim(),
+      signature,
       orderKey,
       status: 'confirmed',
       portfolioRefreshed,
@@ -837,6 +886,15 @@ export class ExecutionService {
       throw new BadRequestException('orderKey is required');
     }
 
+    const indexed = await this.limitOrderRepository.findByOrderKey(
+      input.orderKey.trim(),
+    );
+    if (!indexed || indexed.walletAddress !== wallet) {
+      throw new ForbiddenException(
+        'This limit order does not belong to your wallet',
+      );
+    }
+
     const cancelled = await this.trigger.cancelOrder({
       maker: wallet,
       order: input.orderKey.trim(),
@@ -850,9 +908,6 @@ export class ExecutionService {
       );
     }
 
-    const indexed = await this.limitOrderRepository.findByOrderKey(
-      input.orderKey.trim(),
-    );
     const row = await this.repository.insert({
       walletAddress: wallet,
       type: 'limit_cancel',
@@ -899,21 +954,52 @@ export class ExecutionService {
       throw new BadRequestException('signature is required');
     }
 
-    const prepared = this.limitOrders.getCancel(input.orderKey.trim());
+    const orderKey = input.orderKey.trim();
+    const prepared = this.limitOrders.getCancel(orderKey);
+    if (prepared.wallet !== wallet) {
+      throw new ForbiddenException(
+        'This cancellation was prepared for a different wallet',
+      );
+    }
+    if (!prepared.transaction) {
+      throw new BadRequestException('Prepared transaction expired');
+    }
+    const indexed = await this.limitOrderRepository.findByOrderKey(orderKey);
+    if (!indexed || indexed.walletAddress !== wallet) {
+      throw new ForbiddenException(
+        'This limit order does not belong to your wallet',
+      );
+    }
+    const signature = input.signature.trim();
+    await this.onchain.assertPreparedTransaction(
+      signature,
+      wallet,
+      prepared.transaction,
+      orderKey,
+    );
     await this.repository.updateStatus(prepared.executionId, {
       status: 'confirmed',
-      transactionSignature: input.signature.trim(),
+      transactionSignature: signature,
     });
-    await this.limitOrderRepository.updateStatus(input.orderKey.trim(), {
-      status: 'cancelled',
-      closeSignature: input.signature.trim(),
-    });
-    this.limitOrders.deleteCancel(input.orderKey.trim());
+    const cancelled = await this.limitOrderRepository.updateStatus(
+      orderKey,
+      {
+        status: 'cancelled',
+        closeSignature: signature,
+      },
+      wallet,
+    );
+    if (!cancelled) {
+      throw new ForbiddenException(
+        'This limit order does not belong to your wallet',
+      );
+    }
+    this.limitOrders.deleteCancel(orderKey);
 
     return {
-      orderKey: input.orderKey.trim(),
+      orderKey,
       wallet,
-      signature: input.signature.trim(),
+      signature,
       status: 'cancelled',
     };
   }
@@ -993,7 +1079,10 @@ export class ExecutionService {
       outputSymbol: req.outputMint === USDC_MINT ? 'USDC' : variant.symbol,
       inputDecimals,
       outputDecimals,
-      amountUi: req.amount,
+      amountUi:
+        req.inputMint === stockMint && req.inputMint !== USDC_MINT
+          ? scaledSellAmount(req.amount, inputDecimals, variant.uiMultiplier)
+          : req.amount,
       amountUsd,
       slippageBps: req.slippageBps ?? DEFAULT_SLIPPAGE_BPS,
       wallet: req.wallet,

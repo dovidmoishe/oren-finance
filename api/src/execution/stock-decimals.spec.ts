@@ -71,3 +71,50 @@ describe('StockDecimals', () => {
     ).rejects.toBeInstanceOf(TokensBadRequestError);
   });
 });
+
+describe('StockDecimals scaled-UI multiplier', () => {
+  const mint = {
+    mint: 'Xsc9qvGR1efVDFGLrVsmkzv3qi45LTBjeUKSPmx9qEh',
+    symbol: 'NVDAx',
+    name: 'NVIDIA xStock',
+    tradable: true,
+  };
+  function rpcWithMultiplier(state: Record<string, unknown>) {
+    return {
+      call: jest.fn().mockResolvedValue({
+        value: {
+          data: {
+            parsed: {
+              info: {
+                decimals: 8,
+                extensions: [
+                  { extension: 'pausableConfig', state: { paused: false } },
+                  { extension: 'scaledUiAmountConfig', state },
+                ],
+              },
+            },
+          },
+        },
+      }),
+    };
+  }
+
+  it('reads the multiplier in effect from the mint extension', async () => {
+    const resolved = await new StockDecimals(
+      rpcWithMultiplier({
+        multiplier: '1.0009180758490996',
+        newMultiplier: '1.001701196801074',
+        newMultiplierEffectiveTimestamp: 1,
+      }) as never,
+    ).forVariant(mint);
+    expect(resolved.decimals).toBe(8);
+    expect(resolved.uiMultiplier).toBe(1.001701196801074);
+  });
+
+  it('treats a mint without the extension as unscaled', async () => {
+    const resolved = await new StockDecimals(
+      rpcReturning(8) as never,
+    ).forVariant(mint);
+    expect(resolved.uiMultiplier).toBe(1);
+  });
+});

@@ -1,5 +1,10 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
-import { simulationFailureCode } from './simulation-failure';
+import {
+  simulationFailureCode,
+  SOL_RENT_MESSAGE,
+  SOL_FEE_MESSAGE,
+} from './simulation-failure';
+import { isJupiterSlippageFailure } from './jupiter-slippage';
 import { VersionedTransaction } from '@solana/web3.js';
 import { createPublicKey, verify } from 'node:crypto';
 import bs58 from 'bs58';
@@ -64,9 +69,33 @@ export class ApprovalRpc {
       ]),
     ]);
     if (simulated.value.err) {
-      this.logger.warn(
-        `Transaction simulation rejected: ${simulationFailureCode(simulated.value.err)}`,
-      );
+      const failure = simulated.value.err as { InstructionError?: unknown[] };
+      const index = failure?.InstructionError?.[0];
+      const instruction =
+        typeof index === 'number' && index >= 0
+          ? tx.message.compiledInstructions[index]
+          : undefined;
+      const program = instruction
+        ? tx.message.staticAccountKeys[instruction.programIdIndex]?.toBase58()
+        : undefined;
+      const failureCode = simulationFailureCode(simulated.value.err);
+      this.logger.warn(`Transaction simulation rejected: ${failureCode}`);
+      if (failureCode.startsWith('insufficient_rent_account_'))
+        throw new BadRequestException({
+          message: SOL_RENT_MESSAGE,
+          code: 'INSUFFICIENT_SOL_FOR_RENT',
+        });
+      if (failureCode === 'InsufficientFundsForFee')
+        throw new BadRequestException({
+          message: SOL_FEE_MESSAGE,
+          code: 'INSUFFICIENT_SOL_FOR_FEES',
+        });
+      if (isJupiterSlippageFailure(simulated.value.err, program))
+        throw new BadRequestException({
+          message:
+            'The price moved outside the approved tolerance. Request a fresh quote and review its minimum proceeds.',
+          code: 'QUOTE_SLIPPAGE_EXCEEDED',
+        });
       throw new BadRequestException(
         'This transaction could not be simulated. Check your USDC and SOL balances and request a fresh quote.',
       );

@@ -18,6 +18,7 @@ const groups = [
     { label: "Activity", href: "/app/activity" },
   ] },
   { title: "Resources", links: [
+    { label: "Connect your agent", href: "/agents" },
     { label: "Roadmap", href: "/roadmap" },
     { label: "Changelog", href: "/changelog" },
     { label: "Token", href: "/token" },

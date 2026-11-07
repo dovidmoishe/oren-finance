@@ -11,6 +11,8 @@ export function publicGateFailureCode(error: unknown): string {
     'inactive_delegation',
     'unsupported_route',
     'simulation_failed',
+    'insufficient_sol_for_rent',
+    'insufficient_sol_for_fees',
     'transaction_expired',
     'reviewed_terms_changed',
     'intent_unavailable',

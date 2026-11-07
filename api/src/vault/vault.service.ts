@@ -34,6 +34,15 @@ import {
   type VaultPositionRow,
 } from './vault.repository';
 import { PublicKey } from '@solana/web3.js';
+import {
+  assertSignatureFormat,
+  decodeConfirmedTransaction,
+} from '../execution/onchain-transaction';
+import {
+  assertLockCustody,
+  lockedUiAmount,
+  verifyVaultInstruction,
+} from './vault-confirmation';
 
 export const VAULT_PROGRAM_NOT_LIVE = 'VAULT_PROGRAM_NOT_LIVE';
 
@@ -112,26 +121,52 @@ export class VaultService {
     assertFinancialExecutionEnabled();
     this.assertProgramLive();
     const wallet = assertPublicKey(input.wallet, 'wallet');
+    const lockAddress = assertPublicKey(input.lockAddress, 'lockAddress');
     const signature = assertNonEmpty(input.signature, 'signature');
-    await this.assertConfirmed(signature);
+    // Index only what the chain shows this wallet locked, not client claims.
+    const confirmed = await this.confirmedTransaction(signature);
+    const lock = verifyVaultInstruction(confirmed, {
+      wallet,
+      programId: this.env.VAULT_PROGRAM_ID,
+      instruction: 'lock_tokens',
+      lockAddress,
+    });
+    let vaultAccount: Buffer | null;
+    try {
+      vaultAccount = await this.alchemy.getAccountData(lock.tokenVault);
+    } catch {
+      throw new ServiceUnavailableException(
+        'Locked token vault could not be read. Retry after it is visible.',
+      );
+    }
+    assertLockCustody(lock, vaultAccount);
+    const amount = lockedUiAmount(confirmed, lock.mint, lock.amountRaw!);
+    const unlockAt = new Date(Number(lock.unlockTime!) * 1000);
+    const equity =
+      input.mint === lock.mint
+        ? { assetId: input.assetId, ticker: input.ticker }
+        : { assetId: undefined, ticker: undefined };
 
     await this.repository.upsertLock({
       ...input,
+      ...equity,
       wallet,
+      lockAddress,
+      mint: lock.mint,
+      amount,
       signature,
-      unlockAt: toDate(input.unlockAt),
+      unlockAt,
     });
     await this.repository.recordExecution({
       walletAddress: wallet,
       type: 'lock',
-      assetId: input.assetId,
-      ticker: input.ticker,
-      tokenMint: input.mint,
-      amount: input.amount,
+      ...equity,
+      tokenMint: lock.mint,
+      amount,
       transactionSignature: signature,
     });
 
-    return this.confirmResponse(wallet, input.lockAddress, signature);
+    return this.confirmResponse(wallet, lockAddress, signature);
   }
 
   async prepareUnlock(input: UnlockIntent): Promise<PreparedVaultTransaction> {
@@ -175,9 +210,21 @@ export class VaultService {
     const wallet = assertPublicKey(input.wallet, 'wallet');
     const lockAddress = assertPublicKey(input.lockAddress, 'lockAddress');
     const signature = assertNonEmpty(input.signature, 'signature');
-    await this.assertConfirmed(signature);
-
     const row = await this.getIndexedPosition(wallet, lockAddress);
+    // Only this wallet's own withdraw from this lock may clear the index.
+    const unlock = verifyVaultInstruction(
+      await this.confirmedTransaction(signature),
+      {
+        wallet,
+        programId: this.env.VAULT_PROGRAM_ID,
+        instruction: 'withdraw_tokens',
+        lockAddress,
+      },
+    );
+    if (unlock.mint !== row.mint)
+      throw new BadRequestException(
+        'Unlock transaction is for a different mint',
+      );
     await this.repository.removeLock(wallet, lockAddress);
     await this.repository.recordExecution({
       walletAddress: wallet,
@@ -318,11 +365,12 @@ export class VaultService {
     return row;
   }
 
-  private async assertConfirmed(signature: string): Promise<void> {
-    const status = await this.alchemy.getTransactionStatus(signature);
-    if (status !== 'confirmed' && status !== 'finalized') {
-      throw new BadRequestException(`Transaction is not confirmed: ${status}`);
-    }
+  private async confirmedTransaction(signature: string) {
+    const value = assertSignatureFormat(signature);
+    return decodeConfirmedTransaction(
+      await this.alchemy.getConfirmedRawTransaction(value),
+      value,
+    );
   }
 
   private async confirmResponse(

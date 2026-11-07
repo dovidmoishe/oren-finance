@@ -1,4 +1,4 @@
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import type { Quote } from '../../types/quote';
 import { PriceMovedError } from '../common/errors/provider.errors';
 import { BasketCache } from './basket-cache';
@@ -82,8 +82,12 @@ describe('ExecutionService basket support', () => {
     getCancel: jest.fn(),
     deleteCancel: jest.fn(),
   };
+  const onchain = {
+    assertPreparedTransaction: jest.fn(),
+  };
   const limitOrderRepository = {
     upsert: jest.fn(),
+    findByOrderKey: jest.fn(),
     updateStatus: jest.fn(),
     listByWallet: jest.fn(),
     toRecord: jest.fn(),
@@ -107,15 +111,16 @@ describe('ExecutionService basket support', () => {
       portfolio as never,
       tokens as never,
       intelligence as never,
+      onchain as never,
     );
   });
 
-  it('acknowledges a submitted swap without waiting for RPC or portfolio refresh', async () => {
+  it('rejects a swap signature that is not for the prepared transaction', async () => {
     quoteCache.getPendingExecution.mockReturnValue({
       executionId: 'execution-1',
       wallet,
+      transaction: 'not-a-transaction',
     });
-    repository.submitAndEnqueue.mockResolvedValue({ id: 'execution-1' });
 
     await expect(
       service.confirm({
@@ -124,16 +129,27 @@ describe('ExecutionService basket support', () => {
         wallet,
         signature: 'signature-1',
       }),
-    ).resolves.toEqual({
-      executionId: 'execution-1',
-      quoteId: 'quote-NVDA',
-      wallet,
-      signature: 'signature-1',
-      status: 'submitted',
-      trackingStatus: 'pending',
-    });
-    expect(repository.submitAndEnqueue).toHaveBeenCalled();
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(repository.submitAndEnqueue).not.toHaveBeenCalled();
     expect(portfolio.getPortfolio).not.toHaveBeenCalled();
+  });
+
+  it('rejects a swap confirm aimed at a different execution', async () => {
+    quoteCache.getPendingExecution.mockReturnValue({
+      executionId: 'execution-1',
+      wallet,
+      transaction: 'unsigned',
+    });
+
+    await expect(
+      service.confirm({
+        executionId: 'execution-other',
+        quoteId: 'quote-NVDA',
+        wallet,
+        signature: 'signature-1',
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(repository.submitAndEnqueue).not.toHaveBeenCalled();
   });
 
   it('creates score-weighted baskets from explicit candidates', async () => {
@@ -488,5 +504,181 @@ describe('ExecutionService basket support', () => {
         type: 'limit_buy',
       }),
     );
+  });
+
+  describe('limit order confirmation binding', () => {
+    const other = 'So11111111111111111111111111111111111111112';
+    const proposal = {
+      id: 'proposal-1',
+      side: 'buy',
+      assetId: 'nvda',
+      ticker: 'NVDA',
+      inputMint: 'usdc',
+      outputMint: 'stock',
+      makingAmount: 10,
+      takingAmount: 0.05,
+      limitPriceUsd: 200,
+      amountUsd: 10,
+      expiredAt: 1_900_000_000,
+    };
+    const prepared = {
+      proposalId: 'proposal-1',
+      wallet,
+      orderKey: 'order-1',
+      transaction: 'prepared-tx',
+      executionId: 'execution-1',
+    };
+
+    beforeEach(() => {
+      limitOrderCache.getProposal.mockReturnValue(proposal);
+      limitOrderCache.getPrepared.mockReturnValue(prepared);
+      onchain.assertPreparedTransaction.mockResolvedValue({});
+      portfolio.getPortfolio.mockResolvedValue({});
+    });
+
+    it('rejects a confirm for a wallet other than the one prepared', async () => {
+      await expect(
+        service.confirmLimitOrder({
+          proposalId: 'proposal-1',
+          wallet: other,
+          signature: 'sig',
+        }),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      expect(limitOrderRepository.upsert).not.toHaveBeenCalled();
+      expect(repository.updateStatus).not.toHaveBeenCalled();
+    });
+
+    it('rejects a caller-supplied orderKey that differs from Jupiter', async () => {
+      await expect(
+        service.confirmLimitOrder({
+          proposalId: 'proposal-1',
+          wallet,
+          signature: 'sig',
+          orderKey: 'another-order',
+        }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(limitOrderRepository.upsert).not.toHaveBeenCalled();
+    });
+
+    it('verifies the signature on chain before recording the order', async () => {
+      onchain.assertPreparedTransaction.mockRejectedValue(
+        new BadRequestException(
+          'Transaction does not match the prepared transaction',
+        ),
+      );
+      await expect(
+        service.confirmLimitOrder({
+          proposalId: 'proposal-1',
+          wallet,
+          signature: 'forged',
+        }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(onchain.assertPreparedTransaction).toHaveBeenCalledWith(
+        'forged',
+        wallet,
+        'prepared-tx',
+        'order-1',
+      );
+      expect(limitOrderRepository.upsert).not.toHaveBeenCalled();
+    });
+
+    it('records a verified order under the prepared order key', async () => {
+      await service.confirmLimitOrder({
+        proposalId: 'proposal-1',
+        wallet,
+        signature: 'sig',
+      });
+      expect(limitOrderRepository.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          walletAddress: wallet,
+          orderKey: 'order-1',
+          openSignature: 'sig',
+        }),
+      );
+    });
+
+    it('rejects a cancel confirm from another wallet', async () => {
+      limitOrderCache.getCancel.mockReturnValue({
+        orderKey: 'order-1',
+        wallet,
+        executionId: 'execution-2',
+      });
+      await expect(
+        service.confirmCancelLimitOrder({
+          orderKey: 'order-1',
+          wallet: other,
+          signature: 'sig',
+        }),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      expect(limitOrderRepository.updateStatus).not.toHaveBeenCalled();
+    });
+
+    it('marks an order cancelled only after on-chain verification', async () => {
+      limitOrderCache.getCancel.mockReturnValue({
+        orderKey: 'order-1',
+        wallet,
+        transaction: 'prepared-cancel',
+        executionId: 'execution-2',
+      });
+      limitOrderRepository.findByOrderKey.mockResolvedValue({
+        walletAddress: wallet,
+      });
+      limitOrderRepository.updateStatus.mockResolvedValue({ id: 'row' });
+      await service.confirmCancelLimitOrder({
+        orderKey: 'order-1',
+        wallet,
+        signature: 'sig',
+      });
+      expect(onchain.assertPreparedTransaction).toHaveBeenCalledWith(
+        'sig',
+        wallet,
+        'prepared-cancel',
+        'order-1',
+      );
+      expect(limitOrderRepository.updateStatus).toHaveBeenCalledWith(
+        'order-1',
+        { status: 'cancelled', closeSignature: 'sig' },
+        wallet,
+      );
+    });
+
+    it('does not cancel an order indexed to another wallet', async () => {
+      limitOrderCache.getCancel.mockReturnValue({
+        orderKey: 'order-1',
+        wallet,
+        transaction: 'prepared-cancel',
+        executionId: 'execution-2',
+      });
+      limitOrderRepository.findByOrderKey.mockResolvedValue({
+        walletAddress: other,
+      });
+      await expect(
+        service.confirmCancelLimitOrder({
+          orderKey: 'order-1',
+          wallet,
+          signature: 'sig',
+        }),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      expect(onchain.assertPreparedTransaction).not.toHaveBeenCalled();
+      expect(limitOrderRepository.updateStatus).not.toHaveBeenCalled();
+    });
+
+    it('refuses to prepare a cancel when the order is not indexed', async () => {
+      limitOrderRepository.findByOrderKey.mockResolvedValue(null);
+      await expect(
+        service.prepareCancelLimitOrder({ orderKey: 'order-1', wallet }),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      expect(trigger.cancelOrder).not.toHaveBeenCalled();
+    });
+
+    it('refuses to prepare a cancel for an order indexed under another wallet', async () => {
+      limitOrderRepository.findByOrderKey.mockResolvedValue({
+        walletAddress: other,
+      });
+      await expect(
+        service.prepareCancelLimitOrder({ orderKey: 'order-1', wallet }),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      expect(trigger.cancelOrder).not.toHaveBeenCalled();
+    });
   });
 });

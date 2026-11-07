@@ -1,0 +1,173 @@
+name: Deploy documentation
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'docs-site/**'
+      - 'infra/docs/**'
+      - 'Caddyfile'
+      - '.github/workflows/deploy-docs.yml'
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: Previously published full Git SHA to redeploy or roll back to
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Test and publish docs image
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    runs-on: [self-hosted, linux, x64, oren-release]
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      digest: ${{ steps.publish.outputs.digest }}
+    env:
+      IMAGE_TAG: ${{ github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Check documentation and deployment tooling
+        run: |
+          node docs-site/scripts/validate-content.mjs
+          bash -n infra/docs/deploy.sh
+          node --test infra/docs/*.test.mjs
+      - name: Set registry image name
+        run: echo "DOCS_IMAGE=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/oren-docs:$IMAGE_TAG" >> "$GITHUB_ENV"
+      - uses: docker/setup-buildx-action@v3
+      - name: Locate private documentation cache
+        id: cache
+        run: |
+          mkdir -p /home/oren-ci-release/cache
+          if [[ -f /home/oren-ci-release/cache/docs/index.json ]]; then
+            echo 'from=type=local,src=/home/oren-ci-release/cache/docs' >> "$GITHUB_OUTPUT"
+          fi
+      - name: Build the production image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./docs-site
+          file: ./docs-site/Dockerfile
+          load: true
+          tags: ${{ env.DOCS_IMAGE }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+          cache-from: ${{ steps.cache.outputs.from }}
+          cache-to: type=local,dest=/home/oren-ci-release/cache/docs-next,mode=max
+      - name: Retain private docs build cache
+        run: |
+          test "$(id -un)" = oren-ci-release
+          rm -rf --one-file-system /home/oren-ci-release/cache/docs
+          mv /home/oren-ci-release/cache/docs-next /home/oren-ci-release/cache/docs
+      - name: Verify the actual runtime image
+        run: |
+          docker run -d --name oren-docs-check --read-only --tmpfs /tmp --tmpfs /app/.next/cache \
+            -p 127.0.0.1:3002:3000 -e DOCS_RELEASE_SHA="$IMAGE_TAG" "$DOCS_IMAGE"
+          node infra/docs/smoke.mjs http://127.0.0.1:3002 "$IMAGE_TAG"
+      - name: Validate production Compose and Caddy configuration
+        env:
+          DOCS_RELEASE_SHA: ${{ github.sha }}
+        run: |
+          docker compose -f docs-site/compose.yml config --quiet
+          mkdir -p "$RUNNER_TEMP/caddy-previews"
+          docker run --rm -e DOMAIN=production.example.com -e API_DOMAIN=api.production.example.com \
+            -v "$PWD/Caddyfile:/etc/caddy/Caddyfile:ro" \
+            -v "$RUNNER_TEMP/caddy-previews:/etc/caddy/previews:ro" \
+            caddy:2.10.2-alpine caddy validate --config /etc/caddy/Caddyfile
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Publish the tested image
+        id: publish
+        run: |
+          docker push "$DOCS_IMAGE"
+          repo="${DOCS_IMAGE%:*}"
+          digest=$(docker image inspect "$DOCS_IMAGE" --format '{{json .RepoDigests}}' | jq -er --arg prefix "$repo@" '[.[] | select(startswith($prefix)) | split("@")[1]][0]')
+          [[ "$digest" =~ ^sha256:[a-f0-9]{64}$ ]]
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+      - name: Collect runtime logs and remove test container
+        if: always()
+        run: |
+          docker logs oren-docs-check 2>/dev/null || true
+          docker rm -f oren-docs-check 2>/dev/null || true
+
+  deploy:
+    name: Deploy docs to production
+    needs: build
+    if: >-
+      always() && github.ref == 'refs/heads/master' &&
+      ((github.event_name == 'push' && needs.build.result == 'success') ||
+       (github.event_name == 'workflow_dispatch' && needs.build.result == 'skipped'))
+    runs-on: [self-hosted, linux, x64, oren-control]
+    timeout-minutes: 15
+    environment: production
+    # Caddy is shared with the existing API/web release workflow.
+    concurrency:
+      group: production-deploy
+      queue: max
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      packages: read
+    env:
+      IMAGE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.image_tag || github.sha }}
+      EXPECTED_DIGEST: ${{ needs.build.outputs.digest }}
+      VPS_HOST: ${{ secrets.VPS_HOST }}
+      VPS_PORT: ${{ secrets.VPS_PORT }}
+      VPS_USER: ${{ secrets.VPS_USER }}
+      VPS_SSH_KNOWN_HOSTS: ${{ secrets.VPS_SSH_KNOWN_HOSTS }}
+      GHCR_USER: ${{ github.actor }}
+    steps:
+      # Use this run's trusted master tooling, even when selecting an older image.
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Validate release selection and connection settings
+        run: |
+          [[ "$IMAGE_TAG" =~ ^[a-f0-9]{40}$ ]]
+          [[ -z "$EXPECTED_DIGEST" || "$EXPECTED_DIGEST" =~ ^sha256:[a-f0-9]{64}$ ]]
+          [[ "$GHCR_USER" =~ ^[A-Za-z0-9_-]+(\[bot\])?$ ]]
+          git merge-base --is-ancestor "$IMAGE_TAG" HEAD
+          test -n "$VPS_HOST"
+          test -n "$VPS_USER"
+          test -n "$VPS_SSH_KNOWN_HOSTS"
+          echo "GHCR_OWNER=${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_ENV"
+      - uses: webfactory/ssh-agent@v0.9.1
+        with:
+          ssh-private-key: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
+      - name: Configure verified VPS host key
+        run: |
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$VPS_SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+      - name: Stage docs release configuration
+        run: |
+          ssh -p "${VPS_PORT:-22}" -o StrictHostKeyChecking=yes "$VPS_USER@$VPS_HOST" \
+            'install -d -m 750 /opt/oren/docs/incoming'
+          scp -P "${VPS_PORT:-22}" -o StrictHostKeyChecking=yes \
+            infra/docs/deploy.sh infra/docs/smoke.mjs infra/docs/docs.caddy docs-site/compose.yml \
+            "$VPS_USER@$VPS_HOST:/opt/oren/docs/incoming/"
+      - name: Activate and verify docs release
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          printf '%s' "$GHCR_TOKEN" | ssh -p "${VPS_PORT:-22}" -o StrictHostKeyChecking=yes "$VPS_USER@$VPS_HOST" \
+            "bash /opt/oren/docs/incoming/deploy.sh '$GHCR_OWNER' '$IMAGE_TAG' '$GHCR_USER' '$EXPECTED_DIGEST'"
+      - name: Record deployment summary
+        run: |
+          printf '### Oren documentation\n\nURL: https://docs.oren.finance\n\nRelease: `%s`\n\nRollback: run this workflow on master with a previously published full SHA.\n' "$IMAGE_TAG" >> "$GITHUB_STEP_SUMMARY"

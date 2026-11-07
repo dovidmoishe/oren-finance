@@ -25,7 +25,9 @@ COPY . ./
 RUN --mount=type=cache,id=oren-api-pnpm-store,target=/pnpm/store,sharing=locked \
     --mount=type=cache,id=oren-api-pnpm-cache,target=/pnpm/cache,sharing=locked \
     pnpm_config_cache_dir=/app/.pnpm-cache pnpm build \
-    && pnpm_config_cache_dir=/app/.pnpm-cache pnpm prune --prod
+    && pnpm_config_cache_dir=/app/.pnpm-cache pnpm prune --prod \
+    && chmod -R a+rX lib/db \
+    && chmod a+r package.json
 
 FROM base AS runtime
 ENV NODE_ENV=production

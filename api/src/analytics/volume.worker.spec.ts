@@ -61,4 +61,39 @@ describe('buildVerifiedFill', () => {
       },
     })).toThrow('do not match');
   });
+
+  const buy = {
+    slot: 45,
+    blockTime: 1_700_000_000,
+    meta: {
+      preTokenBalances: [balance(stockMint, 1), balance(USDC_MINT, 100)],
+      postTokenBalances: [balance(stockMint, 1.5), balance(USDC_MINT, 60)],
+    },
+  };
+
+  it('refuses swap volume from a transaction another wallet paid for', () => {
+    expect(() => buildVerifiedFill(execution('stock_purchase'), 'sig-other', {
+      ...buy,
+      transaction: { message: { accountKeys: [{ pubkey: 'Someone1111111111111111111111111111111111', signer: true }] } },
+    }, { requireWalletFeePayer: true })).toThrow('fee payer');
+    expect(() => buildVerifiedFill(execution('stock_purchase'), 'sig-missing', buy, {
+      requireWalletFeePayer: true,
+    })).toThrow('fee payer');
+  });
+
+  it('accepts swap volume the execution wallet signed and paid for', () => {
+    const fill = buildVerifiedFill(execution('stock_purchase'), 'sig-own', {
+      ...buy,
+      transaction: { message: { accountKeys: [{ pubkey: wallet, signer: true }] } },
+    }, { requireWalletFeePayer: true });
+    expect(fill.walletAddress).toBe(wallet);
+  });
+
+  it('refuses a trade that landed before the execution was prepared', () => {
+    expect(() => buildVerifiedFill(
+      { ...execution('stock_purchase'), createdAt: new Date(1_700_000_000_000 + 10 * 60_000) },
+      'sig-old',
+      buy,
+    )).toThrow('predates');
+  });
 });

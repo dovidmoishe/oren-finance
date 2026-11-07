@@ -15,7 +15,7 @@ jobs:
   resolve:
     if: github.ref == 'refs/heads/master'
     environment: preview
-    runs-on: ubuntu-24.04
+    runs-on: [self-hosted, linux, x64, oren-control]
     permissions:
       contents: read
       pull-requests: read
@@ -27,12 +27,17 @@ jobs:
       owner: ${{ steps.pr.outputs.owner }}
       privy_id: ${{ steps.pr.outputs.privy_id }}
     steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.workflow_sha }}
+          persist-credentials: false
       - id: pr
         uses: actions/github-script@v7
         env:
           PREVIEW_PRIVY_APP_ID: ${{ vars.PREVIEW_PRIVY_APP_ID }}
         with:
           script: |
+            const {isDocsOnlyChange} = await import(process.env.GITHUB_WORKSPACE + '/infra/docs/change-scope.mjs');
             const run = context.payload.workflow_run;
             if (run && run.event !== 'pull_request') return;
             const args = {owner: context.repo.owner, repo: context.repo.repo};
@@ -49,6 +54,10 @@ jobs:
               const {data: permission} = await github.rest.repos.getCollaboratorPermissionLevel({...args, username: pr.user.login});
               if (!['admin','maintain','write'].includes(permission.permission)) {
                 await status('failure', 'Preview requires a repository collaborator'); continue;
+              }
+              const changedFiles = await github.paginate(github.rest.pulls.listFiles, {...args, pull_number: pr.number, per_page: 100});
+              if (changedFiles.length === pr.changed_files && isDocsOnlyChange(changedFiles)) {
+                await status('success', 'Documentation-only change; no application preview needed'); continue;
               }
               // Manual redeploys retain their early CI admission check.
               if (!run) {
@@ -67,7 +76,7 @@ jobs:
     name: Require successful CI for preview head
     needs: resolve
     if: needs.resolve.outputs.pr != ''
-    runs-on: ubuntu-24.04
+    runs-on: [self-hosted, linux, x64, oren-control]
     timeout-minutes: 35
     permissions:
       contents: read
@@ -88,9 +97,9 @@ jobs:
             await waitForPreviewCi({github, repo: context.repo, sha: process.env.PREVIEW_SHA, pr: Number(process.env.PR_NUMBER)});
   build-api:
     name: Build and publish preview API image
-    needs: resolve
+    needs: [resolve, ci-gate]
     if: needs.resolve.outputs.pr != ''
-    runs-on: ubuntu-24.04
+    runs-on: [self-hosted, linux, x64, oren-build]
     timeout-minutes: 25
     concurrency:
       group: preview-api-image-${{ needs.resolve.outputs.pr }}
@@ -173,9 +182,9 @@ jobs:
           echo "digest=$digest" >> "$GITHUB_OUTPUT"
   build-app:
     name: Build and publish preview web image
-    needs: resolve
+    needs: [resolve, ci-gate]
     if: needs.resolve.outputs.pr != ''
-    runs-on: ubuntu-24.04
+    runs-on: [self-hosted, linux, x64, oren-build]
     timeout-minutes: 25
     concurrency:
       group: preview-web-image-${{ needs.resolve.outputs.pr }}
@@ -212,7 +221,7 @@ jobs:
   deploy:
     needs: [resolve, ci-gate, build-api, build-app]
     if: always() && needs.resolve.outputs.pr != ''
-    runs-on: ubuntu-24.04
+    runs-on: [self-hosted, linux, x64, oren-control]
     environment: preview
     concurrency:
       group: preview-${{ needs.resolve.outputs.pr }}

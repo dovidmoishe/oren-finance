@@ -1,6 +1,10 @@
 import { gateFailureCode } from './failure-code';
 import { simulationFailureCode } from '../execution/simulation-failure';
 import {
+  SOL_RENT_MESSAGE,
+  SOL_FEE_MESSAGE,
+} from '../execution/simulation-failure';
+import {
   publicGateFailureCode,
   SignerGateRejection,
 } from '../mcp-auth/signer-gate.errors';
@@ -21,6 +25,16 @@ describe('bounded gate rejection reasons', () => {
     );
   });
   it.each([
+    [SOL_RENT_MESSAGE, 'insufficient_sol_for_rent'],
+    [SOL_FEE_MESSAGE, 'insufficient_sol_for_fees'],
+    [
+      'Headless Jupiter requires an existing source token account',
+      'unsupported_route',
+    ],
+    [
+      'Destination account creation is outside the delegated policy',
+      'unsupported_route',
+    ],
     [
       'This transaction could not be simulated. Check your USDC and SOL balances and request a fresh quote.',
       'simulation_failed',
@@ -49,6 +63,15 @@ describe('bounded gate rejection reasons', () => {
     },
   );
   it('does not expose arbitrary exceptions or gate response strings', () => {
+    expect(
+      simulationFailureCode({ InsufficientFundsForRent: { account_index: 0 } }),
+    ).toBe('insufficient_rent_account_0');
+    for (const index of [-1, 256, 'secret-token', undefined])
+      expect(
+        simulationFailureCode({
+          InsufficientFundsForRent: { account_index: index },
+        }),
+      ).toBe('simulation_error');
     const secret =
       'provider error containing secret-token and signed transaction';
     expect(gateFailureCode(new Error(secret))).toBe('gate_rejected');

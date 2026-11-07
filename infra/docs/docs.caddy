@@ -1,0 +1,6 @@
+docs.oren.finance {
+  import access_log docs
+  encode zstd gzip
+  import security_headers
+  reverse_proxy oren-docs:3000
+}

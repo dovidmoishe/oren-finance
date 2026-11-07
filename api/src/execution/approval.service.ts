@@ -349,10 +349,14 @@ export class ApprovalService {
             expiredAt: new Date(p.expiredAt * 1000),
           });
         } else if (row.kind === 'cancel') {
-          await this.orders.updateStatus(String(row.details.orderKey), {
-            status: 'cancelled',
-            closeSignature: row.signature,
-          });
+          await this.orders.updateStatus(
+            String(row.details.orderKey),
+            {
+              status: 'cancelled',
+              closeSignature: row.signature,
+            },
+            row.wallet,
+          );
         }
         if (row.kind !== 'swap' && row.kind !== 'withdrawal')
           await this.executions.updateStatus(row.executionId, {

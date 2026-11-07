@@ -16,6 +16,10 @@ import type { MarketService } from '../market/market.service';
 import type { PortfolioService } from '../portfolio/portfolio.service';
 import type { ExecutionService } from '../execution/execution.service';
 import {
+  SOL_RENT_MESSAGE,
+  SOL_FEE_MESSAGE,
+} from '../execution/simulation-failure';
+import {
   enforcedMinimumOut,
   rawIn,
   reviewedTermsFor,
@@ -28,6 +32,7 @@ import {
   type ChatTradeIssue,
 } from './chat-execution';
 import { signingOutcome } from './signing-outcome';
+import { SignerGateRejection } from './signer-gate.errors';
 import { rawSellShares, rawSellReferenceUsd } from './delegated-amounts';
 
 export interface McpResourceDeps {
@@ -574,6 +579,53 @@ export async function handleMcpRequest(
               ],
             };
           } catch (error) {
+            if (
+              error instanceof SignerGateRejection &&
+              [
+                'insufficient_sol_for_rent',
+                'insufficient_sol_for_fees',
+              ].includes(error.code)
+            ) {
+              return {
+                content: [
+                  {
+                    type: 'text' as const,
+                    text: JSON.stringify({
+                      intentId,
+                      status: 'funding_required',
+                      reason: error.code,
+                      message:
+                        error.code === 'insufficient_sol_for_rent'
+                          ? SOL_RENT_MESSAGE
+                          : SOL_FEE_MESSAGE,
+                      fundingAsset: 'SOL',
+                      broadcast: false,
+                    }),
+                  },
+                ],
+                isError: true,
+              };
+            }
+            if (
+              error instanceof SignerGateRejection &&
+              error.code === 'reviewed_terms_changed'
+            ) {
+              return {
+                content: [
+                  {
+                    type: 'text' as const,
+                    text: JSON.stringify({
+                      intentId,
+                      status: 'quote_changed',
+                      reason: 'reviewed_terms_changed',
+                      message:
+                        'The execution quote no longer meets the approved terms. Prepare a fresh quote and obtain fresh approval. No signing attempt was made for this rejection.',
+                    }),
+                  },
+                ],
+                isError: true,
+              };
+            }
             const failure = executionFailure(error);
             return failed(failure.code, failure.message, failure.retryable);
           }

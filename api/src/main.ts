@@ -21,6 +21,8 @@ import { MarketService } from './market/market.service';
 import { PortfolioService } from './portfolio/portfolio.service';
 import { ExecutionService } from './execution/execution.service';
 import { handleMcpRequest } from './mcp-auth/mcp-resource';
+import { mcpConsentScopes } from './mcp-auth/consent-scopes';
+import { requireMcpOfflineConsent } from './mcp-auth/offline-consent';
 import { SignerGateClient } from './mcp-auth/signer-gate.client';
 import { delegatedUserAllowed } from './mcp-auth/delegated-access';
 import { SignerGateRejection } from './mcp-auth/signer-gate.errors';
@@ -651,21 +653,12 @@ async function bootstrap() {
         if (details.uid !== req.params.uid) return res.sendStatus(403);
         if (typeof details.params.scope !== 'string')
           return res.sendStatus(403);
-        const requested = details.params.scope.split(/\s+/).filter(Boolean);
-        if (
-          requested.some(
-            (scope) =>
-              ![
-                'oren.read',
-                'oren.trade.prepare',
-                ...(env.MCP_DELEGATED_TRADES_ENABLED
-                  ? ['oren.trade.execute']
-                  : []),
-                'offline_access',
-              ].includes(scope),
-          )
-        )
-          return res.sendStatus(403);
+        const scopes = mcpConsentScopes(
+          details.params.scope,
+          env.MCP_DELEGATED_TRADES_ENABLED,
+        );
+        if (!scopes) return res.sendStatus(403);
+        const { requested, resourceScopes, oidcScopes } = scopes;
         const clientId = String(details.params.client_id);
         const client = await oauth.provider.Client.find(clientId);
         if (
@@ -736,18 +729,10 @@ async function bootstrap() {
           accountId: owner.userId,
           clientId,
         });
-        const resourceScopes = requested.filter((scope) =>
-          ['oren.read', 'oren.trade.prepare', 'oren.trade.execute'].includes(
-            scope,
-          ),
-        );
-        if (!resourceScopes.length) return res.sendStatus(403);
         grant.addResourceScope(oauth.resource, resourceScopes);
         // oidc-provider also checks configured scopes against the OP grant.
         // Keep that check satisfied while the resource grant remains required.
-        grant.addOIDCScope(resourceScopes);
-        if (requested.includes('offline_access'))
-          grant.addOIDCScope('offline_access');
+        grant.addOIDCScope(oidcScopes);
         const grantId = await grant.save();
         await db.insert(mcpConnections).values({
           grantId,
@@ -871,6 +856,7 @@ async function bootstrap() {
       },
       mcpRegistrationBody,
     );
+    expressApp.get('/oauth/auth', requireMcpOfflineConsent);
     expressApp.use('/oauth', oauth.provider.callback());
   }
 
