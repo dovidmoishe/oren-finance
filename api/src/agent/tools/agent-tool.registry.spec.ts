@@ -3,6 +3,7 @@ import { BadRequestException } from '@nestjs/common';
 import { AgentToolRegistry } from './agent-tool.registry';
 
 describe('AgentToolRegistry', () => {
+  const ctx = { walletAddress: 'wallet-1' };
   const bitget = {
     getMarketContext: jest.fn(),
   };
@@ -175,12 +176,50 @@ describe('AgentToolRegistry', () => {
     });
   });
 
+  it('ignores a wallet supplied by the model and uses the verified one', async () => {
+    portfolio.getActivity.mockResolvedValue({ items: [] });
+    calendar.getDay.mockResolvedValue({ agentEvents: [] });
+
+    await registry.dispatch(
+      'getPortfolioActivity',
+      { wallet: 'victim-wallet' },
+      ctx,
+    );
+    await registry.dispatch(
+      'getTradingCalendarDay',
+      { wallet: 'victim-wallet', date: '2026-09-15', timeZone: 'UTC' },
+      ctx,
+    );
+
+    expect(portfolio.getActivity).toHaveBeenCalledWith('wallet-1');
+    expect(calendar.getDay).toHaveBeenCalledWith('wallet-1', '2026-09-15', {
+      timeZone: 'UTC',
+    });
+  });
+
+  it('refuses wallet tools when the request has no verified wallet', async () => {
+    await expect(
+      registry.dispatch('getPortfolio', { wallet: 'victim-wallet' }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(portfolio.getPortfolio).not.toHaveBeenCalled();
+  });
+
+  it('never offers the model a wallet argument', () => {
+    for (const schema of registry.getSchemas({
+      userId: 'u',
+      walletAddress: 'wallet-1',
+    })) {
+      const properties = (
+        schema.parameters as { properties: Record<string, unknown> }
+      ).properties;
+      expect(Object.keys(properties)).not.toContain('wallet');
+    }
+  });
+
   it('dispatches valid read tools to backing services', async () => {
     portfolio.getPortfolio.mockResolvedValue({ walletAddress: 'wallet-1' });
 
-    await expect(
-      registry.dispatch('getPortfolio', { wallet: 'wallet-1' }),
-    ).resolves.toEqual({
+    await expect(registry.dispatch('getPortfolio', {}, ctx)).resolves.toEqual({
       output: { walletAddress: 'wallet-1' },
       artifact: {
         type: 'portfolio',
@@ -231,12 +270,15 @@ describe('AgentToolRegistry', () => {
     });
 
     await expect(
-      registry.dispatch('prepareLock', {
-        wallet: 'wallet-1',
-        asset: 'NVDA',
-        amount: 1,
-        unlockAt: '2027-01-01T00:00:00Z',
-      }),
+      registry.dispatch(
+        'prepareLock',
+        {
+          asset: 'NVDA',
+          amount: 1,
+          unlockAt: '2027-01-01T00:00:00Z',
+        },
+        ctx,
+      ),
     ).resolves.toEqual({
       output: {
         wallet: 'wallet-1',
@@ -294,7 +336,7 @@ describe('AgentToolRegistry', () => {
     );
     const result = await registry.dispatch(
       'prepareSwap',
-      { quoteId: 'q-1', wallet: 'wallet-1' },
+      { quoteId: 'q-1' },
       { walletAddress: 'wallet-1' },
     );
     expect(result.output).toMatchObject({
@@ -317,10 +359,14 @@ describe('AgentToolRegistry', () => {
     });
 
     await expect(
-      registry.dispatch('createBasket', {
-        amountUsd: 100,
-        prompt: 'Build a basket',
-      }),
+      registry.dispatch(
+        'createBasket',
+        {
+          amountUsd: 100,
+          prompt: 'Build a basket',
+        },
+        ctx,
+      ),
     ).resolves.toEqual({
       output: {
         id: 'basket-1',
@@ -336,10 +382,13 @@ describe('AgentToolRegistry', () => {
     });
 
     await expect(
-      registry.dispatch('prepareBasketPurchase', {
-        basketId: 'basket-1',
-        wallet: 'wallet-1',
-      }),
+      registry.dispatch(
+        'prepareBasketPurchase',
+        {
+          basketId: 'basket-1',
+        },
+        ctx,
+      ),
     ).resolves.toEqual({
       output: {
         basketId: 'basket-1',
@@ -377,11 +426,14 @@ describe('AgentToolRegistry', () => {
     ).resolves.toEqual({ output: { profile: { slug: 'alpha' } } });
 
     await expect(
-      registry.dispatch('prepareCopyPortfolio', {
-        sourceSlug: 'alpha',
-        wallet: 'wallet-1',
-        amountUsd: 100,
-      }),
+      registry.dispatch(
+        'prepareCopyPortfolio',
+        {
+          sourceSlug: 'alpha',
+          amountUsd: 100,
+        },
+        ctx,
+      ),
     ).resolves.toEqual({
       output: {
         source: { slug: 'alpha', displayName: 'Alpha' },
@@ -409,13 +461,16 @@ describe('AgentToolRegistry', () => {
     });
 
     await expect(
-      registry.dispatch('getTradingCalendar', {
-        wallet: 'wallet-1',
-        month: '2026-09',
-        start: null,
-        end: null,
-        timeZone: 'UTC',
-      }),
+      registry.dispatch(
+        'getTradingCalendar',
+        {
+          month: '2026-09',
+          start: null,
+          end: null,
+          timeZone: 'UTC',
+        },
+        ctx,
+      ),
     ).resolves.toEqual({
       output: {
         walletAddress: 'wallet-1',
@@ -431,11 +486,14 @@ describe('AgentToolRegistry', () => {
     });
 
     await expect(
-      registry.dispatch('getTradingCalendarDay', {
-        wallet: 'wallet-1',
-        date: '2026-09-15',
-        timeZone: 'UTC',
-      }),
+      registry.dispatch(
+        'getTradingCalendarDay',
+        {
+          date: '2026-09-15',
+          timeZone: 'UTC',
+        },
+        ctx,
+      ),
     ).resolves.toEqual({
       output: {
         walletAddress: 'wallet-1',

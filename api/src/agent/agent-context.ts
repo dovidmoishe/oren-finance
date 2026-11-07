@@ -68,7 +68,7 @@ function walletSection(walletAddress: string): string {
     'Connected wallet context:',
     `- Solana wallet: ${walletAddress}`,
     '- The user is already connected in the Oren app. Never ask them to paste a wallet address or connect a wallet.',
-    '- Use this wallet address for every tool that requires a wallet parameter.',
+    '- Tools always act on this connected wallet; you never pass a wallet address to a tool.',
   ].join('\n');
 }
 
