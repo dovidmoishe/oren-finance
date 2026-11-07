@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { ForbiddenException, Inject, Injectable } from '@nestjs/common';
 import { and, desc, eq } from 'drizzle-orm';
 import { DRIZZLE } from '../config/constants';
 import type { Database } from '../database/database.provider';
@@ -38,6 +38,11 @@ export class LimitOrderRepository {
   async upsert(input: UpsertLimitOrderInput): Promise<LimitOrderRow> {
     const existing = await this.findByOrderKey(input.orderKey);
     if (existing) {
+      if (existing.walletAddress !== input.walletAddress) {
+        throw new ForbiddenException(
+          'This limit order does not belong to your wallet',
+        );
+      }
       const [row] = await this.db
         .update(limitOrders)
         .set({
@@ -46,7 +51,12 @@ export class LimitOrderRepository {
           closeSignature: input.closeSignature ?? existing.closeSignature,
           updatedAt: new Date(),
         })
-        .where(eq(limitOrders.orderKey, input.orderKey))
+        .where(
+          and(
+            eq(limitOrders.orderKey, input.orderKey),
+            eq(limitOrders.walletAddress, input.walletAddress),
+          ),
+        )
         .returning();
       return row;
     }
@@ -82,6 +92,7 @@ export class LimitOrderRepository {
       status: LimitOrderStatus;
       closeSignature?: string;
     },
+    walletAddress: string,
   ): Promise<LimitOrderRow | null> {
     const [row] = await this.db
       .update(limitOrders)
@@ -92,7 +103,12 @@ export class LimitOrderRepository {
           : {}),
         updatedAt: new Date(),
       })
-      .where(eq(limitOrders.orderKey, orderKey))
+      .where(
+        and(
+          eq(limitOrders.orderKey, orderKey),
+          eq(limitOrders.walletAddress, walletAddress),
+        ),
+      )
       .returning();
     return row ?? null;
   }

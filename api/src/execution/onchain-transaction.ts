@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
+import { createPublicKey, verify } from 'node:crypto';
 import { VersionedTransaction } from '@solana/web3.js';
 import bs58 from 'bs58';
 import { AlchemyService } from '../alchemy/alchemy.service';
@@ -74,6 +75,89 @@ export function assertFeePayer(
     throw new BadRequestException('Transaction was not signed by this wallet');
 }
 
+/**
+ * The landed transaction must be the exact unsigned transaction the server
+ * prepared. A different message that merely mentions an account does not
+ * qualify, including a limit-order open transaction presented as a cancel.
+ */
+export function assertPreparedMessage(
+  confirmed: ConfirmedTransaction,
+  preparedTransaction: string,
+): void {
+  const prepared = decodePreparedTransaction(preparedTransaction);
+  const landed = Buffer.from(confirmed.transaction.message.serialize());
+  const expected = Buffer.from(prepared.message.serialize());
+  if (!landed.equals(expected))
+    throw new BadRequestException(
+      'Transaction does not match the prepared transaction',
+    );
+}
+
+/**
+ * Prove a reported signature was produced by signing this prepared message.
+ * Used when the client reports a signature before the transaction is confirmed.
+ */
+export function assertSignedPreparedTransaction(
+  unsignedTransaction: string,
+  signature: string,
+  wallet: string,
+): void {
+  const prepared = decodePreparedTransaction(unsignedTransaction);
+  const feePayer = prepared.message.staticAccountKeys[0];
+  if (
+    prepared.message.header.numRequiredSignatures < 1 ||
+    feePayer?.toBase58() !== wallet
+  )
+    throw new BadRequestException(
+      'Prepared transaction was not paid by this wallet',
+    );
+  let sig: Uint8Array;
+  try {
+    sig = bs58.decode(signature);
+  } catch {
+    throw new BadRequestException(
+      'signature is not a valid transaction signature',
+    );
+  }
+  if (sig.length !== 64)
+    throw new BadRequestException(
+      'signature is not a valid transaction signature',
+    );
+  const message = Buffer.from(prepared.message.serialize());
+  if (!verifyEd25519(message, sig, feePayer.toBytes()))
+    throw new BadRequestException(
+      'Signature does not match the prepared transaction',
+    );
+}
+
+function decodePreparedTransaction(transaction: string): VersionedTransaction {
+  try {
+    return VersionedTransaction.deserialize(Buffer.from(transaction, 'base64'));
+  } catch {
+    throw new BadRequestException('Prepared transaction could not be decoded');
+  }
+}
+
+function verifyEd25519(
+  message: Buffer,
+  signature: Uint8Array,
+  publicKey: Uint8Array,
+): boolean {
+  try {
+    const key = createPublicKey({
+      key: Buffer.concat([
+        Buffer.from('302a300506032b6570032100', 'hex'),
+        Buffer.from(publicKey),
+      ]),
+      format: 'der',
+      type: 'spki',
+    });
+    return verify(null, message, key, signature);
+  } catch {
+    return false;
+  }
+}
+
 /** Confirms client-reported signatures against the chain before any DB write. */
 @Injectable()
 export class OnchainTransactions {
@@ -87,14 +171,19 @@ export class OnchainTransactions {
     );
   }
 
-  /** Wallet paid for and signed a successful transaction touching `account`. */
-  async assertWalletTransaction(
+  /**
+   * The confirmed transaction is the prepared one, paid by `wallet`.
+   * `account`, when set, must be referenced by that prepared message.
+   */
+  async assertPreparedTransaction(
     signature: string,
     wallet: string,
+    preparedTransaction: string,
     account?: string,
   ): Promise<ConfirmedTransaction> {
     const confirmed = await this.confirmed(signature);
     assertFeePayer(confirmed, wallet);
+    assertPreparedMessage(confirmed, preparedTransaction);
     if (account && !confirmed.accountKeys.includes(account))
       throw new BadRequestException(
         'Transaction does not reference the expected account',

@@ -1,5 +1,10 @@
 import { backgroundWorkersEnabled } from '../config/deployment';
-import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  OnModuleDestroy,
+  OnModuleInit,
+} from '@nestjs/common';
 import { VolumeRepository } from '../analytics/volume.repository';
 import { ExecutionRepository } from './execution.repository';
 import { JupiterTriggerClient } from './jupiter/jupiter-trigger.client';
@@ -44,9 +49,13 @@ export class LimitOrderFillPoller implements OnModuleInit, OnModuleDestroy {
           lane: 'background',
         });
         for (const remote of history.orders ?? []) {
-          const local = open.find((order) => order.orderKey === remote.orderKey);
+          const local = open.find(
+            (order) => order.orderKey === remote.orderKey,
+          );
           if (!local?.openSignature) continue;
-          const execution = await this.executions.findBySignature(local.openSignature);
+          const execution = await this.executions.findBySignature(
+            local.openSignature,
+          );
           if (!execution) continue;
           const signatures = fillSignatures(remote);
           for (const signature of signatures) {
@@ -58,16 +67,36 @@ export class LimitOrderFillPoller implements OnModuleInit, OnModuleDestroy {
           }
           const status = remote.status.toLowerCase();
           if (status.includes('filled')) {
-            await this.orders.updateStatus(local.orderKey, { status: 'filled', closeSignature: remote.closeTx ?? undefined });
+            await this.orders.updateStatus(
+              local.orderKey,
+              { status: 'filled', closeSignature: remote.closeTx ?? undefined },
+              local.walletAddress,
+            );
           } else if (status.includes('cancel')) {
-            await this.orders.updateStatus(local.orderKey, { status: 'cancelled', closeSignature: remote.closeTx ?? undefined });
+            await this.orders.updateStatus(
+              local.orderKey,
+              {
+                status: 'cancelled',
+                closeSignature: remote.closeTx ?? undefined,
+              },
+              local.walletAddress,
+            );
           } else if (status.includes('expire')) {
-            await this.orders.updateStatus(local.orderKey, { status: 'expired', closeSignature: remote.closeTx ?? undefined });
+            await this.orders.updateStatus(
+              local.orderKey,
+              {
+                status: 'expired',
+                closeSignature: remote.closeTx ?? undefined,
+              },
+              local.walletAddress,
+            );
           }
         }
       }
     } catch (error) {
-      this.logger.warn(`Limit fill poll failed: ${error instanceof Error ? error.message : String(error)}`);
+      this.logger.warn(
+        `Limit fill poll failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
     } finally {
       this.running = false;
     }
@@ -84,7 +113,11 @@ export function fillSignatures(order: JupiterTriggerOrderRaw): string[] {
       if (typeof value === 'string' && value.length >= 32) found.add(value);
     }
   }
-  if (!found.size && order.status.toLowerCase().includes('filled') && order.closeTx) {
+  if (
+    !found.size &&
+    order.status.toLowerCase().includes('filled') &&
+    order.closeTx
+  ) {
     found.add(order.closeTx);
   }
   return [...found];

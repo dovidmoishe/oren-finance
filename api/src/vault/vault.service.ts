@@ -38,7 +38,11 @@ import {
   assertSignatureFormat,
   decodeConfirmedTransaction,
 } from '../execution/onchain-transaction';
-import { lockedUiAmount, verifyVaultInstruction } from './vault-confirmation';
+import {
+  assertLockCustody,
+  lockedUiAmount,
+  verifyVaultInstruction,
+} from './vault-confirmation';
 
 export const VAULT_PROGRAM_NOT_LIVE = 'VAULT_PROGRAM_NOT_LIVE';
 
@@ -127,6 +131,15 @@ export class VaultService {
       instruction: 'lock_tokens',
       lockAddress,
     });
+    let vaultAccount: Buffer | null;
+    try {
+      vaultAccount = await this.alchemy.getAccountData(lock.tokenVault);
+    } catch {
+      throw new ServiceUnavailableException(
+        'Locked token vault could not be read. Retry after it is visible.',
+      );
+    }
+    assertLockCustody(lock, vaultAccount);
     const amount = lockedUiAmount(confirmed, lock.mint, lock.amountRaw!);
     const unlockAt = new Date(Number(lock.unlockTime!) * 1000);
     const equity =

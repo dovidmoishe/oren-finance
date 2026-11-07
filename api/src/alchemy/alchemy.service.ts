@@ -151,6 +151,21 @@ export class AlchemyService implements AlchemyProvider {
     ]);
   }
 
+  /** Account bytes at confirmed commitment, or null when the account is absent. */
+  async getAccountData(address: string): Promise<Buffer | null> {
+    const result = await this.client.call<{
+      value?: { data?: [string, string] | string } | null;
+    } | null>('getAccountInfo', [
+      address,
+      { encoding: 'base64', commitment: 'confirmed' },
+    ]);
+    const data = result?.value?.data;
+    if (!data) return null;
+    const encoded = Array.isArray(data) ? data[0] : data;
+    if (!encoded) return null;
+    return Buffer.from(encoded, 'base64');
+  }
+
   /** Exact transaction bytes at confirmed commitment, for verifying who signed what. */
   async getConfirmedRawTransaction(
     signature: string,
