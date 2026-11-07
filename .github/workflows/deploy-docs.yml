@@ -22,7 +22,7 @@ jobs:
   build:
     name: Test and publish docs image
     if: github.event_name == 'push' && github.ref == 'refs/heads/master'
-    runs-on: ubuntu-24.04
+    runs-on: [self-hosted, linux, x64, oren-release]
     timeout-minutes: 20
     permissions:
       contents: read
@@ -46,6 +46,13 @@ jobs:
       - name: Set registry image name
         run: echo "DOCS_IMAGE=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/oren-docs:$IMAGE_TAG" >> "$GITHUB_ENV"
       - uses: docker/setup-buildx-action@v3
+      - name: Locate private documentation cache
+        id: cache
+        run: |
+          mkdir -p /home/oren-ci-release/cache
+          if [[ -f /home/oren-ci-release/cache/docs/index.json ]]; then
+            echo 'from=type=local,src=/home/oren-ci-release/cache/docs' >> "$GITHUB_OUTPUT"
+          fi
       - name: Build the production image
         uses: docker/build-push-action@v6
         with:
@@ -56,8 +63,13 @@ jobs:
           labels: |
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
             org.opencontainers.image.revision=${{ github.sha }}
-          cache-from: type=gha,scope=oren-docs
-          cache-to: type=gha,mode=max,scope=oren-docs
+          cache-from: ${{ steps.cache.outputs.from }}
+          cache-to: type=local,dest=/home/oren-ci-release/cache/docs-next,mode=max
+      - name: Retain private docs build cache
+        run: |
+          test "$(id -un)" = oren-ci-release
+          rm -rf --one-file-system /home/oren-ci-release/cache/docs
+          mv /home/oren-ci-release/cache/docs-next /home/oren-ci-release/cache/docs
       - name: Verify the actual runtime image
         run: |
           docker run -d --name oren-docs-check --read-only --tmpfs /tmp --tmpfs /app/.next/cache \
@@ -99,7 +111,7 @@ jobs:
       always() && github.ref == 'refs/heads/master' &&
       ((github.event_name == 'push' && needs.build.result == 'success') ||
        (github.event_name == 'workflow_dispatch' && needs.build.result == 'skipped'))
-    runs-on: ubuntu-24.04
+    runs-on: [self-hosted, linux, x64, oren-control]
     timeout-minutes: 15
     environment: production
     # Caddy is shared with the existing API/web release workflow.

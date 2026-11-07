@@ -21,7 +21,7 @@ services:
     networks: [oren, signer-db]
 
   api-migrate:
-    image: ghcr.io/${GHCR_OWNER:?set GHCR_OWNER in .release.env}/oren-api:${IMAGE_TAG:?set IMAGE_TAG in .release.env}
+    image: ${OREN_API_IMAGE:-ghcr.io/${GHCR_OWNER:?set GHCR_OWNER in .release.env}/oren-api:${IMAGE_TAG:?set IMAGE_TAG in .release.env}}
     env_file: .env
     command: ["node", "lib/db/migrate.mjs"]
     depends_on:
@@ -38,7 +38,7 @@ services:
       POSTGRES_USER: ""
       POSTGRES_PASSWORD: ""
       SIGNER_GATE_PRIVATE_KEY: ""
-    image: ghcr.io/${GHCR_OWNER:?set GHCR_OWNER in .release.env}/oren-api:${IMAGE_TAG:?set IMAGE_TAG in .release.env}
+    image: ${OREN_API_IMAGE:-ghcr.io/${GHCR_OWNER:?set GHCR_OWNER in .release.env}/oren-api:${IMAGE_TAG:?set IMAGE_TAG in .release.env}}
     restart: unless-stopped
     # The later runtime file overrides the admin URL after staged provisioning.
     # It is optional while delegated execution is compiled off.
@@ -61,7 +61,7 @@ services:
 
   signer-gate:
     profiles: [delegated-trades]
-    image: ghcr.io/${GHCR_OWNER:?set GHCR_OWNER in .release.env}/oren-api:${IMAGE_TAG:?set IMAGE_TAG in .release.env}
+    image: ${OREN_API_IMAGE:-ghcr.io/${GHCR_OWNER:?set GHCR_OWNER in .release.env}/oren-api:${IMAGE_TAG:?set IMAGE_TAG in .release.env}}
     command: ["node", "dist/src/signer-gate/main"]
     restart: unless-stopped
     env_file:
@@ -83,7 +83,7 @@ services:
     networks: [signer-db, signer-api, signer-egress]
 
   app:
-    image: ghcr.io/${GHCR_OWNER:?set GHCR_OWNER in .release.env}/oren-app:${IMAGE_TAG:?set IMAGE_TAG in .release.env}
+    image: ${OREN_APP_IMAGE:-ghcr.io/${GHCR_OWNER:?set GHCR_OWNER in .release.env}/oren-app:${IMAGE_TAG:?set IMAGE_TAG in .release.env}}
     restart: unless-stopped
     volumes:
       - type: bind
@@ -127,7 +127,7 @@ services:
 
   # Intentional, manual first-run/catalog refresh task; never on user requests.
   catalog-sync:
-    image: ghcr.io/${GHCR_OWNER:?set GHCR_OWNER in .release.env}/oren-api:${IMAGE_TAG:?set IMAGE_TAG in .release.env}
+    image: ${OREN_API_IMAGE:-ghcr.io/${GHCR_OWNER:?set GHCR_OWNER in .release.env}/oren-api:${IMAGE_TAG:?set IMAGE_TAG in .release.env}}
     profiles: [bootstrap]
     env_file: .env
     command: ["node", "lib/db/sync-stocks.mjs"]

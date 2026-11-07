@@ -14,7 +14,7 @@ permissions:
 
 jobs:
   diagnose:
-    runs-on: ubuntu-24.04
+    runs-on: [self-hosted, linux, x64, oren-control]
     environment: production
     env:
       VPS_HOST: ${{ secrets.VPS_HOST }}
