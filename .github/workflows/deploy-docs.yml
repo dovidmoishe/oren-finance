@@ -22,7 +22,7 @@ jobs:
   build:
     name: Test and publish docs image
     if: github.event_name == 'push' && github.ref == 'refs/heads/master'
-    runs-on: ubuntu-24.04
+    runs-on: [self-hosted, linux, x64, oren-build]
     timeout-minutes: 20
     permissions:
       contents: read
@@ -99,7 +99,7 @@ jobs:
       always() && github.ref == 'refs/heads/master' &&
       ((github.event_name == 'push' && needs.build.result == 'success') ||
        (github.event_name == 'workflow_dispatch' && needs.build.result == 'skipped'))
-    runs-on: ubuntu-24.04
+    runs-on: [self-hosted, linux, x64, oren-control]
     timeout-minutes: 15
     environment: production
     # Caddy is shared with the existing API/web release workflow.

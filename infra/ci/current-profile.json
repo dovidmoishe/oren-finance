@@ -1,0 +1,10 @@
+{
+  "description": "current 2 CPU / 7424 MiB VPS; one build worker and two lightweight control listeners",
+  "buildMemory": "4G",
+  "buildCpuQuota": "125%",
+  "controlMemory": "768M",
+  "controlCpuQuota": "25%",
+  "buildStartAvailableKiB": 4718592,
+  "buildStartDiskKiB": 15728640,
+  "previewPolicy": "never stop previews automatically; wait for CI headroom"
+}

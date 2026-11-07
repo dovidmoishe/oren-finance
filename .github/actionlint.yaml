@@ -1,0 +1,4 @@
+self-hosted-runner:
+  labels:
+    - oren-build
+    - oren-control

@@ -5,7 +5,7 @@ services:
     command: [node, /service/access.mjs]
     user: node
     restart: unless-stopped
-    env_file: /opt/oren/preview/access.env
+    env_file: ${PREVIEW_ACCESS_ENV:-/opt/oren/preview/access.env}
     volumes:
       - /opt/oren/preview/control/access.mjs:/service/access.mjs:ro
     networks: [preview-edge]

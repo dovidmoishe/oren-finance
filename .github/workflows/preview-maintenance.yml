@@ -23,7 +23,7 @@ permissions:
 jobs:
   maintain:
     if: github.ref == 'refs/heads/master'
-    runs-on: ubuntu-24.04
+    runs-on: [self-hosted, linux, x64, oren-control]
     environment: preview
     concurrency:
       group: preview-maintenance

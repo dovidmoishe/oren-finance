@@ -28,7 +28,7 @@ jobs:
   ci-gate:
     name: Require successful master CI for release SHA
     if: github.ref == 'refs/heads/master'
-    runs-on: ubuntu-24.04
+    runs-on: [self-hosted, linux, x64, oren-control]
     timeout-minutes: 35
     permissions:
       contents: read
@@ -48,9 +48,10 @@ jobs:
             const id = await requireProductionCi({github, repo: context.repo, sha: process.env.RELEASE_SHA});
             core.notice(`Production CI verified: ${id} for ${process.env.RELEASE_SHA}`);
   build-api:
+    needs: ci-gate
     name: Build and publish API image
     if: github.event_name == 'push'
-    runs-on: ubuntu-24.04
+    runs-on: [self-hosted, linux, x64, oren-build]
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
@@ -95,9 +96,10 @@ jobs:
           cache-from: type=gha,scope=oren-api
           cache-to: type=gha,mode=max,scope=oren-api
   build-app:
+    needs: ci-gate
     name: Build and publish web image
     if: github.event_name == 'push'
-    runs-on: ubuntu-24.04
+    runs-on: [self-hosted, linux, x64, oren-build]
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
@@ -138,7 +140,7 @@ jobs:
       always() && needs['ci-gate'].result == 'success' &&
       (github.event_name == 'workflow_dispatch' ||
        (needs['build-api'].result == 'success' && needs['build-app'].result == 'success'))
-    runs-on: ubuntu-24.04
+    runs-on: [self-hosted, linux, x64, oren-control]
     environment: production
     outputs:
       api_digest: ${{ steps.manifest.outputs.api_digest }}
@@ -239,7 +241,7 @@ jobs:
     name: Record verified production deployment
     needs: [build-api, build-app, deploy]
     if: always() && needs.deploy.result == 'success'
-    runs-on: ubuntu-24.04
+    runs-on: [self-hosted, linux, x64, oren-control]
     permissions:
       contents: write
       packages: read
