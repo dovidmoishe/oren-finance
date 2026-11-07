@@ -6,8 +6,10 @@ export PR_NUMBER=42 COMMIT_SHA=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 export GHCR_OWNER=example IMAGE_TAG=ci PREVIEW_HOST=pr-42.preview.example.com
 export DB_PASSWORD=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 COMPOSE=infra/preview/compose.yml
-a() { docker compose -p oren-ci-preview-a -f "$COMPOSE" "$@"; }
-b() { docker compose -p oren-ci-preview-b -f "$COMPOSE" "$@"; }
+ID="${GITHUB_RUN_ID:-local}-${GITHUB_RUN_ATTEMPT:-1}-${GITHUB_JOB:-isolation}"
+[[ "$ID" =~ ^[a-zA-Z0-9_-]+$ ]]
+a() { docker compose -p "oren-ci-preview-${ID,,}-a" -f "$COMPOSE" "$@"; }
+b() { docker compose -p "oren-ci-preview-${ID,,}-b" -f "$COMPOSE" "$@"; }
 cleanup() { a down -v --remove-orphans; b down -v --remove-orphans; }
 trap cleanup EXIT
 a up -d --wait --wait-timeout 120 db

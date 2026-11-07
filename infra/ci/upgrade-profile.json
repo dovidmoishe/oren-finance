@@ -1,0 +1,17 @@
+{
+  "description": "owner-selected in-place target: 3 CPUs, 10 GB nominal RAM, 200 GB nominal disk",
+  "budget": {
+    "minimumTotalMiB": 9216,
+    "poolMiB": 5120,
+    "poolCpus": 2,
+    "reserveMiB": 1536,
+    "reserveCpus": 1,
+    "workers": 1
+  },
+  "components": {
+    "build": { "memoryMiB": 4608, "cpus": 1.75 },
+    "trustedControl": { "memoryMiB": 512, "cpus": 0.25 }
+  },
+  "activation": "disabled until upgraded host facts, isolated runner setup and a real trial pass",
+  "previewPolicy": "keep open previews serving; queue CI under memory pressure; no automatic preview stops"
+}

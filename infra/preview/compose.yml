@@ -23,8 +23,8 @@ services:
   migrate:
     image: ghcr.io/${GHCR_OWNER}/oren-api:${IMAGE_TAG}
     env_file:
-      - /opt/oren/preview/provider.env
-      - /opt/oren/preview/stacks/pr-${PR_NUMBER}/oauth.env
+      - ${PREVIEW_PROVIDER_ENV:-/opt/oren/preview/provider.env}
+      - ${PREVIEW_OAUTH_ENV:-/opt/oren/preview/stacks/pr-${PR_NUMBER}/oauth.env}
     environment: &api_env
       DEPLOYMENT_ENV: preview
       PREVIEW_PR_NUMBER: ${PR_NUMBER}
@@ -53,8 +53,8 @@ services:
   api:
     image: ghcr.io/${GHCR_OWNER}/oren-api:${IMAGE_TAG}
     env_file:
-      - /opt/oren/preview/provider.env
-      - /opt/oren/preview/stacks/pr-${PR_NUMBER}/oauth.env
+      - ${PREVIEW_PROVIDER_ENV:-/opt/oren/preview/provider.env}
+      - ${PREVIEW_OAUTH_ENV:-/opt/oren/preview/stacks/pr-${PR_NUMBER}/oauth.env}
     environment: *api_env
     networks:
       private:
