@@ -5,6 +5,8 @@ import { and, eq, gt, inArray, isNull, or, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { AppModule } from './app.module';
 import { PrivyWalletAuth } from './auth/privy-wallet-auth';
+import { GrowthRecorder } from './admin/reporting/growth-recorder.service';
+import { decodeAttribution } from './admin/reporting/growth-attribution';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { validateEnv } from './config/env.schema';
 import { DatabaseService } from './database/database.provider';
@@ -64,11 +66,9 @@ import {
 async function bootstrap() {
   const env = validateEnv();
   const app = await NestFactory.create(AppModule);
-  // Caddy is the only hop in front of the API in production and previews, so
-  // trust exactly one proxy: req.ip becomes the client Caddy saw, which the
-  // client cannot forge through X-Forwarded-For.
+  const expressApp = app.getHttpAdapter().getInstance() as Express;
   if (env.DEPLOYMENT_ENV === 'production' || env.DEPLOYMENT_ENV === 'preview')
-    (app.getHttpAdapter().getInstance() as Express).set('trust proxy', 1);
+    expressApp.set('trust proxy', env.TRUST_PROXY_HOPS);
 
   app.setGlobalPrefix('api');
   app.useGlobalPipes(
@@ -81,7 +81,7 @@ async function bootstrap() {
   app.useGlobalFilters(new HttpExceptionFilter());
   const oauth = await createMcpOAuthRuntime(app.get(DatabaseService).db);
   if (oauth) {
-    const expressApp = app.getHttpAdapter().getInstance() as Express;
+    const growth = app.get(GrowthRecorder, { strict: false });
     const db = app.get(DatabaseService).db;
     const identity = app.get(PrivyWalletAuth, { strict: false });
     const approvalRpc = app.get(ApprovalRpc, { strict: false });
@@ -131,6 +131,7 @@ async function bootstrap() {
         sell: env.MCP_DELEGATED_SELLS_ENABLED,
       },
       oauth,
+      growth,
     };
     registerMcpJsonBodyParser(expressApp);
     expressApp.get(
@@ -652,7 +653,7 @@ async function bootstrap() {
           res.setHeader('Access-Control-Allow-Credentials', 'true');
           res.setHeader(
             'Access-Control-Allow-Headers',
-            'Authorization, Content-Type, X-Oren-Trade-Execute-Consent, X-Oren-Delegation-Id, X-Oren-Native-Client-Consent',
+            'Authorization, Content-Type, X-Oren-Trade-Execute-Consent, X-Oren-Delegation-Id, X-Oren-Native-Client-Consent, X-Oren-Attribution, X-Oren-Consent-Decision',
           );
           res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
           res.setHeader('Vary', 'Origin');
@@ -691,6 +692,26 @@ async function bootstrap() {
     });
     expressApp.post(interaction, async (req: Request, res: Response) => {
       if (req.headers.origin !== oauth.appOrigin) return res.sendStatus(403);
+      const attribution = decodeAttribution(
+        headerValue(req.headers['x-oren-attribution']),
+      );
+      if (req.headers['x-oren-consent-decision'] === 'deny') {
+        try {
+          const details = await oauth.provider.interactionDetails(req, res);
+          if (details.uid !== req.params.uid) return res.sendStatus(403);
+          await growth?.recordOauth({
+            eventType: 'oauth_refused',
+            sourceId: `deny:${details.uid}`,
+            attribution,
+          });
+          return res.sendStatus(403);
+        } catch {
+          return res.sendStatus(400);
+        }
+      }
+      let stage = 'details';
+      let savedGrantId: string | undefined;
+      let savedUserId: string | undefined;
       try {
         const details = await oauth.provider.interactionDetails(req, res);
         if (details.uid !== req.params.uid) return res.sendStatus(403);
@@ -780,6 +801,7 @@ async function bootstrap() {
             );
           if (!independent) return res.sendStatus(403);
         }
+        stage = 'save';
         const grant = new oauth.provider.Grant({
           accountId: owner.userId,
           clientId,
@@ -789,6 +811,8 @@ async function bootstrap() {
         // Keep that check satisfied while the resource grant remains required.
         grant.addOIDCScope(oidcScopes);
         const grantId = await grant.save();
+        savedGrantId = grantId;
+        savedUserId = owner.userId;
         await db.insert(mcpConnections).values({
           grantId,
           clientId,
@@ -811,8 +835,36 @@ async function bootstrap() {
           { mergeWithLastSubmission: false },
         );
         res.setHeader('Cache-Control', 'no-store');
+        await growth?.recordOauth({
+          eventType: 'oauth_completed',
+          accountId: owner.userId,
+          sourceId: grantId,
+          attribution,
+        });
         return res.json({ redirect });
-      } catch {
+      } catch (error) {
+        if (savedGrantId && savedUserId) {
+          await growth?.recordOauth({
+            eventType: 'oauth_completed',
+            accountId: savedUserId,
+            sourceId: savedGrantId,
+            attribution,
+          });
+        } else if (stage === 'save') {
+          await growth?.recordOauth({
+            eventType: 'oauth_failed',
+            sourceId: `fail:${String(req.params.uid)}`,
+            attribution,
+          });
+        } else if (
+          error instanceof Error &&
+          /expir|session not found/i.test(`${error.name} ${error.message}`)
+        ) {
+          await growth?.recordOauth({
+            eventType: 'oauth_expired',
+            sourceId: `expired-prompt:${String(req.params.uid)}`,
+          });
+        }
         return res.sendStatus(400);
       }
     });
@@ -903,6 +955,11 @@ async function bootstrap() {
             )
             .returning({ grantId: mcpConnections.grantId });
           if (!row) return res.sendStatus(404);
+          await growth?.recordOauth({
+            eventType: 'oauth_revoked',
+            accountId: userId,
+            sourceId: `revoked:${row.grantId}`,
+          });
           await Promise.all([
             oauth.provider.AccessToken.revokeByGrantId(row.grantId),
             oauth.provider.RefreshToken.revokeByGrantId(row.grantId),
@@ -949,3 +1006,7 @@ async function bootstrap() {
 }
 
 void bootstrap();
+
+function headerValue(value: string | string[] | undefined): string | undefined {
+  return Array.isArray(value) ? value[0] : value;
+}

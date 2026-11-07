@@ -2,6 +2,8 @@
 set -euo pipefail
 
 # Visit counts for the web app from Caddy's access log.
+# This is an ad hoc view. Durable reporting lives in Postgres and does not
+# depend on this script or on a laptop being awake.
 # Usage (on the VPS): /opt/oren/infra/visits.sh [days]   (default 7)
 # A page view is a successful GET for a page, not assets, /_next, or prefetches.
 # A visitor is a unique IP + user agent per day. Bots are excluded by user agent.

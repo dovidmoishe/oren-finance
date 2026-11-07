@@ -56,6 +56,13 @@ export interface McpResourceDeps {
   gate?: SignerGateClient;
   signerPolicyId?: string;
   delegatedSides?: { buy: boolean; sell: boolean };
+  growth?: {
+    recordOauth(input: {
+      eventType: 'oauth_expired';
+      accountId?: string;
+      sourceId: string;
+    }): Promise<void>;
+  };
 }
 
 /** Opaque OAuth access tokens are checked against current grant and wallet state. */
@@ -87,8 +94,14 @@ export async function requireMcpAccess(req: Request, deps: McpResourceDeps) {
     )
     .limit(1);
   if (!connection) return undefined;
-  if (connection.createdAt.getTime() <= Date.now() - 7 * 24 * 60 * 60_000)
+  if (connection.createdAt.getTime() <= Date.now() - 7 * 24 * 60 * 60_000) {
+    void deps.growth?.recordOauth({
+      eventType: 'oauth_expired',
+      accountId: connection.userId,
+      sourceId: `expired:${connection.grantId}`,
+    });
     return undefined;
+  }
   const granted = new Set(connection.scopes.split(/\s+/));
   if (
     [...token.scopes].some(

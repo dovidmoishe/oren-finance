@@ -176,6 +176,13 @@
       "when": 1795305600000,
       "tag": "0024_platform_fees",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1795478400000,
+      "tag": "0025_growth_reporting",
+      "breakpoints": true
     }
   ]
 }

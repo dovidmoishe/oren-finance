@@ -5,6 +5,7 @@ import {
   integer,
   jsonb,
   boolean,
+  date,
   numeric,
   pgEnum,
   pgTable,
@@ -906,6 +907,216 @@ export const cachedNews = pgTable(
     index('cached_news_expires_at_idx').on(table.expiresAt),
   ],
 );
+
+/** Revocable read or import permission. This is not trade authority or full admin. */
+export const growthAccessGrants = pgTable(
+  'growth_access_grants',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    permission: text('permission')
+      .$type<'marketing.read' | 'marketing.import'>()
+      .notNull(),
+    principalKind: text('principal_kind')
+      .$type<'privy_user' | 'machine'>()
+      .notNull(),
+    privyUserId: text('privy_user_id'),
+    tokenHash: text('token_hash'),
+    label: text('label').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }),
+    revokedAt: timestamp('revoked_at', { withTimezone: true }),
+  },
+  (table) => [
+    uniqueIndex('growth_access_token_hash_idx')
+      .on(table.tokenHash)
+      .where(sql`${table.tokenHash} IS NOT NULL`),
+    index('growth_access_user_idx').on(table.privyUserId),
+  ],
+);
+
+/** Short-lived page requests. Reports do not read this table's identifiers. */
+export const growthPageviews = pgTable(
+  'growth_pageviews',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    occurredAt: timestamp('occurred_at', { withTimezone: true }).notNull(),
+    ingestedAt: timestamp('ingested_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    path: text('path').notNull(),
+    visitorHash: text('visitor_hash').notNull(),
+    sessionHash: text('session_hash').notNull(),
+    visitorStability: text('visitor_stability')
+      .$type<'durable' | 'day'>()
+      .notNull(),
+    utmSource: text('utm_source'),
+    utmMedium: text('utm_medium'),
+    utmCampaign: text('utm_campaign'),
+    utmContent: text('utm_content'),
+    utmTerm: text('utm_term'),
+    referrerHost: text('referrer_host'),
+    source: text('source').$type<'beacon' | 'caddy'>().notNull(),
+    ingestKey: text('ingest_key').notNull().unique(),
+    excluded: boolean('excluded').notNull().default(false),
+    excludeReason: text('exclude_reason'),
+  },
+  (table) => [index('growth_pageviews_occurred_idx').on(table.occurredAt)],
+);
+
+export const growthDailyMetrics = pgTable(
+  'growth_daily_metrics',
+  {
+    day: date('day').notNull(),
+    timezone: text('timezone').$type<'UTC' | 'Africa/Lagos'>().notNull(),
+    grain: text('grain').$type<'site' | 'path' | 'campaign'>().notNull(),
+    dimension: text('dimension').notNull().default(''),
+    source: text('source').$type<'beacon' | 'caddy'>().notNull(),
+    pageviews: integer('pageviews').notNull(),
+    sessions: integer('sessions').notNull(),
+    dailyUniques: integer('daily_uniques').notNull(),
+    frozen: boolean('frozen').notNull().default(false),
+    rolledAt: timestamp('rolled_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex('growth_daily_metrics_pk').on(
+      table.day,
+      table.timezone,
+      table.grain,
+      table.source,
+      table.dimension,
+    ),
+  ],
+);
+
+export const growthVisitors = pgTable('growth_visitors', {
+  visitorHash: text('visitor_hash').primaryKey(),
+  firstSeenAt: timestamp('first_seen_at', { withTimezone: true }).notNull(),
+  lastSeenAt: timestamp('last_seen_at', { withTimezone: true }).notNull(),
+  stability: text('stability').$type<'durable' | 'day'>().notNull(),
+});
+
+export const growthSessions = pgTable('growth_sessions', {
+  sessionHash: text('session_hash').primaryKey(),
+  visitorHash: text('visitor_hash').notNull(),
+  firstSeenAt: timestamp('first_seen_at', { withTimezone: true }).notNull(),
+  lastSeenAt: timestamp('last_seen_at', { withTimezone: true }).notNull(),
+});
+
+export const growthFunnelEvents = pgTable(
+  'growth_funnel_events',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    occurredAt: timestamp('occurred_at', { withTimezone: true }).notNull(),
+    eventType: text('event_type').notNull(),
+    accountHash: text('account_hash'),
+    sessionHash: text('session_hash'),
+    sourceId: text('source_id').notNull(),
+    lane: text('lane'),
+    toolName: text('tool_name'),
+    slot: text('slot'),
+    utmSource: text('utm_source'),
+    utmMedium: text('utm_medium'),
+    utmCampaign: text('utm_campaign'),
+    utmContent: text('utm_content'),
+    utmTerm: text('utm_term'),
+    isFirst: boolean('is_first').notNull().default(false),
+  },
+  (table) => [
+    uniqueIndex('growth_funnel_events_source_idx').on(
+      table.eventType,
+      table.sourceId,
+    ),
+    index('growth_funnel_events_time_idx').on(table.occurredAt),
+    uniqueIndex('growth_funnel_first_research_idx')
+      .on(table.accountHash)
+      .where(sql`${table.eventType} = 'research_success' AND ${table.isFirst}`),
+  ],
+);
+
+export const growthAttributionTouches = pgTable(
+  'growth_attribution_touches',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    subjectKind: text('subject_kind').$type<'visitor' | 'account'>().notNull(),
+    subjectHash: text('subject_hash').notNull(),
+    touch: text('touch').$type<'first' | 'last'>().notNull(),
+    touchedAt: timestamp('touched_at', { withTimezone: true }).notNull(),
+    utmSource: text('utm_source'),
+    utmMedium: text('utm_medium'),
+    utmCampaign: text('utm_campaign'),
+    utmContent: text('utm_content'),
+    utmTerm: text('utm_term'),
+    path: text('path'),
+  },
+  (table) => [
+    uniqueIndex('growth_attribution_subject_idx').on(
+      table.subjectKind,
+      table.subjectHash,
+      table.touch,
+    ),
+  ],
+);
+
+export const growthImportBatches = pgTable('growth_import_batches', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  schemaVersion: text('schema_version').notNull(),
+  sourceSystem: text('source_system').notNull(),
+  provenance: text('provenance').notNull(),
+  verification: text('verification').notNull(),
+  contentHash: text('content_hash').notNull().unique(),
+  timezone: text('timezone').notNull(),
+  importedAt: timestamp('imported_at', { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+export const growthImportObservations = pgTable(
+  'growth_import_observations',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    batchId: uuid('batch_id')
+      .notNull()
+      .references(() => growthImportBatches.id),
+    snapshotId: text('snapshot_id').notNull(),
+    metric: text('metric').notNull(),
+    family: text('family').notNull(),
+    grain: text('grain').notNull(),
+    periodStart: timestamp('period_start', { withTimezone: true }),
+    periodEnd: timestamp('period_end', { withTimezone: true }),
+    day: date('day'),
+    value: numeric('value', { precision: 20, scale: 4 }),
+    coverage: text('coverage').notNull(),
+    usableInTotals: boolean('usable_in_totals').notNull().default(false),
+    usableAsWindow: boolean('usable_as_window').notNull().default(false),
+    dimensions: jsonb('dimensions')
+      .$type<Record<string, string>>()
+      .notNull()
+      .default({}),
+    notes: text('notes').notNull().default(''),
+  },
+  (table) => [
+    uniqueIndex('growth_import_obs_key_idx').on(
+      table.batchId,
+      table.snapshotId,
+      table.metric,
+    ),
+    index('growth_import_obs_metric_idx').on(table.metric, table.day),
+  ],
+);
+
+export const growthCheckpoints = pgTable('growth_checkpoints', {
+  name: text('name').primaryKey(),
+  cursorAt: timestamp('cursor_at', { withTimezone: true }),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const growthCoverage = pgTable('growth_coverage', {
+  source: text('source').$type<'beacon' | 'caddy'>().primaryKey(),
+  startedAt: timestamp('started_at', { withTimezone: true }).notNull(),
+  notes: text('notes'),
+});
 
 export const agentThreadsRelations = relations(agentThreads, ({ many }) => ({
   messages: many(agentMessages),

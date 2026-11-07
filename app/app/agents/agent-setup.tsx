@@ -5,6 +5,7 @@ import { Copy as CopyIcon, Check as CheckIcon } from "lucide-react";
 import { InterfaceIcon } from "@/components/ui/interface-icon";
 
 import { AGENT_CLIENTS, AgentLogo, isAgentClient, type AgentClient } from './agent-clients';
+import { trackSetup } from '@/components/growth/growth-collector';
 
 const PRODUCTION_MCP_URL = 'https://api.oren.finance/mcp';
 
@@ -21,6 +22,7 @@ function CodeBlock({ label, code }: { label: string; code: string }) {
   async function copy() {
     try {
       await navigator.clipboard.writeText(code);
+      trackSetup('copy_instructions', 'setup');
       setCopied(true);
       window.setTimeout(() => setCopied(false), 1600);
     } catch {
@@ -67,7 +69,10 @@ export function AgentSetup() {
         className="agents-tab"
         id={`${id}-${item.id}-tab`}
         key={item.id}
-        onClick={() => setClient(item.id)}
+        onClick={() => {
+          trackSetup('choose_client', item.id);
+          setClient(item.id);
+        }}
         role="tab"
         type="button"
       ><AgentLogo src={AGENT_CLIENTS.find(entry => entry.id === item.id)!.logo} />{item.label}</button>)}

@@ -18,6 +18,7 @@ import { mcpConnector } from '@/services/mcp-connector';
 import { mcpEnrollmentLinks } from '@/services/mcp-enrollment-flow';
 import { useI18n } from '@/i18n/i18n';
 import { formatDateTime, formatNumber } from '@/components/ui';
+import { consentAttributionHeader } from '@/components/growth/growth-collector';
 
 type Interaction = {
   clientId: string;
@@ -105,6 +106,22 @@ function McpConnection({ uid }: { uid: string }) {
     return () => controller.abort();
   }, [requestsExecute, authenticated, requiresEmbeddedWallet, getAccessToken, apiOrigin]);
 
+  async function refuse() {
+    if (!apiOrigin || !uid) return;
+    setBusy(true);
+    try {
+      await fetch(`${apiOrigin}/oauth/interaction/${encodeURIComponent(uid)}`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'X-Oren-Consent-Decision': 'deny', ...consentAttributionHeader() },
+      });
+    } catch {
+      // A missed refusal report must not trap the person on this page.
+    }
+    setError('Connection cancelled. You can start again from your app.');
+    setBusy(false);
+  }
+
   async function authorize() {
     if (!apiOrigin || !uid || !details || !auth.authenticated || !auth.address || requiresEmbeddedWallet || (needsNativeConsent && !allowNativeClient) || (requestsExecute && (!allowExecute || !delegation?.enabled || !delegation.delegationId))) return;
     setBusy(true);
@@ -117,6 +134,7 @@ function McpConnection({ uid }: { uid: string }) {
         credentials: 'include',
         headers: {
           Authorization: `Bearer ${token}`,
+          ...consentAttributionHeader(),
           ...(needsNativeConsent && allowNativeClient ? { 'X-Oren-Native-Client-Consent': 'true' } : {}),
           ...(requestsExecute ? { 'X-Oren-Trade-Execute-Consent': 'true', 'X-Oren-Delegation-Id': delegation!.delegationId! } : {}),
         },
@@ -215,6 +233,7 @@ function McpConnection({ uid }: { uid: string }) {
           {!busy && <ChevronRightIcon size={18} />}
         </button>
       )}
+      {details && <button className="mt-3 text-sm text-muted-foreground hover:text-foreground" disabled={busy} onClick={() => void refuse()} type="button">{t('common.cancel')}</button>}
       {!auth.authenticated && <p className="mcp-connect-sign-in-note">{t('walletAuth.optionalEmail')}</p>}
       </section>
       <p className="mcp-connect-footer">
