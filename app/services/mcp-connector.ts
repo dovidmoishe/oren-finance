@@ -4,6 +4,10 @@ const CONNECTORS = {
   codex: { name: 'Codex', logo: '/integrations/codex.svg' },
 };
 
+export function mcpConnectorForKind(kind?: string | null) {
+  return kind && Object.hasOwn(CONNECTORS, kind) ? CONNECTORS[kind as keyof typeof CONNECTORS] : undefined;
+}
+
 /** Presentation only: a native callback does not attest the receiving app. */
 export function mcpConnector(callbackUrl?: string) {
   if (!callbackUrl) return undefined;

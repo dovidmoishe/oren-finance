@@ -7,9 +7,10 @@ import Link from "next/link";
 import { useOrenAuth } from "@/components/auth/auth-context";
 import { Button } from "@/components/ui";
 import { mcpApiOrigin } from "@/services/mcp-api-origin";
+import { AgentClientLogo, agentClient } from "@/components/brand/agent-client";
 import { TradeGrant } from "@/app/settings/mcp/trade-grant";
 
-type Connection = { grantId: string; clientId: string; wallet: string; scopes: string; createdAt: string };
+type Connection = { clientKind?: string | null; nativeClient?: boolean; grantId: string; clientId: string; wallet: string; scopes: string; createdAt: string };
 
 function accessLabel(scopes: string) {
   const permissions = scopes.split(/\s+/);
@@ -92,7 +93,8 @@ function ConnectionsContent({ connectionUid }: { connectionUid?: string }) {
         </section>
       ) : (
         <>
-          <section aria-labelledby="connected-apps-heading" className="overflow-hidden rounded-2xl border border-border bg-panel">
+          <TradeGrant connectionUid={connectionUid} />
+          <section aria-labelledby="connected-apps-heading" className="mt-8 overflow-hidden rounded-2xl border border-border bg-panel">
             <div className="border-b border-border px-5 py-5 sm:px-6">
               <div className="flex items-center gap-2.5"><h2 id="connected-apps-heading" className="text-lg font-semibold">Connected apps</h2>{!result.loading && !result.error && apiOrigin && <span className="rounded-full bg-background px-2 py-0.5 text-xs text-muted">{result.connections.length}</span>}</div>
               <p className="mt-1 text-sm text-muted">{email ? <>Connections for <span className="break-all">{email}</span>.</> : "Apps you have given access to your Oren account."} You can revoke access anytime.</p>
@@ -111,13 +113,14 @@ function ConnectionsContent({ connectionUid }: { connectionUid?: string }) {
                 {result.connections.map((connection, index) => (
                   <li key={connection.grantId} className="p-5 sm:p-6">
                     <div className="flex flex-wrap items-start justify-between gap-4">
-                      <div className="flex min-w-0 items-center gap-3"><span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-border bg-background"><HugeiconsIcon icon={Link01Icon} size={20} aria-hidden="true" /></span><div className="min-w-0"><h3 className="font-semibold">Agent connection {index + 1}</h3><p className="mt-1 text-xs text-muted">Connected {new Date(connection.createdAt).toLocaleDateString()}</p></div></div>
+                      <div className="flex min-w-0 items-center gap-3"><span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-border bg-white"><AgentClientLogo kind={connection.clientKind} size={24} /></span><div className="min-w-0"><h3 className="font-semibold">{agentClient(connection.clientKind)?.name ?? `Agent connection ${index + 1}`}</h3><p className="mt-1 text-xs text-muted">Connected {new Date(connection.createdAt).toLocaleDateString()}</p></div></div>
                       <span className="rounded-full border border-border bg-background px-3 py-1 text-xs font-medium">{accessLabel(connection.scopes)}</span>
                     </div>
+                    {connection.nativeClient && <p className="mt-3 text-xs text-muted">Local app connection. The label comes from its registered callback; Oren cannot verify the receiving app.</p>}
                     <p className="mt-4 text-sm text-muted">{accessLabel(connection.scopes) === "Chat trading" ? "Can request trades within your active chat trading permission and limits." : accessLabel(connection.scopes) === "Browser trade review" ? "Can read account data and prepare trades for you to review and sign in Oren." : "Can read account data. Cannot execute trades."}</p>
                     <div className="mt-4 flex flex-wrap items-start justify-between gap-4">
-                      <details className="min-w-0 flex-1 text-xs text-muted"><summary className="w-fit cursor-pointer rounded py-2 font-medium focus-visible:outline-2">Connection details</summary><dl className="mt-2 grid gap-2 rounded-xl bg-background p-3"><div><dt className="font-medium text-foreground">Client ID</dt><dd className="mt-1 break-all">{connection.clientId}</dd></div><div><dt className="font-medium text-foreground">Wallet</dt><dd className="mt-1 break-all">{connection.wallet}</dd></div><div><dt className="font-medium text-foreground">Permissions</dt><dd className="mt-1 break-all">{connection.scopes}</dd></div></dl></details>
-                      <Button size="sm" disabled={!!busy} aria-label={`Revoke agent connection ${index + 1}`} onClick={() => void revoke(connection.grantId)}>{busy === connection.grantId ? "Revoking…" : "Revoke access"}</Button>
+                      <details className="min-w-0 flex-1 text-xs text-muted"><summary className="w-fit cursor-pointer rounded py-2 font-medium focus-visible:outline-2">Connection details</summary><dl className="mt-2 grid gap-2 rounded-xl bg-background p-3"><div><dt className="font-medium text-foreground">Client ID</dt><dd className="mt-1 break-all">{connection.clientId}</dd></div><div><dt className="font-medium text-foreground">Grant ID</dt><dd className="mt-1 break-all">{connection.grantId}</dd></div><div><dt className="font-medium text-foreground">Wallet</dt><dd className="mt-1 break-all">{connection.wallet}</dd></div><div><dt className="font-medium text-foreground">Permissions</dt><dd className="mt-1 break-all">{connection.scopes}</dd></div></dl></details>
+                      <Button size="sm" disabled={!!busy} aria-label={`Revoke ${agentClient(connection.clientKind)?.name ?? "agent"} connection ${index + 1}`} onClick={() => void revoke(connection.grantId)}>{busy === connection.grantId ? "Revoking…" : "Revoke access"}</Button>
                     </div>
                   </li>
                 ))}
@@ -126,7 +129,6 @@ function ConnectionsContent({ connectionUid }: { connectionUid?: string }) {
           </section>
           {revokeError && <p className="mt-4 text-sm text-red-700" role="alert">{revokeError}</p>}
           {notice && <p className="mt-4 text-sm" role="status">{notice}</p>}
-          <TradeGrant connectionUid={connectionUid} />
           <p className="mt-5 flex items-start gap-2 px-1 text-xs leading-relaxed text-muted"><HugeiconsIcon icon={Shield01Icon} className="mt-0.5 shrink-0" size={15} aria-hidden="true" />App connections and chat trading permission are separate. Revoking an app connection leaves your trading permission in place; manage it above.</p>
         </>
       )}
