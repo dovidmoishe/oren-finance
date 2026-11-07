@@ -52,7 +52,7 @@ test('uses publication sequence within a day before the slug fallback', () => {
   assert.deepEqual(visibleEntries(entries).map(e => e.slug), ['z-latest', 'a-earlier', 'legacy', 'older-day']);
   const dir = new URL('../content/changelog/', import.meta.url);
   const actual = validateEntries(readdirSync(dir).filter(f => f.endsWith('.json')).map(f => JSON.parse(readFileSync(new URL(f, dir), 'utf8'))));
-  assert.equal(visibleEntries(actual)[0].slug, 'transfer-stablecoins-and-stocks');
+  assert.equal(visibleEntries(actual)[0].slug, 'oren-mcp-is-live');
   const published = findEntry(actual, 'transfer-stablecoins-and-stocks');
   assert.equal(published.status, 'published');
   assert.equal(published.date, '2026-11-03');
