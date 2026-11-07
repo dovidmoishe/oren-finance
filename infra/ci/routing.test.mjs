@@ -45,7 +45,7 @@ test('production publishers cannot share PR identities, daemons or remote caches
   assert.match(provision,/oren-ci-release/);
   assert.match(provision,/mask=0022/);
   const docker=readFileSync(new URL('../../api/Dockerfile',import.meta.url),'utf8');
-  assert.match(docker,/chmod -R a\+rX node_modules dist lib\/db/);
+  assert.match(docker,/chmod -R a\+rX lib\/db/);
 });
 
 test('builds wait for exact-SHA CI before competing for the single build worker', () => {

@@ -1,7 +1,8 @@
 import fs from 'node:fs';
 import { createRequire } from 'node:module';
 const require = createRequire(`${process.cwd()}/package.json`);
-for (const file of ['package.json', 'lib/db/migrate.mjs', 'lib/db/migrations/meta/_journal.json']) {
+if (process.getuid() === 0) throw Error('API runtime must use an unprivileged default user');
+for (const file of ['package.json', 'dist/src/main.js', 'lib/db/migrate.mjs', 'lib/db/migrations/meta/_journal.json']) {
   fs.readFileSync(file);
 }
 for (const name of fs.readdirSync('lib/db/migrations')) {
