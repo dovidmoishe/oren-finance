@@ -2,6 +2,7 @@
 set -euo pipefail
 
 # Run from /opt/oren via cron. Sync backups to encrypted off-VPS storage too.
+# The dump includes growth tables. Raw growth rows also expire inside the API.
 cd /opt/oren
 mkdir -p backups
 timestamp="$(date -u +%Y%m%dT%H%M%SZ)"

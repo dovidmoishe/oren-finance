@@ -11,6 +11,7 @@ import styles from './mcp-connect.module.css';
 import { mcpApiOrigin } from '@/services/mcp-api-origin';
 import { mcpConnector } from '@/services/mcp-connector';
 import { mcpEnrollmentLinks } from '@/services/mcp-enrollment-flow';
+import { consentAttributionHeader } from '@/components/growth/growth-collector';
 
 type Interaction = {
   clientId: string;
@@ -96,6 +97,22 @@ function McpConnection({ uid }: { uid: string }) {
     return () => controller.abort();
   }, [requestsExecute, authenticated, getAccessToken, apiOrigin]);
 
+  async function refuse() {
+    if (!apiOrigin || !uid) return;
+    setBusy(true);
+    try {
+      await fetch(`${apiOrigin}/oauth/interaction/${encodeURIComponent(uid)}`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'X-Oren-Consent-Decision': 'deny', ...consentAttributionHeader() },
+      });
+    } catch {
+      // A missed refusal report must not trap the person on this page.
+    }
+    setError('Connection cancelled. You can start again from your app.');
+    setBusy(false);
+  }
+
   async function authorize() {
     if (!apiOrigin || !uid || !details || !auth.authenticated || !auth.address || (needsNativeConsent && !allowNativeClient) || (requestsExecute && (!allowExecute || !delegation?.enabled || !delegation.delegationId))) return;
     setBusy(true);
@@ -108,6 +125,7 @@ function McpConnection({ uid }: { uid: string }) {
         credentials: 'include',
         headers: {
           Authorization: `Bearer ${token}`,
+          ...consentAttributionHeader(),
           ...(needsNativeConsent && allowNativeClient ? { 'X-Oren-Native-Client-Consent': 'true' } : {}),
           ...(requestsExecute ? { 'X-Oren-Trade-Execute-Consent': 'true', 'X-Oren-Delegation-Id': delegation!.delegationId! } : {}),
         },
@@ -205,6 +223,7 @@ function McpConnection({ uid }: { uid: string }) {
           {!busy && <HugeiconsIcon icon={ArrowRight01Icon} size={18} />}
         </button>
       )}
+      {details && <button className={styles.cancel} disabled={busy} onClick={() => void refuse()} type="button">Cancel</button>}
       {!auth.authenticated && <p className={styles.signInNote}>We’ll email you a sign-in code.</p>}
       </section>
       <p className={styles.footer}>

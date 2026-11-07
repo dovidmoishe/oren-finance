@@ -28,6 +28,8 @@ export class PreviewGuard implements CanActivate {
         '/api/execution/basket',
         '/api/execution/limit-order',
         '/api/feedback',
+        '/api/growth/collect',
+        '/api/admin/imports/aggregates',
       ].includes(path)
     )
       return true;
