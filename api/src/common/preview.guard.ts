@@ -19,6 +19,9 @@ export class PreviewGuard implements CanActivate {
       return true;
     }
     if (request.method === 'OPTIONS') return true;
+    if (request.method === 'POST' && path.startsWith('/api/admin/auth/')) {
+      return true;
+    }
     if (
       request.method === 'POST' &&
       [
@@ -28,6 +31,7 @@ export class PreviewGuard implements CanActivate {
         '/api/execution/basket',
         '/api/execution/limit-order',
         '/api/feedback',
+        '/api/growth/collect',
       ].includes(path)
     )
       return true;

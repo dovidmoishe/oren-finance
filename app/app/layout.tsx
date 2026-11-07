@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import localFont from "next/font/local";
 import "./globals.css";
 import { PreviewBanner } from "@/components/preview-banner";
+import { GrowthCollector } from "@/components/growth/growth-collector";
 
 const neueFreigeist = localFont({
   variable: "--font-neue-freigeist",
@@ -45,6 +46,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     >
       <body className="min-h-full">
         <PreviewBanner />
+        <GrowthCollector />
         {children}
       </body>
     </html>

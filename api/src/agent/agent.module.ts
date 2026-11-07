@@ -10,6 +10,7 @@ import { PortfolioModule } from '../portfolio/portfolio.module';
 import { ResearchModule } from '../research/research.module';
 import { SocialModule } from '../social/social.module';
 import { VaultModule } from '../vault/vault.module';
+import { AdminModule } from '../admin/admin.module';
 import { AgentController } from './agent.controller';
 import { AgentRepository } from './agent.repository';
 import { AgentService } from './agent.service';
@@ -29,6 +30,7 @@ import { AgentToolRegistry } from './tools/agent-tool.registry';
     ExecutionModule,
     VaultModule,
     SocialModule,
+    AdminModule,
   ],
   controllers: [AgentController],
   providers: [

@@ -1,4 +1,5 @@
 import type { Request, Response } from 'express';
+import { randomUUID } from 'node:crypto';
 import { and, eq, gt, isNull } from 'drizzle-orm';
 import { McpServer } from '@modelcontextprotocol/server';
 import { NodeStreamableHTTPServerTransport } from '@modelcontextprotocol/node';
@@ -42,6 +43,17 @@ export interface McpResourceDeps {
   oauth: McpOAuthRuntime;
   gate?: SignerGateClient;
   delegatedSides?: { buy: boolean; sell: boolean };
+  growth?: {
+    recordOauth(input: {
+      eventType: 'oauth_expired';
+      accountId?: string;
+      sourceId: string;
+    }): Promise<void>;
+    recordMcpStockContext?(input: {
+      accountId: string;
+      sourceId: string;
+    }): Promise<void>;
+  };
 }
 
 /** Opaque OAuth access tokens are checked against current grant and wallet state. */
@@ -73,8 +85,14 @@ export async function requireMcpAccess(req: Request, deps: McpResourceDeps) {
     )
     .limit(1);
   if (!connection) return undefined;
-  if (connection.createdAt.getTime() <= Date.now() - 7 * 24 * 60 * 60_000)
+  if (connection.createdAt.getTime() <= Date.now() - 7 * 24 * 60 * 60_000) {
+    void deps.growth?.recordOauth({
+      eventType: 'oauth_expired',
+      accountId: connection.userId,
+      sourceId: `expired:${connection.grantId}`,
+    });
     return undefined;
+  }
   const granted = new Set(connection.scopes.split(/\s+/));
   if (
     [...token.scopes].some(
@@ -112,6 +130,7 @@ export async function handleMcpRequest(
     return res.sendStatus(401);
   }
   res.setHeader('Cache-Control', 'no-store');
+  const requestId = randomUUID();
   const server = new McpServer({ name: 'oren', version: '0.1.0' });
   if (connection.tokenScopes.has('oren.read'))
     server.registerTool(
@@ -153,6 +172,10 @@ export async function handleMcpRequest(
       },
       async ({ assetId }) => {
         const result = await deps.market.getStock(assetId);
+        void deps.growth?.recordMcpStockContext?.({
+          accountId: connection.userId,
+          sourceId: `mcp:${connection.grantId}:get_stock:${requestId}`,
+        });
         return { content: [{ type: 'text', text: JSON.stringify(result) }] };
       },
     );

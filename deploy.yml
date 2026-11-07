@@ -38,6 +38,7 @@ services:
       POSTGRES_USER: ""
       POSTGRES_PASSWORD: ""
       SIGNER_GATE_PRIVATE_KEY: ""
+    # Growth rollup runs in this process. No extra container.
     image: ghcr.io/${GHCR_OWNER:?set GHCR_OWNER in .release.env}/oren-api:${IMAGE_TAG:?set IMAGE_TAG in .release.env}
     restart: unless-stopped
     # The later runtime file overrides the admin URL after staged provisioning.

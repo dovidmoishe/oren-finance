@@ -28,6 +28,7 @@ import { AgentRepository } from './agent.repository';
 import { OPENAI_CLIENT, type OpenAIClient } from './openai.provider';
 import { PortfolioService } from '../portfolio/portfolio.service';
 import { AgentToolRegistry } from './tools/agent-tool.registry';
+import { GrowthRecorder } from '../admin/reporting/growth-recorder.service';
 
 const MAX_TOOL_ROUNDS = 5;
 const HISTORY_LIMIT = 100;
@@ -47,6 +48,7 @@ export class AgentService {
     @Inject(APP_ENV) private readonly env: AppEnv,
     @Inject(OPENAI_CLIENT) private readonly openai: OpenAIClient,
     @Optional() private readonly auth?: PrivyWalletAuth,
+    @Optional() private readonly growth?: GrowthRecorder,
   ) {}
 
   async message(
@@ -310,6 +312,14 @@ export class AgentService {
           try {
             const args = parseArguments(call.arguments);
             const result = await this.tools.dispatch(toolName, args, caller);
+            if (toolName === 'getStockResearch' && caller.userId) {
+              void this.growth?.recordResearch({
+                accountId: caller.userId,
+                sourceId: `in_app:${caller.userId}:${callId}`,
+                lane: 'in_app',
+                tool: 'getStockResearch',
+              });
+            }
             await this.repository.insertMessage({
               threadId: thread.id,
               role: 'tool',
