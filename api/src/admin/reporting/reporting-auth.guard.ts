@@ -3,33 +3,37 @@ import {
   CanActivate,
   ExecutionContext,
   Injectable,
-  SetMetadata,
+  UnauthorizedException,
 } from '@nestjs/common';
-import { Reflector } from '@nestjs/core';
-import type { ReportPermission } from './growth-access';
 import { GrowthAccessService } from './growth-access.service';
-
-export const REPORT_PERMISSION = 'reportPermission';
-export const RequiresReportPermission = (permission: ReportPermission) =>
-  SetMetadata(REPORT_PERMISSION, permission);
+import { isMachineToken } from './growth-access';
+import { AdminAuthService } from '../auth/admin-auth.service';
+import { ADMIN_COOKIE, readCookie } from '../auth/admin-cookie';
 
 @Injectable()
 export class ReportingAuthGuard implements CanActivate {
   constructor(
     private readonly access: GrowthAccessService,
-    private readonly reflector: Reflector,
+    private readonly admins: AdminAuthService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    const required =
-      this.reflector.get<ReportPermission | undefined>(
-        REPORT_PERMISSION,
-        context.getHandler(),
-      ) ?? 'marketing.read';
-    const request = context
-      .switchToHttp()
-      .getRequest<{ headers: { authorization?: string } }>();
-    await this.access.authenticate(request.headers.authorization, required);
+    const request = context.switchToHttp().getRequest<{
+      headers: { authorization?: string; origin?: string; cookie?: string };
+    }>();
+    const token =
+      request.headers.authorization?.replace(/^Bearer\s+/i, '').trim() ?? '';
+    if (token) {
+      if (!isMachineToken(token)) throw new UnauthorizedException();
+      await this.access.authenticate(
+        request.headers.authorization,
+        request.headers.origin,
+      );
+      return true;
+    }
+    await this.admins.reportActor(
+      readCookie(request.headers.cookie, ADMIN_COOKIE),
+    );
     return true;
   }
 }

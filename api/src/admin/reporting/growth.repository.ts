@@ -179,21 +179,17 @@ export class GrowthRepository {
       });
   }
 
-  async grantsFor(input: { tokenHash?: string; privyUserId?: string }) {
-    const rows = await this.db
+  async grantsFor(tokenHashValue: string) {
+    return this.db
       .select({
         id: growthAccessGrants.id,
+        principalKind: growthAccessGrants.principalKind,
         permission: growthAccessGrants.permission,
         revokedAt: growthAccessGrants.revokedAt,
         expiresAt: growthAccessGrants.expiresAt,
       })
       .from(growthAccessGrants)
-      .where(
-        input.tokenHash
-          ? eq(growthAccessGrants.tokenHash, input.tokenHash)
-          : eq(growthAccessGrants.privyUserId, input.privyUserId ?? ''),
-      );
-    return rows;
+      .where(eq(growthAccessGrants.tokenHash, tokenHashValue));
   }
 
   async coverage() {

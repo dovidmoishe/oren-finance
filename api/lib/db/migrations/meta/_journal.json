@@ -113,6 +113,13 @@
       "breakpoints": true,
       "tag": "0015_growth_reporting",
       "idx": 15
+    },
+    {
+      "version": "7",
+      "when": 1794100000000,
+      "breakpoints": true,
+      "tag": "0016_admin_auth",
+      "idx": 16
     }
   ]
 }

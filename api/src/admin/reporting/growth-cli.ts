@@ -13,6 +13,8 @@ import {
   validateImport,
   type GrowthImportDocument,
 } from './growth-import';
+import { hashPassword, temporaryPassword } from '../auth/admin-password';
+import { normalizeEmail } from '../auth/admin-policy';
 
 const invoked = process.argv[1]?.includes('growth-cli');
 
@@ -43,7 +45,12 @@ async function main() {
   if (command === 'import' && sub === 'file') return importFile(url, apply);
   if (command === 'caddy') return inspectCaddy(url, apply);
   if (command === 'access') return access(url, apply);
-  throw new Error('Use import recovery|file, caddy, or access issue|revoke');
+  if (command === 'admin' && (sub === 'bootstrap' || sub === 'recover')) {
+    return adminAccount(url, apply, sub);
+  }
+  throw new Error(
+    'Use import recovery|file, caddy, access issue|revoke, or admin bootstrap|recover',
+  );
 }
 
 async function importRecovery(url: string, apply: boolean) {
@@ -156,6 +163,14 @@ async function inspectCaddy(url: string, apply: boolean) {
 
 async function access(url: string, apply: boolean) {
   const action = process.argv[3];
+  if (
+    process.argv.includes('--user') ||
+    process.argv.includes('--permission')
+  ) {
+    throw new Error(
+      'Report access is only the marketing bot bearer. There is no human grant and no import grant.',
+    );
+  }
   if (action === 'revoke') {
     console.log(JSON.stringify({ id: argument('--id'), apply }));
     if (!apply) return;
@@ -168,18 +183,23 @@ async function access(url: string, apply: boolean) {
     return;
   }
   if (action !== 'issue') throw new Error('access issue or access revoke');
-  const permission = argument('--permission');
-  if (permission !== 'marketing.read' && permission !== 'marketing.import') {
-    throw new Error('permission must be marketing.read or marketing.import');
-  }
   const label = argument('--label');
-  const user = process.argv.includes('--user') ? argument('--user') : undefined;
-  const token = user ? undefined : newMachineToken();
+  if (label !== 'marketing-bot') {
+    throw new Error('The only report principal label is marketing-bot');
+  }
+  const expiresAt = process.argv.includes('--expires-at')
+    ? argument('--expires-at')
+    : null;
+  if (expiresAt && Number.isNaN(Date.parse(expiresAt))) {
+    throw new Error('--expires-at must be an ISO timestamp');
+  }
+  const token = newMachineToken();
   console.log(
     JSON.stringify({
-      permission,
-      principal: user ? 'privy_user' : 'machine',
+      principal: 'marketing_bot',
+      permission: 'marketing.bot.read',
       apply,
+      expiresAt,
       token: apply ? token : undefined,
     }),
   );
@@ -187,12 +207,69 @@ async function access(url: string, apply: boolean) {
   const sql = postgres(url, { max: 1 });
   try {
     await sql`
-      insert into growth_access_grants (permission, principal_kind, privy_user_id, token_hash, label)
-      values (
-        ${permission}, ${user ? 'privy_user' : 'machine'}, ${user ?? null},
-        ${token ? tokenHash(token) : null}, ${label}
-      )
+      insert into growth_access_grants
+        (permission, principal_kind, token_hash, label, expires_at)
+      values
+        ('marketing.bot.read', 'marketing_bot', ${tokenHash(token)}, ${label}, ${expiresAt})
     `;
+  } finally {
+    await sql.end({ timeout: 5 });
+  }
+}
+
+async function adminAccount(
+  url: string,
+  apply: boolean,
+  action: 'bootstrap' | 'recover',
+) {
+  const email = normalizeEmail(argument('--email'));
+  if (!email) throw new Error('--email must be a normal email address');
+  const plaintext = temporaryPassword();
+  const passwordHash = await hashPassword(plaintext);
+  const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+  console.log(
+    JSON.stringify({
+      action,
+      email,
+      apply,
+      expiresAt,
+      temporaryPassword: apply ? plaintext : undefined,
+    }),
+  );
+  if (!apply) return;
+  const sql = postgres(url, { max: 1 });
+  try {
+    if (action === 'bootstrap') {
+      const existing = await sql`select id from admin_accounts where is_master`;
+      if (existing.length > 0) throw new Error('A master admin already exists');
+      await sql`
+        insert into admin_accounts (
+          email, password_hash, is_master, status, must_change_password, temp_password_expires_at
+        ) values (
+          ${email}, ${passwordHash}, true, 'invited', true, ${expiresAt}
+        )
+      `;
+      return;
+    }
+    const masters = await sql`
+      select id from admin_accounts where email = ${email} and is_master
+    `;
+    if (masters.length !== 1)
+      throw new Error('That master admin was not found');
+    const id = masters[0].id as string;
+    await sql.begin(async (tx) => {
+      await tx`
+        update admin_accounts set
+          password_hash = ${passwordHash},
+          status = 'invited',
+          must_change_password = true,
+          temp_password_expires_at = ${expiresAt},
+          temp_password_used_at = null,
+          revoked_at = null
+        where id = ${id}
+      `;
+      await tx`update admin_sessions set revoked_at = now() where account_id = ${id} and revoked_at is null`;
+    });
   } finally {
     await sql.end({ timeout: 5 });
   }

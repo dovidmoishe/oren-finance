@@ -34,9 +34,9 @@ Rollback before any report data matters: drop the `growth_*` tables in reverse d
 
 `GET /api/admin/reports/daily?from=YYYY-MM-DD&to=YYYY-MM-DD&timezone=Africa/Lagos&format=csv`
 
-The same path with `format=json` returns the traffic report. Both require `marketing.read`.
+The same path with `format=json` returns the traffic report. Both require the marketing bot bearer.
 
-Other read routes, all under `/api/admin/reports` and all `marketing.read`:
+Other read routes, all under `/api/admin/reports`, use that same bearer:
 
 - `GET /coverage`
 - `GET /traffic`
@@ -45,32 +45,30 @@ Other read routes, all under `/api/admin/reports` and all `marketing.read`:
 - `GET /external?family=x|revenue|token`
 - `GET /snapshots`
 
-`POST /api/admin/imports/aggregates` requires `marketing.import`. A repeated body is a duplicate, not a second total.
+There is no HTTP import route. Aggregate import is the offline command below. The marketing bot cannot call it.
 
 ## Access
 
-Do not run these against production unless you mean to. The command refuses `DEPLOYMENT_ENV=production` and any `oren.finance` database host until you pass `--allow-production`. This change did not pass that flag.
+Two callers can read reports after an approved deployment. Ordinary product logins cannot.
 
-From a built API checkout:
+**Marketing bot.** Run `access issue --manual --label marketing-bot` and add `--apply` only on the database you mean to change. The command prints the bearer once. Store it in the bot's secret manager and send `Authorization: Bearer` from the bot's server. Do not put it in a browser. Revoke with `access revoke --manual --id <grant-uuid> --apply`.
 
-```bash
-node dist/src/admin/reporting/growth-cli.js access issue \
-  --manual --label "marketer" --permission marketing.read --user "did:privy:..."
-```
-
-Omit `--user` to print a machine token once. Only the hash is stored. Add `--apply` to write.
-
-Revoke:
+**Admin accounts.** There is no public signup and no email sender. Bootstrap the first master offline:
 
 ```bash
-node dist/src/admin/reporting/growth-cli.js access revoke --manual --id <grant-uuid> --apply
+node dist/src/admin/reporting/growth-cli.js admin bootstrap \
+  --manual --email ops@example.com
 ```
 
-`infra/growth/reporting-role.sql` creates a `NOLOGIN` role named `oren_reporting` with select access to rolled-up and imported tables only. It is not applied by migrate. It has no password and no trade grants.
+Add `--apply` to print a temporary password once. The operator gives that password to the master by hand. The master signs in at `POST /api/admin/auth/session` with header `X-Oren-Admin: 1`, then `POST /api/admin/auth/password` with the CSRF token from login. Only after that can the master invite another admin at `POST /api/admin/auth/accounts`. The response contains that person's temporary password once. Hand it over manually. They must replace it before `reports.read` works. `dashboard.access` does not include reports. Invited admins cannot invite or become master.
+
+If the master loses access, `admin recover --manual --email ops@example.com --apply` issues a new temporary password and revokes their sessions. Production still requires `--allow-production`. This change does not run either command.
+
+`infra/growth/reporting-role.sql` grants nothing.
 
 ## History and backfill
 
-The recovery notes, CSV, and observation JSON are in `infra/growth/history/` and `api/src/admin/reporting/fixtures/`. They are reported aggregates. Import is manual:
+The recovery notes, CSV, and observation JSON are in `infra/growth/history/` and `api/src/admin/reporting/fixtures/`. They are reported aggregates. Import stays an operator command, not a bot permission:
 
 ```bash
 node dist/src/admin/reporting/growth-cli.js import recovery \

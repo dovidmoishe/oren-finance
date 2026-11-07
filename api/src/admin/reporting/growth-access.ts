@@ -1,24 +1,25 @@
-export const REPORT_PERMISSIONS = [
-  'marketing.read',
-  'marketing.import',
-] as const;
-export type ReportPermission = (typeof REPORT_PERMISSIONS)[number];
+export const MARKETING_BOT_PRINCIPAL = 'marketing_bot';
+export const MARKETING_BOT_READ = 'marketing.bot.read';
 
 export interface AccessGrant {
   id: string;
-  permission: ReportPermission;
+  principalKind: string;
+  permission: string;
   revokedAt?: Date | null;
   expiresAt?: Date | null;
 }
 
 export type AccessDenial =
-  'missing' | 'revoked' | 'expired' | 'wrong_permission';
+  'missing' | 'revoked' | 'expired' | 'not_marketing_bot' | 'wrong_permission';
 
-/** marketing.read does not imply import, and neither is full admin authority. */
+/**
+ * Report reads succeed only for the designated marketing-bot principal and
+ * its read permission. A human grant, an owner, a future admin, or another
+ * machine principal does not pass, even if the permission string matches.
+ */
 export function accessDecision(
   grant: AccessGrant | undefined,
   now: Date,
-  required: ReportPermission,
 ): { ok: true; grantId: string } | { ok: false; reason: AccessDenial } {
   if (!grant) return { ok: false, reason: 'missing' };
   if (grant.revokedAt && grant.revokedAt <= now) {
@@ -27,20 +28,24 @@ export function accessDecision(
   if (grant.expiresAt && grant.expiresAt <= now) {
     return { ok: false, reason: 'expired' };
   }
-  if (grant.permission !== required) {
+  if (grant.principalKind !== MARKETING_BOT_PRINCIPAL) {
+    return { ok: false, reason: 'not_marketing_bot' };
+  }
+  if (grant.permission !== MARKETING_BOT_READ) {
     return { ok: false, reason: 'wrong_permission' };
   }
   return { ok: true, grantId: grant.id };
-}
-
-export function isReportPermission(value: string): value is ReportPermission {
-  return (REPORT_PERMISSIONS as readonly string[]).includes(value);
 }
 
 const MACHINE_TOKEN = /^oren_rpt_[A-Za-z0-9_-]{40,}$/;
 
 export function isMachineToken(token: string): boolean {
   return MACHINE_TOKEN.test(token);
+}
+
+/** A browser Origin is not a report client. The bot calls the API from its own server. */
+export function browserReportRequest(origin: string | undefined): boolean {
+  return typeof origin === 'string' && origin.length > 0;
 }
 
 /** Local manual CLI only. Production apply is refused unless an operator opts in. */
