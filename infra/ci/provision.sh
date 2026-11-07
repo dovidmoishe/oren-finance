@@ -74,7 +74,7 @@ MemoryHigh=448M
 MemoryMax=512M
 MemorySwapMax=0
 CPUAccounting=yes
-CPUQuota=5%
+CPUQuota=25%
 CPUWeight=25
 TasksMax=2048
 EOF
@@ -125,21 +125,21 @@ for account in oren-ci-build oren-ci-release oren-ci-control; do
   loginctl enable-linger "$account"
   id=$(id -u "$account")
   if [[ "$account" != oren-ci-control ]]; then
-    systemctl set-property --runtime "user-$id.slice" MemoryMax=3840M MemoryHigh=3584M CPUQuota=120%
+    systemctl set-property --runtime "user-$id.slice" MemoryMax=3840M MemoryHigh=3584M CPUQuota=100%
   fi
   systemctl restart "user@$id.service"
   if [[ "$account" != oren-ci-control ]]; then
-    systemctl set-property --runtime "user-$id.slice" MemoryMax=512M MemoryHigh=448M CPUQuota=5%
+    systemctl set-property --runtime "user-$id.slice" MemoryMax=512M MemoryHigh=448M CPUQuota=25%
   fi
 done
 for account in oren-ci-build oren-ci-release; do
   id=$(id -u "$account")
   # Registration/listeners remain stopped during serial daemon bootstrap.
-  systemctl set-property --runtime "user-$id.slice" MemoryMax=3840M MemoryHigh=3584M CPUQuota=120%
+  systemctl set-property --runtime "user-$id.slice" MemoryMax=3840M MemoryHigh=3584M CPUQuota=100%
   runuser -u "$account" -- env XDG_RUNTIME_DIR="/run/user/$id" DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$id/bus" dockerd-rootless-setuptool.sh install --force
   runuser -u "$account" -- env XDG_RUNTIME_DIR="/run/user/$id" DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$id/bus" systemctl --user enable --now docker
   runuser -u "$account" -- env DOCKER_HOST="unix:///run/user/$id/docker.sock" docker info --format '{{.DockerRootDir}} {{.CgroupVersion}} {{.CgroupDriver}}'
-  systemctl set-property --runtime "user-$id.slice" MemoryMax=512M MemoryHigh=448M CPUQuota=5%
+  systemctl set-property --runtime "user-$id.slice" MemoryMax=512M MemoryHigh=448M CPUQuota=25%
 done
 for spec in oren-ci-build:build oren-ci-release:release oren-ci-control:control-1 oren-ci-control:control-2; do
   account=${spec%:*}; lane=${spec#*:}; directory="/home/$account/runner-$lane"

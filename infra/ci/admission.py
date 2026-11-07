@@ -28,7 +28,7 @@ def limit(uid, active):
     subprocess.run(['systemctl', 'set-property', '--runtime', f'user-{uid}.slice',
                     f'MemoryMax={3840 if active else 512}M',
                     f'MemoryHigh={3584 if active else 448}M',
-                    f'CPUQuota={120 if active else 5}%', 'MemorySwapMax=0'],
+                    f'CPUQuota={100 if active else 25}%', 'MemorySwapMax=0'],
                    check=True, timeout=15, capture_output=True)
 
 
