@@ -1032,6 +1032,11 @@ export const growthFunnelEvents = pgTable(
     uniqueIndex('growth_funnel_first_research_idx')
       .on(table.accountHash)
       .where(sql`${table.eventType} = 'research_success' AND ${table.isFirst}`),
+    uniqueIndex('growth_funnel_first_mcp_stock_idx')
+      .on(table.accountHash)
+      .where(
+        sql`${table.eventType} = 'mcp_stock_context' AND ${table.isFirst}`,
+      ),
   ],
 );
 
@@ -1109,7 +1114,12 @@ export const growthImportObservations = pgTable(
 export const growthCheckpoints = pgTable('growth_checkpoints', {
   name: text('name').primaryKey(),
   cursorAt: timestamp('cursor_at', { withTimezone: true }),
-  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  lockedAt: timestamp('locked_at', { withTimezone: true }),
+  lockOwner: text('lock_owner'),
+  identitiesExact: boolean('identities_exact').notNull().default(true),
 });
 
 export const growthCoverage = pgTable('growth_coverage', {

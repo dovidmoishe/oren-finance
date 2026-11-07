@@ -73,7 +73,7 @@ CREATE TABLE growth_funnel_events (
   occurred_at timestamptz NOT NULL,
   event_type text NOT NULL CHECK (event_type IN (
     'setup_cta', 'oauth_completed', 'oauth_refused', 'oauth_failed',
-    'oauth_expired', 'oauth_revoked', 'research_success'
+    'oauth_expired', 'oauth_revoked', 'research_success', 'mcp_stock_context'
   )),
   account_hash text,
   session_hash text,
@@ -95,6 +95,10 @@ CREATE INDEX growth_funnel_events_time_idx ON growth_funnel_events (occurred_at)
 CREATE UNIQUE INDEX growth_funnel_first_research_idx
   ON growth_funnel_events (account_hash)
   WHERE event_type = 'research_success' AND is_first;
+--> statement-breakpoint
+CREATE UNIQUE INDEX growth_funnel_first_mcp_stock_idx
+  ON growth_funnel_events (account_hash)
+  WHERE event_type = 'mcp_stock_context' AND is_first;
 --> statement-breakpoint
 CREATE TABLE growth_attribution_touches (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -152,7 +156,10 @@ CREATE INDEX growth_import_obs_metric_idx ON growth_import_observations (metric,
 CREATE TABLE growth_checkpoints (
   name text PRIMARY KEY,
   cursor_at timestamptz,
-  updated_at timestamptz NOT NULL DEFAULT now()
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  locked_at timestamptz,
+  lock_owner text,
+  identities_exact boolean NOT NULL DEFAULT true
 );
 --> statement-breakpoint
 CREATE TABLE growth_coverage (

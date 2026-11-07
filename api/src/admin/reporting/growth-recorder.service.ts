@@ -143,6 +143,24 @@ export class GrowthRecorder {
     );
   }
 
+  /** Successful MCP get_stock. This is stock detail, not research activation. */
+  recordMcpStockContext(input: {
+    accountId: string;
+    sourceId: string;
+  }): Promise<void> {
+    return observeGrowth(() =>
+      this.repository.insertFunnel({
+        occurredAt: new Date(),
+        eventType: 'mcp_stock_context',
+        accountHash: digest(this.pepper, 'account', input.accountId),
+        sourceId: input.sourceId,
+        lane: 'mcp',
+        toolName: 'get_stock',
+        isFirst: true,
+      }),
+    );
+  }
+
   private async rememberVisitor(
     visitorHash: string,
     touch: UtmTouch,

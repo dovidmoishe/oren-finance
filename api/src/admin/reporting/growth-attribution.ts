@@ -54,7 +54,9 @@ export function cleanUtm(input: {
 function clean(value: string | undefined): string | undefined {
   if (!value) return undefined;
   const trimmed = value.trim();
-  return FIELD.test(trimmed) ? trimmed : undefined;
+  if (!FIELD.test(trimmed)) return undefined;
+  if (/oren_rpt_|did:privy|bearer\s/i.test(trimmed)) return undefined;
+  return trimmed;
 }
 
 /** First touch sticks. Last touch moves. Empty visits do not erase a touch. */

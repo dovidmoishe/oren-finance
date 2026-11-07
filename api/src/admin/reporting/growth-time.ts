@@ -59,6 +59,30 @@ export function eachDay(from: string, to: string): string[] {
   return days;
 }
 
+export function dayIsPartial(
+  day: string,
+  timezone: ReportTimezone,
+  now: Date,
+): boolean {
+  return dayBounds(day, timezone).end.getTime() > now.getTime();
+}
+
+/**
+ * Raw rows are safe to delete only when both the UTC day and the WAT day
+ * that contain them have fully ended and aged out. The earlier of those two
+ * day starts is the purge line.
+ */
+export function retentionBoundary(
+  now: Date,
+  retentionDays: number,
+): { purgeBefore: Date; cutoff: Date } {
+  const cutoff = new Date(now.getTime() - retentionDays * 24 * 60 * 60 * 1000);
+  const starts = (['UTC', 'Africa/Lagos'] as const).map((timezone) =>
+    dayBounds(zonedDay(cutoff, timezone), timezone).start.getTime(),
+  );
+  return { purgeBefore: new Date(Math.min(...starts)), cutoff };
+}
+
 export function weekStart(day: string): string {
   const date = new Date(`${day}T00:00:00.000Z`);
   const weekday = date.getUTCDay() || 7;
