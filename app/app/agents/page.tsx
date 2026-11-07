@@ -12,11 +12,15 @@ import { AgentSetup } from './agent-setup';
 import { AgentConversationDemo } from './agent-conversation-demo';
 import styles from './agents.module.css';
 
+const title = 'Connect your agent — Oren';
+const description = 'Research stocks, understand your portfolio, and trade from Claude, Cursor or Codex. Inside limits you set.';
+
 export const metadata: Metadata = {
-  title: 'Connect your agent — Oren',
-  description: 'Connect Claude, Cursor or Codex to Oren. Your agent researches and trades tokenized stocks inside limits you set and sign.',
+  title,
+  description,
   alternates: { canonical: '/agents' },
-  openGraph: { title: 'Connect your agent — Oren', description: 'Trade tokenized stocks from Claude, Cursor or Codex, inside limits you set.', url: '/agents', type: 'website' },
+  openGraph: { title, description, url: '/agents', type: 'website' },
+  twitter: { card: 'summary_large_image', title, description },
 };
 
 const STEPS = [
