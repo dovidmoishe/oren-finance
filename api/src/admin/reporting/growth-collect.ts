@@ -1,5 +1,6 @@
 import { digest, referrerHost } from './growth-privacy';
 import { exclusionReason } from './growth-bots';
+import { cleanUtm } from './growth-attribution';
 import { zonedDay, type ReportTimezone } from './growth-time';
 
 export interface PageviewDraft {
@@ -68,6 +69,9 @@ export function decideCollect(
   pepper: string,
   excludeHosts: string[],
 ): CollectDecision {
+  if (JSON.stringify(body).length > 4096) {
+    return { status: 'rejected', reason: 'too_large' };
+  }
   for (const key of PERSONAL_KEYS) {
     if (key in body) return { status: 'rejected', reason: 'personal_field' };
   }
@@ -178,12 +182,12 @@ function headerBag(value: unknown): Record<string, string | undefined> {
 function utmOf(value: unknown): CollectBody['utm'] | undefined {
   if (!value || typeof value !== 'object') return undefined;
   const record = value as Record<string, unknown>;
-  const out: Record<string, string> = {};
+  const out: Record<string, string | undefined> = {};
   for (const key of ['source', 'medium', 'campaign', 'content', 'term']) {
     const item = record[key];
     if (typeof item === 'string') out[key] = item;
   }
-  return out;
+  return cleanUtm(out) ?? undefined;
 }
 
 export interface CaddyEvent {

@@ -8,7 +8,7 @@ The production Compose file is unchanged apart from a comment. Postgres stays on
 
 Caddy still keeps 10 access logs of 50 MB and deletes them after 90 days (`roll_keep_for 2160h`). That disk log is not the report. `infra/visits.sh` remains an ad hoc view.
 
-The API process reruns the rollup on an interval (`GROWTH_ROLLUP_INTERVAL_MS`, default 15 minutes). A tick that is already running is skipped. The timer does not hold the process open. Preview disables background workers, so preview does not roll up.
+The API process takes a short lease on `growth_checkpoints` before a rollup. A second process skips the tick. The lease expires after 10 minutes if the holder dies, and the next pass recomputes only unfrozen days. Frozen daily pageviews are not rebuilt from a later partial raw set. Raw rows are deleted only before the earlier of the UTC and WAT day starts that contain the retention cutoff, so an open WAT day is not trimmed. After identity keys are purged, lifetime distinct visitors become `unavailable` instead of a smaller exact count.
 
 Suggested limits, already the defaults:
 

@@ -661,7 +661,7 @@ async function bootstrap() {
         try {
           const details = await oauth.provider.interactionDetails(req, res);
           if (details.uid !== req.params.uid) return res.sendStatus(403);
-          await growth?.recordOauth({
+          void growth?.recordOauth({
             eventType: 'oauth_refused',
             sourceId: `deny:${details.uid}`,
             attribution,
@@ -785,7 +785,7 @@ async function bootstrap() {
           { mergeWithLastSubmission: false },
         );
         res.setHeader('Cache-Control', 'no-store');
-        await growth?.recordOauth({
+        void growth?.recordOauth({
           eventType: 'oauth_completed',
           accountId: owner.userId,
           sourceId: grantId,
@@ -794,14 +794,14 @@ async function bootstrap() {
         return res.json({ redirect });
       } catch (error) {
         if (savedGrantId && savedUserId) {
-          await growth?.recordOauth({
+          void growth?.recordOauth({
             eventType: 'oauth_completed',
             accountId: savedUserId,
             sourceId: savedGrantId,
             attribution,
           });
         } else if (stage === 'save') {
-          await growth?.recordOauth({
+          void growth?.recordOauth({
             eventType: 'oauth_failed',
             sourceId: `fail:${String(req.params.uid)}`,
             attribution,
@@ -810,7 +810,7 @@ async function bootstrap() {
           error instanceof Error &&
           /expir|session not found/i.test(`${error.name} ${error.message}`)
         ) {
-          await growth?.recordOauth({
+          void growth?.recordOauth({
             eventType: 'oauth_expired',
             sourceId: `expired-prompt:${String(req.params.uid)}`,
           });
@@ -887,7 +887,7 @@ async function bootstrap() {
             )
             .returning({ grantId: mcpConnections.grantId });
           if (!row) return res.sendStatus(404);
-          await growth?.recordOauth({
+          void growth?.recordOauth({
             eventType: 'oauth_revoked',
             accountId: userId,
             sourceId: `revoked:${row.grantId}`,

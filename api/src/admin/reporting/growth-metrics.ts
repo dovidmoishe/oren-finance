@@ -15,7 +15,8 @@ export interface FunnelFact {
     | 'oauth_failed'
     | 'oauth_expired'
     | 'oauth_revoked'
-    | 'research_success';
+    | 'research_success'
+    | 'mcp_stock_context';
   accountHash?: string | null;
   sessionHash?: string | null;
   lane?: string | null;
@@ -102,6 +103,9 @@ function emptyFunnel() {
     researchAccounts: new Set<string>(),
     repeatResearchAccounts: new Set<string>(),
     researchByAccount: new Map<string, number>(),
+    stockContextCalls: 0,
+    stockContextAccounts: new Set<string>(),
+    stockContextByAccount: new Map<string, number>(),
   };
 }
 
@@ -119,7 +123,8 @@ function addFact(
     bucket.revokedGrants.add(fact.accountHash);
   } else if (
     fact.eventType === 'research_success' &&
-    fact.toolName === RESEARCH_TOOL
+    fact.toolName === RESEARCH_TOOL &&
+    fact.lane !== 'mcp'
   ) {
     bucket.researchCalls += 1;
     if (fact.accountHash) {
@@ -127,6 +132,17 @@ function addFact(
       bucket.researchByAccount.set(fact.accountHash, count);
       bucket.researchAccounts.add(fact.accountHash);
       if (count > 1) bucket.repeatResearchAccounts.add(fact.accountHash);
+    }
+  } else if (
+    fact.eventType === 'mcp_stock_context' &&
+    fact.toolName === 'get_stock'
+  ) {
+    bucket.stockContextCalls += 1;
+    if (fact.accountHash) {
+      const count =
+        (bucket.stockContextByAccount.get(fact.accountHash) ?? 0) + 1;
+      bucket.stockContextByAccount.set(fact.accountHash, count);
+      bucket.stockContextAccounts.add(fact.accountHash);
     }
   }
 }
@@ -146,7 +162,25 @@ function publish(key: string, bucket: ReturnType<typeof emptyFunnel>) {
     researchCalls: bucket.researchCalls,
     researchAccounts: bucket.researchAccounts.size,
     repeatResearchAccounts: bucket.repeatResearchAccounts.size,
-    note: 'A setup click is not a connection. Failed, refused, expired, and revoked grants are separate from completions.',
+    inAppResearch: {
+      channel: 'in_app',
+      tool: 'getStockResearch',
+      calls: bucket.researchCalls,
+      accounts: bucket.researchAccounts.size,
+    },
+    mcpResearchActivation: {
+      status: 'unavailable' as const,
+      value: null,
+      reason: 'no_mcp_research_tool',
+      tool: null,
+    },
+    mcpStockContext: {
+      tool: 'get_stock',
+      calls: bucket.stockContextCalls,
+      accounts: bucket.stockContextAccounts.size,
+      note: 'Successful canonical stock detail. Not a research report.',
+    },
+    note: 'A setup click is not a connection. In-app research and MCP stock detail are separate. MCP research activation is unavailable.',
   };
 }
 
@@ -164,7 +198,9 @@ export const FUNNEL_DEFINITIONS = {
   connection:
     'A server-confirmed OAuth grant row. A click, a refused prompt, a failed prompt, and an expired or revoked grant are not connections.',
   research:
-    'The first and later successful in-app getStockResearch tool results. MCP get_stock is not this step. Prompts are not stored.',
+    'Successful in-app getStockResearch only. MCP has no research-report tool, so MCP research activation is unavailable. get_stock is counted separately as stock context.',
+  mcpStockContext:
+    'A successful MCP get_stock call. It returns canonical stock detail, not a research report.',
   accounts:
     'Distinct Privy accounts, counted by a one-way hash. This is not a count of people.',
   people: 'Unavailable. Oren has accounts, not a person identifier.',
@@ -275,5 +311,21 @@ export function additivePageviews(days: Array<CountValue>): CountValue {
   return {
     status: 'exact',
     value: days.reduce((sum, day) => sum + (day.value ?? 0), 0),
+  };
+}
+
+/** Closed days keep their frozen pageviews. The open civil day is partial and is not required for that sum. */
+export function closedPageviews<T extends CountValue & { day: string }>(
+  days: T[],
+  partialDays: ReadonlySet<string>,
+): { total: CountValue; daily: Array<T & { status: CountValue['status'] }> } {
+  const daily = days.map((day) =>
+    partialDays.has(day.day) && day.status === 'exact'
+      ? { ...day, status: 'partial' as const, reason: 'civil_day_still_open' }
+      : day,
+  );
+  return {
+    daily,
+    total: additivePageviews(daily.filter((day) => !partialDays.has(day.day))),
   };
 }
