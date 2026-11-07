@@ -102,6 +102,20 @@ export interface AppEnv {
   VAULT_PROGRAM_ID: string;
   /** When false, vault prepare/confirm routes return 503. Defaults to false until the program is deployed. */
   VAULT_PROGRAM_LIVE: boolean;
+  GROWTH_COLLECT_ENABLED: boolean;
+  GROWTH_RAW_RETENTION_DAYS: number;
+  GROWTH_IDENTITY_RETENTION_DAYS: number;
+  GROWTH_IDEMPOTENCY_RETENTION_DAYS: number;
+  GROWTH_SESSION_IDLE_MINUTES: number;
+  GROWTH_ATTRIBUTION_WINDOW_DAYS: number;
+  GROWTH_ATTRIBUTION_MODEL: 'first' | 'last';
+  GROWTH_MIN_COMPARISON_SAMPLE: number;
+  GROWTH_ROLLUP_INTERVAL_MS: number;
+  GROWTH_ROLLUP_LOOKBACK_DAYS: number;
+  GROWTH_HASH_KEY?: string;
+  GROWTH_EXCLUDE_HOSTS: string[];
+  /** How many reverse-proxy hops may set X-Forwarded-For. Never stored. */
+  TRUST_PROXY_HOPS: number;
 }
 
 const REQUIRED = ['POSTGRES_URL', 'TOKENS_API_KEY', 'ALCHEMY_API_KEY'] as const;
@@ -142,10 +156,27 @@ function readPositiveInt(
   key: string,
   fallback: number,
 ): number {
+  return readBoundedInt(env, key, fallback, 1);
+}
+
+function readNonNegativeInt(
+  env: EnvSource,
+  key: string,
+  fallback: number,
+): number {
+  return readBoundedInt(env, key, fallback, 0);
+}
+
+function readBoundedInt(
+  env: EnvSource,
+  key: string,
+  fallback: number,
+  minimum: number,
+): number {
   const raw = readEnv(env, key);
   const value = Number(raw ?? fallback);
-  if (!Number.isInteger(value) || value <= 0) {
-    throw new Error(`${key} must be a positive integer, got "${raw}"`);
+  if (!Number.isInteger(value) || value < minimum) {
+    throw new Error(`${key} must be an integer >= ${minimum}, got "${raw}"`);
   }
   return value;
 }
@@ -374,5 +405,65 @@ export function validateEnv(env: EnvSource = process.env): AppEnv {
     VAULT_PROGRAM_ID:
       readEnv(env, 'VAULT_PROGRAM_ID') || DEFAULT_VAULT_PROGRAM_ID,
     VAULT_PROGRAM_LIVE: readBool(env, 'VAULT_PROGRAM_LIVE', false),
+    ...growthEnv(env),
+  };
+}
+
+function growthEnv(env: EnvSource) {
+  const model = (
+    readEnv(env, 'GROWTH_ATTRIBUTION_MODEL') ?? 'first'
+  ).toLowerCase();
+  if (model !== 'first' && model !== 'last') {
+    throw new Error('GROWTH_ATTRIBUTION_MODEL must be first or last');
+  }
+  const attributionModel: 'first' | 'last' =
+    model === 'last' ? 'last' : 'first';
+  const hosts = readList(env, 'GROWTH_EXCLUDE_HOSTS');
+  return {
+    GROWTH_COLLECT_ENABLED: readBool(env, 'GROWTH_COLLECT_ENABLED', true),
+    GROWTH_RAW_RETENTION_DAYS: readPositiveInt(
+      env,
+      'GROWTH_RAW_RETENTION_DAYS',
+      30,
+    ),
+    GROWTH_IDENTITY_RETENTION_DAYS: readPositiveInt(
+      env,
+      'GROWTH_IDENTITY_RETENTION_DAYS',
+      400,
+    ),
+    GROWTH_IDEMPOTENCY_RETENTION_DAYS: readPositiveInt(
+      env,
+      'GROWTH_IDEMPOTENCY_RETENTION_DAYS',
+      90,
+    ),
+    GROWTH_SESSION_IDLE_MINUTES: readPositiveInt(
+      env,
+      'GROWTH_SESSION_IDLE_MINUTES',
+      30,
+    ),
+    GROWTH_ATTRIBUTION_WINDOW_DAYS: readPositiveInt(
+      env,
+      'GROWTH_ATTRIBUTION_WINDOW_DAYS',
+      7,
+    ),
+    GROWTH_ATTRIBUTION_MODEL: attributionModel,
+    GROWTH_MIN_COMPARISON_SAMPLE: readPositiveInt(
+      env,
+      'GROWTH_MIN_COMPARISON_SAMPLE',
+      30,
+    ),
+    GROWTH_ROLLUP_INTERVAL_MS: readPositiveInt(
+      env,
+      'GROWTH_ROLLUP_INTERVAL_MS',
+      900_000,
+    ),
+    GROWTH_ROLLUP_LOOKBACK_DAYS: readPositiveInt(
+      env,
+      'GROWTH_ROLLUP_LOOKBACK_DAYS',
+      3,
+    ),
+    GROWTH_HASH_KEY: readEnv(env, 'GROWTH_HASH_KEY'),
+    GROWTH_EXCLUDE_HOSTS: hosts.length > 0 ? hosts : ['localhost', '127.0.0.1'],
+    TRUST_PROXY_HOPS: readNonNegativeInt(env, 'TRUST_PROXY_HOPS', 1),
   };
 }
