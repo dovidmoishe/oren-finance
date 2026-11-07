@@ -3,49 +3,31 @@ import {
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
-import { PrivyWalletAuth } from '../../auth/privy-wallet-auth';
 import {
   accessDecision,
+  browserReportRequest,
   isMachineToken,
-  type ReportPermission,
 } from './growth-access';
 import { tokenHash } from './growth-privacy';
 import { GrowthRepository } from './growth.repository';
 
 @Injectable()
 export class GrowthAccessService {
-  constructor(
-    private readonly repository: GrowthRepository,
-    private readonly auth: PrivyWalletAuth,
-  ) {}
+  constructor(private readonly repository: GrowthRepository) {}
 
   async authenticate(
     authorization: string | undefined,
-    required: ReportPermission,
+    origin: string | undefined,
   ): Promise<void> {
+    if (browserReportRequest(origin)) throw new ForbiddenException();
     const token = authorization?.replace(/^Bearer\s+/i, '').trim() ?? '';
-    if (!token) throw new UnauthorizedException();
-    const rows = isMachineToken(token)
-      ? await this.repository.grantsFor({ tokenHash: tokenHash(token) })
-      : await this.repository.grantsFor({
-          privyUserId: await this.privyUser(authorization),
-        });
+    if (!token || !isMachineToken(token)) throw new UnauthorizedException();
+    const rows = await this.repository.grantsFor(tokenHash(token));
     const now = new Date();
-    const matching = rows.filter((grant) => grant.permission === required);
-    const decisions = (matching.length > 0 ? matching : rows).map((grant) =>
-      accessDecision(grant, now, required),
-    );
+    const decisions = rows.map((grant) => accessDecision(grant, now));
     if (decisions.some((decision) => decision.ok)) return;
     const denied = decisions.find((decision) => !decision.ok);
     if (!denied || denied.reason === 'missing') throw new ForbiddenException();
     throw new ForbiddenException({ reason: denied.reason });
-  }
-
-  private async privyUser(authorization: string | undefined): Promise<string> {
-    try {
-      return await this.auth.requireMcpUser(authorization);
-    } catch {
-      throw new UnauthorizedException();
-    }
   }
 }

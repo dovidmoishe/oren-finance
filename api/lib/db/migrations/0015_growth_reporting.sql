@@ -1,22 +1,15 @@
 CREATE TABLE growth_access_grants (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  permission text NOT NULL CHECK (permission IN ('marketing.read', 'marketing.import')),
-  principal_kind text NOT NULL CHECK (principal_kind IN ('privy_user', 'machine')),
-  privy_user_id text,
-  token_hash text,
+  permission text NOT NULL CHECK (permission = 'marketing.bot.read'),
+  principal_kind text NOT NULL CHECK (principal_kind = 'marketing_bot'),
+  token_hash text NOT NULL,
   label text NOT NULL,
   created_at timestamptz NOT NULL DEFAULT now(),
   expires_at timestamptz,
-  revoked_at timestamptz,
-  CHECK (
-    (principal_kind = 'privy_user' AND privy_user_id IS NOT NULL AND token_hash IS NULL)
-    OR (principal_kind = 'machine' AND token_hash IS NOT NULL AND privy_user_id IS NULL)
-  )
+  revoked_at timestamptz
 );
 --> statement-breakpoint
-CREATE UNIQUE INDEX growth_access_token_hash_idx ON growth_access_grants (token_hash) WHERE token_hash IS NOT NULL;
---> statement-breakpoint
-CREATE INDEX growth_access_user_idx ON growth_access_grants (privy_user_id);
+CREATE UNIQUE INDEX growth_access_token_hash_idx ON growth_access_grants (token_hash);
 --> statement-breakpoint
 CREATE TABLE growth_pageviews (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),

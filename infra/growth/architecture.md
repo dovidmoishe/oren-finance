@@ -7,7 +7,8 @@ Base commit for this work: `9d925f803875489a7b39b47906e5064a9647acfb`.
 ## What is implemented
 
 - Nest module `api/src/admin` with collection, report, and import controllers.
-- `marketing.read` for reports and `marketing.import` for aggregate imports. Neither permission is full admin, and neither can sign or broadcast a trade.
+- Report reads accept one bearer: the marketing bot's `marketing.bot.read` credential. Humans, Privy sessions, owners, future admins, and other machine principals do not get these routes. The bot cannot import, write, administer, or trade.
+- Historical import is an offline operator command. There is no import HTTP route.
 - Durable pageviews in Postgres, daily rollups inside the existing API process, and configurable raw-data retention.
 - Funnel events for setup, OAuth outcomes, in-app `getStockResearch`, and successful MCP `get_stock` as `mcp_stock_context`.
 - MCP research activation is reported `unavailable`. The read tools are `get_portfolio`, `search_stocks`, and `get_stock`. `get_stock` is canonical stock detail, not a research report. Search and portfolio reads are not counted. In-app research stays a separate channel.
@@ -24,14 +25,12 @@ Base commit for this work: `9d925f803875489a7b39b47906e5064a9647acfb`.
 
 ## Auth
 
-Reports require `Authorization: Bearer`.
+Reports accept exactly two kinds of caller. Ordinary Oren and Privy logins are denied.
 
-- A Privy session is accepted only when that user has an unexpired, unrevoked `marketing.read` grant.
-- A machine token starts with `oren_rpt_`. Only its hash is stored. Revoking the row or letting it expire denies the next call.
-- `marketing.read` cannot import. `marketing.import` cannot read reports. A future full-admin permission is not created here and does not pass these checks.
-- There is no public report route. The collect route accepts anonymous page and setup events only. It rejects email, IP, wallet, and prompt fields.
+1. **Marketing bot.** A bearer secret the bot possesses. The database stores only its SHA-256 hash. The principal is `marketing_bot` and the permission is `marketing.bot.read`. It cannot invite admins, import history, or trade. A browser `Origin` on that bearer is denied.
+2. **Separate admin accounts.** Email and password in `admin_accounts`, not Privy. A master admin invites others and assigns only `reports.read` or `dashboard.access`. The invitation creates a single-use temporary password, shown once in the API response to the master, and it expires in 24 hours. The first successful login consumes it. Until that person chooses a new password, the session cannot read reports or manage accounts. There is no email delivery.
 
-A future frontend should use the marketer's own Oren login. The API checks her grant. Do not put a machine token in browser JavaScript. A machine token belongs in a server she controls. CORS is unchanged: this change does not add `*` or any new origin. If her site is on a new origin, set `CORS_ORIGIN` to that exact origin. Do not share the owner login.
+Sessions are HttpOnly cookies scoped to `/api/admin`, with a CSRF header required for changes. Login failures are throttled. Unknown emails get the same error as a bad password. Password change and revocation invalidate sessions. Bootstrap and master recovery are offline commands with no default password. This change does not create an account or a token.
 
 ## Definitions
 
@@ -53,7 +52,7 @@ Dates accept `UTC` and `Africa/Lagos` (WAT, UTC+1, no daylight saving). A missin
 ## Decisions that need Dave
 
 1. Add an MCP research tool later if the marketer needs that activation. `get_stock` stays stock context.
-2. Whether `marketing.import` should stay a separate grant. The read role cannot import.
-3. Replace `CORS_ORIGIN=*` with the real site origins before a browser on another domain calls the report API.
+2. Keep historical import offline. The marketing bot is not given a write credential.
+3. Do not add a browser origin for reports. The marketing bot calls the API from its server.
 4. Whether to import the recovery file into production later. This branch does not.
 5. The log start is reported as 01:23, 01:25, and 01:27 WAT on 29 Oct 2026. The report keeps that unresolved.
