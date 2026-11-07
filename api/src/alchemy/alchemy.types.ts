@@ -75,9 +75,25 @@ export interface AlchemyParsedTokenBalance {
   };
 }
 
+export interface AlchemyRawTransaction {
+  slot?: number;
+  blockTime?: number | null;
+  transaction?: [string, string];
+  meta?: {
+    err?: unknown;
+    loadedAddresses?: { writable?: string[]; readonly?: string[] };
+    postTokenBalances?: AlchemyParsedTokenBalance[];
+  } | null;
+}
+
 export interface AlchemyParsedTransaction {
   slot?: number;
   blockTime?: number | null;
+  transaction?: {
+    message?: {
+      accountKeys?: Array<{ pubkey?: string; signer?: boolean } | string>;
+    };
+  };
   meta?: {
     err?: unknown;
     fee?: number;

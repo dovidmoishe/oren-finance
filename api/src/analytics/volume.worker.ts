@@ -70,6 +70,8 @@ export class VolumeWorker implements OnModuleInit, OnModuleDestroy {
         },
         job.transactionSignature,
         tx,
+        // Swaps are signed and paid by the user; limit fills by Jupiter's keeper.
+        { requireWalletFeePayer: job.kind === 'swap_fill' },
       );
       await this.repository.completeFill(job.id, fill);
       void this.portfolio.getPortfolio(execution.walletAddress).catch((error) => {
@@ -91,11 +93,28 @@ export function buildVerifiedFill(
     tokenMint: string;
     featureSource: string;
     provider: string | null;
+    createdAt?: Date;
   },
   transactionSignature: string,
   tx: AlchemyParsedTransaction,
+  options: { requireWalletFeePayer?: boolean } = {},
 ): VerifiedTradeFill {
   if (!tx.slot || !tx.blockTime) throw new Error('Transaction has no finalized slot or block time');
+  if (options.requireWalletFeePayer) {
+    const payer = tx.transaction?.message?.accountKeys?.[0];
+    const payerKey = typeof payer === 'string' ? payer : payer?.pubkey;
+    if (payerKey !== execution.walletAddress) {
+      throw new Error('Transaction fee payer is not the execution wallet');
+    }
+  }
+  // A trade that landed before Oren prepared this execution cannot belong to it.
+  // Allow a minute of clock skew between the API host and block time.
+  if (
+    execution.createdAt &&
+    tx.blockTime * 1_000 < execution.createdAt.getTime() - 60_000
+  ) {
+    throw new Error('Transaction predates the execution it was reported for');
+  }
   const stockDelta = tokenDelta(
     tx.meta?.preTokenBalances,
     tx.meta?.postTokenBalances,

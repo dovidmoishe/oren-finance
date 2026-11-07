@@ -31,6 +31,7 @@ import { TitanTxBuilder } from './titan/titan-tx.builder';
 import { VariantSelector } from './variant-selector';
 import { StockDecimals } from './stock-decimals';
 import { LimitOrderFillPoller } from './limit-order-fill.poller';
+import { OnchainTransactions } from './onchain-transaction';
 
 @Module({
   imports: [
@@ -66,6 +67,7 @@ import { LimitOrderFillPoller } from './limit-order-fill.poller';
     LimitOrderRepository,
     ExecutionService,
     LimitOrderFillPoller,
+    OnchainTransactions,
   ],
   exports: [ExecutionService, JupiterService, SwapRouter],
 })

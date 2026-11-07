@@ -53,10 +53,11 @@ describe('QuoteCache', () => {
   it('tracks pending execution ids after prepare', () => {
     const cache = new QuoteCache();
     cache.set(makeQuote());
-    cache.attachExecution('quote-1', 'exec-9', 'Wallet111');
+    cache.attachExecution('quote-1', 'exec-9', 'Wallet111', 'unsigned-tx');
     expect(cache.getPendingExecution('quote-1')).toEqual({
       executionId: 'exec-9',
       wallet: 'Wallet111',
+      transaction: 'unsigned-tx',
     });
   });
 

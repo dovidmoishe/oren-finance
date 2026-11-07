@@ -25,7 +25,13 @@ export class QuoteCache {
   private readonly quotes = new Map<string, CachedQuoteEntry>();
   private readonly pendingByQuoteId = new Map<
     string,
-    { executionId: string; wallet: string; expiresAt: number }
+    {
+      executionId: string;
+      wallet: string;
+      /** Unsigned transaction the wallet must sign. */
+      transaction: string;
+      expiresAt: number;
+    }
   >();
 
   set(quote: Quote): void {
@@ -80,7 +86,12 @@ export class QuoteCache {
     }
   }
 
-  attachExecution(quoteId: string, executionId: string, wallet: string): void {
+  attachExecution(
+    quoteId: string,
+    executionId: string,
+    wallet: string,
+    transaction: string,
+  ): void {
     const entry = this.quotes.get(quoteId);
     if (entry) {
       entry.executionId = executionId;
@@ -88,20 +99,27 @@ export class QuoteCache {
     this.pendingByQuoteId.set(quoteId, {
       executionId,
       wallet,
+      transaction,
       expiresAt: Date.now() + PENDING_EXECUTION_TTL_MS,
     });
   }
 
-  getPendingExecution(
-    quoteId: string,
-  ): { executionId: string; wallet: string } | null {
+  getPendingExecution(quoteId: string): {
+    executionId: string;
+    wallet: string;
+    transaction: string;
+  } | null {
     const pending = this.pendingByQuoteId.get(quoteId);
     if (!pending) return null;
     if (pending.expiresAt <= Date.now()) {
       this.pendingByQuoteId.delete(quoteId);
       return null;
     }
-    return { executionId: pending.executionId, wallet: pending.wallet };
+    return {
+      executionId: pending.executionId,
+      wallet: pending.wallet,
+      transaction: pending.transaction,
+    };
   }
 
   delete(quoteId: string): void {

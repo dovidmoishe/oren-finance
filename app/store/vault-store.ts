@@ -31,8 +31,8 @@ interface VaultState {
   loadVaults: (wallet: string) => Promise<void>;
   prepareLock: (intent: VaultLockIntent) => Promise<PreparedVaultTransaction | undefined>;
   prepareUnlock: (intent: VaultUnlockIntent) => Promise<PreparedVaultTransaction | undefined>;
-  confirmLock: (request: ConfirmVaultLockRequest) => Promise<ConfirmVaultResponse | undefined>;
-  confirmUnlock: (request: ConfirmVaultUnlockRequest) => Promise<ConfirmVaultResponse | undefined>;
+  confirmLock: (request: ConfirmVaultLockRequest, token?: string | null) => Promise<ConfirmVaultResponse | undefined>;
+  confirmUnlock: (request: ConfirmVaultUnlockRequest, token?: string | null) => Promise<ConfirmVaultResponse | undefined>;
   clearPrepared: () => void;
   reset: () => void;
 }
@@ -100,7 +100,7 @@ export const useVaultStore = create<VaultState>((set, get) => ({
       return undefined;
     }
   },
-  async confirmLock(request) {
+  async confirmLock(request, token) {
     const update = sessionSetter(set);
     if (!get().programLive) {
       update({ error: NOT_LIVE_MESSAGE });
@@ -108,7 +108,7 @@ export const useVaultStore = create<VaultState>((set, get) => ({
     }
     update({ isLoading: true, error: undefined });
     try {
-      const confirmation = await confirmVaultLock(request);
+      const confirmation = await confirmVaultLock(request, token);
       update({ confirmation, isLoading: false, prepared: undefined });
       return confirmation;
     } catch (error) {
@@ -119,7 +119,7 @@ export const useVaultStore = create<VaultState>((set, get) => ({
       return undefined;
     }
   },
-  async confirmUnlock(request) {
+  async confirmUnlock(request, token) {
     const update = sessionSetter(set);
     if (!get().programLive) {
       update({ error: NOT_LIVE_MESSAGE });
@@ -127,7 +127,7 @@ export const useVaultStore = create<VaultState>((set, get) => ({
     }
     update({ isLoading: true, error: undefined });
     try {
-      const confirmation = await confirmVaultUnlock(request);
+      const confirmation = await confirmVaultUnlock(request, token);
       update({ confirmation, isLoading: false, prepared: undefined });
       return confirmation;
     } catch (error) {
