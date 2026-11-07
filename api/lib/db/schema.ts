@@ -914,13 +914,12 @@ export const growthAccessGrants = pgTable(
   {
     id: uuid('id').defaultRandom().primaryKey(),
     permission: text('permission')
-      .$type<'marketing.read' | 'marketing.import'>()
+      .$type<'marketing.bot.read'>()
       .notNull(),
     principalKind: text('principal_kind')
-      .$type<'privy_user' | 'machine'>()
+      .$type<'marketing_bot'>()
       .notNull(),
-    privyUserId: text('privy_user_id'),
-    tokenHash: text('token_hash'),
+    tokenHash: text('token_hash').notNull(),
     label: text('label').notNull(),
     createdAt: timestamp('created_at', { withTimezone: true })
       .notNull()
@@ -929,10 +928,7 @@ export const growthAccessGrants = pgTable(
     revokedAt: timestamp('revoked_at', { withTimezone: true }),
   },
   (table) => [
-    uniqueIndex('growth_access_token_hash_idx')
-      .on(table.tokenHash)
-      .where(sql`${table.tokenHash} IS NOT NULL`),
-    index('growth_access_user_idx').on(table.privyUserId),
+    uniqueIndex('growth_access_token_hash_idx').on(table.tokenHash),
   ],
 );
 
@@ -1126,6 +1122,85 @@ export const growthCoverage = pgTable('growth_coverage', {
   source: text('source').$type<'beacon' | 'caddy'>().primaryKey(),
   startedAt: timestamp('started_at', { withTimezone: true }).notNull(),
   notes: text('notes'),
+});
+
+/** Separate from Privy users. Passwords are scrypt hashes only. */
+export const adminAccounts = pgTable(
+  'admin_accounts',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    email: text('email').notNull(),
+    passwordHash: text('password_hash').notNull(),
+    isMaster: boolean('is_master').notNull().default(false),
+    status: text('status')
+      .$type<'invited' | 'active' | 'revoked'>()
+      .notNull(),
+    mustChangePassword: boolean('must_change_password').notNull().default(true),
+    tempPasswordExpiresAt: timestamp('temp_password_expires_at', {
+      withTimezone: true,
+    }),
+    tempPasswordUsedAt: timestamp('temp_password_used_at', {
+      withTimezone: true,
+    }),
+    passwordChangedAt: timestamp('password_changed_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    createdBy: uuid('created_by'),
+    revokedAt: timestamp('revoked_at', { withTimezone: true }),
+  },
+  (table) => [uniqueIndex('admin_accounts_email_idx').on(table.email)],
+);
+
+export const adminPermissions = pgTable(
+  'admin_permissions',
+  {
+    accountId: uuid('account_id')
+      .notNull()
+      .references(() => adminAccounts.id, { onDelete: 'cascade' }),
+    permission: text('permission').notNull(),
+  },
+  (table) => [
+    uniqueIndex('admin_permissions_pk').on(table.accountId, table.permission),
+  ],
+);
+
+export const adminSessions = pgTable('admin_sessions', {
+  idHash: text('id_hash').primaryKey(),
+  accountId: uuid('account_id')
+    .notNull()
+    .references(() => adminAccounts.id, { onDelete: 'cascade' }),
+  csrfHash: text('csrf_hash').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  revokedAt: timestamp('revoked_at', { withTimezone: true }),
+});
+
+export const adminLoginAttempts = pgTable(
+  'admin_login_attempts',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    subjectHash: text('subject_hash').notNull(),
+    succeeded: boolean('succeeded').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index('admin_login_attempts_subject_idx').on(
+      table.subjectHash,
+      table.createdAt,
+    ),
+  ],
+);
+
+export const adminAuditEvents = pgTable('admin_audit_events', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  actorId: uuid('actor_id'),
+  action: text('action').notNull(),
+  targetId: uuid('target_id'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  metadata: jsonb('metadata').$type<Record<string, string>>().notNull().default({}),
 });
 
 export const agentThreadsRelations = relations(agentThreads, ({ many }) => ({

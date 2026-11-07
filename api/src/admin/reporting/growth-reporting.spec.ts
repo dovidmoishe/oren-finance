@@ -1,5 +1,11 @@
 import recovery from './fixtures/recovery-observations.json';
-import { accessDecision, manualDatabaseAllowed } from './growth-access';
+import {
+  accessDecision,
+  browserReportRequest,
+  manualDatabaseAllowed,
+} from './growth-access';
+import { GrowthAccessService } from './growth-access.service';
+import { ForbiddenException, UnauthorizedException } from '@nestjs/common';
 import {
   applyTouch,
   chosenTouch,
@@ -149,32 +155,85 @@ describe('collection filters', () => {
 });
 
 describe('reporting access', () => {
-  const grant = {
-    id: 'g1',
-    permission: 'marketing.read' as const,
-    revokedAt: null,
-    expiresAt: null,
+  const bot = {
+    id: 'bot-1',
+    principalKind: 'marketing_bot',
+    permission: 'marketing.bot.read',
+    revokedAt: null as Date | null,
+    expiresAt: null as Date | null,
   };
-  it('denies a missing, revoked, expired, or import-only grant', () => {
-    expect(accessDecision(undefined, NOW, 'marketing.read').ok).toBe(false);
-    expect(
-      accessDecision({ ...grant, revokedAt: NOW }, NOW, 'marketing.read'),
-    ).toMatchObject({ ok: false, reason: 'revoked' });
+  it('allows only the designated marketing bot read grant', () => {
+    expect(accessDecision(undefined, NOW)).toMatchObject({
+      ok: false,
+      reason: 'missing',
+    });
+    expect(accessDecision(bot, NOW)).toMatchObject({
+      ok: true,
+      grantId: 'bot-1',
+    });
+    expect(accessDecision({ ...bot, revokedAt: NOW }, NOW)).toMatchObject({
+      ok: false,
+      reason: 'revoked',
+    });
     expect(
       accessDecision(
-        { ...grant, expiresAt: new Date('2026-11-01T00:00:00.000Z') },
+        { ...bot, expiresAt: new Date('2026-11-01T00:00:00.000Z') },
         NOW,
-        'marketing.read',
       ),
     ).toMatchObject({ ok: false, reason: 'expired' });
-    expect(accessDecision(grant, NOW, 'marketing.import')).toMatchObject({
-      ok: false,
-      reason: 'wrong_permission',
-    });
-    expect(accessDecision(grant, NOW, 'marketing.read')).toMatchObject({
-      ok: true,
-      grantId: 'g1',
-    });
+    for (const grant of [
+      { ...bot, principalKind: 'privy_user', permission: 'marketing.read' },
+      { ...bot, principalKind: 'owner', permission: 'admin' },
+      { ...bot, principalKind: 'admin', permission: 'admin.full' },
+      { ...bot, principalKind: 'machine', permission: 'marketing.bot.read' },
+      { ...bot, permission: 'marketing.import' },
+    ]) {
+      expect(accessDecision(grant, NOW).ok).toBe(false);
+    }
+    expect(browserReportRequest('https://oren.finance')).toBe(true);
+    expect(browserReportRequest(undefined)).toBe(false);
+  });
+
+  it('rejects humans, other machines, browsers, and anonymous callers', async () => {
+    const grants = [bot];
+    const repository = {
+      grantsFor: jest.fn(() => Promise.resolve(grants)),
+    };
+    const service = new GrowthAccessService(repository as never);
+    await expect(
+      service.authenticate(undefined, undefined),
+    ).rejects.toBeInstanceOf(UnauthorizedException);
+    await expect(
+      service.authenticate('Bearer did:privy:person', undefined),
+    ).rejects.toBeInstanceOf(UnauthorizedException);
+    await expect(
+      service.authenticate(`Bearer ${botToken()}`, 'https://oren.finance'),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    expect(repository.grantsFor).not.toHaveBeenCalled();
+    repository.grantsFor.mockResolvedValue([
+      { ...bot, principalKind: 'privy_user', permission: 'marketing.read' },
+    ]);
+    await expect(
+      service.authenticate(`Bearer ${botToken()}`, undefined),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    repository.grantsFor.mockResolvedValue([
+      { ...bot, principalKind: 'machine', permission: 'marketing.bot.read' },
+    ]);
+    await expect(
+      service.authenticate(`Bearer ${botToken()}`, undefined),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    repository.grantsFor.mockResolvedValue([{ ...bot, revokedAt: NOW }]);
+    await expect(
+      service.authenticate(`Bearer ${botToken()}`, undefined),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    repository.grantsFor.mockResolvedValue([]);
+    await expect(
+      service.authenticate(`Bearer ${botToken()}`, undefined),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    repository.grantsFor.mockResolvedValue([bot]);
+    await expect(
+      service.authenticate(`Bearer ${botToken()}`, undefined),
+    ).resolves.toBeUndefined();
   });
 
   it('refuses a production database unless the operator opts in', () => {
@@ -547,6 +606,10 @@ describe('reporting failures stay off the core path', () => {
     ).resolves.toBeUndefined();
   });
 });
+
+function botToken(): string {
+  return `oren_rpt_${'a'.repeat(43)}`;
+}
 
 function row(occurredAt: string, visitorHash: string, sessionHash: string) {
   return {

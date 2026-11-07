@@ -24,6 +24,9 @@ export class PreviewGuard implements CanActivate {
     if (request.method === 'POST' && (
       path === '/api/me/price-alerts' || /^\/api\/notifications\/unsubscribe\/[\w.-]+$/.test(path)
     )) return true;
+    if (request.method === 'POST' && path.startsWith('/api/admin/auth/')) {
+      return true;
+    }
     if (
       request.method === 'POST' &&
       [
@@ -34,7 +37,6 @@ export class PreviewGuard implements CanActivate {
         '/api/execution/limit-order',
         '/api/feedback',
         '/api/growth/collect',
-        '/api/admin/imports/aggregates',
       ].includes(path)
     )
       return true;
