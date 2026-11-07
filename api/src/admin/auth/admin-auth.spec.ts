@@ -6,6 +6,7 @@ import {
 import {
   canManageAccounts,
   canReadReports,
+  bootstrapPermissions,
   invitationPermissions,
   temporaryPasswordUsable,
 } from './admin-policy';
@@ -23,6 +24,19 @@ describe('admin passwords', () => {
 });
 
 describe('admin authority', () => {
+  it('requires explicit bounded report and dashboard permissions at bootstrap', () => {
+    expect(bootstrapPermissions(undefined)).toEqual([]);
+    expect(bootstrapPermissions('reports.read,dashboard.access')).toEqual([
+      'reports.read',
+      'dashboard.access',
+    ]);
+    expect(bootstrapPermissions('dashboard.access')).toEqual([
+      'dashboard.access',
+    ]);
+    expect(bootstrapPermissions('')).toBeNull();
+    expect(bootstrapPermissions('accounts.manage')).toBeNull();
+    expect(bootstrapPermissions('reports.read,trade.execute')).toBeNull();
+  });
   const master = {
     id: 'm',
     isMaster: true,

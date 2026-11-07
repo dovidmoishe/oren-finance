@@ -62,6 +62,8 @@ node dist/src/admin/reporting/growth-cli.js admin bootstrap \
 
 Add `--apply` to print a temporary password once. The operator gives that password to the master by hand. The master signs in at `POST /api/admin/auth/session` with header `X-Oren-Admin: 1`, then `POST /api/admin/auth/password` with the CSRF token from login. Only after that can the master invite another admin at `POST /api/admin/auth/accounts`. The response contains that person's temporary password once. Hand it over manually. They must replace it before `reports.read` works. `dashboard.access` does not include reports. Invited admins cannot invite or become master.
 
+To explicitly give the first master report and operational reads too, add `--permissions reports.read,dashboard.access` to `admin bootstrap`. With no flag, the master manages accounts only. Unknown permissions are rejected, and account plus permissions are inserted atomically. Recovery preserves existing permissions and does not accept that flag. The dashboard never grants itself access.
+
 If the master loses access, `admin recover --manual --email ops@example.com --apply` issues a new temporary password and revokes their sessions. Production still requires `--allow-production`. This change does not run either command.
 
 `infra/growth/reporting-role.sql` grants nothing.

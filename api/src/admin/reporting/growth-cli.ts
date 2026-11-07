@@ -14,7 +14,7 @@ import {
   type GrowthImportDocument,
 } from './growth-import';
 import { hashPassword, temporaryPassword } from '../auth/admin-password';
-import { normalizeEmail } from '../auth/admin-policy';
+import { bootstrapPermissions, normalizeEmail } from '../auth/admin-policy';
 
 const invoked = process.argv[1]?.includes('growth-cli');
 
@@ -224,6 +224,16 @@ async function adminAccount(
 ) {
   const email = normalizeEmail(argument('--email'));
   if (!email) throw new Error('--email must be a normal email address');
+  const hasPermissions = process.argv.includes('--permissions');
+  if (hasPermissions && action !== 'bootstrap')
+    throw new Error('--permissions is only supported during bootstrap');
+  const permissions = bootstrapPermissions(
+    hasPermissions ? argument('--permissions') : undefined,
+  );
+  if (!permissions)
+    throw new Error(
+      '--permissions must contain only reports.read and dashboard.access',
+    );
   const plaintext = temporaryPassword();
   const passwordHash = await hashPassword(plaintext);
   const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
@@ -232,6 +242,7 @@ async function adminAccount(
       action,
       email,
       apply,
+      permissions: action === 'bootstrap' ? permissions : undefined,
       expiresAt,
       temporaryPassword: apply ? plaintext : undefined,
     }),
@@ -242,13 +253,18 @@ async function adminAccount(
     if (action === 'bootstrap') {
       const existing = await sql`select id from admin_accounts where is_master`;
       if (existing.length > 0) throw new Error('A master admin already exists');
-      await sql`
-        insert into admin_accounts (
-          email, password_hash, is_master, status, must_change_password, temp_password_expires_at
-        ) values (
-          ${email}, ${passwordHash}, true, 'invited', true, ${expiresAt}
-        )
-      `;
+      await sql.begin(async (tx) => {
+        const [account] = await tx`
+          insert into admin_accounts (
+            email, password_hash, is_master, status, must_change_password, temp_password_expires_at
+          ) values (
+            ${email}, ${passwordHash}, true, 'invited', true, ${expiresAt}
+          ) returning id
+        `;
+        for (const permission of permissions) {
+          await tx`insert into admin_permissions (account_id, permission) values (${account.id as string}, ${permission})`;
+        }
+      });
       return;
     }
     const masters = await sql`

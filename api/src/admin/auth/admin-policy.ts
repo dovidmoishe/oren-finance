@@ -42,6 +42,15 @@ export function invitationPermissions(
   return unique as AdminPermission[];
 }
 
+/** Offline bootstrap is explicit; being master alone never implies report access. */
+export function bootstrapPermissions(
+  value: string | undefined,
+): AdminPermission[] | null {
+  return value === undefined
+    ? []
+    : invitationPermissions(value.split(',').map((item) => item.trim()));
+}
+
 export function temporaryPasswordUsable(
   account: AdminPrincipal,
   now: Date,
@@ -59,6 +68,16 @@ export function canReadReports(account: AdminPrincipal): boolean {
   if (account.mustChangePassword) return false;
   if (account.status !== 'active') return false;
   return account.permissions.includes('reports.read');
+}
+
+/** Operational reads are separate from aggregate reporting and trade authority. */
+export function canAccessDashboard(account: AdminPrincipal): boolean {
+  return (
+    account.status === 'active' &&
+    !account.revokedAt &&
+    !account.mustChangePassword &&
+    account.permissions.includes('dashboard.access')
+  );
 }
 
 /** Only a master who has replaced the temporary password manages accounts. */

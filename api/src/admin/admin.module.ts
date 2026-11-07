@@ -10,6 +10,8 @@ import { GrowthRepository } from './reporting/growth.repository';
 import { GrowthRollupService } from './reporting/growth-rollup.service';
 import { ReportingAuthGuard } from './reporting/reporting-auth.guard';
 import { ReportingController } from './reporting/reporting.controller';
+import { DashboardController } from './dashboard/dashboard.controller';
+import { DashboardRepository } from './dashboard/dashboard.repository';
 
 /** Visit collection and read-only reports. Report reads are not an admin grant. */
 @Module({
@@ -17,6 +19,7 @@ import { ReportingController } from './reporting/reporting.controller';
     GrowthCollectController,
     ReportingController,
     AdminAuthController,
+    DashboardController,
   ],
   providers: [
     GrowthRepository,
@@ -27,6 +30,7 @@ import { ReportingController } from './reporting/reporting.controller';
     ReportingAuthGuard,
     AdminAuthRepository,
     AdminAuthService,
+    DashboardRepository,
   ],
   exports: [GrowthRecorder],
 })

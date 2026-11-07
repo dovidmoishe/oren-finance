@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  UseInterceptors,
   Headers,
   HttpCode,
   Inject,
@@ -15,6 +16,7 @@ import type { Request, Response } from 'express';
 import { APP_ENV } from '../../config/constants';
 import type { AppEnv } from '../../config/env.schema';
 import { AdminAuthService } from './admin-auth.service';
+import { AdminNoStoreInterceptor } from './admin-no-store.interceptor';
 import {
   ADMIN_COOKIE,
   ADMIN_HEADER,
@@ -25,11 +27,21 @@ import {
 } from './admin-cookie';
 
 @Controller('admin/auth')
+@UseInterceptors(AdminNoStoreInterceptor)
 export class AdminAuthController {
   constructor(
     private readonly auth: AdminAuthService,
     @Inject(APP_ENV) private readonly env: AppEnv,
   ) {}
+
+  @Get('session')
+  session(
+    @Headers(ADMIN_HEADER) marker: string | undefined,
+    @Headers('cookie') cookie: string | undefined,
+  ) {
+    this.requireMarker(marker);
+    return this.auth.session(readCookie(cookie, ADMIN_COOKIE));
+  }
 
   @Post('session')
   @HttpCode(200)
