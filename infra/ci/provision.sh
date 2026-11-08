@@ -70,8 +70,8 @@ install -d "/etc/systemd/system/user-$LIGHT_ID.slice.d"
 cat > "/etc/systemd/system/user-$LIGHT_ID.slice.d/oren-ci.conf" <<EOF
 [Slice]
 MemoryAccounting=yes
-MemoryHigh=448M
-MemoryMax=512M
+MemoryHigh=640M
+MemoryMax=768M
 MemorySwapMax=0
 CPUAccounting=yes
 CPUQuota=25%

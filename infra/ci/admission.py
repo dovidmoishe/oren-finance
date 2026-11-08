@@ -71,9 +71,29 @@ def limit(uid, active):
         set_slice(uid, IDLE_MAX_MIB, IDLE_HIGH_MIB, IDLE_CPU)
 
 
-def soften(uid):
-    """Drop CPU and the high watermark, but keep the active max until reclaim."""
-    set_slice(uid, ACTIVE_MAX_MIB, IDLE_HIGH_MIB, IDLE_CPU)
+def protect(uid, usage_bytes):
+    """Lower CPU without setting MemoryHigh or MemoryMax under current usage."""
+    usage_mib = (usage_bytes + mib(1) - 1) // mib(1)
+    high = min(ACTIVE_MAX_MIB, max(IDLE_HIGH_MIB, usage_mib))
+    set_slice(uid, ACTIVE_MAX_MIB, high, IDLE_CPU)
+
+
+def reclaim_file_cache(uid, nbytes):
+    """Ask the kernel to reclaim file pages in the full user slice. This does not kill dockerd."""
+    path = f'/sys/fs/cgroup/user.slice/user-{uid}.slice/memory.reclaim'
+    with open(path, 'w') as target:
+        target.write(f'{max(0, int(nbytes))}\n')
+
+
+RECLAIM_CHUNK = mib(256)
+PROGRESS_BYTES = mib(32)
+NO_PROGRESS_LIMIT = 6
+RECOVERY = (
+    'heavy queue held; MemoryMax was not lowered; '
+    'recovery: write a bounded byte count to the user slice memory.reclaim '
+    'and wait for memory.current to fall inside 512 MiB plus margin; '
+    'do not kill dockerd and do not admit a second heavy job'
+)
 
 
 def cgroup_usage(uid):
@@ -116,16 +136,24 @@ def worker_identity(pid, uid):
 
 class Admission:
     def __init__(self, users, limiter=limit, identity=worker_identity, usage=None,
-                 softener=soften, worker_running=None):
+                 softener=None, worker_running=None, reclaimer=reclaim_file_cache,
+                 protector=protect, diagnostic_path=None, no_progress_limit=NO_PROGRESS_LIMIT):
         self.users = users
         self.limiter = limiter
         self.identity = identity
         self.usage = usage or (lambda uid: 0)
-        self.softener = softener
+        # softener is accepted so older callers keep working; drain uses protector.
+        self.softener = softener or protector
         self.worker_running = worker_running or (lambda uid: False)
+        self.reclaimer = reclaimer
+        self.protector = protector
+        self.diagnostic_path = diagnostic_path
+        self.no_progress_limit = no_progress_limit
         self.condition = threading.Condition()
         self.lease = None
         self.held = set()
+        self.progress = {}
+        self.stuck = set()
         for uid in users:
             self.settle(uid)
 
@@ -141,16 +169,17 @@ class Admission:
             return IDLE_BYTES + MARGIN_BYTES + 1
 
     def settle(self, uid):
-        """Startup. Never hard-shrink a fat cgroup, and never retune a live worker."""
-        if self.worker_running(uid):
-            self.held.add(uid)
-            return
+        """Startup. A fat cgroup is held for reclaim; MemoryMax is not pulled down."""
         if slice_within_idle(self._usage(uid)):
             self.limiter(uid, False)
             self.held.discard(uid)
+            self.stuck.discard(uid)
         else:
-            self.softener(uid)
             self.held.add(uid)
+            if self.worker_running(uid):
+                print(f'oren-ci admission: uid {uid} still has a runner worker; '
+                      'downshift will not treat a later waiter as this lease',
+                      file=sys.stderr, flush=True)
 
     def acquire(self, uid, pid, timeout=1200):
         if uid not in self.users:
@@ -184,29 +213,68 @@ class Admission:
     def release(self, uid, pid, stamp):
         self.note_worker_exit(uid, pid, stamp)
 
-    def drain(self, uid):
-        """Return True only after this uid is inside the idle cap."""
-        with self.condition:
-            if uid not in self.held:
-                return True
-            if self.lease and self.lease[0] == uid:
-                return False
-            live = self.worker_running(uid)
-            usage = self._usage(uid)
-        if live:
-            return False
-        if not slice_within_idle(usage):
-            print(f'oren-ci admission: uid {uid} uses {usage} bytes; holding the heavy slot',
-                  file=sys.stderr, flush=True)
-            self.softener(uid)
-            return False
+    def _finish_idle(self, uid):
         self.limiter(uid, False)
         with self.condition:
             if self.lease and self.lease[0] == uid:
                 return False
             self.held.discard(uid)
+            self.stuck.discard(uid)
+            self.progress.pop(uid, None)
             self.condition.notify_all()
         return True
+
+    def _diagnose(self, uid, usage):
+        message = (f'oren-ci admission STUCK uid={uid} usage={usage} '
+                   f'idle={IDLE_BYTES} {RECOVERY}')
+        print(message, file=sys.stderr, flush=True)
+        if self.diagnostic_path:
+            try:
+                with open(self.diagnostic_path, 'w') as target:
+                    target.write(message + '\n')
+            except OSError as error:
+                print(f'oren-ci admission: diagnostic write failed: {error}', file=sys.stderr)
+
+    def drain(self, uid):
+        """Reclaim file cache until the full user slice fits the idle cap.
+
+        Only the identity-bound admitted worker blocks this. A later worker
+        waiting to acquire does not. No-progress stops the reclaim attempts,
+        leaves MemoryMax at the active cap, and keeps the heavy slot.
+        """
+        with self.condition:
+            if uid not in self.held:
+                return True
+            if self.lease and self.lease[0] == uid:
+                return False
+        usage = self._usage(uid)
+        if slice_within_idle(usage):
+            return self._finish_idle(uid)
+        state = self.progress.setdefault(uid, {'last': usage, 'flat': 0})
+        if uid in self.stuck:
+            if slice_within_idle(usage):
+                return self._finish_idle(uid)
+            return False
+        try:
+            self.reclaimer(uid, min(RECLAIM_CHUNK, max(0, usage - IDLE_BYTES)))
+        except OSError as error:
+            print(f'oren-ci admission: reclaim failed for uid {uid}: {error}', file=sys.stderr)
+        usage = self._usage(uid)
+        if slice_within_idle(usage):
+            return self._finish_idle(uid)
+        if state['last'] - usage >= PROGRESS_BYTES:
+            state['last'] = usage
+            state['flat'] = 0
+        else:
+            state['flat'] += 1
+        self.protector(uid, usage)
+        if state['flat'] >= self.no_progress_limit:
+            self.stuck.add(uid)
+            self._diagnose(uid, usage)
+        else:
+            print(f'oren-ci admission: uid {uid} uses {usage} bytes after reclaim; heavy slot held',
+                  file=sys.stderr, flush=True)
+        return False
 
 
 class Handler(socketserver.StreamRequestHandler):

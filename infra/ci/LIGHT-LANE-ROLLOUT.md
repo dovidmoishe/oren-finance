@@ -1,74 +1,60 @@
 # Light lane and idle downshift
 
-This is the host procedure for the current VPS. Do not run `provision.sh` or `register.sh` for this change. Those scripts restart admission and the existing runners.
+Do not roll out commit `510903a2`. Its drain treated every `Runner.Worker` as the admitted job, so a queued worker could block reclaim while `acquire` waited for that reclaim. It also carried master's old `job-started.sh`, which runs two unbounded `docker info` calls before admission. This document matches the later commit only.
 
-## Evidence used for the budgets
+`infra/ci/light-lane.sh apply` does not copy `job-started.sh` or `job-completed.sh`. Those tracked files are the live hotfix bytes. A future `provision.sh` installs those same bytes; do not replace `/opt/oren-ci/bin/job-started.sh` or `job-completed.sh` from an older tree.
 
-| Fact | Value | Source |
-| --- | --- | --- |
-| Host | 2 cores, 7,424 MiB | existing budget file and the 23:14 WAT audit |
-| Heavy active cap | 3,840 MiB max, 3,584 MiB high, 1 core | unchanged; a live build was already near this high watermark |
-| Idle dockerd | 235 MiB (191 anon, 29 file, 15 kernel) | 23:18 WAT audit |
-| Build peak, not idle RSS | 1.35 GiB historical; an earlier sample saw BuildKit at 1.77 GiB | audit |
-| App `pnpm run lint` | 1,140,269,056 bytes (1,087 MiB) process-tree peak | one run on Node 22.23.4 and pnpm 11.22.0, 8 Nov 2026 |
-| App aggregate | `test "$RESULT" = success` | workflow source |
+## Evidence
 
-512 MiB max / 448 MiB high can hold the measured idle dockerd (235 + 64 MiB margin is below 512). It cannot hold eslint. App lint, app test, Next build, API, preview infrastructure, and image builds stay on `oren-build` or `oren-release`.
+| Fact | Value |
+| --- | --- |
+| Host | 7.25 GiB (7,424 MiB), 2 cores |
+| Heavy slice while busy | 3.50 GiB = 564 MiB anon + 2.46 GiB file + 504 MiB kernel/slab |
+| Rootless dockerd | 265 MiB current, 230 MiB anon, peak 1.37 GiB |
+| Control / release at the same sample | 418 MiB / 261 MiB |
+| MemAvailable at 23:34 WAT | 4.4 GiB (host was not in the heavy-build peak) |
+| Full `eslint` process | 1,140,269,056 bytes (1,087 MiB), child tree only |
+| One file / one directory / 12-file chunk | 432 / 443 / 447 MiB |
 
-The only job moved to `oren-light` is the aggregate App check. Its required check name stays `App test, lint, and build`.
+1,280 MiB and 1,536 MiB light caps leave about 1.25 GiB and 1.0 GiB and are not used. The full eslint process does not run on the light lane.
 
-A 768 MiB inactive heavy floor was not adopted. It is not required to protect the measured 235 MiB daemon, and 3,840 + 768 + 512 + 512 = 5,632 MiB is not proof the host can spare that much. The steady idle cap remains 512 MiB. The OOM fix is the order of the shrink: CPU and MemoryHigh drop immediately, MemoryMax stays 3,840 MiB until usage plus 64 MiB is within 512 MiB, and the next heavy job waits until then.
-
-Configured simultaneous maximums:
+## Budgets
 
 | Account | MemoryMax | MemoryHigh | CPU |
 | --- | --- | --- | --- |
 | Heavy, admitted | 3,840 MiB | 3,584 MiB | 100% |
 | Heavy, idle | 512 MiB | 448 MiB | 25% |
-| Light, static | 512 MiB | 448 MiB | 25% |
-| Control, unchanged | 512 MiB | none | 25% |
+| Light, static | 768 MiB | 640 MiB | 25% |
+| Control | 512 MiB | unchanged | 25% |
 
-Sum 5,376 MiB. Against a 7,424 MiB host that leaves 2,048 MiB, which is 512 MiB less reserve than the previous heavy-plus-control sum. That is the cost of the light cap. It is not a measurement that production stays healthy during overlap. The first real overlap still has to be watched.
+Sum 5,632 MiB. Remainder 1,792 MiB (1.75 GiB). The light hook still refuses to start unless `MemAvailable` is at least 2,816 MiB: 768 + 256 of unused heavy cap + 1,792 reserve. One heavy job at a time. No second heavy admission while a slice is draining or stuck.
 
-## What is not solved
+Downshift reclaims file pages through the full user slice `memory.reclaim`, in 256 MiB requests. `MemoryHigh` is never set below current usage, and `MemoryMax` stays 3,840 MiB until usage plus 64 MiB fits in 512 MiB. After six tries without a 32 MiB drop, reclaim stops, a stuck diagnostic is written, and the heavy slot stays held. A later drop to the idle floor releases it. Recovery is another bounded `memory.reclaim` on that user slice, not killing dockerd and not starting another heavy job.
 
-GitHub still runs the one `oren-build` label in arrival order. Moving the aggregate off that label does not prioritize preview image builds ahead of API tests or Next builds. No custom queue was added.
+## What stays heavy
 
-App tests were not measured and stay on the heavy lane.
+App test, Next `pnpm run build`, API (including its image build), preview infrastructure, preview image builds, and release image builds. GitHub still FIFO-schedules `oren-build`. There is no priority queue.
 
 ## Rollout
 
-Run from a checkout of the reviewed commit, as root, on the host. The script refuses to restart admission when any `Runner.Worker` exists or either heavy slice's `memory.current` plus 64 MiB exceeds 512 MiB.
+Only after this commit is reviewed. As root, from that checkout, with no `Runner.Worker` and both heavy slices inside the idle floor:
 
 ```bash
 bash infra/ci/light-lane.sh check
 bash infra/ci/light-lane.sh apply
 ```
 
-`apply` backs up the live `admission.py` and `budgets.json` with mode, owner, and sha256, installs the new admission program and the light hooks by rename in place, creates `oren-ci-light` if needed, writes its 512 MiB slice and the unstarted user unit, and restarts admission only when `check` would pass. It does not start the runner and does not touch production Docker.
-
-Registration is separate and needs a short-lived token on stdin. `gh` on the laptop can create that token; none is stored in git.
+`apply` records mode, owner, and sha256 for the previous `admission.py` and `budgets.json`, installs the new admission program, budgets, and light hooks by rename, creates `oren-ci-light` if needed, writes the 768 MiB slice and the unstarted unit, and restarts admission only when `check` passes. It does not start the runner, does not touch production Docker, and does not replace the heavy hooks.
 
 ```bash
 gh api --method POST repos/dovidmoishe/oren-finance/actions/runners/registration-token --jq .token | bash infra/ci/register-light.sh
 ```
 
-`register-light.sh` extracts the already downloaded runner tarball only when its pinned sha256 matches, registers one runner named `oren-vps-light` with label `oren-light`, and starts only that user service.
+That registers one `oren-vps-light` runner with label `oren-light`. Do not merge until that runner is online; the lint job and the required aggregate check queue on the missing label until then.
 
-Before treating the lane as in service, with one heavy job actually running:
-
-- `oren-ci-light` is not in `docker`, `sudo`, or `oren-ci-workers`.
-- Its slice files show `MemoryMax=512M`, `MemoryHigh=448M`, `CPUQuota=25%`, `MemorySwapMax=0`.
-- The aggregate job is the only workflow job with `oren-light`.
-- Production `/` and the API health URL return 200.
-- After a heavy worker exits, `memory.current` for that uid falls, `MemoryMax` stays 3,840 MiB until then, and `journalctl -k` shows no new cgroup oom-kill for `dockerd`.
-- A second heavy job does not start while the first cgroup is still above the idle floor.
-
-Do not merge the workflow change until `oren-vps-light` is online. Until then the required aggregate check queues for a label with no runner.
+Before calling the lane in service: confirm `oren-ci-light` is not in `docker`, `sudo`, or `oren-ci-workers`; the slice is `MemoryMax=768M` and `MemoryHigh=640M`; production and the API return 200; a heavy worker exit reclaims file cache without a cgroup oom-kill of `dockerd`; and a second heavy job stays queued while `memory.current` is still above the idle floor.
 
 ## Rollback
-
-Stop and remove only the light runner, then restore the admission backup. The manifest path was printed by `apply`.
 
 ```bash
 id=$(id -u oren-ci-light)
@@ -77,4 +63,4 @@ runuser -u oren-ci-light -- env XDG_RUNTIME_DIR=/run/user/$id DBUS_SESSION_BUS_A
 bash infra/ci/light-lane.sh rollback /root/oren-ci-light-backup-<stamp>/manifest.txt
 ```
 
-Rollback also refuses to restart admission while a worker exists or a heavy cgroup is above the idle floor. Revert the workflow commit in git so the aggregate job returns to `oren-build`; do not leave that job pointed at a removed label. Removing the `oren-ci-light` user is optional and is not done by the script.
+Rollback restores only files that were backed up, and only when the idle check passes. Point the lint and aggregate jobs back at `oren-build` in git before removing the runner. Do not restore an older `job-started.sh`.

@@ -168,12 +168,18 @@ jobs:
   app-check:
     name: App ${{ matrix.check }}
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: [self-hosted, linux, x64, oren-build]
+    runs-on: [self-hosted, linux, x64, ${{ matrix.runner }}]
     timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
-        check: [test, lint, build]
+        include:
+          - check: test
+            runner: oren-build
+          - check: lint
+            runner: oren-light
+          - check: build
+            runner: oren-build
     defaults:
       run:
         working-directory: app
@@ -204,7 +210,15 @@ jobs:
       - name: Install dependencies
         timeout-minutes: 8
         run: pnpm install --frozen-lockfile
-      - run: pnpm run ${{ matrix.check }}
+      - name: Run check
+        env:
+          CHECK: ${{ matrix.check }}
+        run: |
+          if [ "$CHECK" = lint ]; then
+            node scripts/lint-bounded.mjs
+          else
+            pnpm run "$CHECK"
+          fi
 
   # Preserve the required-check name used by preview setup and branch protection.
   # The body is one shell comparison. It uses the bounded light runner so it

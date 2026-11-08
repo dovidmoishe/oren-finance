@@ -3,8 +3,8 @@ import threading
 import unittest
 from admission import (
     ACTIVE_MAX_MIB, CONTROL_MAX_MIB, HOST_MIB, IDLE_MAX_MIB, LIGHT_MAX_MIB,
-    MARGIN_MIB, Admission, limit, simultaneous_mib, slice_within_idle, soften,
-    worker_identity,
+    MARGIN_MIB, NO_PROGRESS_LIMIT, RECOVERY, Admission, limit, protect,
+    simultaneous_mib, slice_within_idle, worker_identity,
 )
 
 
@@ -56,7 +56,7 @@ class AdmissionTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             worker_identity(os.getpid(), os.getuid())
 
-    def test_soften_does_not_pull_the_max_under_a_resident_daemon(self):
+    def test_protect_does_not_set_high_or_max_under_current_usage(self):
         recorded = []
 
         def fake_run(argv, **kwargs):
@@ -66,38 +66,103 @@ class AdmissionTests(unittest.TestCase):
         original = subprocess.run
         subprocess.run = fake_run
         try:
-            soften(1001)
+            protect(1001, 1400 * 1024 * 1024)
             limit(1001, False)
         finally:
             subprocess.run = original
-        soften_args = ' '.join(recorded[0])
+        held = ' '.join(recorded[0])
         idle_args = ' '.join(recorded[1])
-        self.assertIn('MemoryMax=3840M', soften_args)
-        self.assertIn('MemoryHigh=448M', soften_args)
-        self.assertIn('CPUQuota=25%', soften_args)
-        self.assertNotIn('MemoryMax=512M', soften_args)
+        self.assertIn('MemoryMax=3840M', held)
+        self.assertIn('MemoryHigh=1400M', held)
+        self.assertIn('CPUQuota=25%', held)
+        self.assertNotIn('MemoryMax=512M', held)
+        self.assertNotIn('MemoryHigh=448M', held)
         self.assertIn('MemoryMax=512M', idle_args)
-        self.assertIn('MemoryHigh=448M', idle_args)
 
-    def test_downshift_holds_the_slot_until_usage_fits(self):
+    def _gate(self, usage, reclaims=None, workers=None, drop=0):
         calls = []
-        usage = {'bytes': 0}
 
         def record(uid, active):
             calls.append(('limit', uid, active))
 
-        def soften_uid(uid):
-            calls.append(('soften', uid))
+        def reclaim(uid, nbytes):
+            if reclaims is not None:
+                reclaims.append((uid, nbytes))
+                if drop:
+                    usage['bytes'] = max(0, usage['bytes'] - drop)
 
         gate = Admission([1001, 1003], record, lambda pid, uid: f'{pid}',
-                         usage=lambda uid: usage['bytes'], softener=soften_uid)
+                         usage=lambda uid: usage['bytes'], reclaimer=reclaim,
+                         protector=lambda uid, current: calls.append(('protect', uid, current)),
+                         worker_running=lambda uid: bool(workers and workers(uid)),
+                         no_progress_limit=3)
+        return gate, calls
+
+    def test_reclaim_makes_progress_then_idles_without_a_second_heavy(self):
+        usage = {'bytes': 0}
+        reclaims = []
+        gate, calls = self._gate(usage, reclaims, drop=1200 * 1024 * 1024)
         stamp = gate.acquire(1001, 42)
         usage['bytes'] = 1400 * 1024 * 1024
         marked = len(calls)
         gate.release(1001, 42, stamp)
         self.assertIsNone(gate.lease)
+        self.assertTrue(reclaims)
+        self.assertNotIn(1001, gate.held)
+        self.assertIn(('limit', 1001, False), calls[marked:])
+        ready = threading.Event()
+
+        def other():
+            gate.acquire(1003, 43)
+            ready.set()
+
+        thread = threading.Thread(target=other)
+        thread.start()
+        self.assertTrue(ready.wait(2))
+        thread.join(2)
+
+    def test_waiting_worker_does_not_block_drain_of_the_admitted_worker(self):
+        usage = {'bytes': 0}
+        reclaims = []
+        # pid 99 is a new pre-admission worker. It must not freeze the drain.
+        waiting = {'pids': {99}}
+        gate, calls = self._gate(usage, reclaims, drop=500 * 1024 * 1024,
+                                 workers=lambda uid: bool(waiting['pids']))
+        stamp = gate.acquire(1001, 42)
+        usage['bytes'] = 900 * 1024 * 1024
+        self.assertFalse(gate.drain(1001))
+        self.assertIsNotNone(gate.lease)
+        self.assertEqual(reclaims, [])
+        gate.release(1001, 42, stamp)
+        self.assertTrue(reclaims)
+        self.assertNotIn(1001, gate.held)
+        ready = threading.Event()
+
+        def queued():
+            gate.acquire(1001, 99)
+            ready.set()
+
+        thread = threading.Thread(target=queued)
+        thread.start()
+        self.assertTrue(ready.wait(2))
+        thread.join(2)
+        self.assertEqual(gate.lease, (1001, 99, '99'))
+
+    def test_no_progress_stops_reclaim_and_does_not_admit_another_heavy(self):
+        usage = {'bytes': 0}
+        reclaims = []
+        gate, calls = self._gate(usage, reclaims, drop=0)
+        stamp = gate.acquire(1001, 42)
+        usage['bytes'] = 2 * 1024 ** 3
+        marked = len(calls)
+        gate.release(1001, 42, stamp)
+        self.assertGreaterEqual(len(reclaims), 1)
+        extra = len(reclaims)
+        for _ in range(5):
+            self.assertFalse(gate.drain(1001))
+        self.assertLessEqual(len(reclaims) - extra, 3)
+        self.assertIn(1001, gate.stuck)
         self.assertIn(1001, gate.held)
-        self.assertIn(('soften', 1001), calls[marked:])
         self.assertNotIn(('limit', 1001, False), calls[marked:])
         ready = threading.Event()
 
@@ -109,11 +174,11 @@ class AdmissionTests(unittest.TestCase):
         thread.start()
         self.assertFalse(ready.wait(.2))
         usage['bytes'] = 200 * 1024 * 1024
-        self.assertTrue(slice_within_idle(usage['bytes']))
         self.assertTrue(gate.drain(1001))
-        self.assertNotIn(1001, gate.held)
         self.assertTrue(ready.wait(2))
         thread.join(2)
+        self.assertIn('do not kill dockerd', RECOVERY)
+        self.assertIn('do not admit a second heavy job', RECOVERY)
 
     def test_startup_does_not_shrink_a_live_or_fat_account(self):
         calls = []
@@ -137,11 +202,11 @@ class AdmissionTests(unittest.TestCase):
     def test_configured_sum_is_one_heavy_one_idle_one_light_and_control(self):
         self.assertEqual(ACTIVE_MAX_MIB, 3840)
         self.assertEqual(IDLE_MAX_MIB, 512)
-        self.assertEqual(LIGHT_MAX_MIB, 512)
+        self.assertEqual(LIGHT_MAX_MIB, 768)
         self.assertEqual(CONTROL_MAX_MIB, 512)
         self.assertEqual(MARGIN_MIB, 64)
-        self.assertEqual(simultaneous_mib(), 5376)
-        self.assertEqual(HOST_MIB - simultaneous_mib(), 2048)
+        self.assertEqual(simultaneous_mib(), 5632)
+        self.assertEqual(HOST_MIB - simultaneous_mib(), 1792)
         self.assertFalse(slice_within_idle(1350 * 1024 * 1024))
         self.assertTrue(slice_within_idle(235 * 1024 * 1024))
 
