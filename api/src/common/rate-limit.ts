@@ -68,6 +68,9 @@ interface RateRule {
 }
 
 const MINUTE = 60_000;
+
+/** Shared by direct provider HTTP routes and paid tool calls inside one agent turn. */
+export const PROVIDER_REQUESTS_PER_MINUTE = 60;
 const post = (paths: string[]) => (method: string, path: string) =>
   method === 'POST' && paths.includes(path);
 const getMatching = (pattern: RegExp) => (method: string, path: string) =>
@@ -96,7 +99,7 @@ export function defaultRateRules(): RateRule[] {
         getMatching(
           /^\/api\/(stocks\/[^/]+\/(news|analysis|chart)|signals\/[^/]+|research\/.+|markets\/(trending|opportunities))$/,
         )(method, path),
-      limiter: new SlidingWindowLimiter(60, MINUTE),
+      limiter: new SlidingWindowLimiter(PROVIDER_REQUESTS_PER_MINUTE, MINUTE),
     },
     {
       name: 'default',
@@ -148,6 +151,24 @@ export class RateLimitGuard implements CanActivate {
  * Daily agent budget per authenticated wallet. Checked only after the caller
  * proves wallet ownership, so nobody can spend another wallet's allowance.
  */
+/**
+ * Paid provider work started by an agent tool. Keyed by the wallet the request
+ * already proved, so one chat cannot spend another wallet's minute. This is
+ * separate from the per-message IP cap and the daily wallet cap.
+ */
+@Injectable()
+export class PaidProviderToolBudget {
+  private readonly calls = new SlidingWindowLimiter(
+    PROVIDER_REQUESTS_PER_MINUTE,
+    MINUTE,
+  );
+
+  assertAllowed(walletAddress: string) {
+    const retryAfter = this.calls.hit(walletAddress);
+    if (retryAfter) throw tooManyRequests(retryAfter);
+  }
+}
+
 @Injectable()
 export class AgentUsageLimit {
   private readonly daily = new SlidingWindowLimiter(200, 24 * 60 * MINUTE);

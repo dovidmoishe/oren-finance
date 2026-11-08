@@ -3,6 +3,7 @@ import type {
   AgentStreamEvent,
   AgentThread,
 } from '../../types/agent';
+import { tooManyRequests } from '../common/rate-limit';
 import { AgentService } from './agent.service';
 
 jest.mock('@privy-io/node', () => ({ PrivyClient: jest.fn() }));
@@ -324,6 +325,46 @@ describe('AgentService', () => {
     }
 
     expect(events.some((event) => event.type === 'tool_failed')).toBe(true);
+    expect(events.at(-1)?.type).toBe('turn_completed');
+  });
+
+  it('surfaces a paid-tool limit as a tool failure and still finishes the turn', async () => {
+    openai.responses.create
+      .mockResolvedValueOnce(
+        responseStream({
+          output: [
+            {
+              type: 'function_call',
+              name: 'getStockNews',
+              call_id: 'call-1',
+              arguments: '{"assetIdOrTicker":"NVDA"}',
+            },
+          ],
+        }),
+      )
+      .mockResolvedValueOnce(
+        responseStream({
+          output_text: 'I could not fetch more headlines.',
+          output: [],
+        }),
+      );
+    tools.dispatch.mockRejectedValue(tooManyRequests(1));
+
+    const events: AgentStreamEvent[] = [];
+    for await (const event of service.streamMessage({
+      walletAddress: 'wallet-1',
+      message: 'News on NVDA',
+    })) {
+      events.push(event);
+    }
+
+    expect(events).toContainEqual(
+      expect.objectContaining({
+        type: 'tool_failed',
+        toolName: 'getStockNews',
+        error: 'Too many requests. Try again shortly.',
+      }),
+    );
     expect(events.at(-1)?.type).toBe('turn_completed');
   });
 

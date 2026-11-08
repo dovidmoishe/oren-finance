@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable, Optional } from '@nestjs/common';
+import { PaidProviderToolBudget } from '../../common/rate-limit';
 import type { AgentArtifact } from '../../../types/agent';
 import type { TradeIntent } from '../../../types/execution';
 import type { ChartRange } from '../../../types/market';
@@ -63,6 +64,7 @@ export class AgentToolRegistry {
     private readonly calendar: PortfolioCalendarService,
     @Optional() private readonly drip?: DripService,
     @Optional() private readonly research?: ResearchService,
+    @Optional() private readonly paidTools?: PaidProviderToolBudget,
   ) {}
 
   getSchemas(caller: DripCaller = {}): ToolDefinition[] {
@@ -92,6 +94,7 @@ export class AgentToolRegistry {
     context: AgentToolContext = {},
   ): Promise<AgentToolResult> {
     const input = asRecord(args);
+    this.chargePaidTool(name, context);
 
     switch (name) {
       case 'getPortfolio': {
@@ -480,6 +483,16 @@ export class AgentToolRegistry {
     }
   }
 
+  /** One charge per paid tool call. Internal fetches inside that call are not charged again. */
+  private readonly ownPaidTools = new PaidProviderToolBudget();
+
+  private chargePaidTool(name: string, context: AgentToolContext) {
+    if (!PAID_PROVIDER_TOOLS.has(name)) return;
+    (this.paidTools ?? this.ownPaidTools).assertAllowed(
+      context.walletAddress || 'unverified',
+    );
+  }
+
   private async getStockByInput(assetIdOrTicker: string) {
     const value = assetIdOrTicker.trim();
     try {
@@ -497,6 +510,22 @@ export class AgentToolRegistry {
     }
   }
 }
+
+/** Tools whose work is the same class of paid provider call as the HTTP provider bucket. */
+const PAID_PROVIDER_TOOLS = new Set([
+  'getBitgetMarketContext',
+  'getStockChart',
+  'getStockNews',
+  'analyzeStock',
+  'findOpportunities',
+  'getSignals',
+  'getSwapQuote',
+  'proposeLimitOrder',
+  'createBasket',
+  'prepareBasketPurchase',
+  'prepareCopyPortfolio',
+  'getStockResearch',
+]);
 
 const stringSchema = { type: 'string' };
 const numberSchema = { type: 'number' };

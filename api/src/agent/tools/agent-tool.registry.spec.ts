@@ -1,5 +1,6 @@
 import { PriceMovedError } from '../../common/errors/provider.errors';
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, HttpException } from '@nestjs/common';
+import { PROVIDER_REQUESTS_PER_MINUTE } from '../../common/rate-limit';
 import { AgentToolRegistry } from './agent-tool.registry';
 
 describe('AgentToolRegistry', () => {
@@ -509,6 +510,63 @@ describe('AgentToolRegistry', () => {
         },
       },
     });
+  });
+
+  it('caps paid tool calls per verified wallet without charging ordinary reads', async () => {
+    news.getEquityNews.mockResolvedValue({ items: [] });
+    portfolio.getPortfolio.mockResolvedValue({ walletAddress: 'wallet-1' });
+    for (let i = 0; i < PROVIDER_REQUESTS_PER_MINUTE; i++) {
+      await registry.dispatch('getPortfolio', {}, ctx);
+    }
+    await registry.dispatch('getStockNews', { assetIdOrTicker: 'NVDA' }, ctx);
+
+    const burst = await Promise.allSettled(
+      Array.from({ length: PROVIDER_REQUESTS_PER_MINUTE - 1 }, () =>
+        registry.dispatch('getStockNews', { assetIdOrTicker: 'NVDA' }, ctx),
+      ),
+    );
+    expect(burst.every((result) => result.status === 'fulfilled')).toBe(true);
+
+    await expect(
+      registry.dispatch('getStockNews', { assetIdOrTicker: 'NVDA' }, ctx),
+    ).rejects.toBeInstanceOf(HttpException);
+    expect(news.getEquityNews).toHaveBeenCalledTimes(
+      PROVIDER_REQUESTS_PER_MINUTE,
+    );
+
+    news.getEquityNews.mockClear();
+    await expect(
+      registry.dispatch(
+        'getStockNews',
+        { assetIdOrTicker: 'NVDA' },
+        {
+          walletAddress: 'wallet-2',
+        },
+      ),
+    ).resolves.toEqual({ output: [] });
+    expect(news.getEquityNews).toHaveBeenCalledTimes(1);
+  });
+
+  it('counts concurrent paid tool calls once each', async () => {
+    news.getEquityNews.mockResolvedValue({ items: [] });
+    const burst = await Promise.allSettled(
+      Array.from({ length: PROVIDER_REQUESTS_PER_MINUTE + 1 }, () =>
+        registry.dispatch(
+          'getSwapQuote',
+          { side: 'buy', ticker: 'NVDA', amountUsd: 10 },
+          ctx,
+        ),
+      ),
+    );
+    const rejected = burst.filter((result) => result.status === 'rejected');
+    expect(rejected).toHaveLength(1);
+    expect((rejected[0] as PromiseRejectedResult).reason).toBeInstanceOf(
+      HttpException,
+    );
+    expect((rejected[0] as PromiseRejectedResult).reason.getStatus()).toBe(429);
+    expect(execution.getQuote).toHaveBeenCalledTimes(
+      PROVIDER_REQUESTS_PER_MINUTE,
+    );
   });
 
   it('fails unknown tools cleanly', async () => {
