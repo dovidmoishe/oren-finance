@@ -1,4 +1,4 @@
-import { secEdgarAccess, tryHoldSecWorkerLock } from './sec-access';
+import { secEdgarAccess } from './sec-access';
 
 const production = {
   DEPLOYMENT_ENV: 'production' as const,
@@ -29,7 +29,7 @@ describe('SEC access gate', () => {
     expect(JSON.stringify(open)).not.toContain('edgar-research@oren.finance');
   });
 
-  it('does not fetch from a preview or from an extra worker', async () => {
+  it('does not fetch from a preview or from an extra worker', () => {
     expect(
       secEdgarAccess({
         ...production,
@@ -47,25 +47,5 @@ describe('SEC access gate', () => {
       enabled: false,
       reason: 'sec_worker_unavailable',
     });
-
-    let connects = 0;
-    await expect(
-      tryHoldSecWorkerLock('postgres://example', () => {
-        connects += 1;
-        return Promise.resolve({
-          locked: false,
-          close: () => Promise.resolve(),
-        });
-      }),
-    ).resolves.toBe(false);
-    expect(connects).toBe(1);
-    await expect(
-      tryHoldSecWorkerLock('postgres://example', () =>
-        Promise.resolve({
-          locked: true,
-          close: () => Promise.reject(new Error('must stay open')),
-        }),
-      ),
-    ).resolves.toBe(true);
   });
 });

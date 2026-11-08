@@ -55,29 +55,153 @@ export function secEdgarAccess(
   return { enabled: true, userAgent: secUserAgent(email) };
 }
 
-export async function tryHoldSecWorkerLock(
-  databaseUrl: string,
-  connect: (url: string) => Promise<{
-    locked: boolean;
-    close: () => Promise<void>;
-  }> = connectPostgres,
-): Promise<boolean> {
-  const session = await connect(databaseUrl);
-  if (!session.locked) {
-    await session.close();
-    return false;
-  }
-  return true;
+export interface SecLockConnection {
+  /** Backend pid of the session that was granted the lock. */
+  readonly pid: number;
+  queryPid(): Promise<number>;
+  /** Fires when the database session socket closes. Must not reconnect. */
+  onLost(listener: () => void): void;
+  /** Release the lock and close. Used only while the original session is alive. */
+  unlockAndClose(): Promise<void>;
+  /** Close without querying, so a dead pool cannot reconnect to take the lock. */
+  shutdown(): Promise<void>;
 }
 
-async function connectPostgres(
+/**
+ * Owns one database session for the life of the process. A dropped or
+ * replaced session permanently disables this object. It does not reconnect
+ * or take the lock again.
+ */
+export class SecWorkerSession {
+  private state: 'holding' | 'lost' | 'closed' = 'holding';
+  private readonly listeners = new Set<() => void>();
+
+  private constructor(private readonly connection: SecLockConnection) {
+    connection.onLost(() => this.lose());
+  }
+
+  static async acquire(
+    open: () => Promise<SecLockConnection | undefined>,
+  ): Promise<SecWorkerSession | undefined> {
+    const connection = await open();
+    if (!connection) return undefined;
+    return new SecWorkerSession(connection);
+  }
+
+  isHeld(): boolean {
+    return this.state === 'holding';
+  }
+
+  onLost(listener: () => void): void {
+    this.listeners.add(listener);
+    if (this.state !== 'holding') listener();
+  }
+
+  /**
+   * Admission for a new EDGAR call. A different backend pid means the pool
+   * reconnected without the lock; that is a loss, not a new acquisition.
+   */
+  async admit(): Promise<boolean> {
+    if (!this.isHeld()) return false;
+    try {
+      const pid = await this.connection.queryPid();
+      if (!this.isHeld()) return false;
+      if (pid !== this.connection.pid) {
+        this.lose();
+        return false;
+      }
+      return true;
+    } catch {
+      this.lose();
+      return false;
+    }
+  }
+
+  lose(): void {
+    if (this.state !== 'holding') return;
+    this.state = 'lost';
+    this.notify();
+    void this.connection.shutdown().catch(() => undefined);
+  }
+
+  async close(): Promise<void> {
+    if (this.state === 'closed') return;
+    const holding = this.state === 'holding';
+    this.state = 'closed';
+    this.notify();
+    try {
+      if (holding) await this.connection.unlockAndClose();
+      else await this.connection.shutdown();
+    } catch {
+      // The session is already gone. Do not open another one.
+    }
+  }
+
+  private notify(): void {
+    for (const listener of this.listeners) listener();
+  }
+}
+
+export async function openPostgresLock(
   url: string,
-): Promise<{ locked: boolean; close: () => Promise<void> }> {
-  const sql = postgres(url, { max: 1 });
-  const rows = await sql<{ locked: boolean }[]>`
-    SELECT pg_try_advisory_lock(${SEC_WORKER_LOCK_KEY}) AS locked
-  `;
-  const locked = rows[0]?.locked === true;
-  if (!locked) await sql.end({ timeout: 5 });
-  return { locked, close: () => sql.end({ timeout: 5 }) };
+): Promise<SecLockConnection | undefined> {
+  let notify: () => void = () => undefined;
+  let ending = false;
+  let dropped = false;
+  const sql = postgres(url, {
+    max: 1,
+    idle_timeout: 0,
+    max_lifetime: 0,
+    onclose: () => {
+      if (ending) return;
+      ending = true;
+      dropped = true;
+      notify();
+      void sql.end({ timeout: 1 }).catch(() => undefined);
+    },
+  });
+  const shutdown = async () => {
+    if (ending) return;
+    ending = true;
+    await sql.end({ timeout: 5 });
+  };
+  try {
+    const rows = await sql<{ locked: boolean; pid: number }[]>`
+      SELECT pg_try_advisory_lock(${SEC_WORKER_LOCK_KEY}::bigint) AS locked,
+             pg_backend_pid() AS pid
+    `;
+    const row = rows[0];
+    if (!row?.locked || !Number.isInteger(row.pid)) {
+      await shutdown();
+      return undefined;
+    }
+    return {
+      pid: row.pid,
+      queryPid: async () => {
+        const again = await sql<{ pid: number }[]>`
+          SELECT pg_backend_pid() AS pid
+        `;
+        const pid = again[0]?.pid;
+        if (!Number.isInteger(pid)) throw new Error('missing backend pid');
+        return pid;
+      },
+      onLost: (listener) => {
+        notify = listener;
+        if (dropped) listener();
+      },
+      unlockAndClose: async () => {
+        if (ending) return;
+        ending = true;
+        try {
+          await sql`SELECT pg_advisory_unlock(${SEC_WORKER_LOCK_KEY}::bigint)`;
+        } finally {
+          await sql.end({ timeout: 5 });
+        }
+      },
+      shutdown,
+    };
+  } catch (error) {
+    await shutdown().catch(() => undefined);
+    throw error;
+  }
 }

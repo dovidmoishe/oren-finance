@@ -68,6 +68,9 @@ export class SecEdgarClient {
   private readonly maxEntries: number;
   private readonly maxCacheBytes: number;
   private readonly userAgent: string;
+  private readonly admit?: () => Promise<boolean> | boolean;
+  private halted = false;
+  private readonly active = new Set<AbortController>();
   private lastStart = Number.NEGATIVE_INFINITY;
   private tail: Promise<void> = Promise.resolve();
   private readonly cache = new Map<
@@ -90,6 +93,8 @@ export class SecEdgarClient {
     maxEntries?: number;
     maxCacheBytes?: number;
     userAgent: string;
+    /** Return false to refuse a fetch. Checked again for every queued attempt. */
+    admit?: () => Promise<boolean> | boolean;
   }) {
     this.fetchImpl = options.fetch;
     this.now = options.now ?? (() => Date.now());
@@ -121,6 +126,13 @@ export class SecEdgarClient {
       throw new Error('SEC user agent is required');
     }
     this.userAgent = options.userAgent;
+    this.admit = options.admit;
+  }
+
+  /** Stop queued and in-flight EDGAR calls. Does not open another connection. */
+  halt(): void {
+    this.halted = true;
+    for (const controller of this.active) controller.abort();
   }
 
   async loadCompany(cik: string): Promise<SecCompanySnapshot> {
@@ -181,6 +193,7 @@ export class SecEdgarClient {
     let lastError = new SecFetchError('provider_unavailable');
     for (let attempt = 1; attempt <= this.maxAttempts; attempt++) {
       await this.pace();
+      await this.admitOrThrow();
       try {
         const response = await this.withTimeout((signal) =>
           this.fetchImpl(url, {
@@ -218,7 +231,12 @@ export class SecEdgarClient {
           error instanceof SecFetchError
             ? error
             : new SecFetchError(
-                isAbort(error) ? 'timeout' : 'provider_unavailable',
+                this.halted
+                  ? 'sec_worker_unavailable'
+                  : isAbort(error)
+                    ? 'timeout'
+                    : 'provider_unavailable',
+                this.halted ? { retryable: false } : undefined,
               );
         if (!lastError.retryable || attempt === this.maxAttempts)
           throw lastError;
@@ -248,10 +266,18 @@ export class SecEdgarClient {
     return run;
   }
 
+  private async admitOrThrow(): Promise<void> {
+    if (this.halted || (this.admit && !(await this.admit()))) {
+      this.halt();
+      throw new SecFetchError('sec_worker_unavailable', { retryable: false });
+    }
+  }
+
   private async withTimeout<T>(
     work: (signal: AbortSignal) => Promise<T>,
   ): Promise<T> {
     const controller = new AbortController();
+    this.active.add(controller);
     let timer: ReturnType<typeof setTimeout> | undefined;
     const timeout = new Promise<never>((_, reject) => {
       timer = setTimeout(() => {
@@ -263,6 +289,7 @@ export class SecEdgarClient {
       return await Promise.race([work(controller.signal), timeout]);
     } finally {
       if (timer) clearTimeout(timer);
+      this.active.delete(controller);
     }
   }
 
@@ -308,21 +335,28 @@ function isAbort(error: unknown): boolean {
   );
 }
 
-export function createLiveSecClient(userAgent: string): SecEdgarClient {
+export function createLiveSecClient(
+  userAgent: string,
+  admit?: () => Promise<boolean> | boolean,
+  fetchImpl?: SecEdgarClient['fetchImpl'],
+): SecEdgarClient {
   return new SecEdgarClient({
     userAgent,
-    fetch: async (url, init) => {
-      const response = await fetch(url, {
-        headers: init.headers,
-        signal: init.signal,
-        redirect: 'manual',
-      });
-      return {
-        status: response.status,
-        url: response.url,
-        headers: response.headers,
-        text: () => response.text(),
-      };
-    },
+    admit,
+    fetch:
+      fetchImpl ??
+      (async (url, init) => {
+        const response = await fetch(url, {
+          headers: init.headers,
+          signal: init.signal,
+          redirect: 'manual',
+        });
+        return {
+          status: response.status,
+          url: response.url,
+          headers: response.headers,
+          text: () => response.text(),
+        };
+      }),
   });
 }
