@@ -261,16 +261,16 @@ export function TradeGrant({ connectionUid }: { connectionUid?: string }) {
 
   if (!auth.authenticated) return null;
   return (
-    <section className={styles.card}>
+    <section id="chat-trading" aria-labelledby="chat-trading-title" className={styles.card}>
       <div className={styles.heading}>
         <span className={styles.headingIcon}><HugeiconsIcon icon={Shield01Icon} size={22} strokeWidth={1.5} aria-hidden="true" /></span>
-        <div><h2>Chat trading permission</h2><p>Let your agent trade within limits you control. Review your permission before activating it.</p></div>
+        <div><h2 id="chat-trading-title">Chat trading limits</h2><p>Set limits for all connected apps with chat trading access. Review your permission before activating it.</p></div>
       </div>
       {grant?.reenrollmentRequired && <p className="mt-4 text-sm">
         Renew your chat trading permission to use the new security checks. Revoke
         this permission and remove its wallet signers, then review a new grant.
       </p>}
-      {(grant?.enabled || grant?.reenrollmentRequired) && (
+      {grant?.enabled && (
         <div className="mt-5 text-sm">
           <p>Allowed: {grant.sides?.join(" and ")}</p>
           <p>
@@ -285,6 +285,10 @@ export function TradeGrant({ connectionUid }: { connectionUid?: string }) {
               : "unknown"}
             .
           </p>
+        </div>
+      )}
+      {(grant?.enabled || grant?.reenrollmentRequired) && (
+        <div className="mt-5 text-sm">
           <p className="mt-3 text-muted">
             Privy removes every signer on this wallet when you revoke.
           </p>
@@ -299,10 +303,10 @@ export function TradeGrant({ connectionUid }: { connectionUid?: string }) {
           <button
             className="mt-3 rounded-xl border border-border px-4 py-2 disabled:opacity-50"
             type="button"
-            disabled={busy || !revokeAcknowledged}
+            disabled={busy || !revokeAcknowledged || !grant?.delegationId || grant.wallet !== auth.address}
             onClick={() => void revoke()}
           >
-            Revoke chat trading
+            {busy ? "Revoking…" : grant?.reenrollmentRequired ? "Revoke old permission to set new limits" : "Revoke chat trading"}
           </button>
         </div>
       )}
@@ -376,11 +380,11 @@ export function TradeGrant({ connectionUid }: { connectionUid?: string }) {
           </button>
         </div>
       )}
-      {!grant?.enabled && !pending && grant?.canEnroll && (
+      {!grant?.enabled && !grant?.reenrollmentRequired && !pending && grant?.canEnroll && (
         <TradeGrantEditor key={String(grant.sellAvailable)} sellAvailable={grant.sellAvailable === true} busy={busy}
           signerConfigured={Boolean(trustedSigner.signerId && trustedSigner.policyId)} onReview={prepare} />
       )}
-      {!grant?.enabled && !pending && grant && !grant.canEnroll && (
+      {!grant?.enabled && !grant?.reenrollmentRequired && !pending && grant && !grant.canEnroll && (
         <p className="mt-4 text-sm text-muted">
           Chat trading is not available for this account yet. Browser trade
           review remains available.
