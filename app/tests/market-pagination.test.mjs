@@ -12,10 +12,27 @@ function compile(file, mocks, extra = {}) {
  vm.runInNewContext(code, {exports,Error,...extra,require:id=>id in mocks?mocks[id]:require(id)});
  return exports;
 }
-function store(getStocks) {
- return compile('../store/market-store.ts', {'zustand':{create},'@/services':{getStocks,getTrendingStocks:async()=>[],getMarketOpportunities:async()=>[]}}).useMarketStore;
+function store(getStocks, searchStocks = async () => []) {
+ return compile('../store/market-store.ts', {'zustand':{create},'@/services':{getStocks,getTrendingStocks:async()=>[],getMarketOpportunities:async()=>[],searchStocks}}).useMarketStore;
 }
 const page = (ids, hasMore) => ({items:ids.map(assetId=>({assetId})),pagination:{hasMore}});
+function deferred() {
+ let resolve, reject;
+ const promise = new Promise((res, rej) => { resolve = res; reject = rej; });
+ return { promise, resolve, reject };
+}
+function searchStore() {
+ const pending = new Map();
+ const calls = [];
+ const market = store(async () => page([], false), query => {
+  calls.push(query);
+  const result = deferred();
+  pending.set(query, result);
+  return result.promise;
+ });
+ return { market, pending, calls };
+}
+const searchIds = market => Array.from(market.getState().searchResults, stock => stock.assetId);
 
 test('pagination preserves rows and retries the failed page without skipping or duplicating stocks', async()=>{
  const calls=[]; let fail=true;
@@ -70,4 +87,97 @@ test('scroll observer attaches after initial rows mount and rearms for subsequen
  state.loadMoreError='offline';render();assert.equal(observers[1].disconnected,true);
  state.loadMoreError=undefined;render();assert.equal(observers.length,3);
  state.hasMore=false;render();assert.equal(observers[2].disconnected,true);
+});
+
+test('a new market search drops the previous rows before its request returns', async () => {
+ const { market, pending } = searchStore();
+ const first = market.getState().search('nvda');
+ pending.get('nvda').resolve([{ assetId: 'NVDA' }]);
+ await first;
+ const second = market.getState().search('aapl');
+ assert.deepEqual(searchIds(market), []);
+ assert.equal(market.getState().isSearching, true);
+ assert.equal(market.getState().error, undefined);
+ pending.get('aapl').resolve([{ assetId: 'AAPL' }]);
+ await second;
+ assert.deepEqual(searchIds(market), ['AAPL']);
+ assert.equal(market.getState().isSearching, false);
+});
+
+test('an older market search success cannot replace a newer result', async () => {
+ const { market, pending } = searchStore();
+ const older = market.getState().search('nvda');
+ const newer = market.getState().search('aapl');
+ pending.get('aapl').resolve([{ assetId: 'AAPL' }]);
+ await newer;
+ assert.deepEqual(searchIds(market), ['AAPL']);
+ assert.equal(market.getState().isSearching, false);
+ pending.get('nvda').resolve([{ assetId: 'NVDA' }]);
+ await older;
+ assert.deepEqual(searchIds(market), ['AAPL']);
+ assert.equal(market.getState().isSearching, false);
+ assert.equal(market.getState().error, undefined);
+});
+
+test('a stale market search rejection does not clear loading for the newer request', async () => {
+ const { market, pending } = searchStore();
+ const older = market.getState().search('nvda');
+ const newer = market.getState().search('aapl');
+ pending.get('nvda').reject(new Error('offline'));
+ await older;
+ assert.equal(market.getState().isSearching, true);
+ assert.deepEqual(searchIds(market), []);
+ assert.equal(market.getState().error, undefined);
+ pending.get('aapl').resolve([{ assetId: 'AAPL' }]);
+ await newer;
+ assert.deepEqual(searchIds(market), ['AAPL']);
+ assert.equal(market.getState().isSearching, false);
+ assert.equal(market.getState().error, undefined);
+});
+
+test('a stale market search rejection after a newer success leaves that success in place', async () => {
+ const { market, pending } = searchStore();
+ const older = market.getState().search('nvda');
+ const newer = market.getState().search('aapl');
+ pending.get('aapl').resolve([{ assetId: 'AAPL' }]);
+ await newer;
+ pending.get('nvda').reject(new Error('offline'));
+ await older;
+ assert.deepEqual(searchIds(market), ['AAPL']);
+ assert.equal(market.getState().isSearching, false);
+ assert.equal(market.getState().error, undefined);
+});
+
+test('clearing the market query invalidates a pending search success or rejection', async () => {
+ const cleared = searchStore();
+ const pendingSuccess = cleared.market.getState().search('nvda');
+ assert.equal(cleared.market.getState().isSearching, true);
+ await cleared.market.getState().search('   ');
+ assert.deepEqual(cleared.calls, ['nvda']);
+ assert.deepEqual(searchIds(cleared.market), []);
+ assert.equal(cleared.market.getState().isSearching, false);
+ cleared.pending.get('nvda').resolve([{ assetId: 'NVDA' }]);
+ await pendingSuccess;
+ assert.deepEqual(searchIds(cleared.market), []);
+ assert.equal(cleared.market.getState().isSearching, false);
+ assert.equal(cleared.market.getState().error, undefined);
+
+ const rejected = searchStore();
+ const pendingFailure = rejected.market.getState().search('nvda');
+ await rejected.market.getState().search('');
+ rejected.pending.get('nvda').reject(new Error('offline'));
+ await pendingFailure;
+ assert.deepEqual(searchIds(rejected.market), []);
+ assert.equal(rejected.market.getState().isSearching, false);
+ assert.equal(rejected.market.getState().error, undefined);
+});
+
+test('the current market search still reports its own rejection and clears loading', async () => {
+ const { market, pending } = searchStore();
+ const current = market.getState().search('nvda');
+ pending.get('nvda').reject(new Error('offline'));
+ await current;
+ assert.deepEqual(searchIds(market), []);
+ assert.equal(market.getState().isSearching, false);
+ assert.equal(market.getState().error, 'offline');
 });
