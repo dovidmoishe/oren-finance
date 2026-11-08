@@ -10,7 +10,7 @@ test('all workflows use dedicated self-hosted labels without hosted fallbacks', 
     const source = workflow(file.slice(0, -4));
     const runners = [...source.matchAll(/^\s+runs-on: (.+)$/gm)].map(m => m[1]);
     assert.ok(runners.length, file);
-    assert.ok(runners.every(r => /^\[self-hosted, linux, x64, (oren-(build|release|control|light)|\$\{\{ matrix\.runner \}\})\]$/.test(r)), file);
+    assert.ok(runners.every(r => /^\[self-hosted, linux, x64, (oren-(build|release|control|light)|"\$\{\{ matrix\.runner \}\}")\]$/.test(r)), file);
   }
 });
 

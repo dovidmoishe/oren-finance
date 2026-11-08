@@ -168,7 +168,7 @@ jobs:
   app-check:
     name: App ${{ matrix.check }}
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: [self-hosted, linux, x64, ${{ matrix.runner }}]
+    runs-on: [self-hosted, linux, x64, "${{ matrix.runner }}"]
     timeout-minutes: 45
     strategy:
       fail-fast: false
