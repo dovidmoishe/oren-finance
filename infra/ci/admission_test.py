@@ -1,9 +1,12 @@
+import os
 import subprocess
+import tempfile
 import threading
 import unittest
 from admission import (
     ACTIVE_MAX_MIB, CONTROL_MAX_MIB, HOST_MIB, IDLE_MAX_MIB, LIGHT_MAX_MIB,
-    MARGIN_MIB, NO_PROGRESS_LIMIT, RECOVERY, Admission, limit, protect,
+    MARGIN_MIB, NO_PROGRESS_LIMIT, RECOVERY, Admission, heavy_raise_ok, limit,
+    light_headroom_ok, protect, reclaim_file_cache, reclaim_needed,
     simultaneous_mib, slice_within_idle, worker_identity,
 )
 
@@ -182,17 +185,46 @@ class AdmissionTests(unittest.TestCase):
 
     def test_startup_does_not_shrink_a_live_or_fat_account(self):
         calls = []
-        gate = Admission([1001], lambda *args: calls.append(args), lambda pid, uid: 'stamp',
-                         usage=lambda uid: 3 * 1024 ** 3, softener=lambda uid: calls.append(('soften', uid)),
-                         worker_running=lambda uid: True)
+        gate = Admission([1001, 1003], lambda *args: calls.append(args), lambda pid, uid: str(pid),
+                         usage=lambda uid: 3 * 1024 ** 3,
+                         worker_running=lambda uid: uid == 1001)
         self.assertEqual(calls, [])
-        self.assertEqual(gate.held, {1001})
+        self.assertNotIn(1001, gate.held)
+        self.assertIn(1003, gate.held)
         self.assertIsNone(gate.lease)
+        with self.assertRaises(TimeoutError):
+            gate.acquire(1003, 43, timeout=0.2)
+        self.assertEqual(calls, [])
         idle = Admission([1003], lambda *args: calls.append(('idle', args)), lambda pid, uid: 'stamp',
-                         usage=lambda uid: 235 * 1024 * 1024,
-                         softener=lambda uid: calls.append(('soften-idle', uid)))
+                         usage=lambda uid: 235 * 1024 * 1024)
         self.assertNotIn(1003, idle.held)
         self.assertIn(('idle', (1003, False)), calls)
+
+    def test_startup_restores_a_persisted_lease_without_retuning_caps(self):
+        directory = tempfile.mkdtemp()
+        path = os.path.join(directory, 'heavy-lease')
+        with open(path, 'w') as handle:
+            handle.write('1001 42 stamp\n')
+        calls = []
+        alive = {'stamp': 'stamp'}
+        gate = Admission([1001, 1003], lambda *args: calls.append(args),
+                         lambda pid, uid: alive['stamp'],
+                         usage=lambda uid: 3 * 1024 ** 3,
+                         worker_running=lambda uid: True,
+                         reclaimer=lambda uid, nbytes: None,
+                         protector=lambda uid, current: None,
+                         status_path=path)
+        self.assertEqual(gate.lease, (1001, 42, 'stamp'))
+        self.assertEqual(gate.held, {1001})
+        self.assertEqual(calls, [])
+        with self.assertRaises(TimeoutError):
+            gate.acquire(1003, 43, timeout=0.2)
+        self.assertEqual(calls, [])
+        alive['stamp'] = 'gone'
+        gate.release_if_worker_gone()
+        self.assertIsNone(gate.lease)
+        self.assertIn(1001, gate.held)
+        self.assertNotIn((1001, False), calls)
 
     def test_light_identity_cannot_take_the_heavy_lease(self):
         gate = Admission([1001, 1003], lambda *args: None, lambda pid, uid: 'stamp')
@@ -209,6 +241,90 @@ class AdmissionTests(unittest.TestCase):
         self.assertEqual(HOST_MIB - simultaneous_mib(), 1792)
         self.assertFalse(slice_within_idle(1350 * 1024 * 1024))
         self.assertTrue(slice_within_idle(235 * 1024 * 1024))
+        self.assertFalse(slice_within_idle(510881792))
+        self.assertTrue(slice_within_idle(448 * 1024 * 1024))
+        self.assertEqual(reclaim_needed(510881792), 510881792 - 448 * 1024 * 1024)
+        self.assertGreater(reclaim_needed(510881792), 0)
+
+    def test_487_mib_band_reclaims_toward_the_floor_instead_of_writing_zero(self):
+        usage = {'bytes': 0}
+        reclaims = []
+
+        def reclaim(uid, nbytes):
+            reclaims.append(nbytes)
+
+        gate = Admission([1001, 1003], lambda *args: None, lambda pid, uid: f'{pid}',
+                         usage=lambda uid: usage['bytes'], reclaimer=reclaim,
+                         protector=lambda uid, current: None, no_progress_limit=6)
+        stamp = gate.acquire(1001, 42)
+        usage['bytes'] = 510881792
+        gate.release(1001, 42, stamp)
+        for _ in range(8):
+            gate.drain(1001)
+        self.assertGreaterEqual(len(reclaims), 6)
+        self.assertTrue(all(nbytes > 0 for nbytes in reclaims[:6]))
+        self.assertEqual(reclaims[0], 510881792 - 448 * 1024 * 1024)
+        self.assertIn(1001, gate.held)
+        with self.assertRaises(TimeoutError):
+            gate.acquire(1003, 43, timeout=0.2)
+
+    def test_487_mib_band_releases_the_slot_when_reclaim_reaches_the_floor(self):
+        usage = {'bytes': 0}
+
+        def reclaim(uid, nbytes):
+            usage['bytes'] = max(0, usage['bytes'] - nbytes)
+
+        gate = Admission([1001, 1003], lambda *args: None, lambda pid, uid: f'{pid}',
+                         usage=lambda uid: usage['bytes'], reclaimer=reclaim,
+                         protector=lambda uid, current: None)
+        stamp = gate.acquire(1001, 42)
+        usage['bytes'] = 510881792
+        gate.release(1001, 42, stamp)
+        self.assertLessEqual(usage['bytes'] + 64 * 1024 * 1024, 512 * 1024 * 1024)
+        self.assertNotIn(1001, gate.held)
+        self.assertIsNotNone(gate.acquire(1003, 43, timeout=1))
+
+    def test_reclaim_file_writes_the_floor_overshoot(self):
+        root = tempfile.mkdtemp()
+        target = os.path.join(root, 'user.slice', 'user-1001.slice')
+        os.makedirs(target)
+        path = os.path.join(target, 'memory.reclaim')
+        os.close(os.open(path, os.O_CREAT | os.O_WRONLY, 0o200))
+        nbytes = reclaim_needed(510881792)
+        reclaim_file_cache(1001, nbytes, root=root)
+        os.chmod(path, 0o644)
+        with open(path) as handle:
+            written = handle.read()
+        self.assertEqual(written, f'{nbytes}\n')
+        self.assertNotEqual(written, '0\n')
+
+    def test_idle_host_does_not_admit_light_on_a_256_mib_heavy_stub(self):
+        mib = 1024 * 1024
+        available = 4710 * mib
+        build = 487 * mib
+        release = 254 * mib
+        self.assertFalse(light_headroom_ok(available, build, release, active=None))
+        self.assertFalse(light_headroom_ok(available, build, release, active='build'))
+        self.assertGreaterEqual(available, (256 + 768 + 1792) * mib)
+        self.assertTrue(light_headroom_ok(3277 * mib, 3584 * mib, 254 * mib, active='build'))
+        self.assertFalse(light_headroom_ok(3277 * mib, 3584 * mib, 254 * mib, active=None))
+        self.assertFalse(light_headroom_ok(2200 * mib, 2000 * mib, 1800 * mib, active=None))
+
+    def test_heavy_raise_uses_the_same_reserve_while_light_is_running(self):
+        mib = 1024 * 1024
+        self.assertFalse(heavy_raise_ok(4710 * mib, 254 * mib, True))
+        self.assertTrue(heavy_raise_ok(4710 * mib, 254 * mib, False))
+        self.assertTrue(heavy_raise_ok(7000 * mib, 3600 * mib, True))
+        state = {'light': True}
+
+        gate = Admission([1001, 1003], lambda *args: None, lambda pid, uid: f'{pid}',
+                         usage=lambda uid: 254 * mib,
+                         available=lambda: 4710 * mib,
+                         light_running=lambda: state['light'])
+        with self.assertRaises(TimeoutError):
+            gate.acquire(1001, 42, timeout=0.3)
+        state['light'] = False
+        self.assertIsNotNone(gate.acquire(1001, 42, timeout=1))
 
 
 if __name__ == '__main__':

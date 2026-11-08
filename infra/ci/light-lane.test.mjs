@@ -30,8 +30,8 @@ test('light cap covers a measured chunk and keeps the 1.75 GiB reserve', () => {
   assert.equal(budget.lintChunkPeakBytes, 468426752);
   assert.ok(budget.lintChunkPeakBytes < budget.lightHighMiB * 1024 * 1024);
   assert.ok(budget.lintProcessPeakBytes > 512 * 1024 * 1024);
-  assert.equal(budget.lightStartMinAvailableMiB,
-    budget.lightMaxMiB + budget.heavyGrowthSlackMiB + budget.prodReserveMiB);
+  assert.equal(budget.lightStartMinAvailableMiB, undefined);
+  assert.equal(budget.heavyGrowthSlackMiB, undefined);
   const sum = budget.heavyActiveMaxMiB + budget.heavyIdleMaxMiB + budget.controlMaxMiB + budget.lightMaxMiB;
   assert.equal(sum, 5632);
   assert.equal(budget.hostMiB - sum, budget.prodReserveMiB);
@@ -64,9 +64,11 @@ test('light hooks do not reach docker or the heavy lease', () => {
   for (const name of ['./light-started.sh', './light-completed.sh']) {
     const source = text(name);
     assert.match(source, /oren-ci-light/);
-    assert.doesNotMatch(source, /docker|lease-client|systemctl|oren-ci-build|oren-ci-release|MemoryMax/);
+    assert.doesNotMatch(source, /docker|lease-client|systemctl|MemoryMax/);
   }
-  assert.match(text('./light-started.sh'), /lightStartMinAvailableMiB/);
+  assert.match(text('./light-started.sh'), /light_headroom_ok/);
+  assert.match(text('./light-started.sh'), /memory\.current/);
+  assert.doesNotMatch(text('./light-started.sh'), /lightStartMinAvailableMiB/);
   const provision = text('./provision.sh');
   assert.match(provision, /for account in oren-ci-build oren-ci-release; do/);
   assert.doesNotMatch(provision, /usermod -a -G oren-ci-workers oren-ci-light/);
@@ -87,8 +89,61 @@ test('admission restart stays blocked for a live worker or a fat cgroup', () => 
   assert.equal(clear.stdout, '');
   assert.match(reason(1, idle, idle).stdout, /runner worker still exists/);
   assert.match(reason(0, fat, idle).stdout, /cgroup above idle floor/);
+  const measured = 510881792;
+  const floor = 448 * 1024 * 1024;
+  assert.match(reason(0, measured, idle).stdout, /cgroup above idle floor/);
+  assert.equal(reason(0, floor, floor).stdout, '');
+  assert.match(reason(0, floor + 1, floor).stdout, /cgroup above idle floor/);
   const script = text('./light-lane.sh');
   const restartAt = script.indexOf('systemctl restart oren-ci-admission.service');
-  const checkAt = script.indexOf('if [[ -n $reason ]]');
+  const checkAt = script.indexOf('refusing before any installed-path change');
   assert.ok(checkAt !== -1 && checkAt < restartAt);
+});
+
+test('apply and rollback return before any installed-path write', () => {
+  const probe = spawnSync('bash', ['-c', `
+    set -euo pipefail
+    source infra/ci/light-lane.sh
+    touched=$(mktemp)
+    rm -f "$touched"
+    safety_reason() { echo 'runner worker still exists'; }
+    install_atomic() { echo mutated >"$touched"; }
+    record_backup() { echo mutated >"$touched"; }
+    write_light_slice() { echo mutated >"$touched"; }
+    write_light_unit() { echo mutated >"$touched"; }
+    systemctl() { echo mutated >"$touched"; }
+    useradd() { echo mutated >"$touched"; }
+    set +e
+    cmd_apply
+    status=$?
+    set -e
+    test "$status" -eq 2
+    test ! -e "$touched"
+    set +e
+    cmd_rollback /tmp/does-not-need-to-exist
+    status=$?
+    set -e
+    test "$status" -eq 2
+    test ! -e "$touched"
+    rm -f "$touched"
+  `], { encoding: 'utf8', cwd: repo });
+  assert.equal(probe.status, 0, `${probe.stdout}\n${probe.stderr}`);
+});
+
+test('stage can copy outside installed paths and refuses installed paths', () => {
+  const probe = spawnSync('bash', ['-c', `
+    set -euo pipefail
+    source infra/ci/light-lane.sh
+    set +e
+    cmd_stage /opt/oren-ci/bin
+    status=$?
+    set -e
+    test "$status" -eq 1
+    dest=$(mktemp -d)
+    cmd_stage "$dest"
+    test -f "$dest/admission.py"
+    test -f "$dest/light-started.sh"
+    rm -rf "$dest"
+  `], { encoding: 'utf8', cwd: repo });
+  assert.equal(probe.status, 0, `${probe.stdout}\n${probe.stderr}`);
 });

@@ -48,7 +48,61 @@ MARGIN_BYTES = mib(MARGIN_MIB)
 
 
 def slice_within_idle(usage_bytes):
+    """True only under the idle floor: current + 64 MiB <= 512 MiB.
+
+    487 MiB is inside the 448–512 band and is not idle. Reclaim must
+    request the bytes above 448 MiB; requesting only the bytes above
+    512 MiB writes zero and then sticks.
+    """
     return usage_bytes + MARGIN_BYTES <= IDLE_BYTES
+
+
+def reclaim_needed(usage_bytes):
+    floor = IDLE_BYTES - MARGIN_BYTES
+    return max(0, usage_bytes - floor)
+
+
+def light_headroom_ok(available_bytes, build_bytes, release_bytes, active=None):
+    """Whether light work can start without giving up the production reserve.
+
+    MemAvailable already excludes current slice usage. Only one heavy account
+    can rise to 3840 MiB. An idle account rises from its current usage. A
+    draining account is admitted only after it returns to the idle cap, so
+    its rise is from that cap, not from a 256 MiB stub of the last step.
+    `active` is 'build', 'release', or None when neither lease is held.
+    """
+    reserve = mib(BUDGET['prodReserveMiB'])
+    light = mib(LIGHT_MAX_MIB)
+    active_max = mib(ACTIVE_MAX_MIB)
+
+    def rise(current, already_active):
+        if already_active:
+            return max(0, active_max - current)
+        start = current if current <= IDLE_BYTES else IDLE_BYTES
+        return max(0, active_max - start)
+
+    if active == 'build':
+        growth = rise(build_bytes, True)
+    elif active == 'release':
+        growth = rise(release_bytes, True)
+    elif active is None:
+        growth = max(rise(build_bytes, False), rise(release_bytes, False))
+    else:
+        raise ValueError('active must be build, release, or None')
+    return available_bytes >= growth + light + reserve
+
+
+def heavy_raise_ok(available_bytes, current_bytes, light_worker):
+    """A heavy raise while light work is running must leave the reserve.
+
+    Light's current RSS is already absent from MemAvailable. If its worker
+    exists it may still climb to the full light cap, so count that cap.
+    With no light worker the existing heavy path is unchanged.
+    """
+    if not light_worker:
+        return True
+    growth = max(0, mib(ACTIVE_MAX_MIB) - current_bytes)
+    return available_bytes >= growth + mib(LIGHT_MAX_MIB) + mib(BUDGET['prodReserveMiB'])
 
 
 def simultaneous_mib():
@@ -78,9 +132,13 @@ def protect(uid, usage_bytes):
     set_slice(uid, ACTIVE_MAX_MIB, high, IDLE_CPU)
 
 
-def reclaim_file_cache(uid, nbytes):
-    """Ask the kernel to reclaim file pages in the full user slice. This does not kill dockerd."""
-    path = f'/sys/fs/cgroup/user.slice/user-{uid}.slice/memory.reclaim'
+def reclaim_file_cache(uid, nbytes, root='/sys/fs/cgroup'):
+    """Ask the kernel to reclaim file pages in the full user slice.
+
+    The live file is mode 0200 and owned by root. Admission runs as root.
+    Writing it does not kill dockerd.
+    """
+    path = f'{root}/user.slice/user-{uid}.slice/memory.reclaim'
     with open(path, 'w') as target:
         target.write(f'{max(0, int(nbytes))}\n')
 
@@ -137,7 +195,8 @@ def worker_identity(pid, uid):
 class Admission:
     def __init__(self, users, limiter=limit, identity=worker_identity, usage=None,
                  softener=None, worker_running=None, reclaimer=reclaim_file_cache,
-                 protector=protect, diagnostic_path=None, no_progress_limit=NO_PROGRESS_LIMIT):
+                 protector=protect, diagnostic_path=None, no_progress_limit=NO_PROGRESS_LIMIT,
+                 available=None, light_running=None, status_path=None):
         self.users = users
         self.limiter = limiter
         self.identity = identity
@@ -149,11 +208,15 @@ class Admission:
         self.protector = protector
         self.diagnostic_path = diagnostic_path
         self.no_progress_limit = no_progress_limit
+        self.available = available or (lambda: 1 << 62)
+        self.light_running = light_running or (lambda: False)
+        self.status_path = status_path
         self.condition = threading.Condition()
         self.lease = None
         self.held = set()
         self.progress = {}
         self.stuck = set()
+        self.restore_lease()
         for uid in users:
             self.settle(uid)
 
@@ -168,18 +231,53 @@ class Admission:
             print(f'oren-ci admission: usage unreadable for uid {uid}: {error}', file=sys.stderr)
             return IDLE_BYTES + MARGIN_BYTES + 1
 
+    def restore_lease(self):
+        """Reload a lease written before a crash. Do not invent one."""
+        if not self.status_path:
+            return
+        try:
+            with open(self.status_path) as handle:
+                parts = handle.read().split()
+        except OSError:
+            return
+        if len(parts) != 3:
+            return
+        try:
+            uid = int(parts[0])
+            pid = int(parts[1])
+        except ValueError:
+            return
+        stamp = parts[2]
+        if uid not in self.users:
+            return
+        try:
+            if self.identity(pid, uid) != stamp:
+                return
+        except (OSError, ValueError, KeyError):
+            return
+        self.lease = (uid, pid, stamp)
+        self.held.add(uid)
+
     def settle(self, uid):
-        """Startup. A fat cgroup is held for reclaim; MemoryMax is not pulled down."""
+        """Startup must not retune a slice that still has a live worker."""
+        if self.lease and self.lease[0] == uid:
+            return
+        if self.worker_running(uid) and not slice_within_idle(self._usage(uid)):
+            return
         if slice_within_idle(self._usage(uid)):
             self.limiter(uid, False)
             self.held.discard(uid)
             self.stuck.discard(uid)
         else:
             self.held.add(uid)
-            if self.worker_running(uid):
-                print(f'oren-ci admission: uid {uid} still has a runner worker; '
-                      'downshift will not treat a later waiter as this lease',
-                      file=sys.stderr, flush=True)
+
+    def _wait(self, deadline, pid, uid, stamp):
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise TimeoutError('build queue timeout')
+        self.condition.wait(min(remaining, 1))
+        if self.identity(pid, uid) != stamp:
+            raise ValueError('worker exited while queued')
 
     def acquire(self, uid, pid, timeout=1200):
         if uid not in self.users:
@@ -187,20 +285,67 @@ class Admission:
         stamp = self.identity(pid, uid)
         deadline = time.monotonic() + timeout
         with self.condition:
-            while self.held or self.lease is not None:
-                remaining = deadline - time.monotonic()
-                if remaining <= 0:
-                    raise TimeoutError('build queue timeout')
-                self.condition.wait(min(remaining, 1))
-                if self.identity(pid, uid) != stamp:
-                    raise ValueError('worker exited while queued')
-            for other in self.users:
-                if other != uid:
-                    self.limiter(other, False)
-            self.limiter(uid, True)
-            self.held.add(uid)
-            self.lease = (uid, pid, stamp)
+            while True:
+                while self.held or self.lease is not None:
+                    self._wait(deadline, pid, uid, stamp)
+                if any(other != uid and self.worker_running(other)
+                       and not slice_within_idle(self._usage(other)) for other in self.users):
+                    # A live worker on the other account has no reconstructed
+                    # lease. Wait for it to exit. Do not lower its caps.
+                    self._wait(deadline, pid, uid, stamp)
+                    continue
+                deferred = False
+                for other in self.users:
+                    if other != uid and not slice_within_idle(self._usage(other)):
+                        self.held.add(other)
+                        deferred = True
+                if deferred:
+                    continue
+                if not heavy_raise_ok(self.available(), self._usage(uid), self.light_running()):
+                    self._wait(deadline, pid, uid, stamp)
+                    continue
+                for other in self.users:
+                    if other != uid:
+                        self.limiter(other, False)
+                self.limiter(uid, True)
+                self.held.add(uid)
+                self.lease = (uid, pid, stamp)
+                self._write_status(uid, pid, stamp)
+                break
         return stamp
+
+    def _write_status(self, uid, pid=None, stamp=None):
+        if not self.status_path:
+            return
+        payload = b'' if uid is None else f'{uid} {pid} {stamp}\n'.encode()
+        try:
+            directory = os.path.dirname(self.status_path)
+            if directory:
+                os.makedirs(directory, mode=0o755, exist_ok=True)
+            descriptor = os.open(self.status_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o644)
+            try:
+                os.write(descriptor, payload)
+            finally:
+                os.close(descriptor)
+            os.chmod(self.status_path, 0o644)
+        except OSError as error:
+            print(f'oren-ci admission: status write failed: {error}', file=sys.stderr)
+
+    def release_if_worker_gone(self):
+        with self.condition:
+            lease = self.lease
+        if lease is None:
+            return
+        uid, pid, stamp = lease
+        try:
+            if self.identity(pid, uid) == stamp:
+                return
+        except (OSError, ValueError, KeyError):
+            pass
+        try:
+            self.note_worker_exit(uid, pid, stamp)
+        except ValueError:
+            return
 
     def note_worker_exit(self, uid, pid, stamp):
         with self.condition:
@@ -208,6 +353,7 @@ class Admission:
                 raise ValueError('lease mismatch')
             self.lease = None
             self.held.add(uid)
+            self._write_status(None)
         return self.drain(uid)
 
     def release(self, uid, pid, stamp):
@@ -256,7 +402,9 @@ class Admission:
                 return self._finish_idle(uid)
             return False
         try:
-            self.reclaimer(uid, min(RECLAIM_CHUNK, max(0, usage - IDLE_BYTES)))
+            needed = reclaim_needed(usage)
+            if needed:
+                self.reclaimer(uid, min(RECLAIM_CHUNK, needed))
         except OSError as error:
             print(f'oren-ci admission: reclaim failed for uid {uid}: {error}', file=sys.stderr)
         usage = self._usage(uid)
@@ -310,6 +458,10 @@ class Server(socketserver.ThreadingUnixStreamServer):
 
 def _reap(admission):
     while True:
+        try:
+            admission.release_if_worker_gone()
+        except (OSError, RuntimeError, subprocess.SubprocessError) as error:
+            print(f'oren-ci admission: lease check failed: {error}', file=sys.stderr)
         for uid in list(admission.held):
             try:
                 admission.drain(uid)
@@ -320,7 +472,9 @@ def _reap(admission):
 
 if __name__ == '__main__':
     users = [pwd.getpwnam(name).pw_uid for name in ('oren-ci-build', 'oren-ci-release')]
-    admission = Admission(users, usage=cgroup_usage, worker_running=account_has_worker)
+    admission = Admission(
+        users, usage=cgroup_usage, worker_running=account_has_worker,
+        status_path='/run/oren-ci-status/heavy-lease')
     threading.Thread(target=_reap, args=(admission,), daemon=True).start()
     address = '/run/oren-ci-build/admission.sock'
     if os.path.exists(address):

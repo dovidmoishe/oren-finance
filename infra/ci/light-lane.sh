@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
 # Focused light-lane install. Do not run provision.sh for this change:
 # provision restarts admission and the heavy runners.
-# Default subcommand is check (read-only). apply installs files and restarts
-# admission only when no Runner.Worker exists and both heavy slices are inside
-# the idle cap plus margin.
+# Default subcommand is check (read-only). apply and rollback return before
+# any installed-path change when any Runner.Worker exists (app lint, control,
+# build, or release) or a heavy slice is above the idle floor
+# (current + 64 MiB <= 512 MiB). 487 MiB does not qualify. Staging writes
+# only outside /opt/oren-ci, /etc/systemd, and /home.
 set -euo pipefail
 
 SOURCE=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
@@ -42,6 +44,8 @@ usage_of() {
 }
 
 worker_count() {
+  # Every Runner.Worker counts: app lint, control, build, and release.
+  # There is no idle boundary while any of them is alive.
   if [[ -n ${WORKER_LIST_FILE:-} ]]; then
     wc -l < "$WORKER_LIST_FILE"
     return 0
@@ -145,16 +149,20 @@ cmd_check() {
 }
 
 cmd_apply() {
-  [[ ${EUID:-} == 0 ]] || { echo 'apply must run as root' >&2; exit 1; }
   local reason backup manifest
   reason=$(safety_reason) || true
+  if [[ -n $reason ]]; then
+    echo "refusing before any installed-path change: $reason" >&2
+    return 2
+  fi
+  [[ ${EUID:-} == 0 ]] || { echo 'apply must run as root' >&2; return 1; }
   local stamp
   stamp=$(date -u +%Y%m%dT%H%M%SZ)
-  backup=${HOST_ROOT}/root/oren-ci-light-backup-$stamp
+  backup=${HOST_ROOT:-}/root/oren-ci-light-backup-$stamp
   manifest=$backup/manifest.txt
   install -d -m 700 "$backup"
   : > "$manifest"
-  local live=${HOST_ROOT}/opt/oren-ci/bin
+  local live=${HOST_ROOT:-}/opt/oren-ci/bin
   record_backup "$live/admission.py" "$backup" "$manifest"
   record_backup "$live/budgets.json" "$backup" "$manifest"
   install -d -m 755 "$live"
@@ -170,27 +178,50 @@ cmd_apply() {
   [[ " $(id -nG oren-ci-light) " != *' oren-ci-workers '* ]]
   local light_id
   light_id=$(id -u oren-ci-light)
-  write_light_slice "$light_id" "${HOST_ROOT}/etc/systemd/system/user-$light_id.slice.d/oren-ci.conf"
+  write_light_slice "$light_id" "${HOST_ROOT:-}/etc/systemd/system/user-$light_id.slice.d/oren-ci.conf"
   write_light_unit "$light_id"
   echo "backup manifest $manifest"
-  if [[ -n $reason ]]; then
-    echo "files installed; admission restart blocked: $reason" >&2
-    return 2
-  fi
   systemctl daemon-reload
   systemctl restart oren-ci-admission.service
   echo 'admission restarted on an idle boundary; light runner was not started'
 }
 
+cmd_stage() {
+  local dest=${1:?stage directory}
+  case $dest in
+    /opt/oren-ci|/opt/oren-ci/*|/etc/systemd|/etc/systemd/*|/home|/home/*)
+      echo 'stage directory is inside an installed path' >&2
+      return 1
+      ;;
+  esac
+  local real
+  real=$(readlink -f -- "$dest") || {
+    echo 'stage directory cannot be resolved' >&2
+    return 1
+  }
+  case $real in
+    /opt/oren-ci|/opt/oren-ci/*|/etc/systemd|/etc/systemd/*|/home|/home/*)
+      echo 'stage directory is inside an installed path' >&2
+      return 1
+      ;;
+  esac
+  install -d -m 700 "$dest"
+  install_atomic "$SOURCE/admission.py" "$dest/admission.py" 644
+  install_atomic "$SOURCE/budgets.json" "$dest/budgets.json" 644
+  install_atomic "$SOURCE/light-started.sh" "$dest/light-started.sh" 755
+  install_atomic "$SOURCE/light-completed.sh" "$dest/light-completed.sh" 755
+  echo "staged $dest"
+}
+
 cmd_rollback() {
   local manifest=${1:?manifest}
-  [[ -f $manifest ]]
   local reason backup sha mode owner path
   reason=$(safety_reason)
   if [[ -n $reason ]]; then
-    echo "rollback blocked: $reason" >&2
+    echo "refusing before any installed-path change: $reason" >&2
     return 2
   fi
+  [[ -f $manifest ]]
   backup=$(dirname -- "$manifest")
   while read -r sha mode owner path; do
     [[ -n ${sha:-} ]] || continue
@@ -206,7 +237,8 @@ if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
   case ${1:-check} in
     check) cmd_check ;;
     apply) cmd_apply ;;
+    stage) cmd_stage "${2:-}" ;;
     rollback) cmd_rollback "${2:-}" ;;
-    *) echo 'use check, apply, or rollback <manifest>' >&2; exit 1 ;;
+    *) echo 'use check, apply, stage <dir>, or rollback <manifest>' >&2; exit 1 ;;
   esac
 fi

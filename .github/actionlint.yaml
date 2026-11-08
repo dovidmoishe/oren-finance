@@ -3,3 +3,4 @@ self-hosted-runner:
     - oren-build
     - oren-release
     - oren-control
+    - oren-light
