@@ -123,6 +123,13 @@ exec /usr/bin/awk "$@"
   writeExec(join(dir, 'bin/df'), '#!/bin/bash\nprintf "stub\\nstub\\n"\n');
   writeExec(join(dir, 'bin/realpath'), '#!/bin/bash\nprintf \'%s\\n\' "$REALPATH_RESULT"\n');
   writeExec(join(dir, 'bin/rm'), '#!/bin/bash\nprintf \'%s\\n\' "$*" >> "$DIR/rm.log"\n');
+  writeExec(join(dir, 'bin/cat'), `#!/bin/bash
+if [[ "\${HIDE_RUNNER_WORKER:-}" == 1 && "$1" == /proc/*/comm ]]; then
+  comm=$(/usr/bin/cat "$1" 2>/dev/null || true)
+  if [[ "$comm" == Runner.Worker ]]; then printf 'bash\\n'; exit 0; fi
+fi
+exec /usr/bin/cat "$@"
+`);
   writeExec(join(dir, 'timeout'), `#!/bin/bash
 if [[ "$1" != --signal=TERM || "$2" != --kill-after=5s ]]; then
   echo "unexpected timeout bound: $*" >&2
@@ -209,6 +216,7 @@ function hookEnv(dir, options) {
     LOGOUT_RC: options.logoutRc ?? '',
     REALPATH_RESULT: options.realpath ?? '',
     WANT_WORKER: options.worker === false ? '0' : '1',
+    HIDE_RUNNER_WORKER: options.hideRunner ? '1' : '0',
     RUNNER_WORKSPACE: options.workspace ?? '',
   };
 }
@@ -238,7 +246,8 @@ function detail(info) {
 function run(options) {
   const dir = stage(options);
   try {
-    const result = spawnSync('bash', [join(dir, 'harness.sh')], {
+    const command = options.ambientWorker ? join(dir, 'bin/Runner.Worker') : 'bash';
+    const result = spawnSync(command, [join(dir, 'harness.sh')], {
       encoding: 'utf8',
       timeout: options.timeoutMs ?? 10000,
       env: hookEnv(dir, options),
@@ -310,12 +319,28 @@ describe('installed hook behavior', { concurrency: 1 }, () => {
   });
 
   test('missing runner worker fails before admission and docker', () => {
-    const info = run({ script: 'job-started.sh', worker: false });
+    const info = run({ script: 'job-started.sh', worker: false, hideRunner: true });
     expect(info, () => {
       assert.notEqual(info.status, 0);
       assert.equal(info.trace, '');
       assert.equal(info.bounds, '');
       assert.doesNotMatch(info.out, /admission granted/);
+    });
+  });
+
+  test('a Runner.Worker ancestor is admitted until that comm is hidden', () => {
+    const admitted = run({ script: 'job-started.sh', worker: false, ambientWorker: true });
+    expect(admitted, () => {
+      assert.equal(admitted.status, 0);
+      assert.match(admitted.trace, /^lease \d+\ndocker info /);
+      assert.match(admitted.out, /admission granted/);
+    });
+    const hidden = run({ script: 'job-started.sh', worker: false, ambientWorker: true, hideRunner: true });
+    expect(hidden, () => {
+      assert.notEqual(hidden.status, 0);
+      assert.equal(hidden.trace, '');
+      assert.equal(hidden.bounds, '');
+      assert.doesNotMatch(hidden.out, /admission granted/);
     });
   });
 
