@@ -41,3 +41,10 @@ and its poster. Keep them under `app/public/videos/` locally; the source export
 is `oren-drip-motion/renders/oren-drip-continuous-v4.mp4` in the main checkout.
 The manifest includes both assets. Upload and verify them before publishing
 the entry; adding this draft does not upload media or activate a release.
+
+The MCP launch changelog entry uses `/videos/oren-mcp-launch-v8-1080p.mp4` and
+`/videos/oren-mcp-launch-v8-poster.jpg`. These are the approved 30-second 1080p60
+film and its research-frame poster from `oren-mcp-launch/renders/` in the main
+checkout. Keep both under `app/public/videos/` locally. Their SHA-256 hashes are
+in `videos.sha256`; upload and verify them before merging/deploying the entry.
+Preparing the changelog PR does not upload media or activate a release.

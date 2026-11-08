@@ -15,7 +15,7 @@ jobs:
   resolve:
     if: github.ref == 'refs/heads/master'
     environment: preview
-    runs-on: ubuntu-24.04
+    runs-on: [self-hosted, linux, x64, oren-control]
     permissions:
       contents: read
       pull-requests: read
@@ -76,7 +76,7 @@ jobs:
     name: Require successful CI for preview head
     needs: resolve
     if: needs.resolve.outputs.pr != ''
-    runs-on: ubuntu-24.04
+    runs-on: [self-hosted, linux, x64, oren-control]
     timeout-minutes: 35
     permissions:
       contents: read
@@ -97,9 +97,9 @@ jobs:
             await waitForPreviewCi({github, repo: context.repo, sha: process.env.PREVIEW_SHA, pr: Number(process.env.PR_NUMBER)});
   build-api:
     name: Build and publish preview API image
-    needs: resolve
+    needs: [resolve, ci-gate]
     if: needs.resolve.outputs.pr != ''
-    runs-on: ubuntu-24.04
+    runs-on: [self-hosted, linux, x64, oren-build]
     timeout-minutes: 25
     concurrency:
       group: preview-api-image-${{ needs.resolve.outputs.pr }}
@@ -182,9 +182,9 @@ jobs:
           echo "digest=$digest" >> "$GITHUB_OUTPUT"
   build-app:
     name: Build and publish preview web image
-    needs: resolve
+    needs: [resolve, ci-gate]
     if: needs.resolve.outputs.pr != ''
-    runs-on: ubuntu-24.04
+    runs-on: [self-hosted, linux, x64, oren-build]
     timeout-minutes: 25
     concurrency:
       group: preview-web-image-${{ needs.resolve.outputs.pr }}
@@ -221,7 +221,7 @@ jobs:
   deploy:
     needs: [resolve, ci-gate, build-api, build-app]
     if: always() && needs.resolve.outputs.pr != ''
-    runs-on: ubuntu-24.04
+    runs-on: [self-hosted, linux, x64, oren-control]
     environment: preview
     concurrency:
       group: preview-${{ needs.resolve.outputs.pr }}
