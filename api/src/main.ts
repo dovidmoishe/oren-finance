@@ -33,6 +33,7 @@ import {
 import {
   clientMayPrepareTrades,
   clientMayExecuteTrades,
+  mcpClientKind,
   createMcpOAuthRuntime,
   mountPathBasedDiscoveryAtIssuer,
 } from './mcp-auth/oauth-runtime';
@@ -814,7 +815,25 @@ async function bootstrap() {
               ),
             );
           res.setHeader('Cache-Control', 'no-store');
-          return res.json(rows);
+          const connections = await Promise.all(
+            rows.map(async (row) => {
+              // Registered callbacks identify a client family for display only.
+              // Native callbacks do not attest the app or authorize a trade.
+              // Missing metadata must not prevent viewing or revoking a grant.
+              const client = await oauth.provider.Client.find(
+                row.clientId,
+              ).catch(() => undefined);
+              return {
+                ...row,
+                clientKind: mcpClientKind(client?.redirectUris) ?? null,
+                nativeClient:
+                  client?.redirectUris?.some(
+                    (uri) => !uri.startsWith('https:'),
+                  ) ?? false,
+              };
+            }),
+          );
+          return res.json(connections);
         } catch {
           return res.sendStatus(401);
         }
