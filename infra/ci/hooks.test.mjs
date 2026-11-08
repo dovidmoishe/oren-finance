@@ -67,10 +67,11 @@ test('gnu timeout returns 124 when the command exits on TERM', () => {
 
 test('gnu timeout kill grace reaps a command that ignores TERM', () => {
   const start = Date.now();
-  const result = spawnSync('timeout', ['--signal=TERM', '--kill-after=1s', '1s', 'python3', '-c', 'import signal,time; signal.signal(signal.SIGTERM, signal.SIG_IGN); time.sleep(30)'], { encoding: 'utf8' });
+  const result = spawnSync('timeout', ['--signal=TERM', '--kill-after=1s', '1s', 'python3', '-c', 'import signal,time; signal.signal(signal.SIGTERM, signal.SIG_IGN); time.sleep(30)'], { encoding: 'utf8', timeout: 6000 });
   const elapsed = Date.now() - start;
-  assert.ok(elapsed > 1500 && elapsed < 4000, String(elapsed));
-  assert.equal(result.signal, 'SIGKILL');
+  assert.ok(elapsed > 1500 && elapsed < 4000, `elapsed=${elapsed} status=${result.status} signal=${result.signal}`);
+  // GNU timeout 9.4 can surface this as SIGKILL of its own process group, or as exit 124/137.
+  assert.ok(result.signal === 'SIGKILL' || result.status === 124 || result.status === 137, `status=${result.status} signal=${result.signal}`);
 });
 
 function writeExec(path, body) {
@@ -111,7 +112,12 @@ esac
 `);
   writeExec(join(dir, 'bin/awk'), `#!/bin/bash
 if [[ "$1" == '/MemAvailable:/ {print $2}' ]]; then printf '%s\\n' "$MEM_AVAILABLE"; exit 0; fi
-if [[ "$1" == 'NR==2 {print $4}' ]]; then printf '%s\\n' "$DISK_AVAILABLE"; exit 0; fi
+if [[ "$1" == 'NR==2 {print $4}' ]]; then
+  # job-started.sh uses pipefail. Exit only after df closes its write end.
+  cat >/dev/null
+  printf '%s\\n' "$DISK_AVAILABLE"
+  exit 0
+fi
 exec /usr/bin/awk "$@"
 `);
   writeExec(join(dir, 'bin/df'), '#!/bin/bash\nprintf "stub\\nstub\\n"\n');
@@ -132,10 +138,10 @@ printf '%s %s\\n' "$duration" "$*" >> "$DIR/bounds.log"
 if [[ "\${TIMEOUT_MODE:-}" == hang ]]; then exit 124; fi
 "$@"
 `);
-  writeFileSync(join(dir, 'lease-client.py'), `import os, sys
-with open(os.environ["DIR"] + "/trace.log", "a", encoding="utf-8") as handle:
-    handle.write("lease %s\\n" % sys.argv[1])
-raise SystemExit(int(os.environ.get("LEASE_RC", "0")))
+  writeExec(join(dir, 'python-stub'), `#!/bin/bash
+# Replaces /usr/bin/python3. $1 is lease-client.py and $2 is the worker pid.
+printf 'lease %s\\n' "$2" >> "$DIR/trace.log"
+exit "\${LEASE_RC:-0}"
 `);
   writeExec(join(dir, 'node'), '#!/bin/bash\nprintf \'node %s\\n\' "$*" >> "$DIR/trace.log"\nexit "${NODE_RC:-0}"\n');
   writeExec(join(dir, 'launch.sh'), `#!/bin/bash
@@ -148,15 +154,8 @@ printf '%s\\n' "$status" > "$DIR/status"
 exit $status
 `);
   writeExec(join(dir, 'harness.sh'), `#!/bin/bash
-set -euo pipefail
-mount -t tmpfs tmpfs /opt
-mkdir -p /opt/oren-ci/bin /opt/oren-ci/toolchain/node-v22.23.4-linux-x64/bin
-cp "$DIR/lease-client.py" /opt/oren-ci/bin/lease-client.py
-cp "$DIR/node" /opt/oren-ci/toolchain/node-v22.23.4-linux-x64/bin/node
-chmod 755 /opt/oren-ci/toolchain/node-v22.23.4-linux-x64/bin/node
-mount --bind "$DIR/timeout" /usr/bin/timeout
-export PATH="$DIR/bin:/usr/bin:/bin"
 set +e
+export PATH="$DIR/bin:/usr/bin:/bin"
 if [[ "\${WANT_WORKER}" == 1 ]]; then
   "$DIR/bin/Runner.Worker" "$DIR/launch.sh"
   status=$?
@@ -172,9 +171,29 @@ exit $status
   return dir;
 }
 
+let redirectorLibrary;
+function redirectorPath() {
+  if (redirectorLibrary) return redirectorLibrary;
+  const dir = mkdtempSync(join(tmpdir(), 'oren-redirect-'));
+  const library = join(dir, 'exec-redirect.so');
+  const source = readFileSync(scriptPath('exec-redirect.c'));
+  const sourcePath = join(dir, 'exec-redirect.c');
+  writeFileSync(sourcePath, source);
+  const compiled = spawnSync('cc', ['-shared', '-fPIC', '-O2', '-s', '-o', library, sourcePath, '-ldl'], { encoding: 'utf8' });
+  if (compiled.status !== 0) {
+    writeFileSync(library, Buffer.from(readFileSync(scriptPath('exec-redirect.linux-x64.b64'), 'utf8'), 'base64'));
+  }
+  redirectorLibrary = library;
+  return library;
+}
+
 function hookEnv(dir, options) {
   return {
-    PATH: '/usr/bin:/bin',
+    PATH: `${join(dir, 'bin')}:/usr/bin:/bin`,
+    LD_PRELOAD: redirectorPath(),
+    OREN_HOOK_TIMEOUT: join(dir, 'timeout'),
+    OREN_HOOK_PYTHON: join(dir, 'python-stub'),
+    OREN_HOOK_NODE: join(dir, 'node'),
     HOME: dir,
     TMPDIR: dir,
     LANG: 'C',
@@ -219,7 +238,7 @@ function detail(info) {
 function run(options) {
   const dir = stage(options);
   try {
-    const result = spawnSync('unshare', ['--user', '--mount', '--map-root-user', 'bash', join(dir, 'harness.sh')], {
+    const result = spawnSync('bash', [join(dir, 'harness.sh')], {
       encoding: 'utf8',
       timeout: options.timeoutMs ?? 10000,
       env: hookEnv(dir, options),
@@ -240,6 +259,22 @@ function expect(info, check) {
     throw error;
   }
 }
+
+test('disk awk waits for df so pipefail does not report SIGPIPE', () => {
+  const dir = stage({ script: 'job-started.sh' });
+  try {
+    writeExec(join(dir, 'bin/df'), '#!/bin/bash\nsleep 0.2\nprintf "stub\\nstub\\n"\n');
+    const result = spawnSync('bash', ['-c', 'set -euo pipefail; disk=$(df -Pk /home/oren-ci-build | awk \'NR==2 {print $4}\'); printf \'%s\\n\' "$disk"'], {
+      encoding: 'utf8',
+      timeout: 5000,
+      env: hookEnv(dir, { script: 'job-started.sh' }),
+    });
+    assert.equal(result.status, 0, `${result.stderr}\n${result.stdout}`);
+    assert.equal(result.stdout, '20000000\n');
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
 
 describe('installed hook behavior', { concurrency: 1 }, () => {
   test('build preflight admits the worker, then accepts one rootless systemd record', () => {
@@ -422,7 +457,7 @@ describe('installed hook behavior', { concurrency: 1 }, () => {
 
   test('interrupting headroom waits exits without releasing the worker lease', async () => {
     const dir = stage({ script: 'job-started.sh' });
-    const child = spawn('unshare', ['--user', '--mount', '--map-root-user', 'bash', join(dir, 'harness.sh')], {
+    const child = spawn('bash', [join(dir, 'harness.sh')], {
       env: hookEnv(dir, { script: 'job-started.sh', mem: '1', disk: '1' }),
       detached: true,
       stdio: ['ignore', 'pipe', 'pipe'],
