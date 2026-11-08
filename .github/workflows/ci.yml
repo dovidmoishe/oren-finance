@@ -207,11 +207,14 @@ jobs:
       - run: pnpm run ${{ matrix.check }}
 
   # Preserve the required-check name used by preview setup and branch protection.
+  # The body is one shell comparison. It uses the bounded light runner so it
+  # does not take the single heavy worker. Do not merge until oren-vps-light
+  # is online; a missing label queues this required check.
   app:
     name: App test, lint, and build
     needs: app-check
     if: always()
-    runs-on: [self-hosted, linux, x64, oren-build]
+    runs-on: [self-hosted, linux, x64, oren-light]
     steps:
       - name: Require all web checks
         env:

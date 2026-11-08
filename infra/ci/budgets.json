@@ -1,0 +1,21 @@
+{
+  "hostMiB": 7424,
+  "heavyActiveMaxMiB": 3840,
+  "heavyActiveHighMiB": 3584,
+  "heavyActiveCpuPercent": 100,
+  "heavyIdleMaxMiB": 512,
+  "heavyIdleHighMiB": 448,
+  "heavyIdleCpuPercent": 25,
+  "heavyIdleTasksMax": 2048,
+  "lightMaxMiB": 512,
+  "lightHighMiB": 448,
+  "lightCpuPercent": 25,
+  "lightTasksMax": 512,
+  "controlMaxMiB": 512,
+  "controlCpuPercent": 25,
+  "controlTasksMax": 512,
+  "downshiftMarginMiB": 64,
+  "idleDockerdBytes": 246415360,
+  "buildPeakBytes": 1449551462,
+  "lintPeakBytes": 1140269056
+}

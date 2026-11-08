@@ -1,4 +1,11 @@
-"""Root-owned heavy-job admission; identity comes from Unix peer credentials."""
+"""Root-owned heavy-job admission; identity comes from Unix peer credentials.
+
+The idle cap stays 512 MiB. Rootless dockerd was measured at 235 MiB idle and
+1.35 GiB at a build peak, so MemoryMax is lowered only after the cgroup has
+fallen back under the idle cap with margin. A live worker lease is never
+cleared because its client disconnected.
+"""
+import json
 import os
 import grp
 import pwd
@@ -6,8 +13,91 @@ import socket
 import socketserver
 import struct
 import subprocess
+import sys
 import threading
 import time
+from pathlib import Path
+
+
+def _budget():
+    with Path(__file__).with_name('budgets.json').open() as source:
+        return json.load(source)
+
+
+BUDGET = _budget()
+ACTIVE_MAX_MIB = BUDGET['heavyActiveMaxMiB']
+ACTIVE_HIGH_MIB = BUDGET['heavyActiveHighMiB']
+ACTIVE_CPU = BUDGET['heavyActiveCpuPercent']
+IDLE_MAX_MIB = BUDGET['heavyIdleMaxMiB']
+IDLE_HIGH_MIB = BUDGET['heavyIdleHighMiB']
+IDLE_CPU = BUDGET['heavyIdleCpuPercent']
+LIGHT_MAX_MIB = BUDGET['lightMaxMiB']
+LIGHT_HIGH_MIB = BUDGET['lightHighMiB']
+LIGHT_CPU = BUDGET['lightCpuPercent']
+CONTROL_MAX_MIB = BUDGET['controlMaxMiB']
+MARGIN_MIB = BUDGET['downshiftMarginMiB']
+HOST_MIB = BUDGET['hostMiB']
+
+
+def mib(value):
+    return value * 1024 * 1024
+
+
+IDLE_BYTES = mib(IDLE_MAX_MIB)
+MARGIN_BYTES = mib(MARGIN_MIB)
+
+
+def slice_within_idle(usage_bytes):
+    return usage_bytes + MARGIN_BYTES <= IDLE_BYTES
+
+
+def simultaneous_mib():
+    """One heavy active, one heavy idle, one light, and the control account."""
+    return ACTIVE_MAX_MIB + IDLE_MAX_MIB + LIGHT_MAX_MIB + CONTROL_MAX_MIB
+
+
+def set_slice(uid, max_mib, high_mib, cpu):
+    subprocess.run(
+        ['systemctl', 'set-property', '--runtime', f'user-{uid}.slice',
+         f'MemoryMax={max_mib}M', f'MemoryHigh={high_mib}M',
+         f'CPUQuota={cpu}%', 'MemorySwapMax=0'],
+        check=True, timeout=15, capture_output=True)
+
+
+def limit(uid, active):
+    if active:
+        set_slice(uid, ACTIVE_MAX_MIB, ACTIVE_HIGH_MIB, ACTIVE_CPU)
+    else:
+        set_slice(uid, IDLE_MAX_MIB, IDLE_HIGH_MIB, IDLE_CPU)
+
+
+def soften(uid):
+    """Drop CPU and the high watermark, but keep the active max until reclaim."""
+    set_slice(uid, ACTIVE_MAX_MIB, IDLE_HIGH_MIB, IDLE_CPU)
+
+
+def cgroup_usage(uid):
+    path = f'/sys/fs/cgroup/user.slice/user-{uid}.slice/memory.current'
+    with open(path) as source:
+        return int(source.read().strip())
+
+
+def account_has_worker(uid):
+    for name in os.listdir('/proc'):
+        if not name.isdigit():
+            continue
+        try:
+            with open(f'/proc/{name}/comm') as source:
+                if source.read().strip() != 'Runner.Worker':
+                    continue
+            with open(f'/proc/{name}/status') as source:
+                status = dict(line.split(':', 1) for line in source if ':' in line)
+            if any(int(value) != uid for value in status['Uid'].split()):
+                continue
+        except (OSError, ValueError, KeyError):
+            continue
+        return True
+    return False
 
 
 def worker_identity(pid, uid):
@@ -24,23 +114,43 @@ def worker_identity(pid, uid):
         return source.read().rsplit(')', 1)[1].split()[19]
 
 
-def limit(uid, active):
-    subprocess.run(['systemctl', 'set-property', '--runtime', f'user-{uid}.slice',
-                    f'MemoryMax={3840 if active else 512}M',
-                    f'MemoryHigh={3584 if active else 448}M',
-                    f'CPUQuota={100 if active else 25}%', 'MemorySwapMax=0'],
-                   check=True, timeout=15, capture_output=True)
-
-
 class Admission:
-    def __init__(self, users, limiter=limit, identity=worker_identity):
+    def __init__(self, users, limiter=limit, identity=worker_identity, usage=None,
+                 softener=soften, worker_running=None):
         self.users = users
         self.limiter = limiter
         self.identity = identity
+        self.usage = usage or (lambda uid: 0)
+        self.softener = softener
+        self.worker_running = worker_running or (lambda uid: False)
         self.condition = threading.Condition()
-        self.active = None
+        self.lease = None
+        self.held = set()
         for uid in users:
-            limiter(uid, False)
+            self.settle(uid)
+
+    @property
+    def active(self):
+        return self.lease
+
+    def _usage(self, uid):
+        try:
+            return self.usage(uid)
+        except OSError as error:
+            print(f'oren-ci admission: usage unreadable for uid {uid}: {error}', file=sys.stderr)
+            return IDLE_BYTES + MARGIN_BYTES + 1
+
+    def settle(self, uid):
+        """Startup. Never hard-shrink a fat cgroup, and never retune a live worker."""
+        if self.worker_running(uid):
+            self.held.add(uid)
+            return
+        if slice_within_idle(self._usage(uid)):
+            self.limiter(uid, False)
+            self.held.discard(uid)
+        else:
+            self.softener(uid)
+            self.held.add(uid)
 
     def acquire(self, uid, pid, timeout=1200):
         if uid not in self.users:
@@ -48,29 +158,55 @@ class Admission:
         stamp = self.identity(pid, uid)
         deadline = time.monotonic() + timeout
         with self.condition:
-            while self.active is not None:
+            while self.held or self.lease is not None:
                 remaining = deadline - time.monotonic()
                 if remaining <= 0:
                     raise TimeoutError('build queue timeout')
                 self.condition.wait(min(remaining, 1))
                 if self.identity(pid, uid) != stamp:
                     raise ValueError('worker exited while queued')
-            # Lower every other account before raising this one. A failed
-            # systemctl call fails closed and never admits another build.
             for other in self.users:
                 if other != uid:
                     self.limiter(other, False)
             self.limiter(uid, True)
-            self.active = (uid, pid, stamp)
+            self.held.add(uid)
+            self.lease = (uid, pid, stamp)
         return stamp
 
-    def release(self, uid, pid, stamp):
+    def note_worker_exit(self, uid, pid, stamp):
         with self.condition:
-            if self.active != (uid, pid, stamp):
+            if self.lease != (uid, pid, stamp):
                 raise ValueError('lease mismatch')
-            self.limiter(uid, False)
-            self.active = None
+            self.lease = None
+            self.held.add(uid)
+        return self.drain(uid)
+
+    def release(self, uid, pid, stamp):
+        self.note_worker_exit(uid, pid, stamp)
+
+    def drain(self, uid):
+        """Return True only after this uid is inside the idle cap."""
+        with self.condition:
+            if uid not in self.held:
+                return True
+            if self.lease and self.lease[0] == uid:
+                return False
+            live = self.worker_running(uid)
+            usage = self._usage(uid)
+        if live:
+            return False
+        if not slice_within_idle(usage):
+            print(f'oren-ci admission: uid {uid} uses {usage} bytes; holding the heavy slot',
+                  file=sys.stderr, flush=True)
+            self.softener(uid)
+            return False
+        self.limiter(uid, False)
+        with self.condition:
+            if self.lease and self.lease[0] == uid:
+                return False
+            self.held.discard(uid)
             self.condition.notify_all()
+        return True
 
 
 class Handler(socketserver.StreamRequestHandler):
@@ -94,7 +230,9 @@ class Handler(socketserver.StreamRequestHandler):
             except (OSError, ValueError, KeyError):
                 break
             time.sleep(1)
-        self.server.admission.release(uid, pid, stamp)
+        self.server.admission.note_worker_exit(uid, pid, stamp)
+        while not self.server.admission.drain(uid):
+            time.sleep(1)
 
 
 class Server(socketserver.ThreadingUnixStreamServer):
@@ -102,9 +240,20 @@ class Server(socketserver.ThreadingUnixStreamServer):
     request_queue_size = 8
 
 
+def _reap(admission):
+    while True:
+        for uid in list(admission.held):
+            try:
+                admission.drain(uid)
+            except (OSError, RuntimeError, subprocess.SubprocessError) as error:
+                print(f'oren-ci admission: drain uid {uid} failed: {error}', file=sys.stderr)
+        time.sleep(1)
+
+
 if __name__ == '__main__':
     users = [pwd.getpwnam(name).pw_uid for name in ('oren-ci-build', 'oren-ci-release')]
-    admission = Admission(users)
+    admission = Admission(users, usage=cgroup_usage, worker_running=account_has_worker)
+    threading.Thread(target=_reap, args=(admission,), daemon=True).start()
     address = '/run/oren-ci-build/admission.sock'
     if os.path.exists(address):
         os.unlink(address)
