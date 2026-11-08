@@ -38,6 +38,7 @@ import {
   mountPathBasedDiscoveryAtIssuer,
 } from './mcp-auth/oauth-runtime';
 import { createRegistrationRateLimit } from './mcp-auth/registration-rate-limit';
+import { SlidingWindowLimiter, clientIp } from './common/rate-limit';
 import { approvalMatchesMcpIntent } from './mcp-auth/intent-approval';
 import { ApiTradeAuthorization } from './mcp-auth/api-trade-authorization';
 import { Connection } from '@solana/web3.js';
@@ -52,6 +53,11 @@ import {
 async function bootstrap() {
   const env = validateEnv();
   const app = await NestFactory.create(AppModule);
+  // Caddy is the only hop in front of the API in production and previews, so
+  // trust exactly one proxy: req.ip becomes the client Caddy saw, which the
+  // client cannot forge through X-Forwarded-For.
+  if (env.DEPLOYMENT_ENV === 'production' || env.DEPLOYMENT_ENV === 'preview')
+    (app.getHttpAdapter().getInstance() as Express).set('trust proxy', 1);
 
   app.setGlobalPrefix('api');
   app.useGlobalPipes(
@@ -134,7 +140,13 @@ async function bootstrap() {
           });
       },
     );
+    const mcpRequests = new SlidingWindowLimiter(120, 60_000);
     expressApp.post('/mcp', (req: Request, res: Response) => {
+      const retryAfter = mcpRequests.hit(clientIp(req));
+      if (retryAfter) {
+        res.setHeader('Retry-After', String(retryAfter));
+        return res.sendStatus(429);
+      }
       void handleMcpRequest(req, res, mcpDeps).catch(() => {
         if (!res.headersSent) res.sendStatus(500);
       });
@@ -865,8 +877,8 @@ async function bootstrap() {
     const registrationRetryAfter = createRegistrationRateLimit();
     expressApp.post(
       '/oauth/reg',
-      (_req: Request, res: Response, next: NextFunction) => {
-        const retryAfter = registrationRetryAfter();
+      (req: Request, res: Response, next: NextFunction) => {
+        const retryAfter = registrationRetryAfter(clientIp(req));
         if (retryAfter) {
           res.setHeader('Retry-After', String(retryAfter));
           return res.sendStatus(429);

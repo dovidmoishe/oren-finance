@@ -1,5 +1,6 @@
 import { APP_GUARD } from '@nestjs/core';
 import { PreviewGuard } from './common/preview.guard';
+import { RateLimitGuard } from './common/rate-limit';
 import { Module } from '@nestjs/common';
 import { AlchemyModule } from './alchemy/alchemy.module';
 import { AnalyticsModule } from './analytics/analytics.module';
@@ -21,7 +22,10 @@ import { TokensModule } from './tokens/tokens.module';
 import { VaultModule } from './vault/vault.module';
 
 @Module({
-  providers: [{ provide: APP_GUARD, useClass: PreviewGuard }],
+  providers: [
+    { provide: APP_GUARD, useClass: RateLimitGuard },
+    { provide: APP_GUARD, useClass: PreviewGuard },
+  ],
   imports: [
     ConfigModule,
     DatabaseModule,
