@@ -37,4 +37,47 @@ test('stock research renders distinct evidence, sources, saved thesis and change
   assert.ok(html.includes('https://example.com/view'));
   assert.ok(html.includes('lg:grid-cols-2'));
   assert.ok(html.includes('lg:col-span-2'));
+  assert.equal(html.includes('Company filings'), false);
+});
+
+test('stock research renders cited company filings without treating them as the score', () => {
+  const report = {
+    assetId: 'apple',
+    ticker: 'AAPL',
+    name: 'Apple',
+    analysis: { available: true, observedAt: '2026-11-02', data: { summary: 'Range bound.', opportunityScore: 64 } },
+    news: { available: false },
+    portfolio: { available: true, data: null },
+    opinions: { available: false, reason: 'not_enabled' },
+    company: {
+      available: true,
+      reason: 'stale',
+      publishedAt: '2026-11-03',
+      fetchedAt: '2026-11-08T14:00:00.000Z',
+      data: {
+        briefing: ['Derived FY2026 Q4 revenue is $114,477,000,000, from full-year minus Q1, Q2 and Q3.'],
+        links: [{ label: '10-K filed 2026-11-03', url: 'https://www.sec.gov/Archives/edgar/data/320193/000032019326000026/0000320193-26-000026-index.html' }, { label: 'bad', url: 'https://evil.example/buy' }],
+        latestQuarter: { fiscalYear: 2026, fiscalQuarter: 4, derived: true, revenue: { available: true, display: '$114,477,000,000' } },
+        filings: [],
+      },
+    },
+  };
+  let state = 0;
+  const values = [report, 'owned', false, undefined];
+  const react = { useState() { return [values[state++], () => {}]; }, useRef: () => ({ current: 0 }), useEffect() {}, useCallback: (fn) => fn };
+  const exports = {};
+  const code = ts.transpileModule(readFileSync(new URL('../components/stock/stock-research.tsx', import.meta.url), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX } }).outputText;
+  vm.runInNewContext(code, { exports, setTimeout, clearTimeout, require(id) {
+    if (id === 'react') return react;
+    if (id === '@/components/auth/auth-context') return { useOrenAuth: () => ({ address: 'owned', getAccessToken: async () => 'token' }) };
+    if (id === '@/services/research-service') return {};
+    return require(id);
+  } });
+  const html = renderToStaticMarkup(require('react').createElement(exports.StockResearchPanel, { assetId: 'apple' }));
+  assert.ok(html.includes('Company filings'));
+  assert.ok(html.includes('$114,477,000,000'));
+  assert.ok(html.includes('https://www.sec.gov/Archives/edgar/data/320193/000032019326000026/0000320193-26-000026-index.html'));
+  assert.ok(html.includes('Not a recommendation'));
+  assert.equal(html.includes('https://evil.example/buy'), false);
+  assert.ok(html.includes('Deterministic Oren Score'));
 });
