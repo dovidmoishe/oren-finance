@@ -182,7 +182,7 @@ function McpConnection({ uid }: { uid: string }) {
           {requestsExecute && delegation && !delegation.enabled && <div className={styles.notice}>
             <h2>Chat trading is off</h2>
             <p>Set your trading limits, then return here to finish connecting.</p>
-            <Link className={styles.primary} href={mcpEnrollmentLinks(uid).settings}>Set up chat trading</Link>
+            <Link className={styles.primary} href={`${mcpEnrollmentLinks(uid).settings}#chat-trading`}>Set up chat trading</Link>
           </div>}
           {requestsExecute && authenticated && !delegation && !delegationError && <p className={styles.loading} role="status">Checking your trading limits…</p>}
           <details className={styles.details}>

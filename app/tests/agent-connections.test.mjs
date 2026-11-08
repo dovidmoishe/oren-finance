@@ -33,6 +33,7 @@ function fixture({ authenticated = true, ready = true, apiOrigin = 'https://api.
       if (name === 'next/link') return { default: ({ children, ...props }) => createElement('a', props, children) };
       if (name === '@hugeicons/core-free-icons') return {};
       if (name === '@hugeicons/react') return { HugeiconsIcon: () => null };
+      if (name === '@/components/brand/agent-client') return { agentClient: () => undefined, AgentClientLogo: () => null };
       if (name === '@/app/settings/mcp/trade-grant') return { TradeGrant: ({ connectionUid }) => createElement('section', { 'data-connection': connectionUid }, 'Chat trading permission') };
       if (name === '@/components/ui') return { Button: ({ children, ...props }) => { buttons.push(props); return createElement(props.href ? 'a' : 'button', props, children); } };
       return require(name);

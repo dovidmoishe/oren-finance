@@ -22,6 +22,7 @@ interface MarketState {
 }
 
 const STOCKS_PAGE_SIZE = 20;
+let searchRequestId = 0;
 
 function mergeStocks(existing: StockSummary[], incoming: StockSummary[]) {
   if (!existing.length) {
@@ -90,20 +91,24 @@ export const useMarketStore = create<MarketState>((set, get) => ({
     }
   },
   async search(query) {
+    const requestId = ++searchRequestId;
     if (!query.trim()) {
       set({ searchResults: [], isSearching: false });
       return;
     }
 
-    set({ isSearching: true, error: undefined });
+    set({ searchResults: [], isSearching: true, error: undefined });
     try {
       const searchResults = await searchStocks(query);
-      set({ searchResults, isSearching: false });
+      if (requestId !== searchRequestId) return;
+      set({ searchResults });
     } catch (error) {
+      if (requestId !== searchRequestId) return;
       set({
         error: error instanceof Error ? error.message : "Unable to search stocks",
-        isSearching: false,
       });
+    } finally {
+      if (requestId === searchRequestId) set({ isSearching: false });
     }
   },
 }));
