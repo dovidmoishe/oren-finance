@@ -48,3 +48,13 @@ test('agent streaming and history carry the verified bearer token', async () => 
   assert.equal(calls.length, 2);
   for (const call of calls) assert.equal(call.headers.Authorization, 'Bearer privy-token');
 });
+
+test('history waits when the session provider is registered after the call starts', async () => {
+  const calls = [];
+  const agent = load(calls);
+  const pending = agent.getAgentThreadMessages('thread-id', 'owned');
+  setTimeout(() => agent.setAgentTokenProvider(async () => 'late-token'), 0);
+  await pending;
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].headers.Authorization, 'Bearer late-token');
+});

@@ -1,5 +1,5 @@
 import { apiRequest } from "./api-client";
-import { sessionAuthorization } from "./session-token";
+import { SESSION_PROVIDER_WAIT_MS, sessionAuthorization } from "./session-token";
 import { routeVenueLabel } from "./route-label";
 import type {
   PortfolioActivityItem,
@@ -84,19 +84,17 @@ export function getPortfolio(wallet: string) {
 }
 
 /** History, activity and calendar hold Oren-only data and need the owner's session. */
-const OWNER_TOKEN_WAIT_MS = 3_000;
-
 export async function getPortfolioHistory(wallet: string, range?: PortfolioRange) {
   const history = await apiRequest<ApiPortfolioHistory>(`/portfolio/${wallet}/history`, {
     query: { range },
-    headers: await sessionAuthorization(OWNER_TOKEN_WAIT_MS),
+    headers: await sessionAuthorization(SESSION_PROVIDER_WAIT_MS),
   });
   return history.points;
 }
 
 export async function getPortfolioActivity(wallet: string) {
   const feed = await apiRequest<ApiActivityFeed>(`/portfolio/${wallet}/activity`, {
-    headers: await sessionAuthorization(OWNER_TOKEN_WAIT_MS),
+    headers: await sessionAuthorization(SESSION_PROVIDER_WAIT_MS),
   });
   return feed.items.map(mapActivityItem);
 }
@@ -107,7 +105,7 @@ export async function getTradingCalendar(
 ) {
   return apiRequest<TradingCalendarResponse>(`/portfolio/${wallet}/calendar`, {
     query: input,
-    headers: await sessionAuthorization(OWNER_TOKEN_WAIT_MS),
+    headers: await sessionAuthorization(SESSION_PROVIDER_WAIT_MS),
   });
 }
 
@@ -118,7 +116,7 @@ export async function getTradingCalendarDay(
 ) {
   return apiRequest<TradingCalendarDayResponse>(`/portfolio/${wallet}/calendar/${date}`, {
     query: input,
-    headers: await sessionAuthorization(OWNER_TOKEN_WAIT_MS),
+    headers: await sessionAuthorization(SESSION_PROVIDER_WAIT_MS),
   });
 }
 

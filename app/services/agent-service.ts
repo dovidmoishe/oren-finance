@@ -2,7 +2,11 @@ import { apiRequest, ApiError, buildApiUrl } from './api-client';
 import { mapStockDetail, mapStockSummary } from './market-service';
 import { mapPortfolio } from './portfolio-service';
 import { parseAgentSseChunk } from './agent-sse';
-import { sessionAuthorization, setSessionTokenProvider } from './session-token';
+import {
+  SESSION_PROVIDER_WAIT_MS,
+  sessionAuthorization,
+  setSessionTokenProvider,
+} from './session-token';
 import type {
   AgentArtifact,
   AgentDisplayMessage,
@@ -19,7 +23,7 @@ type UnknownRecord = Record<string, unknown>;
 export const setAgentTokenProvider = setSessionTokenProvider;
 
 function agentAuthorization(): Promise<Record<string, string>> {
-  return sessionAuthorization();
+  return sessionAuthorization(SESSION_PROVIDER_WAIT_MS);
 }
 
 export async function sendAgentMessage(request: AgentRequest) {

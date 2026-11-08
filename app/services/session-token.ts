@@ -1,7 +1,11 @@
 /**
  * The signed-in Privy session token, shared by services that call wallet-owner
  * API routes. PrivySession installs the provider once the user is authenticated.
+ * The wait covers child effects that fetch in the same commit, before that
+ * effect runs.
  */
+export const SESSION_PROVIDER_WAIT_MS = 3_000;
+
 type TokenProvider = () => Promise<string | null>;
 
 let provider: TokenProvider | undefined;
