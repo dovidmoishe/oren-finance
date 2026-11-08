@@ -378,6 +378,12 @@ function companyReason(reason: string): string {
       return "Company filings could not be loaded. Other research is unchanged.";
     case "stale":
       return "Company figures are shown, and the filing or cache is stale.";
+    case "sec_not_configured":
+      return "Company filings are not loaded until the server contact is configured.";
+    case "sec_preview_disabled":
+      return "Company filings are not loaded in previews.";
+    case "sec_worker_unavailable":
+      return "Company filings are not loaded from this server process.";
     case "not_licensed":
       return "This source is not licensed for this view.";
     default:

@@ -95,6 +95,9 @@ function readFact(
     accn: row.accn,
     form: typeof row.form === 'string' ? row.form : undefined,
     filed: row.filed,
+    fy: typeof row.fy === 'number' ? row.fy : undefined,
+    fp: typeof row.fp === 'string' ? row.fp : undefined,
+    frame: typeof row.frame === 'string' ? row.frame : undefined,
   };
 }
 

@@ -49,6 +49,10 @@ export interface NormalizedFactInput {
   accn: string;
   form?: string;
   filed: string;
+  /** Present on SEC facts. Not used to label a period or choose a value. */
+  fy?: number;
+  fp?: string;
+  frame?: string;
 }
 
 type Span = 'instant' | 'quarter' | 'ytd' | 'year' | 'irregular';
@@ -77,9 +81,20 @@ interface Point {
 }
 
 type Series =
-  | { kind: 'points'; points: Point[]; unit: string }
+  | {
+      kind: 'points';
+      points: Point[];
+      unit: string;
+      /** A newer quarter or the annual fact had no single comparable value. */
+      refusedLatest: boolean;
+      refusedAnnual: boolean;
+    }
   | { kind: 'mixed' }
   | { kind: 'empty' };
+
+const PERIODIC_FORMS = new Set(['10-Q', '10-K', '10-Q/A', '10-K/A']);
+/** A 52/53-week year can end a few days outside the fiscal-year-end month. */
+const FISCAL_SPILL_DAYS = 7;
 
 export function filingIndexUrl(
   cik: string,
@@ -91,17 +106,32 @@ export function filingIndexUrl(
   return `https://www.sec.gov/Archives/edgar/data/${Number(cik)}/${folder}/${accession}-index.html`;
 }
 
-export function fiscalPosition(
+/**
+ * Fiscal year of an annual period end. Matches the configured fiscal-year-end
+ * month, allowing a 52/53-week spill of up to seven days into the next month.
+ * Returns undefined when the end is not near exactly one such month.
+ * Quarter labels are not derived here.
+ */
+export function fiscalYearForAnnualEnd(
   end: string,
   fiscalYearEndMonth: number,
-): { fiscalYear: number; fiscalQuarter: Quarter } {
-  const month = Number(end.slice(5, 7));
+): number | undefined {
+  const endDay = dayNumber(end);
+  if (
+    endDay === undefined ||
+    fiscalYearEndMonth < 1 ||
+    fiscalYearEndMonth > 12
+  ) {
+    return undefined;
+  }
   const year = Number(end.slice(0, 4));
-  const startMonth = (fiscalYearEndMonth % 12) + 1;
-  const offset = (month - startMonth + 12) % 12;
-  const fiscalQuarter = (Math.floor(offset / 3) + 1) as Quarter;
-  const fiscalYear = month > fiscalYearEndMonth ? year + 1 : year;
-  return { fiscalYear, fiscalQuarter };
+  const hits: number[] = [];
+  for (const candidate of [year - 1, year, year + 1]) {
+    const anchor = dayNumber(lastDayOfMonth(candidate, fiscalYearEndMonth));
+    if (anchor === undefined) continue;
+    if (Math.abs(endDay - anchor) <= FISCAL_SPILL_DAYS) hits.push(candidate);
+  }
+  return hits.length === 1 ? hits[0] : undefined;
 }
 
 export function normalizeFinancials(input: {
@@ -157,7 +187,10 @@ export function normalizeFinancials(input: {
     conceptOf(operatingIncome),
     unitOf(operatingIncome),
   );
-  const quarter = latestQuarter(flow, derived);
+  const quarter =
+    revenue.kind === 'points' && revenue.refusedLatest
+      ? undefined
+      : latestQuarter(flow, derived);
   const year = latestYear(flow.years);
   const priorYear = year && yearPoint(flow.years, year.fiscalYear - 1);
   const sameQuarterPrior = quarter
@@ -197,7 +230,10 @@ export function normalizeFinancials(input: {
     : undefined;
   const latestAnnualPeriod = year
     ? periodFrom(year, {
-        revenue: metricFrom(revenue, year),
+        revenue:
+          revenue.kind === 'points' && revenue.refusedAnnual
+            ? unavailable('not_comparable')
+            : metricFrom(revenue, year),
         netIncome: metricFrom(netIncome, aligned(incomeYear, year)),
         revenueGrowth: growth(year, priorYear),
       })
@@ -207,7 +243,9 @@ export function normalizeFinancials(input: {
     revenue:
       revenue.kind === 'mixed'
         ? unavailable('mixed_currency')
-        : trailing(flow.quarters, derived, quarter),
+        : revenue.kind === 'points' && revenue.refusedLatest
+          ? unavailable('not_comparable')
+          : trailing(flow.quarters, derived, quarter),
     netIncome: trailing(incomeFlow.quarters, incomeDerived, alignedIncome),
   };
   const growthMetrics = {
@@ -273,10 +311,16 @@ export function normalizeFinancials(input: {
     quarterlyRevenue:
       revenue.kind === 'mixed'
         ? unavailable('mixed_currency')
-        : latestQuarterPeriod?.revenue,
+        : revenue.kind === 'points' && revenue.refusedLatest
+          ? unavailable('not_comparable')
+          : latestQuarterPeriod?.revenue,
     quarterlyGrowth: growthMetrics.quarterlyRevenue,
     annualGrowth: growthMetrics.annualRevenue,
     margin: latestQuarterPeriod?.operatingMargin,
+    annualUnavailable:
+      revenue.kind === 'points' && revenue.refusedAnnual
+        ? 'not_comparable'
+        : undefined,
     cadence: filingCadence,
     filingsNote: input.filingsNote,
   });
@@ -348,16 +392,26 @@ function seriesFor(
     );
     if (chosen === 'mixed') return { kind: 'mixed' };
     if (!chosen) continue;
+    const collapsed = collapse(
+      rows.filter((row) => row.unit === chosen),
+      concept,
+      chosen,
+      cik,
+    );
+    const labeled = labelFlow(collapsed.points, fiscalYearEndMonth);
+    const acceptedEnds = labeled.points
+      .filter((point) => point.span === 'quarter')
+      .map((point) => point.end);
+    const newestAccepted = acceptedEnds.sort().at(-1);
+    const refusedLatest = collapsed.refusedQuarterEnds.some(
+      (end) => !newestAccepted || end >= newestAccepted,
+    );
     return {
       kind: 'points',
       unit: chosen,
-      points: collapse(
-        rows.filter((row) => row.unit === chosen),
-        fiscalYearEndMonth,
-        concept,
-        chosen,
-        cik,
-      ),
+      points: labeled.points,
+      refusedLatest: refusedLatest || labeled.refusedLatest,
+      refusedAnnual: collapsed.refusedAnnual || labeled.refusedAnnual,
     };
   }
   return { kind: 'empty' };
@@ -386,25 +440,29 @@ function chooseUnit(units: string[], kind: 'money'): string | undefined {
 
 function collapse(
   rows: NormalizedFactInput[],
-  fiscalYearEndMonth: number,
   concept: string,
   unit: string,
   cik: string,
-): Point[] {
+): { points: Point[]; refusedQuarterEnds: string[]; refusedAnnual: boolean } {
   const groups = new Map<string, NormalizedFactInput[]>();
   for (const row of rows) {
     const key = `${row.start ?? ''}|${row.end}`;
     groups.set(key, [...(groups.get(key) ?? []), row]);
   }
   const points: Point[] = [];
+  const refusedQuarterEnds: string[] = [];
+  const refusedYearEnds: string[] = [];
   for (const group of groups.values()) {
-    const sorted = [...group].sort(
-      (a, b) => b.filed.localeCompare(a.filed) || b.accn.localeCompare(a.accn),
-    );
-    const current = sorted[0];
-    const prior = sorted.find((row) => row.val !== current.val);
+    const chosen = chooseComparable(group);
+    if (chosen.status === 'refused') {
+      const sample = group[0];
+      const span = sample ? classify(sample.start, sample.end) : 'irregular';
+      if (span === 'year') refusedYearEnds.push(chosen.end);
+      if (span === 'quarter') refusedQuarterEnds.push(chosen.end);
+      continue;
+    }
+    const current = chosen.current;
     const span = classify(current.start, current.end);
-    const fiscal = fiscalPosition(current.end, fiscalYearEndMonth);
     points.push({
       concept,
       unit,
@@ -416,15 +474,190 @@ function collapse(
       filed: current.filed,
       sourceUrl: filingIndexUrl(cik, current.accn) ?? '',
       span,
-      fiscalYear: fiscal.fiscalYear,
-      fiscalQuarter: fiscal.fiscalQuarter,
-      restated: Boolean(prior),
-      priorValue: prior?.val,
-      priorAccession: prior?.accn,
-      priorFiled: prior?.filed,
+      fiscalYear: 0,
+      fiscalQuarter: 1,
+      restated: Boolean(chosen.prior),
+      priorValue: chosen.prior?.val,
+      priorAccession: chosen.prior?.accn,
+      priorFiled: chosen.prior?.filed,
     });
   }
-  return points;
+  const newestYear = points
+    .filter((point) => point.span === 'year')
+    .map((point) => point.end)
+    .sort()
+    .at(-1);
+  return {
+    points,
+    refusedQuarterEnds,
+    refusedAnnual: refusedYearEnds.some(
+      (end) => !newestYear || end >= newestYear,
+    ),
+  };
+}
+
+/**
+ * companyfacts and companyconcept only include non-custom taxonomy facts that
+ * apply to the entire filing entity. Same concept, unit, and period is one
+ * context. The documented fact fields are start, end, val, accn, fy, fp,
+ * form, filed, and optional frame. fy, fp, and frame describe the filing or
+ * a calendar frame, not a segment, so they are not a second context.
+ * Identical values are repeated comparatives. A later amending form (10-Q/A
+ * or 10-K/A) with one replacement value is a restatement. Any other
+ * disagreement is withheld.
+ */
+function chooseComparable(group: NormalizedFactInput[]):
+  | {
+      status: 'chosen';
+      current: NormalizedFactInput;
+      prior?: NormalizedFactInput;
+    }
+  | { status: 'refused'; end: string } {
+  const periodic = group.filter((row) =>
+    PERIODIC_FORMS.has(cleanForm(row.form)),
+  );
+  const end = group[0]?.end ?? '';
+  if (!periodic.length) return { status: 'refused', end };
+  const sorted = [...periodic].sort(
+    (a, b) => a.filed.localeCompare(b.filed) || a.accn.localeCompare(b.accn),
+  );
+  let current = sorted[0];
+  if (!current) return { status: 'refused', end };
+  let prior: NormalizedFactInput | undefined;
+  let restated = false;
+  for (const row of sorted.slice(1)) {
+    if (row.val === current.val) {
+      current = row;
+      continue;
+    }
+    const form = cleanForm(row.form);
+    if (form !== '10-Q/A' && form !== '10-K/A')
+      return { status: 'refused', end };
+    prior = current;
+    current = row;
+    restated = true;
+  }
+  return { status: 'chosen', current, prior: restated ? prior : undefined };
+}
+
+function labelFlow(
+  points: Point[],
+  fiscalYearEndMonth: number,
+): { points: Point[]; refusedLatest: boolean; refusedAnnual: boolean } {
+  const years = new Map<number, Point>();
+  const blockedYears = new Set<number>();
+  let refusedAnnual = false;
+  for (const point of points) {
+    if (point.span !== 'year' || !point.start) continue;
+    const fiscalYear = fiscalYearForAnnualEnd(point.end, fiscalYearEndMonth);
+    if (fiscalYear === undefined || blockedYears.has(fiscalYear)) {
+      refusedAnnual = true;
+      continue;
+    }
+    if (years.has(fiscalYear)) {
+      years.delete(fiscalYear);
+      blockedYears.add(fiscalYear);
+      refusedAnnual = true;
+      continue;
+    }
+    years.set(fiscalYear, { ...point, fiscalYear, fiscalQuarter: 4 });
+  }
+  const quarters = points.filter(
+    (point) => point.span === 'quarter' && point.start,
+  );
+  const placed = new Map<string, Point>();
+  const used = new Set<string>();
+  const anchors: Array<{ fiscalYear: number; start: string }> = [];
+  for (const [fiscalYear, year] of years) {
+    if (year.start) anchors.push({ fiscalYear, start: year.start });
+    const nextStart = addDays(year.end, 1);
+    if (nextStart && !years.has(fiscalYear + 1)) {
+      anchors.push({ fiscalYear: fiscalYear + 1, start: nextStart });
+    }
+  }
+  for (const nominal of nominalYearStarts(fiscalYearEndMonth, quarters)) {
+    if (!anchors.some((anchor) => anchor.fiscalYear === nominal.fiscalYear)) {
+      anchors.push(nominal);
+    }
+  }
+  for (const anchor of anchors) {
+    let start: string | undefined = anchor.start;
+    for (let quarter = 1; quarter <= 4 && start; quarter += 1) {
+      const matches = quarters.filter(
+        (point) => point.start === start && !used.has(periodKey(point)),
+      );
+      if (matches.length !== 1) {
+        if (matches.length > 1) {
+          for (const match of matches) used.add(periodKey(match));
+        }
+        break;
+      }
+      const point = matches[0];
+      if (!point) break;
+      placed.set(`${anchor.fiscalYear}:${quarter}`, {
+        ...point,
+        fiscalYear: anchor.fiscalYear,
+        fiscalQuarter: quarter as Quarter,
+      });
+      used.add(periodKey(point));
+      start = addDays(point.end, 1);
+    }
+  }
+  const labeledQuarters = [...placed.values()];
+  const newest = labeledQuarters
+    .map((point) => point.end)
+    .sort()
+    .at(-1);
+  const unlabeled = quarters.filter((point) => !used.has(periodKey(point)));
+  const collided = quarters.filter((point) => {
+    const key = periodKey(point);
+    return (
+      used.has(key) && !labeledQuarters.some((item) => periodKey(item) === key)
+    );
+  });
+  const refusedLatest = [...unlabeled, ...collided].some(
+    (point) => !newest || point.end >= newest,
+  );
+  const instants = points.filter((point) => point.span === 'instant');
+  return {
+    points: [...years.values(), ...labeledQuarters, ...instants],
+    refusedLatest,
+    refusedAnnual,
+  };
+}
+
+function nominalYearStarts(
+  fiscalYearEndMonth: number,
+  quarters: Point[],
+): Array<{ fiscalYear: number; start: string }> {
+  const anchors: Array<{ fiscalYear: number; start: string }> = [];
+  const years = new Set(
+    quarters.flatMap((point) => {
+      const year = Number(point.start?.slice(0, 4));
+      return Number.isInteger(year) ? [year - 1, year, year + 1] : [];
+    }),
+  );
+  for (const year of years) {
+    const nominal = addDays(lastDayOfMonth(year, fiscalYearEndMonth), 1);
+    if (!nominal) continue;
+    const near = quarters.filter((point) => {
+      const start = point.start ? dayNumber(point.start) : undefined;
+      const nominalDay = dayNumber(nominal);
+      return (
+        start !== undefined &&
+        nominalDay !== undefined &&
+        Math.abs(start - nominalDay) <= FISCAL_SPILL_DAYS
+      );
+    });
+    const starts = [...new Set(near.map((point) => point.start))];
+    const only = starts.length === 1 ? starts[0] : undefined;
+    if (only) anchors.push({ fiscalYear: year + 1, start: only });
+  }
+  return anchors;
+}
+
+function periodKey(point: Point): string {
+  return `${point.start ?? ''}|${point.end}`;
 }
 
 function classify(start: string | undefined, end: string): Span {
@@ -755,6 +988,7 @@ function briefingLines(input: {
   quarterlyGrowth: CompanyMetric;
   annualGrowth: CompanyMetric;
   margin?: CompanyMetric;
+  annualUnavailable?: CompanyMetricReason;
   cadence: 'current' | 'stale';
   filingsNote?: string;
 }): string[] {
@@ -800,7 +1034,9 @@ function briefingLines(input: {
       `Full-year FY${input.annual.fiscalYear} revenue is ${input.annual.revenue.display}.`,
     );
   } else {
-    lines.push('Full-year revenue is unavailable (missing).');
+    lines.push(
+      `Full-year revenue is unavailable (${input.annual?.revenue.reason ?? input.annualUnavailable ?? 'missing'}).`,
+    );
   }
   lines.push(
     input.annualGrowth.available && input.annualGrowth.display && input.annual
@@ -860,6 +1096,11 @@ export function formatPercent(ratio: number): string {
 
 function round6(value: number): number {
   return Math.round(value * 1e6) / 1e6;
+}
+
+function lastDayOfMonth(year: number, month: number): string {
+  const date = new Date(Date.UTC(year, month, 0));
+  return date.toISOString().slice(0, 10);
 }
 
 function dayNumber(iso: string): number | undefined {

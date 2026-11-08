@@ -1,5 +1,5 @@
 import {
-  fiscalPosition,
+  fiscalYearForAnnualEnd,
   normalizeFinancials,
   type NormalizedFactInput,
 } from './financials';
@@ -44,30 +44,100 @@ function run(
 }
 
 describe('fiscal labels', () => {
-  it('labels January, June, and September year ends from the period end', () => {
-    expect(fiscalPosition('2025-01-26', 1)).toEqual({
-      fiscalYear: 2025,
-      fiscalQuarter: 4,
-    });
-    expect(fiscalPosition('2025-04-27', 1)).toEqual({
-      fiscalYear: 2026,
-      fiscalQuarter: 1,
-    });
-    expect(fiscalPosition('2026-06-30', 6)).toEqual({
-      fiscalYear: 2026,
-      fiscalQuarter: 4,
-    });
-    expect(fiscalPosition('2025-12-27', 9)).toEqual({
-      fiscalYear: 2026,
-      fiscalQuarter: 1,
-    });
-    expect(fiscalPosition('2026-09-26', 9)).toEqual({
-      fiscalYear: 2026,
-      fiscalQuarter: 4,
-    });
+  it('keeps a year end that spills a few days past the fiscal-year-end month', () => {
+    expect(fiscalYearForAnnualEnd('2026-02-01', 1)).toBe(2026);
+    expect(fiscalYearForAnnualEnd('2026-10-02', 9)).toBe(2026);
+    expect(fiscalYearForAnnualEnd('2026-09-26', 9)).toBe(2026);
+    expect(fiscalYearForAnnualEnd('2017-04-01', 9)).toBeUndefined();
   });
 
-  it('does not let the filing fy and fp relabel a comparative period', () => {
+  it('labels a January fiscal Q4 that ends on February 1 from the period chain', () => {
+    const result = run(
+      [
+        fact({
+          start: '2025-02-03',
+          end: '2026-02-01',
+          val: 100,
+          form: '10-K',
+          filed: '2026-02-20',
+          accn: '0000320193-26-000021',
+          fy: 2027,
+          fp: 'Q1',
+        }),
+        fact({
+          start: '2025-02-03',
+          end: '2025-05-04',
+          val: 10,
+          form: '10-Q',
+          filed: '2025-06-01',
+          accn: '0000320193-25-000001',
+          fy: 2027,
+          fp: 'Q1',
+        }),
+        fact({
+          start: '2025-05-05',
+          end: '2025-08-03',
+          val: 20,
+          form: '10-Q',
+          filed: '2025-09-01',
+          accn: '0000320193-25-000002',
+        }),
+        fact({
+          start: '2025-08-04',
+          end: '2025-11-02',
+          val: 30,
+          form: '10-Q',
+          filed: '2025-12-01',
+          accn: '0000320193-25-000003',
+        }),
+      ],
+      { fiscalYearEndMonth: 1, asOf: '2026-03-01' },
+    );
+    expect(result.data.latestAnnual).toMatchObject({
+      fiscalYear: 2026,
+      revenue: { value: 100 },
+    });
+    expect(result.data.latestAnnual?.fiscalYear).not.toBe(2027);
+    expect(result.data.latestQuarter).toMatchObject({
+      fiscalYear: 2026,
+      fiscalQuarter: 4,
+      derived: true,
+      end: '2026-02-01',
+      revenue: { value: 40 },
+    });
+    expect(result.data.ttm?.revenue.value).toBe(100);
+    expect(result.data.latestQuarter?.fiscalQuarter).not.toBe(1);
+  });
+
+  it('does not treat a spilled annual total as next year Q1 when no quarters exist', () => {
+    const result = run(
+      [
+        fact({
+          start: '2025-10-04',
+          end: '2026-10-02',
+          val: 100,
+          form: '10-K',
+          filed: '2026-10-20',
+          accn: '0000320193-26-000030',
+          fy: 2027,
+          fp: 'Q1',
+        }),
+      ],
+      { fiscalYearEndMonth: 9, asOf: '2026-11-01' },
+    );
+    expect(result.data.latestAnnual).toMatchObject({
+      fiscalYear: 2026,
+      revenue: { value: 100 },
+    });
+    expect(result.data.latestQuarter).toBeUndefined();
+    expect(result.data.ttm?.revenue).toMatchObject({
+      available: false,
+      reason: 'insufficient_periods',
+    });
+    expect(result.data.ttm?.revenue.value).toBeUndefined();
+  });
+
+  it('does not let a copied filing fp label a quarter that has no chain', () => {
     const result = run(
       [
         fact({
@@ -77,15 +147,17 @@ describe('fiscal labels', () => {
           filed: '2026-02-25',
           form: '10-K',
           accn: '0000320193-26-000021',
+          fy: 2026,
+          fp: 'Q1',
         }),
       ],
       { fiscalYearEndMonth: 1, asOf: '2026-03-01' },
     );
-    expect(result.data.latestQuarter).toMatchObject({
-      fiscalYear: 2025,
-      fiscalQuarter: 4,
-    });
-    expect(result.data.latestQuarter?.fiscalYear).not.toBe(2026);
+    expect(result.data.latestQuarter).toBeUndefined();
+    expect(result.data.briefing.join(' ')).toContain('not_comparable');
+    expect(JSON.stringify(result.data.latestQuarter ?? {})).not.toContain(
+      '"fiscalQuarter":1',
+    );
   });
 });
 
@@ -360,7 +432,7 @@ describe('period arithmetic', () => {
     );
   });
 
-  it('does not combine two different periods that land in one fiscal quarter', () => {
+  it('does not combine two different periods that share a quarter start', () => {
     const result = run([
       fact({
         start: '2026-01-01',
@@ -369,15 +441,96 @@ describe('period arithmetic', () => {
         accn: '0000320193-26-000001',
       }),
       fact({
-        start: '2026-01-10',
+        start: '2026-01-01',
         end: '2026-03-31',
         val: 70,
         accn: '0000320193-26-000002',
       }),
     ]);
     expect(result.data.latestQuarter).toBeUndefined();
-    expect(result.data.ttm?.revenue.reason).toBe('insufficient_periods');
+    expect(result.data.ttm?.revenue.reason).toBe('not_comparable');
     expect(JSON.stringify(result.data)).not.toContain('110');
+    expect(JSON.stringify(result.data)).not.toContain('"value":40');
+    expect(JSON.stringify(result.data)).not.toContain('"value":70');
+  });
+
+  it('withholds an unexplained later value instead of calling it a restatement', () => {
+    const period = {
+      start: '2025-09-28',
+      end: '2025-12-27',
+    };
+    const result = run(
+      [
+        fact({
+          ...period,
+          val: 143756000000,
+          filed: '2026-01-30',
+          form: '10-Q',
+          accn: '0000320193-26-000006',
+        }),
+        fact({
+          ...period,
+          val: 9000000000,
+          filed: '2026-02-15',
+          form: '10-Q',
+          accn: '0000320193-26-000007',
+        }),
+      ],
+      { fiscalYearEndMonth: 9, asOf: '2026-03-01' },
+    );
+    const text = JSON.stringify(result.data);
+    expect(text).not.toContain('9000000000');
+    expect(text).not.toContain('143756000000');
+    expect(text).not.toContain('restated');
+    expect(result.data.briefing.join(' ')).toContain('not_comparable');
+    const before = run(
+      [
+        fact({
+          ...period,
+          val: 143756000000,
+          filed: '2026-01-30',
+          form: '10-Q',
+          accn: '0000320193-26-000006',
+        }),
+        fact({
+          ...period,
+          val: 9000000000,
+          filed: '2026-02-15',
+          form: '10-Q',
+          accn: '0000320193-26-000007',
+        }),
+      ],
+      { fiscalYearEndMonth: 9, asOf: '2026-02-01' },
+    );
+    expect(before.data.latestQuarter?.revenue.value).toBe(143756000000);
+    expect(JSON.stringify(before.data)).not.toContain('9000000000');
+  });
+
+  it('keeps an amending form as a restatement and ignores a repeated comparative', () => {
+    const amended = run([
+      fact({
+        start: '2026-01-01',
+        end: '2026-03-31',
+        val: 100,
+        filed: '2026-05-01',
+        form: '10-Q',
+        accn: '0000320193-26-000001',
+      }),
+      fact({
+        start: '2026-01-01',
+        end: '2026-03-31',
+        val: 105,
+        filed: '2026-06-01',
+        form: '10-Q/A',
+        accn: '0000320193-26-000002',
+      }),
+    ]);
+    expect(amended.data.latestQuarter?.revenue).toMatchObject({
+      value: 105,
+      restated: true,
+      priorValue: 100,
+      priorAccession: '0000320193-26-000001',
+    });
   });
 
   it('marks filings stale when the newest periodic report is older than 120 days', () => {

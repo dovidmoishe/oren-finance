@@ -1,4 +1,6 @@
-import { SEC_USER_AGENT, SecEdgarClient, SecFetchError } from './sec-client';
+import { secUserAgent, SecEdgarClient, SecFetchError } from './sec-client';
+
+const USER_AGENT = secUserAgent('research@example.com');
 
 const CIK = '0000320193';
 
@@ -30,8 +32,10 @@ function client(options: {
   submissionsTtlMs?: number;
   staleGraceMs?: number;
   minIntervalMs?: number;
+  maxEntries?: number;
 }) {
   return new SecEdgarClient({
+    userAgent: USER_AGENT,
     fetch: options.fetch,
     now: () => options.now.value,
     sleep: (ms) => {
@@ -46,6 +50,7 @@ function client(options: {
     submissionsTtlMs: options.submissionsTtlMs ?? 1_000,
     staleGraceMs: options.staleGraceMs ?? 5_000,
     minIntervalMs: options.minIntervalMs ?? 200,
+    maxEntries: options.maxEntries,
   });
 }
 
@@ -67,10 +72,11 @@ describe('SEC client bounds', () => {
     await edgar.loadCompany(CIK);
     expect(sleeps).toEqual([125]);
     expect(Math.min(...sleeps)).toBeGreaterThanOrEqual(125);
-    expect(headers[0]['User-Agent']).toBe(SEC_USER_AGENT);
-    expect(headers.every((item) => item['User-Agent'] === SEC_USER_AGENT)).toBe(
+    expect(headers[0]['User-Agent']).toBe(USER_AGENT);
+    expect(headers.every((item) => item['User-Agent'] === USER_AGENT)).toBe(
       true,
     );
+    expect(USER_AGENT).not.toContain('edgar-research@oren.finance');
   });
 
   it('retries a 429 at most three times and caps Retry-After at two seconds', async () => {
@@ -159,6 +165,7 @@ describe('SEC client bounds', () => {
   it('times out and does not keep trying past the attempt cap', async () => {
     let calls = 0;
     const edgar = new SecEdgarClient({
+      userAgent: USER_AGENT,
       timeoutMs: 15,
       maxAttempts: 9,
       minIntervalMs: 125,
@@ -199,6 +206,7 @@ describe('SEC client bounds', () => {
       release = resolve;
     });
     const waiting = new SecEdgarClient({
+      userAgent: USER_AGENT,
       now: () => now.value,
       sleep: async (ms) => {
         await Promise.resolve();
@@ -235,5 +243,29 @@ describe('SEC client bounds', () => {
     await expect(edgar.loadCompany(CIK)).rejects.toMatchObject({
       reason: 'provider_unavailable',
     });
+  });
+
+  it('drops the oldest cache entries once the entry cap is reached', async () => {
+    const sleeps: number[] = [];
+    const now = { value: 0 };
+    const seen: string[] = [];
+    const edgar = client({
+      sleeps,
+      now,
+      maxEntries: 2,
+      factsTtlMs: 100_000,
+      submissionsTtlMs: 100_000,
+      fetch: async (url) => {
+        await Promise.resolve();
+        seen.push(url);
+        return response({ url }, 200, {}, url);
+      },
+    });
+    await edgar.loadCompany('0000000001');
+    const first = [...seen];
+    await edgar.loadCompany('0000000002');
+    await edgar.loadCompany('0000000001');
+    const again = seen.filter((url) => first.includes(url)).length;
+    expect(again).toBeGreaterThan(first.length);
   });
 });

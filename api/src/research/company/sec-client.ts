@@ -1,4 +1,6 @@
-export const SEC_USER_AGENT = 'Oren Finance edgar-research@oren.finance';
+export function secUserAgent(email: string): string {
+  return `Oren Finance (${email})`;
+}
 
 /** At most 8 requests/second. The SEC fair-access cap is 10. */
 const MIN_SPACING_MS = 125;
@@ -13,7 +15,13 @@ export class SecFetchError extends Error {
   readonly retryAfterMs?: number;
 
   constructor(
-    readonly reason: 'timeout' | 'rate_limited' | 'provider_unavailable',
+    readonly reason:
+      | 'timeout'
+      | 'rate_limited'
+      | 'provider_unavailable'
+      | 'sec_not_configured'
+      | 'sec_preview_disabled'
+      | 'sec_worker_unavailable',
     options?: { retryable?: boolean; retryAfterMs?: number },
   ) {
     super(reason);
@@ -57,6 +65,9 @@ export class SecEdgarClient {
   private readonly factsTtlMs: number;
   private readonly submissionsTtlMs: number;
   private readonly staleGraceMs: number;
+  private readonly maxEntries: number;
+  private readonly maxCacheBytes: number;
+  private readonly userAgent: string;
   private lastStart = Number.NEGATIVE_INFINITY;
   private tail: Promise<void> = Promise.resolve();
   private readonly cache = new Map<
@@ -76,6 +87,9 @@ export class SecEdgarClient {
     factsTtlMs?: number;
     submissionsTtlMs?: number;
     staleGraceMs?: number;
+    maxEntries?: number;
+    maxCacheBytes?: number;
+    userAgent: string;
   }) {
     this.fetchImpl = options.fetch;
     this.now = options.now ?? (() => Date.now());
@@ -98,6 +112,15 @@ export class SecEdgarClient {
     this.factsTtlMs = options.factsTtlMs ?? 6 * 60 * 60 * 1000;
     this.submissionsTtlMs = options.submissionsTtlMs ?? 60 * 60 * 1000;
     this.staleGraceMs = options.staleGraceMs ?? 7 * 24 * 60 * 60 * 1000;
+    this.maxEntries = Math.min(64, Math.max(2, options.maxEntries ?? 32));
+    this.maxCacheBytes = Math.min(
+      40_000_000,
+      Math.max(1, options.maxCacheBytes ?? 40_000_000),
+    );
+    if (!options.userAgent.trim()) {
+      throw new Error('SEC user agent is required');
+    }
+    this.userAgent = options.userAgent;
   }
 
   async loadCompany(cik: string): Promise<SecCompanySnapshot> {
@@ -144,7 +167,7 @@ export class SecEdgarClient {
     try {
       const body = await this.request(url);
       const fetchedAt = new Date(this.now()).toISOString();
-      this.cache.set(url, { body, storedAt: this.now(), fetchedAt, ttlMs });
+      this.remember(url, body, fetchedAt, ttlMs);
       return { body, fetchedAt, freshness: 'fresh' };
     } catch (error) {
       if (hit && this.now() - hit.storedAt < hit.ttlMs + this.staleGraceMs) {
@@ -164,7 +187,7 @@ export class SecEdgarClient {
             signal,
             headers: {
               Accept: 'application/json',
-              'User-Agent': SEC_USER_AGENT,
+              'User-Agent': this.userAgent,
             },
           }),
         );
@@ -242,6 +265,31 @@ export class SecEdgarClient {
       if (timer) clearTimeout(timer);
     }
   }
+
+  private remember(
+    url: string,
+    body: unknown,
+    fetchedAt: string,
+    ttlMs: number,
+  ): void {
+    this.cache.set(url, { body, storedAt: this.now(), fetchedAt, ttlMs });
+    const entries = [...this.cache.entries()].sort(
+      (a, b) => a[1].storedAt - b[1].storedAt,
+    );
+    let total = entries.reduce(
+      (sum, [, entry]) => sum + JSON.stringify(entry.body).length,
+      0,
+    );
+    for (const [key] of entries) {
+      if (this.cache.size <= this.maxEntries && total <= this.maxCacheBytes) {
+        break;
+      }
+      if (key === url && this.cache.size === 1) break;
+      const removed = this.cache.get(key);
+      this.cache.delete(key);
+      if (removed) total -= JSON.stringify(removed.body).length;
+    }
+  }
 }
 
 function retryAfterMs(header: string | null): number | undefined {
@@ -260,8 +308,9 @@ function isAbort(error: unknown): boolean {
   );
 }
 
-export function createLiveSecClient(): SecEdgarClient {
+export function createLiveSecClient(userAgent: string): SecEdgarClient {
   return new SecEdgarClient({
+    userAgent,
     fetch: async (url, init) => {
       const response = await fetch(url, {
         headers: init.headers,

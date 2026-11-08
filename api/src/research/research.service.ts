@@ -189,6 +189,9 @@ function sourceReason(error: unknown): string {
       'rate_limited',
       'provider_unavailable',
       'timeout',
+      'sec_not_configured',
+      'sec_preview_disabled',
+      'sec_worker_unavailable',
     ].includes(message)
   ) {
     return message;

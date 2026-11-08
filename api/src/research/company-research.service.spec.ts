@@ -1,9 +1,19 @@
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException } from '@nestjs/common';
+
+const verify = jest.fn();
+const getUser = jest.fn();
+jest.mock('@privy-io/node', () => ({
+  PrivyClient: jest.fn().mockImplementation(() => ({
+    utils: () => ({ auth: () => ({ verifyAccessToken: verify }) }),
+    users: () => ({ _get: getUser }),
+  })),
+}));
+
 import { ResearchController } from './research.controller';
 import { ResearchService } from './research.service';
 import { assembleCompanyResearch } from './company/assemble';
-
-jest.mock('@privy-io/node', () => ({ PrivyClient: jest.fn() }));
+import { SecFetchError } from './company/sec-client';
+import { PrivyWalletAuth } from '../auth/privy-wallet-auth';
 
 const apple = {
   id: 'apple',
@@ -149,7 +159,7 @@ describe('research service company path', () => {
     expect(mcp.analysis.data).toMatchObject({ opportunityScore: 61 });
   });
 
-  it('keeps the technical read when company facts time out and the reverse', async () => {
+  it('keeps company facts when technical analysis fails', async () => {
     const { service, intelligence } = harness();
     intelligence.getAnalysis.mockRejectedValueOnce(new Error('analysis down'));
     const report = await service.getStock('apple', caller);
@@ -160,29 +170,48 @@ describe('research service company path', () => {
     expect(report.company?.available).toBe(true);
     expect(report.portfolio.available).toBe(true);
   });
+
+  it('keeps the technical read when company facts time out', async () => {
+    const { service, sec, intelligence } = harness();
+    sec.loadCompany.mockRejectedValue(new SecFetchError('timeout'));
+    const report = await service.getStock('apple', caller);
+    expect(report.company).toMatchObject({
+      available: false,
+      reason: 'timeout',
+    });
+    expect(report.analysis.available).toBe(true);
+    expect(intelligence.getAnalysis).toHaveBeenCalledWith('apple');
+    expect(report.company?.data?.latestQuarter).toBeUndefined();
+  });
 });
 
 describe('research route', () => {
-  it('reads the authenticated wallet and does not accept another user', async () => {
+  const auth = new PrivyWalletAuth('app', 'secret');
+
+  beforeEach(() => {
+    verify.mockResolvedValue({ user_id: 'did:privy:user' });
+    getUser.mockResolvedValue({
+      linked_accounts: [
+        { type: 'wallet', chain_type: 'solana', address: 'owned' },
+      ],
+    });
+  });
+
+  it('uses PrivyWalletAuth and refuses a wallet that is not linked', async () => {
     const { service, portfolio } = harness();
-    const auth = {
-      requireResearchIdentity: jest.fn((_token: string, wallet: string) => {
-        if (wallet !== 'owned') {
-          return Promise.reject(new BadRequestException('wrong wallet'));
-        }
-        return Promise.resolve({
-          userId: 'did:privy:user',
-          walletAddress: 'owned',
-        });
-      }),
-    };
-    const controller = new ResearchController(service, auth as never);
+    const controller = new ResearchController(service, auth);
     const report = await controller.getStock('apple', 'owned', 'Bearer token');
     expect(report.portfolio.data).toMatchObject({ allocationPercent: 12.5 });
     expect(portfolio.getPortfolio).toHaveBeenCalledWith('owned');
     await expect(
       controller.getStock('apple', 'attacker', 'Bearer token'),
-    ).rejects.toBeInstanceOf(BadRequestException);
+    ).rejects.toBeInstanceOf(ForbiddenException);
     expect(portfolio.getPortfolio).not.toHaveBeenCalledWith('attacker');
+    expect(verify).toHaveBeenCalled();
+    portfolio.getPortfolio.mockClear();
+    await expect(
+      controller.getStock('apple', 'owned', undefined),
+    ).rejects.toMatchObject({ status: 401 });
+    expect(portfolio.getPortfolio).not.toHaveBeenCalled();
   });
 });

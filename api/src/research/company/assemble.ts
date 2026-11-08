@@ -184,6 +184,15 @@ function loadFailure(reason: SecFetchError['reason']): string {
   if (reason === 'rate_limited') {
     return 'SEC company facts could not be loaded because the request rate was limited.';
   }
+  if (reason === 'sec_not_configured') {
+    return 'SEC company facts are not loaded until the server contact is configured.';
+  }
+  if (reason === 'sec_preview_disabled') {
+    return 'SEC company facts are not loaded in previews.';
+  }
+  if (reason === 'sec_worker_unavailable') {
+    return 'SEC company facts are not loaded from this server process.';
+  }
   return 'SEC company facts could not be loaded.';
 }
 

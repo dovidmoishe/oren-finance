@@ -7,15 +7,9 @@ const TEN_K_URL =
   'https://www.sec.gov/Archives/edgar/data/320193/000032019326000026/0000320193-26-000026-index.html';
 
 /**
- * Revenue facts copied from the SEC companyconcept payload for
- * RevenueFromContractWithCustomerExcludingAssessedTax, CIK 0000320193,
- * fetched 2026-11-08. Expected Q4, TTM, and growth below were derived by hand
- * from these filed values, not by reimplementing the normalizer.
- *
- * Q1 143,756,000,000 + Q2 111,184,000,000 + Q3 109,417,000,000 = 364,357,000,000.
- * FY2026 478,834,000,000 - 364,357,000,000 = 114,477,000,000.
- * Those four quarters sum to the FY2026 total, 478,834,000,000.
- * (478,834,000,000 - 416,161,000,000) / 416,161,000,000 = 0.150598.
+ * Reduced assembly fixture for filing metadata, identity checks, and
+ * look-ahead. It is not an SEC response. The official companyconcept bytes
+ * and their hand-derived figures are in official-facts.spec.ts.
  */
 function revenueFacts() {
   return [

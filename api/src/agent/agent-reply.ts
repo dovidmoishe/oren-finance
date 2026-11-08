@@ -205,6 +205,7 @@ export function researchModelOutput(report: StockResearch) {
 }
 
 function companyFacts(report: StockResearch): string[] {
+  // Briefing lines are built from our templates. This filter is hygiene, not a boundary.
   return (report.company?.data?.briefing ?? []).filter(
     (line) =>
       /^[\x20-\x7E]{1,360}$/.test(line) &&
