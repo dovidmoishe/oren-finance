@@ -1,6 +1,7 @@
 import threading
 import unittest
-from admission import Admission, worker_identity
+import subprocess
+from admission import Admission, limit, worker_identity
 
 
 class AdmissionTests(unittest.TestCase):
@@ -50,6 +51,49 @@ class AdmissionTests(unittest.TestCase):
             worker_identity(os.getpid(), os.getuid() + 1)
         with self.assertRaises(ValueError):
             worker_identity(os.getpid(), os.getuid())
+
+    def test_release_restores_idle_envelope_for_the_same_worker(self):
+        calls = []
+
+        def record(uid, active):
+            calls.append((uid, active))
+
+        gate = Admission([1001, 1003], record, lambda pid, uid: f'{pid}-start')
+        self.assertEqual(calls, [(1001, False), (1003, False)])
+        stamp = gate.acquire(1001, 42)
+        self.assertEqual(calls[-1], (1001, True))
+        with self.assertRaises(ValueError):
+            gate.release(1001, 42, 'reused-pid')
+        self.assertEqual(gate.active, (1001, 42, stamp))
+        gate.release(1001, 42, stamp)
+        self.assertEqual(calls[-1], (1001, False))
+        self.assertIsNone(gate.active)
+        self.assertEqual(sum(1 for _, active in calls if active), 1)
+
+    def test_limit_commands_keep_idle_and_active_ceilings(self):
+        recorded = []
+
+        def fake_run(argv, **kwargs):
+            recorded.append((argv, kwargs))
+            return subprocess.CompletedProcess(argv, 0)
+
+        original = subprocess.run
+        subprocess.run = fake_run
+        try:
+            limit(1001, False)
+            limit(1001, True)
+        finally:
+            subprocess.run = original
+        (idle, idle_kwargs), (active, active_kwargs) = recorded
+        self.assertEqual(idle[:4], ['systemctl', 'set-property', '--runtime', 'user-1001.slice'])
+        self.assertTrue(idle_kwargs.get('check') and active_kwargs.get('check'))
+        self.assertLessEqual(idle_kwargs.get('timeout'), 15)
+        self.assertLessEqual(active_kwargs.get('timeout'), 15)
+        for ceiling in ('MemoryMax=512M', 'MemoryHigh=448M', 'CPUQuota=25%', 'MemorySwapMax=0'):
+            self.assertIn(ceiling, idle)
+        for ceiling in ('MemoryMax=3840M', 'MemoryHigh=3584M', 'CPUQuota=100%', 'MemorySwapMax=0'):
+            self.assertIn(ceiling, active)
+        self.assertNotIn('MemoryMax=512M', active)
 
 
 if __name__ == '__main__':
