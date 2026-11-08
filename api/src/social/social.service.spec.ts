@@ -1,4 +1,11 @@
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  NotFoundException,
+} from '@nestjs/common';
+import bs58 from 'bs58';
+import { generateKeyPairSync, sign as ed25519Sign } from 'node:crypto';
+import type { UpsertTraderProfileInput } from './social.repository';
 import { SocialService } from './social.service';
 
 describe('SocialService', () => {
@@ -150,28 +157,210 @@ describe('SocialService', () => {
     );
   });
 
-  it('rejects invalid signed visibility updates', async () => {
-    const wallet = '11111111111111111111111111111111';
-    const message = [
-      'Oren social profile visibility',
-      `Wallet: ${wallet}`,
-      'Public: true',
-      'Slug: alpha',
-      'Display name: Alpha',
-    ].join('\n');
+  describe('signed profile updates', () => {
+    const signer = generateKeyPairSync('ed25519');
+    const wallet = bs58.encode(
+      signer.publicKey.export({ format: 'der', type: 'spki' }).subarray(-32),
+    );
+    const sign = (message: string) =>
+      bs58.encode(ed25519Sign(null, Buffer.from(message), signer.privateKey));
 
-    socialRepository.findByWallet.mockResolvedValue(null);
+    beforeEach(() => {
+      socialRepository.findByWallet.mockResolvedValue(null);
+      socialRepository.findBySlug.mockResolvedValue(null);
+      socialRepository.upsertProfile.mockImplementation(
+        (input: UpsertTraderProfileInput) =>
+          Promise.resolve({
+            ...profileRow(input.walletAddress, input.slug, input.displayName),
+            avatarUrl: input.avatarUrl,
+            bio: input.bio,
+            isPublic: input.isPublic,
+          }),
+      );
+    });
 
-    await expect(
-      service.updateVisibility(wallet, {
+    let clock: jest.SpyInstance | undefined;
+    afterEach(() => {
+      clock?.mockRestore();
+      clock = undefined;
+    });
+
+    it('signs every field the update writes', async () => {
+      const { message } = await service.createVisibilityChallenge(wallet, {
+        isPublic: true,
+        displayName: 'Alpha\nPublic: false',
+        slug: 'alpha',
+        avatarUrl: 'https://cdn.example.com/a.png',
+        bio: 'Long-term holder',
+      });
+
+      expect(message).toContain(`Wallet: ${wallet}`);
+      expect(message).toContain('Display name: "Alpha\\nPublic: false"');
+      expect(message).toContain('Avatar URL: "https://cdn.example.com/a.png"');
+      expect(message).toContain('Bio: "Long-term holder"');
+      expect(
+        message.split('\n').filter((line) => line.startsWith('Public:')),
+      ).toEqual(['Public: true']);
+    });
+
+    it('writes only the terms the server issued', async () => {
+      const { message } = await service.createVisibilityChallenge(wallet, {
         isPublic: true,
         displayName: 'Alpha',
         slug: 'alpha',
+        bio: 'Hello',
+      });
+
+      await service.updateVisibility(wallet, {
         message,
-        signature: 'bad-signature',
-      }),
-    ).rejects.toBeInstanceOf(BadRequestException);
-    expect(socialRepository.upsertProfile).not.toHaveBeenCalled();
+        signature: sign(message),
+      });
+
+      expect(socialRepository.upsertProfile).toHaveBeenCalledWith({
+        walletAddress: wallet,
+        slug: 'alpha',
+        displayName: 'Alpha',
+        avatarUrl: null,
+        bio: 'Hello',
+        isPublic: true,
+      });
+    });
+
+    it('rejects invalid signed visibility updates without burning the challenge', async () => {
+      const { message } = await service.createVisibilityChallenge(wallet, {
+        isPublic: true,
+        displayName: 'Alpha',
+        slug: 'alpha',
+      });
+
+      await expect(
+        service.updateVisibility(wallet, {
+          message,
+          signature: 'bad-signature',
+        }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(socialRepository.upsertProfile).not.toHaveBeenCalled();
+
+      await service.updateVisibility(wallet, {
+        message,
+        signature: sign(message),
+      });
+      expect(socialRepository.upsertProfile).toHaveBeenCalledTimes(1);
+    });
+
+    it('rejects a replayed update', async () => {
+      const { message } = await service.createVisibilityChallenge(wallet, {
+        isPublic: true,
+        displayName: 'Alpha',
+        slug: 'alpha',
+      });
+      const signature = sign(message);
+
+      await service.updateVisibility(wallet, { message, signature });
+      await expect(
+        service.updateVisibility(wallet, { message, signature }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(socialRepository.upsertProfile).toHaveBeenCalledTimes(1);
+    });
+
+    it('rejects an expired challenge', async () => {
+      const issuedAt = Date.now();
+      clock = jest.spyOn(Date, 'now').mockReturnValue(issuedAt);
+      const { message } = await service.createVisibilityChallenge(wallet, {
+        isPublic: true,
+        displayName: 'Alpha',
+        slug: 'alpha',
+      });
+
+      clock.mockReturnValue(issuedAt + 5 * 60_000 + 1);
+      await expect(
+        service.updateVisibility(wallet, { message, signature: sign(message) }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(socialRepository.upsertProfile).not.toHaveBeenCalled();
+    });
+
+    it('rejects a tampered message even when the wallet signed it', async () => {
+      const { message } = await service.createVisibilityChallenge(wallet, {
+        isPublic: true,
+        displayName: 'Alpha',
+        slug: 'alpha',
+      });
+      const tampered = message.replace('Public: true', 'Public: false');
+
+      await expect(
+        service.updateVisibility(wallet, {
+          message: tampered,
+          signature: sign(tampered),
+        }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(socialRepository.upsertProfile).not.toHaveBeenCalled();
+    });
+
+    it('rejects a challenge submitted for a different wallet', async () => {
+      const other = '11111111111111111111111111111111';
+      const { message } = await service.createVisibilityChallenge(wallet, {
+        isPublic: true,
+        displayName: 'Alpha',
+        slug: 'alpha',
+      });
+
+      await expect(
+        service.updateVisibility(other, { message, signature: sign(message) }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(socialRepository.upsertProfile).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      'http://cdn.example.com/a.png',
+      'javascript:alert(1)',
+      'https://user:pw@cdn.example.com/a.png',
+      'not a url',
+    ])('rejects the avatar URL %s', async (avatarUrl) => {
+      await expect(
+        service.createVisibilityChallenge(wallet, {
+          isPublic: true,
+          displayName: 'Alpha',
+          slug: 'alpha',
+          avatarUrl,
+        }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it('rejects a bio that is too long', async () => {
+      await expect(
+        service.createVisibilityChallenge(wallet, {
+          isPublic: true,
+          displayName: 'Alpha',
+          slug: 'alpha',
+          bio: 'x'.repeat(281),
+        }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it('rejects a slug owned by another wallet', async () => {
+      socialRepository.findBySlug.mockResolvedValue(profileA);
+
+      await expect(
+        service.createVisibilityChallenge(wallet, {
+          isPublic: true,
+          displayName: 'Alpha',
+          slug: 'alpha',
+        }),
+      ).rejects.toBeInstanceOf(ConflictException);
+    });
+  });
+
+  it('never returns a stored non-https avatar to clients', async () => {
+    socialRepository.listPublicProfiles.mockResolvedValue([
+      { ...profileA, avatarUrl: 'javascript:alert(1)' },
+    ]);
+    portfolioRepository.listSnapshots.mockResolvedValue([
+      snapshot('wallet-a', 150, now),
+    ]);
+
+    const leaderboard = await service.getLeaderboard({ timeframe: '30D' });
+
+    expect(leaderboard.rows[0].avatarUrl).toBeUndefined();
   });
 });
 

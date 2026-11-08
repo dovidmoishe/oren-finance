@@ -35,6 +35,8 @@ import type {
   LeaderboardResponse,
   SocialTimeframe,
   TraderDetailResponse,
+  TraderVisibilityChallengeRequest,
+  TraderVisibilityChallengeResponse,
   UpdateTraderVisibilityRequest,
   UpdateTraderVisibilityResponse,
 } from './social';
@@ -229,6 +231,13 @@ export type GetSocialLeaderboardResponse = LeaderboardResponse;
 
 /** GET /social/traders/:slug */
 export type GetSocialTraderResponse = TraderDetailResponse;
+
+/** POST /social/profiles/:wallet/visibility/challenge */
+export type PostSocialProfileVisibilityChallengeRequest =
+  TraderVisibilityChallengeRequest;
+
+export type PostSocialProfileVisibilityChallengeResponse =
+  TraderVisibilityChallengeResponse;
 
 /** POST /social/profiles/:wallet/visibility */
 export type PostSocialProfileVisibilityRequest =

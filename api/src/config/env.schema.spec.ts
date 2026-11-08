@@ -205,3 +205,58 @@ describe('validateEnv — Drip', () => {
     expect(env.DRIP_REQUEST_TIMEOUT_MS).toBe(9000);
   });
 });
+
+describe('validateEnv — CORS_ORIGIN', () => {
+  let warn: jest.SpyInstance;
+  beforeEach(() => {
+    warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+  });
+  afterEach(() => warn.mockRestore());
+
+  const production = { ...required, DEPLOYMENT_ENV: 'production' };
+
+  it('keeps the permissive default outside production', () => {
+    expect(validateEnv(required).CORS_ORIGIN).toBe('*');
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  it('uses an explicit production origin list as is', () => {
+    expect(
+      validateEnv({
+        ...production,
+        CORS_ORIGIN: 'https://oren.finance,https://www.oren.finance',
+        MCP_APP_ORIGIN: 'https://other.example',
+      }).CORS_ORIGIN,
+    ).toBe('https://oren.finance,https://www.oren.finance');
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  it.each([undefined, '*'])(
+    'falls back to MCP_APP_ORIGIN in production when CORS_ORIGIN is %s',
+    (cors) => {
+      expect(
+        validateEnv({
+          ...production,
+          CORS_ORIGIN: cors,
+          MCP_APP_ORIGIN: 'https://oren.finance/',
+          DOMAIN: 'ignored.example',
+        }).CORS_ORIGIN,
+      ).toBe('https://oren.finance');
+      expect(warn).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it('falls back to https://DOMAIN in production', () => {
+    expect(
+      validateEnv({ ...production, CORS_ORIGIN: '*', DOMAIN: 'oren.finance' })
+        .CORS_ORIGIN,
+    ).toBe('https://oren.finance');
+    expect(warn).toHaveBeenCalledTimes(1);
+  });
+
+  it('refuses to start in production with no origin to fall back to', () => {
+    expect(() => validateEnv({ ...production, CORS_ORIGIN: '*' })).toThrow(
+      /CORS_ORIGIN/,
+    );
+  });
+});

@@ -5,6 +5,8 @@ import type {
   LeaderboardResponse,
   SocialTimeframe,
   TraderDetailResponse,
+  TraderVisibilityChallengeRequest,
+  TraderVisibilityChallengeResponse,
   UpdateTraderVisibilityRequest,
 } from "@/types";
 
@@ -31,26 +33,19 @@ export function prepareCopyPortfolio(input: {
   });
 }
 
-export function updateTraderVisibility(wallet: string, input: UpdateTraderVisibilityRequest) {
-  return apiRequest(`/social/profiles/${wallet}/visibility`, {
+/** Asks the server for the single-use message the wallet must sign. */
+export function requestVisibilityChallenge(wallet: string, input: TraderVisibilityChallengeRequest) {
+  return apiRequest<TraderVisibilityChallengeResponse>(`/social/profiles/${wallet}/visibility/challenge`, {
     method: "POST",
     body: input,
   });
 }
 
-export function buildVisibilityMessage(input: {
-  walletAddress: string;
-  isPublic: boolean;
-  slug: string;
-  displayName: string;
-}) {
-  return [
-    "Oren social profile visibility",
-    `Wallet: ${input.walletAddress}`,
-    `Public: ${input.isPublic ? "true" : "false"}`,
-    `Slug: ${input.slug}`,
-    `Display name: ${input.displayName}`,
-  ].join("\n");
+export function updateTraderVisibility(wallet: string, input: UpdateTraderVisibilityRequest) {
+  return apiRequest(`/social/profiles/${wallet}/visibility`, {
+    method: "POST",
+    body: input,
+  });
 }
 
 export function normalizeTraderSlug(value: string, fallbackWallet?: string) {

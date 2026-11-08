@@ -42,6 +42,7 @@ pub struct TopUpVault<'info> {
 pub fn handler(ctx: Context<TopUpVault>, amount: u64) -> Result<()> {
     require!(amount > 0, ErrorCode::ZeroAmount);
 
+    let vault_before = ctx.accounts.token_vault.amount;
     let cpi_program = ctx.accounts.token_program.key();
     let cpi_accounts = TransferChecked {
         from: ctx.accounts.user_token_account.to_account_info(),
@@ -53,15 +54,25 @@ pub fn handler(ctx: Context<TopUpVault>, amount: u64) -> Result<()> {
     let cpi_ctx = CpiContext::new(cpi_program, cpi_accounts);
     transfer_checked(cpi_ctx, amount, ctx.accounts.token_mint.decimals)?;
 
+    // Count what the vault received (Token-2022 transfer fees).
+    ctx.accounts.token_vault.reload()?;
+    let received = ctx
+        .accounts
+        .token_vault
+        .amount
+        .checked_sub(vault_before)
+        .ok_or(ErrorCode::DepositOverflow)?;
+    require!(received > 0, ErrorCode::ZeroAmount);
+
     let lockbox = &mut ctx.accounts.lockbox;
     lockbox.total_deposited = lockbox
         .total_deposited
-        .checked_add(amount)
+        .checked_add(received)
         .ok_or(ErrorCode::DepositOverflow)?;
 
     msg!(
         "Topped up vault with {} tokens; total deposited: {}",
-        amount,
+        received,
         lockbox.total_deposited
     );
     Ok(())

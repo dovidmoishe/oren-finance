@@ -3,6 +3,7 @@ pub mod state;
 pub mod instructions;
 pub use instructions::*;
 pub mod error;
+pub mod token_extensions;
 
 declare_id!("4yBSLwXvYQhHExDuvuuEsaHfUC392SdRSiM8r6m832Mj");
 

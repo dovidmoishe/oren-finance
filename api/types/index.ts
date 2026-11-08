@@ -108,6 +108,8 @@ export type {
   TraderDetailResponse,
   TraderProfile,
   TraderPublicProfile,
+  TraderVisibilityChallengeRequest,
+  TraderVisibilityChallengeResponse,
   UpdateTraderVisibilityRequest,
   UpdateTraderVisibilityResponse,
 } from './social';
@@ -191,6 +193,8 @@ export type {
   PostPrepareUnlockResponse,
   PostSocialCopyPortfolioPrepareRequest,
   PostSocialCopyPortfolioPrepareResponse,
+  PostSocialProfileVisibilityChallengeRequest,
+  PostSocialProfileVisibilityChallengeResponse,
   PostSocialProfileVisibilityRequest,
   PostSocialProfileVisibilityResponse,
   SearchStocksQuery,
