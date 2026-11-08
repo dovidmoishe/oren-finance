@@ -38,6 +38,11 @@ it('keeps deterministic research and portfolio context when Drip fails', async (
     get: jest.fn().mockResolvedValue(undefined),
     recordEvent: jest.fn().mockResolvedValue(undefined),
   };
+  const company = {
+    load: jest
+      .fn()
+      .mockResolvedValue({ available: false, reason: 'not_mapped' }),
+  };
   const service = new ResearchService(
     market as never,
     intelligence as never,
@@ -45,6 +50,7 @@ it('keeps deterministic research and portfolio context when Drip fails', async (
     portfolio as never,
     drip as never,
     repository as never,
+    company as never,
   );
   const report = await service.getStock('nvda', {
     userId: 'did:privy:user',
@@ -58,7 +64,14 @@ it('keeps deterministic research and portfolio context when Drip fails', async (
     available: true,
     data: { allocationPercent: 10 },
   });
-  expect(report.opinions).toMatchObject({ available: false });
+  expect(report.opinions).toMatchObject({
+    available: false,
+    reason: 'timeout',
+  });
+  expect(report.company).toMatchObject({
+    available: false,
+    reason: 'not_mapped',
+  });
   expect(drip.getOpinions).toHaveBeenCalledWith('NVDA', 40, {
     userId: 'did:privy:user',
     walletAddress: 'owned',

@@ -1,10 +1,18 @@
 import type { StockAnalysis } from './analysis';
+import type { CompanyResearchData } from './company-research';
 import type { MarketNewsItem } from './news';
 import type { Position } from './position';
 
 export interface ResearchSource<T> {
   available: boolean;
+  /** Source time kept for existing desks. Company filings also set the three clocks below. */
   observedAt?: string;
+  /** When the filer or publisher dated the evidence. */
+  publishedAt?: string;
+  /** When Oren retrieved the source payload. */
+  fetchedAt?: string;
+  /** When this report assembled the source. */
+  assembledAt?: string;
   data?: T;
   reason?: string;
 }
@@ -49,6 +57,8 @@ export interface StockResearch {
     | 'lockedAmount'
   > | null>;
   opinions: ResearchSource<OpinionOverlay>;
+  /** SEC company facts. Omitted only by older stored fixtures. */
+  company?: ResearchSource<CompanyResearchData>;
   saved?: SavedThesis;
   changes?: ResearchChange[];
 }

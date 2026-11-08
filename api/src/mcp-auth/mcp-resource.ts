@@ -39,6 +39,13 @@ export interface McpResourceDeps {
   market: MarketService;
   portfolio: PortfolioService;
   execution: ExecutionService;
+  research?: {
+    getStock(
+      assetId: string,
+      caller: { userId: string; walletAddress: string; email?: string },
+      options?: { audience?: 'app' | 'mcp' },
+    ): Promise<unknown>;
+  };
   oauth: McpOAuthRuntime;
   gate?: SignerGateClient;
   delegatedSides?: { buy: boolean; sell: boolean };
@@ -154,6 +161,62 @@ export async function handleMcpRequest(
       async ({ assetId }) => {
         const result = await deps.market.getStock(assetId);
         return { content: [{ type: 'text', text: JSON.stringify(result) }] };
+      },
+    );
+  if (connection.tokenScopes.has('oren.read'))
+    server.registerTool(
+      'get_stock_research',
+      {
+        title: 'Get stock research',
+        description:
+          'Read the cited research report for one canonical stock, including SEC company facts when the issuer is verified. Portfolio context uses the wallet approved for this connection. Writer-opinion feeds are omitted. This does not prepare or submit a trade.',
+        inputSchema: z.object({
+          assetId: z.string().trim().min(1).max(80),
+        }),
+        annotations: { readOnlyHint: true },
+      },
+      async ({ assetId }) => {
+        if (!/^[A-Za-z0-9._:-]{1,80}$/.test(assetId)) {
+          return {
+            content: [{ type: 'text' as const, text: 'Invalid asset id.' }],
+            isError: true,
+          };
+        }
+        if (!deps.research) {
+          return {
+            content: [
+              {
+                type: 'text' as const,
+                text: 'Company research is unavailable.',
+              },
+            ],
+            isError: true,
+          };
+        }
+        try {
+          const result = await deps.research.getStock(
+            assetId,
+            {
+              userId: connection.userId,
+              walletAddress: connection.wallet,
+            },
+            { audience: 'mcp' },
+          );
+          return {
+            content: [{ type: 'text' as const, text: JSON.stringify(result) }],
+          };
+        } catch (error) {
+          const message =
+            error instanceof Error &&
+            (error.message === 'Ambiguous stock' ||
+              error.message === 'Unsupported stock')
+              ? error.message
+              : 'Company research is unavailable.';
+          return {
+            content: [{ type: 'text' as const, text: message }],
+            isError: true,
+          };
+        }
       },
     );
   if (connection.tokenScopes.has('oren.trade.prepare')) {
