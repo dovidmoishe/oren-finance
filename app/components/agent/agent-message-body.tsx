@@ -5,7 +5,7 @@ import {
 } from "./agent-markdown";
 
 const linkClass =
-  "text-sky-700 underline-offset-2 hover:underline focus-visible:underline focus-visible:outline-none";
+  "text-sky-700 dark:text-sky-300 underline-offset-2 hover:underline focus-visible:underline focus-visible:outline-none";
 
 export function AgentMessageBody({ content }: { content: string }) {
   const blocks = parseAgentMessage(content);

@@ -47,9 +47,9 @@ export function AgentMessage({
   if (message.role === 'user') {
     return (
       <div className="flex justify-end">
-        <div className="max-w-[86%] rounded-[20px] rounded-br-[7px] bg-foreground px-4 py-3 text-sm leading-6 text-white">
+        <div className="max-w-[86%] rounded-[20px] rounded-br-[7px] bg-foreground px-4 py-3 text-sm leading-6 text-background">
           {message.content}
-          {message.interrupted ? <p className="mt-2 text-[10px] text-white/55">Response interrupted</p> : null}
+          {message.interrupted ? <p className="mt-2 text-[10px] text-background/55">Response interrupted</p> : null}
         </div>
       </div>
     );
@@ -163,7 +163,7 @@ export function DisconnectedState({ onConnect }: { onConnect: () => void }) {
   const auth = useOrenAuth();
   return (
     <div className="flex h-full flex-col justify-center rounded-[24px] bg-accent-pink-soft p-6">
-      <div className="grid h-12 w-12 place-items-center rounded-[18px] bg-white">
+      <div className="grid h-12 w-12 place-items-center rounded-[18px] bg-panel">
         <Icon icon={Wallet02Icon} size={20} />
       </div>
       <h3 className="mt-5 font-display text-2xl font-semibold">Your portfolio, in context.</h3>

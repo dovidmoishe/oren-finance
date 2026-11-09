@@ -142,7 +142,7 @@ function Badge({
     <span
       className={cn(
         "inline-flex rounded-full px-2.5 py-1 text-[11px] font-medium capitalize",
-        tone === "default" && "bg-foreground text-white",
+        tone === "default" && "bg-foreground text-background",
         tone === "muted" && "bg-panel-subtle text-foreground",
         tone === "warn" && "bg-accent-yellow text-foreground",
       )}
@@ -171,7 +171,7 @@ function LevelCard({
   distancePct: number;
 }) {
   return (
-    <div className="rounded-[14px] border border-border bg-white px-3 py-2">
+    <div className="rounded-[14px] border border-border bg-panel px-3 py-2">
       <p className="text-[10px] uppercase tracking-[0.12em] text-muted">{label}</p>
       <p className="mt-1 font-mono text-sm font-semibold">{formatNumber(price, 2)}</p>
       <p className="mt-0.5 text-xs text-muted">{formatSigned(distancePct)} from price</p>

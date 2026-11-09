@@ -48,7 +48,7 @@ function TraderAvatar({ row }: { row: LeaderboardRow }) {
   }
 
   return (
-    <div className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-foreground font-display text-sm font-semibold text-white">
+    <div className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-foreground font-display text-sm font-semibold text-background">
       {row.displayName.slice(0, 2).toUpperCase()}
     </div>
   );
@@ -253,7 +253,7 @@ export function Leaderboard() {
           <Card>
             <CardContent>
               <div className="flex items-center gap-3">
-                <div className="grid h-11 w-11 place-items-center rounded-full bg-foreground text-white">
+                <div className="grid h-11 w-11 place-items-center rounded-full bg-foreground text-background">
                   <HugeiconsIcon color="currentColor" icon={UserGroupIcon} size={20} strokeWidth={1.8} />
                 </div>
                 <div>

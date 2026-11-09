@@ -344,7 +344,7 @@ export function TradeGrant({ connectionUid }: { connectionUid?: string }) {
             daily limits.
           </p>
           <button
-            className="mt-4 rounded-xl bg-foreground px-4 py-2 text-white disabled:opacity-50"
+            className="mt-4 rounded-xl bg-foreground px-4 py-2 text-background disabled:opacity-50"
             type="button"
             disabled={busy || pending.wallet !== auth.address}
             onClick={() => void addSigner()}

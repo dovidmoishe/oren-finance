@@ -47,7 +47,7 @@ function TraderAvatar({ name, avatarUrl }: { name: string; avatarUrl?: string })
   }
 
   return (
-    <div className="grid h-14 w-14 shrink-0 place-items-center rounded-full bg-foreground font-display text-lg font-semibold text-white">
+    <div className="grid h-14 w-14 shrink-0 place-items-center rounded-full bg-foreground font-display text-lg font-semibold text-background">
       {name.slice(0, 2).toUpperCase()}
     </div>
   );

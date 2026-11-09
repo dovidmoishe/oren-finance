@@ -113,7 +113,7 @@ function AgentArtifactCard({
             <Metric label="Locked" value={formatCurrency(portfolio.lockedValueUsd)} />
           </div>
           {portfolio.positions.length ? (
-            <div className="mt-3 space-y-2 border-t border-black/8 pt-3">
+            <div className="mt-3 space-y-2 border-t border-foreground/8 pt-3">
               {portfolio.positions.slice(0, 3).map((position) => (
                 <div className="flex items-center justify-between text-xs" key={position.assetId}>
                   <span className="font-semibold">{position.ticker}</span>
@@ -173,14 +173,14 @@ function AgentArtifactCard({
           {analysis.summary ? (
             <p className="mt-3 text-xs leading-5 text-muted">{analysis.summary}</p>
           ) : null}
-          <details className="mt-3 rounded-[15px] border border-black/8 bg-white/40 px-3 py-2">
+          <details className="mt-3 rounded-[15px] border border-foreground/8 bg-panel/40 px-3 py-2">
             <summary className="cursor-pointer text-xs font-medium text-muted">Show details</summary>
             <div className="mt-3 flex items-center justify-between gap-3">
               <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted">Oren Score</p>
               <span className="font-display text-lg font-semibold">{Math.round(analysis.opportunityScore)}</span>
             </div>
             {analysis.technicalBrief ? (
-              <div className="mt-3 border-t border-black/8 pt-3">
+              <div className="mt-3 border-t border-foreground/8 pt-3">
                 <TechnicalBriefPanel brief={analysis.technicalBrief} compact={density !== 'rail'} />
               </div>
             ) : (
@@ -191,7 +191,7 @@ function AgentArtifactCard({
               </div>
             )}
             {analysis.highlights.length ? (
-              <div className="mt-3 border-t border-black/8 pt-3">
+              <div className="mt-3 border-t border-foreground/8 pt-3">
                 <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted">
                   Signals &amp; strengths
                 </p>
@@ -274,7 +274,7 @@ function AgentArtifactCard({
             {Number.isNaN(observedAt.getTime()) ? '' : observedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
           </p>
           {context.warnings?.length ? (
-            <p className="mt-2 rounded-[12px] bg-[#fff9c9] px-3 py-2 text-[10px] leading-4 text-muted">
+            <p className="mt-2 rounded-[12px] bg-tone-yellow px-3 py-2 text-[10px] leading-4 text-muted">
               {context.warnings.join(' ')}
             </p>
           ) : null}
@@ -287,7 +287,7 @@ function AgentArtifactCard({
           <div className="space-y-2">
             {artifact.data.slice(0, 5).map((stock, index) => (
               <Link
-                className="flex items-center justify-between rounded-[14px] bg-white/70 px-3 py-2 text-xs hover:bg-white"
+                className="flex items-center justify-between rounded-[14px] bg-panel/70 px-3 py-2 text-xs hover:bg-panel"
                 href={`/app/stocks/${stock.assetId}`}
                 key={stock.assetId}
                 onClick={onNavigate}
@@ -315,7 +315,7 @@ function AgentArtifactCard({
               {formatCurrency(artifact.data.limitPriceUsd)}
             </p>
           </div>
-          <div className="mt-3 flex items-center justify-between border-t border-black/8 pt-3 text-xs">
+          <div className="mt-3 flex items-center justify-between border-t border-foreground/8 pt-3 text-xs">
             <span className="text-muted">Notional</span>
             <span className="font-mono">{formatCurrency(artifact.data.amountUsd)}</span>
           </div>
@@ -327,7 +327,7 @@ function AgentArtifactCard({
           </div>
           <MarketSessionNotice session={artifact.data.marketSession} variant="note" />
           {artifact.data.wouldFillImmediately ? (
-            <p className="mt-3 rounded-[13px] bg-white/60 px-3 py-2 text-[11px] leading-4 text-muted">
+            <p className="mt-3 rounded-[13px] bg-panel/60 px-3 py-2 text-[11px] leading-4 text-muted">
               This limit is already through market — it may fill right after you sign.
             </p>
           ) : null}
@@ -349,7 +349,7 @@ function AgentArtifactCard({
             <div className="space-y-2">
               {artifact.data.slice(0, 5).map((order) => (
                 <div
-                  className="flex items-center justify-between rounded-[14px] bg-white/70 px-3 py-2 text-xs"
+                  className="flex items-center justify-between rounded-[14px] bg-panel/70 px-3 py-2 text-xs"
                   key={order.orderKey}
                 >
                   <span>
@@ -375,13 +375,13 @@ function AgentArtifactCard({
               <p className="text-xs text-muted">Copying {artifact.data.source.displayName}</p>
               <p className="font-display text-xl font-semibold">{formatCurrency(artifact.data.amountUsd)}</p>
             </div>
-            <span className="rounded-full bg-white/75 px-2 py-1 text-xs font-semibold">
+            <span className="rounded-full bg-panel/75 px-2 py-1 text-xs font-semibold">
               {artifact.data.allocations.length} stocks
             </span>
           </div>
           <div className="mt-3 flex flex-wrap gap-1.5">
             {artifact.data.allocations.map((allocation) => (
-              <span className="rounded-full bg-white/75 px-2 py-1 text-[11px] font-semibold" key={allocation.assetId}>
+              <span className="rounded-full bg-panel/75 px-2 py-1 text-[11px] font-semibold" key={allocation.assetId}>
                 {allocation.ticker} {formatNumber(allocation.weightPercent, 0)}%
               </span>
             ))}
@@ -403,7 +403,7 @@ function AgentArtifactCard({
                 {formatCurrency(artifact.data.days.reduce((sum, day) => sum + day.pnlUsd, 0))}
               </p>
             </div>
-            <span className="rounded-full bg-white/75 px-2 py-1 text-xs font-semibold">
+            <span className="rounded-full bg-panel/75 px-2 py-1 text-xs font-semibold">
               {artifact.data.days.filter((day) => day.hasData).length} days
             </span>
           </div>
@@ -425,7 +425,7 @@ function AgentArtifactCard({
             </span>
           </div>
           {artifact.data.contributors.length ? (
-            <div className="mt-3 space-y-2 border-t border-black/8 pt-3">
+            <div className="mt-3 space-y-2 border-t border-foreground/8 pt-3">
               {artifact.data.contributors.slice(0, 3).map((item) => (
                 <div className="flex items-center justify-between text-xs" key={item.assetId}>
                   <span className="font-semibold">{item.ticker}</span>
@@ -509,7 +509,7 @@ function QuoteArtifact({
         </div>
         <p className="font-mono text-sm font-semibold">{formatCurrency(liveQuote.amountUsd)}</p>
       </div>
-      <div className="mt-3 flex items-center justify-between border-t border-black/8 pt-3 text-xs">
+      <div className="mt-3 flex items-center justify-between border-t border-foreground/8 pt-3 text-xs">
         <span className="text-muted">Estimated receive</span>
         <span className="font-mono">{formatNumber(liveQuote.outputAmount, 6)} {liveQuote.outputSymbol}</span>
       </div>
@@ -528,7 +528,7 @@ function QuoteArtifact({
         </span>
       </div>
       <MarketSessionNotice session={liveQuote.marketSession} variant="note" />
-      <p className="mt-3 rounded-[13px] bg-white/60 px-3 py-2 text-[11px] leading-4 text-muted">
+      <p className="mt-3 rounded-[13px] bg-panel/60 px-3 py-2 text-[11px] leading-4 text-muted">
         {refreshFailed
           ? 'Could not refresh this quote. Retry to keep it actionable.'
           : isRefreshingQuote || expired
@@ -577,11 +577,11 @@ function ArtifactShell({
   return (
     <section
       className={cn(
-        'rounded-[20px] border border-black/8 p-4 shadow-[0_12px_34px_rgba(23,23,23,0.05)]',
+        'rounded-[20px] border border-foreground/8 p-4 shadow-[0_12px_34px_rgba(23,23,23,0.05)]',
         tone === 'plain' && 'bg-panel',
         tone === 'pink' && 'bg-accent-pink-soft',
-        tone === 'yellow' && 'bg-[#fff9c9]',
-        tone === 'lavender' && 'bg-[#f1edff]',
+        tone === 'yellow' && 'bg-tone-yellow',
+        tone === 'lavender' && 'bg-tone-lavender',
       )}
     >
       <div className="mb-3 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">
@@ -595,7 +595,7 @@ function ArtifactShell({
 
 function Metric({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-[14px] bg-white/70 p-3">
+    <div className="rounded-[14px] bg-panel/70 p-3">
       <p className="text-muted">{label}</p>
       <p className="mt-1 font-mono font-semibold text-foreground">{value}</p>
     </div>

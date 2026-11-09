@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import localFont from "next/font/local";
 import "./globals.css";
 import { PreviewBanner } from "@/components/preview-banner";
+import { themeBootScript } from "@/components/theme/theme-script";
 
 const neueFreigeist = localFont({
   variable: "--font-neue-freigeist",
@@ -42,7 +43,12 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     <html
       lang="en"
       className={`${neueFreigeist.variable} h-full antialiased`}
+      // The boot script sets data-theme before React hydrates.
+      suppressHydrationWarning
     >
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeBootScript }} />
+      </head>
       <body className="min-h-full">
         <PreviewBanner />
         {children}

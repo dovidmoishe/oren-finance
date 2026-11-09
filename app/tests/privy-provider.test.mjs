@@ -27,6 +27,7 @@ for (const rpcOverride of [undefined, 'https://rpc.example.invalid/private-key-m
         if (id === './auth-context') return { AuthContext: createContext({}) };
         if (id === './wallet-modal-context') return { WalletModalContext: createContext({}) };
         if (id === './privy-session') return { PrivySession: ({ children }) => children };
+        if (id === '../theme/theme') return { useResolvedTheme: () => 'light' };
         return require(id);
       },
     });

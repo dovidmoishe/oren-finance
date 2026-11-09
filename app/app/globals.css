@@ -1,5 +1,8 @@
 @import "tailwindcss";
 
+/* `dark:` utilities follow the app theme (see the dark tokens below), not the OS. */
+@custom-variant dark (&:where([data-theme="dark"] .oren-app, [data-theme="dark"] .oren-app *));
+
 /* Product density: preserve body text and root rem sizing; tighten larger UI tokens. */
 .oren-app {
   font-size: .875rem;
@@ -140,7 +143,89 @@
   --shimmer-highlight: #0d0d0d;
   --shimmer-band: 400%;
   --shimmer-ease: linear;
+  --tone-yellow: #fff9c9;
+  --tone-lavender: #f1edff;
+  --heat-up-1: #e0f8eb;
+  --heat-up-2: #b9f3d4;
+  --heat-down-1: #ffe4e6;
+  --heat-down-2: #ffc3c7;
+  --bar-lavender: #c9bde0;
+  --chart-text: #b7b7b0;
+  --chart-grid: #eeeeea;
+  --chart-grid-soft: #f5f5f2;
+  --chart-crosshair: #d6d6d0;
+  --chart-crosshair-soft: #c9c9c2;
+  --chart-line: #65625d;
+  --chart-up: #21c978;
+  --chart-down: #ff4d4d;
 }
+
+/*
+ * Dark theme for the app only (`.oren-app`): the boot script in the root layout
+ * sets data-theme; marketing pages keep their hand-painted light art.
+ * Tailwind palette colours used for alerts are remapped so red-50/red-700 etc.
+ * stay readable without touching each component.
+ */
+:root[data-theme="dark"]:has(.oren-app),
+[data-theme="dark"] .oren-app {
+  color-scheme: dark;
+  --background: #0f0f0e;
+  --foreground: #ededea;
+  --panel: #171716;
+  --panel-subtle: #20201e;
+  --muted: #a3a39c;
+  --muted-2: #6f6f69;
+  --border: #2a2a27;
+  --border-strong: #3b3b37;
+  --accent: #f2f2ef;
+  --accent-pink: #4a2c46;
+  --accent-pink-soft: #261a25;
+  --accent-yellow: #4d4512;
+  --accent-lavender: #302a4a;
+  --positive: #3ecf7e;
+  --negative: #f87171;
+  --warning: #e0a83a;
+  --focus: #5b8def;
+  --shimmer-base: #8a8a85;
+  --shimmer-highlight: #f5f5f2;
+  --tone-yellow: #2c2913;
+  --tone-lavender: #221f33;
+  --heat-up-1: #12301f;
+  --heat-up-2: #1c5233;
+  --heat-down-1: #351719;
+  --heat-down-2: #5c2428;
+  --bar-lavender: #6d5f8a;
+  --chart-text: #77776f;
+  --chart-grid: #262624;
+  --chart-grid-soft: #1f1f1d;
+  --chart-crosshair: #44443f;
+  --chart-crosshair-soft: #55554f;
+  --chart-line: #c9c6bf;
+  --chart-up: #2fd884;
+  --chart-down: #ff6161;
+
+  --color-red-50: #2b1515;
+  --color-red-100: #3a1a1a;
+  --color-red-200: #5c2626;
+  --color-red-600: #f87171;
+  --color-red-700: #fca5a5;
+  --color-red-900: #fecaca;
+  --color-green-50: #10241a;
+  --color-green-100: #153020;
+  --color-green-200: #1f4d33;
+  --color-green-800: #86efac;
+  --color-green-900: #bbf7d0;
+  --color-emerald-700: #6ee7b7;
+  --color-yellow-50: #29240f;
+  --color-yellow-200: #574a16;
+  --color-yellow-900: #fde68a;
+  --color-amber-50: #2a200d;
+  --color-amber-200: #5a4214;
+  --color-amber-300: #77571c;
+  --color-amber-900: #fcd34d;
+  --color-amber-950: #fde68a;
+}
+[data-theme="dark"] .oren-app .oren-limit-input:checked + .oren-limit-switch .oren-limit-thumb { background: var(--background); }
 
 @theme inline {
   --color-background: var(--background);
@@ -157,6 +242,13 @@
   --color-accent-pink-soft: var(--accent-pink-soft);
   --color-accent-yellow: var(--accent-yellow);
   --color-accent-lavender: var(--accent-lavender);
+  --color-tone-yellow: var(--tone-yellow);
+  --color-tone-lavender: var(--tone-lavender);
+  --color-heat-up-1: var(--heat-up-1);
+  --color-heat-up-2: var(--heat-up-2);
+  --color-heat-down-1: var(--heat-down-1);
+  --color-heat-down-2: var(--heat-down-2);
+  --color-bar-lavender: var(--bar-lavender);
   --font-sans: var(--font-neue-freigeist);
   --font-display: var(--font-neue-freigeist);
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;

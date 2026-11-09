@@ -65,15 +65,15 @@ export function EmailLogin({ onComplete }: { onComplete: () => void }) {
       </div>
       {step === "email" ? (
         <label className="block text-sm font-medium">Email address
-          <input autoComplete="email" autoFocus className="mt-2 w-full rounded-xl border border-border bg-white px-4 py-3 text-foreground" onChange={(event) => setEmail(event.target.value)} required type="email" value={email} />
+          <input autoComplete="email" autoFocus className="mt-2 w-full rounded-xl border border-border bg-panel px-4 py-3 text-foreground" onChange={(event) => setEmail(event.target.value)} required type="email" value={email} />
         </label>
       ) : (
         <label className="block text-sm font-medium">Verification code
-          <input autoComplete="one-time-code" autoFocus className="mt-2 w-full rounded-xl border border-border bg-white px-4 py-3 text-foreground" inputMode="numeric" onChange={(event) => setCode(event.target.value)} required value={code} />
+          <input autoComplete="one-time-code" autoFocus className="mt-2 w-full rounded-xl border border-border bg-panel px-4 py-3 text-foreground" inputMode="numeric" onChange={(event) => setCode(event.target.value)} required value={code} />
         </label>
       )}
       {error && <p className="text-sm text-red-700" role="alert">{error}</p>}
-      <button className="w-full rounded-xl bg-foreground px-4 py-3 text-sm font-medium text-white disabled:opacity-50" disabled={busy} type="submit">
+      <button className="w-full rounded-xl bg-foreground px-4 py-3 text-sm font-medium text-background disabled:opacity-50" disabled={busy} type="submit">
         {busy ? "Please wait…" : step === "email" ? "Continue" : "Verify and sign in"}
       </button>
       {step === "code" && <div className="flex justify-between text-sm"><button disabled={busy} onClick={() => { setStep("email"); setError(undefined); }} type="button">Change email</button><button disabled={busy} onClick={() => void requestCode()} type="button">Resend code</button></div>}

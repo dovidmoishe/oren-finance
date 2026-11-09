@@ -16,6 +16,7 @@ import type {
 } from "lightweight-charts";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Button, EmptyState, LoadingState, Tabs, cn, formatCurrency, formatDate, formatPercent } from "@/components/ui";
+import { useResolvedTheme } from "@/components/theme/theme";
 
 // lightweight-charts is only needed once there is data to draw, so it loads on
 // demand instead of with every page that shows a chart card.
@@ -135,6 +136,8 @@ export function MarketChart({
   const lineSeriesData = useMemo(() => buildLineData(lineData), [lineData]);
   const candleSeriesData = useMemo(() => buildCandleData(candleData), [candleData]);
   const hasData = effectiveMode === "candles" ? candleSeriesData.length > 0 : lineSeriesData.length > 0;
+  // The chart draws on canvas, so it reads the theme tokens and is rebuilt when the theme changes.
+  const theme = useResolvedTheme();
 
   useEffect(() => {
     const container = containerRef.current;
@@ -147,16 +150,18 @@ export function MarketChart({
     void loadChartLibrary().then(({ CandlestickSeries, ColorType, CrosshairMode, LineSeries, LineStyle, createChart }) => {
       if (disposed) return;
       setLibraryFailed(false);
+      const styles = getComputedStyle(container);
+      const token = (name: string) => styles.getPropertyValue(name).trim();
       const chart = createChart(container, {
         autoSize: true,
         layout: {
           background: { color: "transparent", type: ColorType.Solid },
-          textColor: "#b7b7b0",
+          textColor: token("--chart-text"),
           fontFamily: "var(--font-neue-freigeist)",
         },
         grid: {
-          horzLines: { color: "#eeeeea", style: LineStyle.Dotted },
-          vertLines: { color: "#f5f5f2", style: LineStyle.Dotted },
+          horzLines: { color: token("--chart-grid"), style: LineStyle.Dotted },
+          vertLines: { color: token("--chart-grid-soft"), style: LineStyle.Dotted },
         },
         rightPriceScale: {
           borderVisible: false,
@@ -172,8 +177,8 @@ export function MarketChart({
         },
         crosshair: {
           mode: CrosshairMode.Magnet,
-          vertLine: { color: "#d6d6d0", labelVisible: false, style: LineStyle.Solid },
-          horzLine: { color: "#c9c9c2", labelVisible: false, style: LineStyle.Dashed },
+          vertLine: { color: token("--chart-crosshair"), labelVisible: false, style: LineStyle.Solid },
+          horzLine: { color: token("--chart-crosshair-soft"), labelVisible: false, style: LineStyle.Dashed },
         },
         handleScale: true,
         handleScroll: true,
@@ -183,22 +188,22 @@ export function MarketChart({
 
       if (effectiveMode === "candles") {
         const series = chart.addSeries(CandlestickSeries, {
-          upColor: "#21c978",
-          downColor: "#ff4d4d",
-          borderUpColor: "#21c978",
-          borderDownColor: "#ff4d4d",
-          wickUpColor: "#21c978",
-          wickDownColor: "#ff4d4d",
+          upColor: token("--chart-up"),
+          downColor: token("--chart-down"),
+          borderUpColor: token("--chart-up"),
+          borderDownColor: token("--chart-down"),
+          wickUpColor: token("--chart-up"),
+          wickDownColor: token("--chart-down"),
         });
         series.setData(candleSeriesData);
         seriesRef.current = series;
       } else {
         const series = chart.addSeries(LineSeries, {
-          color: "#65625d",
+          color: token("--chart-line"),
           lineWidth: 2,
           lastValueVisible: false,
           priceLineVisible: true,
-          priceLineColor: "#c9c9c2",
+          priceLineColor: token("--chart-crosshair-soft"),
           priceLineStyle: LineStyle.Dashed,
         });
         series.setData(lineSeriesData);
@@ -256,7 +261,7 @@ export function MarketChart({
       disposed = true;
       dispose?.();
     };
-  }, [candleSeriesData, effectiveMode, error, hasData, lineSeriesData, loading]);
+  }, [candleSeriesData, effectiveMode, error, hasData, lineSeriesData, loading, theme]);
 
   return (
     <section className={cn("flex flex-col rounded-[24px] border border-border bg-panel shadow-[0_18px_60px_rgba(23,23,23,0.025)]", compact ? "p-3" : "p-[var(--app-card-padding,1.5rem)]", className)}>

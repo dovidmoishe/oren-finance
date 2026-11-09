@@ -87,7 +87,7 @@ export function McpConnections({ connectionUid }: { connectionUid?: string }) {
       </p>
       {!authenticated && (
         <button
-          className="mt-6 rounded-xl bg-foreground px-5 py-3 text-white"
+          className="mt-6 rounded-xl bg-foreground px-5 py-3 text-background"
           onClick={open}
           type="button"
         >

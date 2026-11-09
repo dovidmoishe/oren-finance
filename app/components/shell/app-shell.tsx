@@ -12,6 +12,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { OrenLogo } from "@/components/brand/oren-logo";
 import { AccountMenu } from "./account-menu";
+import { ThemeMenu } from "@/components/theme/theme-menu";
 import { PendingApprovalNotice } from "@/components/trading/pending-approval-notice";
 import { Button, cn } from "@/components/ui";
 import { useAgentStore } from "@/store";
@@ -73,6 +74,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             })}
           </nav>
           <div aria-label="Your account" className="flex items-center gap-2 justify-self-end">
+            <ThemeMenu />
             <AccountMenu />
           </div>
         </div>
@@ -88,7 +90,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <div className="mx-auto flex max-w-[1540px] justify-end">
             <Button
               aria-label="Open Oren"
-              className="pointer-events-auto h-12 w-12 overflow-visible rounded-[20px] bg-foreground text-white shadow-[0_18px_50px_rgba(23,23,23,0.24)] transition-[background-color,transform] hover:scale-[1.04] hover:bg-black/85"
+              className="pointer-events-auto h-12 w-12 overflow-visible rounded-[20px] bg-foreground text-background shadow-[0_18px_50px_rgba(23,23,23,0.24)] transition-[background-color,transform] hover:scale-[1.04] hover:bg-foreground/85"
               id="oren-agent-launcher"
               onClick={() => setPanelOpen(true)}
               size="icon"

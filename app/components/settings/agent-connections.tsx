@@ -113,7 +113,7 @@ function ConnectionsContent({ connectionUid }: { connectionUid?: string }) {
                 {result.connections.map((connection, index) => (
                   <li key={connection.grantId} className="p-5 sm:p-6">
                     <div className="flex flex-wrap items-start justify-between gap-4">
-                      <div className="flex min-w-0 items-center gap-3"><span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-border bg-white"><AgentClientLogo kind={connection.clientKind} size={24} /></span><div className="min-w-0"><h3 className="font-semibold">{agentClient(connection.clientKind)?.name ?? `Agent connection ${index + 1}`}</h3><p className="mt-1 text-xs text-muted">Connected {new Date(connection.createdAt).toLocaleDateString()}</p></div></div>
+                      <div className="flex min-w-0 items-center gap-3"><span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-border bg-panel"><AgentClientLogo kind={connection.clientKind} size={24} /></span><div className="min-w-0"><h3 className="font-semibold">{agentClient(connection.clientKind)?.name ?? `Agent connection ${index + 1}`}</h3><p className="mt-1 text-xs text-muted">Connected {new Date(connection.createdAt).toLocaleDateString()}</p></div></div>
                       <span className="rounded-full border border-border bg-background px-3 py-1 text-xs font-medium">{accessLabel(connection.scopes)}</span>
                     </div>
                     {connection.nativeClient && <p className="mt-3 text-xs text-muted">Local app connection. The label comes from its registered callback; Oren cannot verify the receiving app.</p>}

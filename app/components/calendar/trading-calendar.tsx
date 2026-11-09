@@ -55,10 +55,10 @@ function dayClass(day: TradingCalendarDaySummary, maxMove: number) {
   if (!day.hasData) return "bg-panel-subtle text-muted";
   const intensity = Math.min(1, Math.abs(day.pnlUsd) / Math.max(maxMove, 1));
   if (day.pnlUsd > 0) {
-    return intensity > 0.66 ? "bg-positive text-white" : intensity > 0.33 ? "bg-[#b9f3d4]" : "bg-[#e0f8eb]";
+    return intensity > 0.66 ? "bg-positive text-white" : intensity > 0.33 ? "bg-heat-up-2" : "bg-heat-up-1";
   }
   if (day.pnlUsd < 0) {
-    return intensity > 0.66 ? "bg-negative text-white" : intensity > 0.33 ? "bg-[#ffc3c7]" : "bg-[#ffe4e6]";
+    return intensity > 0.66 ? "bg-negative text-white" : intensity > 0.33 ? "bg-heat-down-2" : "bg-heat-down-1";
   }
   return "bg-panel text-foreground";
 }
