@@ -31,6 +31,7 @@ export function AgentComposerView({
           aria-label="Ask Oren"
           className="max-h-32 min-h-12 w-full resize-none bg-transparent px-2 py-2 text-sm leading-6 outline-none placeholder:text-muted-2"
           disabled={!connected || isSending}
+          maxLength={4000}
           onChange={(event) => onComposerChange(event.target.value)}
           onKeyDown={(event) => {
             if (event.key === 'Enter' && !event.shiftKey) {

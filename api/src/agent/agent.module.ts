@@ -15,6 +15,7 @@ import { AgentRepository } from './agent.repository';
 import { AgentService } from './agent.service';
 import { openAiClientProvider } from './openai.provider';
 import { AgentToolRegistry } from './tools/agent-tool.registry';
+import { AgentUsageLimit, PaidProviderToolBudget } from '../common/rate-limit';
 
 @Module({
   imports: [
@@ -36,6 +37,8 @@ import { AgentToolRegistry } from './tools/agent-tool.registry';
     AgentRepository,
     AgentToolRegistry,
     AgentService,
+    AgentUsageLimit,
+    PaidProviderToolBudget,
   ],
   exports: [AgentService, AgentToolRegistry],
 })

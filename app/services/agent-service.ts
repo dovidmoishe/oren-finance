@@ -2,6 +2,11 @@ import { apiRequest, ApiError, buildApiUrl } from './api-client';
 import { mapStockDetail, mapStockSummary } from './market-service';
 import { mapPortfolio } from './portfolio-service';
 import { parseAgentSseChunk } from './agent-sse';
+import {
+  SESSION_PROVIDER_WAIT_MS,
+  sessionAuthorization,
+  setSessionTokenProvider,
+} from './session-token';
 import type {
   AgentArtifact,
   AgentDisplayMessage,
@@ -14,15 +19,11 @@ import type {
 
 type UnknownRecord = Record<string, unknown>;
 
-let agentTokenProvider: (() => Promise<string | null>) | undefined;
+/** Kept for existing callers; the provider is shared with other owner-only routes. */
+export const setAgentTokenProvider = setSessionTokenProvider;
 
-export function setAgentTokenProvider(provider?: () => Promise<string | null>) {
-  agentTokenProvider = provider;
-}
-
-async function agentAuthorization(): Promise<Record<string, string>> {
-  const token = await agentTokenProvider?.();
-  return token ? { Authorization: `Bearer ${token}` } : {};
+function agentAuthorization(): Promise<Record<string, string>> {
+  return sessionAuthorization(SESSION_PROVIDER_WAIT_MS);
 }
 
 export async function sendAgentMessage(request: AgentRequest) {
