@@ -22,16 +22,18 @@ A second `oren-build` listener on the existing build UID would share `user-<buil
 
 ## Order
 
-Run as root, from a reviewed checkout, only when `infra/ci/heavy-pair.sh check` says the slices are inside the idle floor and no `Runner.Worker` exists. App lint, control, build, and release all count.
+`apply` does not trust a single idle sample. It checks release, build, build-2, and light group membership first, and it refuses before copying any installed file if one of those accounts is in `docker` or `sudo`, or if light is in `oren-ci-workers`. It then SIGSTOPs `Runner.Listener` only. It does not signal `Runner.Worker`. It polls until every worker has exited and the build, build-2, release, and light slices are inside the idle floor, and until a live light permit pid is gone. If that wait times out, listeners are continued and nothing is replaced. Active jobs are not killed.
+
+Only after that wait does it create `oren-ci-build-2` and `oren-ci-light` if they are missing, write the root-owned `oren-runner-build-2.service` (UMask 0022, the heavy hooks, and `DOCKER_HOST` for the new UID) and the light unit, install rootless Docker for build-2, and restart admission. The light account exists before that restart, so the light socket is opened. Runners are not registered by `apply`.
 
 ```bash
 bash infra/ci/heavy-pair.sh check
 bash infra/ci/heavy-pair.sh apply
 ```
 
-`apply` returns before creating the user, copying files, or restarting admission when that check fails. `stage <dir>` can copy the files outside `/opt/oren-ci`, `/etc/systemd`, and `/home`.
+`stage <dir>` can copy the files outside `/opt/oren-ci`, `/etc/systemd`, and `/home`.
 
-Then register the second build runner. The token is read from stdin and is not stored. This does not restart admission.
+Then register the second build runner. The unit file must already exist; registration does not create it. The token is read from stdin and is not stored. This does not restart admission.
 
 ```bash
 gh api --method POST repos/dovidmoishe/oren-finance/actions/runners/registration-token --jq .token | bash infra/ci/register-build-2.sh

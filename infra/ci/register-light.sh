@@ -8,6 +8,11 @@ account=oren-ci-light
 [[ " $(id -nG "$account") " != *' oren-ci-workers '* ]]
 id=$(id -u "$account")
 [[ -f /etc/systemd/system/user-$id.slice.d/oren-ci.conf ]]
+unit=/home/$account/.config/systemd/user/oren-runner-light.service
+[[ -f $unit ]]
+grep -q '^UMask=0022$' "$unit"
+grep -q '^Environment=ACTIONS_RUNNER_HOOK_JOB_STARTED=/opt/oren-ci/bin/light-started.sh$' "$unit"
+grep -q '^Environment=ACTIONS_RUNNER_HOOK_JOB_COMPLETED=/opt/oren-ci/bin/light-completed.sh$' "$unit"
 read -r TOKEN
 TOKEN=${TOKEN//$'\r'/}
 [[ -n $TOKEN ]]

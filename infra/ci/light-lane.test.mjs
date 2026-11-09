@@ -171,4 +171,82 @@ test('the second heavy account is a separate UID and does not widen release', ()
   assert.match(register, /id" != "\$\(id -u oren-ci-build\)/);
   assert.match(register, /admission was not restarted and release was not changed/);
   assert.doesNotMatch(text('./job-started.sh'), /oren-ci-build-2[\s\S]{0,80}trusted-job/);
+  const registerAt = register.indexOf('systemctl --user enable --now oren-runner-build-2.service');
+  assert.ok(register.indexOf('UMask=0022') !== -1 && register.indexOf('UMask=0022') < registerAt);
+  assert.ok(register.indexOf('DOCKER_HOST=unix:///run/user/$id/docker.sock') < registerAt);
+});
+
+test('migration preflight and a live worker abort before any installed file changes', () => {
+  const probe = spawnSync('bash', ['-c', `
+    set -euo pipefail
+    source infra/ci/heavy-pair.sh
+    touched=$(mktemp)
+    rm -f "$touched"
+    install_atomic() { echo mutated >"$touched"; }
+    mutate_installed_files() { echo mutated >"$touched"; }
+    account_exists() { [[ $1 == oren-ci-release ]]; }
+    account_groups() { echo 'oren-ci-release docker'; }
+    set +e
+    preflight_privileges
+    status=$?
+    set -e
+    test "$status" -eq 2
+    test ! -e "$touched"
+    account_exists() { return 1; }
+    account_groups() { echo 'oren-ci-release'; }
+    safety_reason() { echo 'runner worker still exists'; }
+    signals=$(mktemp)
+    signal_listener() { echo "$1 $2" >> "$signals"; }
+    listeners=$(mktemp)
+    printf '4242\\n' > "$listeners"
+    export LISTENER_LIST_FILE=$listeners DRAIN_ATTEMPTS=2 DRAIN_SLEEP=0
+    set +e
+    cmd_apply
+    status=$?
+    set -e
+    test "$status" -eq 2
+    test ! -e "$touched"
+    grep -q '^STOP 4242$' "$signals"
+    safety_reason() { echo 'light permit still held'; }
+    set +e
+    cmd_rollback /tmp/does-not-need-to-exist
+    status=$?
+    set -e
+    test "$status" -eq 2
+    test ! -e "$touched"
+    rm -f "$touched" "$signals" "$listeners"
+  `], { encoding: 'utf8', cwd: repo });
+  assert.equal(probe.status, 0, `${probe.stdout}\n${probe.stderr}`);
+});
+
+test('build-2 unit is installed with the heavy hook environment before registration', () => {
+  const probe = spawnSync('bash', ['-c', `
+    set -euo pipefail
+    source infra/ci/heavy-pair.sh
+    root=$(mktemp -d)
+    UNIT_ROOT=$root
+    write_runner_unit oren-ci-build-2 1099 build-2
+    unit=$root/oren-runner-build-2.service
+    grep -q '^UMask=0022$' "$unit"
+    grep -q '^Environment=DOCKER_HOST=unix:///run/user/1099/docker.sock$' "$unit"
+    grep -q '^Environment=ACTIONS_RUNNER_HOOK_JOB_STARTED=/opt/oren-ci/bin/job-started.sh$' "$unit"
+    grep -q '^Environment=ACTIONS_RUNNER_HOOK_JOB_COMPLETED=/opt/oren-ci/bin/job-completed.sh$' "$unit"
+    rm -rf "$root"
+  `], { encoding: 'utf8', cwd: repo });
+  assert.equal(probe.status, 0, `${probe.stdout}\n${probe.stderr}`);
+});
+
+test('a live light permit blocks restart even when the heavy slices are idle', () => {
+  const probe = spawnSync('bash', ['-c', `
+    set -euo pipefail
+    source infra/ci/light-lane.sh
+    lease=$(mktemp)
+    printf '1004 %s stamp\\n' $$ > "$lease"
+    export LIGHT_LEASE_FILE=$lease
+    light_permit_busy
+    reason=$(safety_reason)
+    test "$reason" = 'light permit still held'
+    rm -f "$lease"
+  `], { encoding: 'utf8', cwd: repo });
+  assert.equal(probe.status, 0, `${probe.stdout}\n${probe.stderr}`);
 });

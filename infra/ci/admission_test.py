@@ -451,6 +451,36 @@ class AdmissionTests(unittest.TestCase):
         self.assertNotIn('light', results)
         self.assertIsNone(gate.light_lease)
 
+    def test_restart_restores_a_live_light_permit_and_does_not_grant_another(self):
+        directory = tempfile.mkdtemp()
+        path = os.path.join(directory, 'light-lease')
+        with open(path, 'w') as handle:
+            handle.write('1004 77 stamp\n')
+        alive = {'stamp': 'stamp'}
+
+        def identity(pid, uid):
+            return alive['stamp'] if pid == 77 else 'other'
+
+        gate = Admission([1001], lambda *args: None, lambda pid, uid: str(pid),
+                         available=lambda: 1 << 62, light_running=lambda: False,
+                         light_configured=lambda: True, light_uid=1004,
+                         light_identity=identity, light_status_path=path,
+                         heavy_slots=2)
+        self.assertEqual(gate.light_lease, (77, 'stamp'))
+        with self.assertRaises(TimeoutError):
+            gate.acquire_light(88, timeout=0.25)
+        self.assertEqual(gate.light_lease, (77, 'stamp'))
+        alive['stamp'] = 'gone'
+        gate.release_if_light_gone()
+        self.assertIsNone(gate.light_lease)
+        with open(path) as handle:
+            self.assertEqual(handle.read(), '')
+        granted = gate.acquire_light(88, timeout=1)
+        self.assertEqual(gate.light_lease[0], 88)
+        with open(path) as handle:
+            self.assertIn('1004 88 ', handle.read())
+        self.assertTrue(granted)
+
 
 if __name__ == '__main__':
     unittest.main()

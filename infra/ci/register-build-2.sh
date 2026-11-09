@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Register only oren-vps-build-2 with the existing oren-build label.
-# A second listener on oren-ci-build is refused: that UID already owns the
-# first heavy slice. This does not restart admission or change release.
+# The root-owned user unit must already exist. This script does not create it
+# and does not restart admission or change the release account.
 set -euo pipefail
 [[ $EUID == 0 ]]
 account=oren-ci-build-2
@@ -10,6 +10,12 @@ account=oren-ci-build-2
 id=$(id -u "$account")
 [[ "$id" != "$(id -u oren-ci-build)" ]]
 [[ -f /etc/systemd/system/user-$id.slice.d/oren-ci.conf ]]
+unit=/home/$account/.config/systemd/user/oren-runner-build-2.service
+[[ -f $unit ]]
+grep -q '^UMask=0022$' "$unit"
+grep -q "^Environment=DOCKER_HOST=unix:///run/user/$id/docker.sock$" "$unit"
+grep -q '^Environment=ACTIONS_RUNNER_HOOK_JOB_STARTED=/opt/oren-ci/bin/job-started.sh$' "$unit"
+grep -q '^Environment=ACTIONS_RUNNER_HOOK_JOB_COMPLETED=/opt/oren-ci/bin/job-completed.sh$' "$unit"
 read -r TOKEN
 TOKEN=${TOKEN//$'\r'/}
 [[ -n $TOKEN ]]

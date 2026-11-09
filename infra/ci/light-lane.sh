@@ -54,14 +54,32 @@ worker_count() {
 }
 
 heavy_uids() {
-  id -u oren-ci-build
-  id -u oren-ci-release
+  local account
+  # build-2 and light are included once those accounts exist. A rollback
+  # that only looks at the original build and release UIDs would restart
+  # admission while the new slice or a light permit is still live.
+  for account in oren-ci-build oren-ci-build-2 oren-ci-release oren-ci-light; do
+    if id "$account" >/dev/null 2>&1; then
+      id -u "$account"
+    fi
+  done
+}
+
+light_permit_busy() {
+  local file=${LIGHT_LEASE_FILE:-/run/oren-ci-status/light-lease} pid
+  [[ -f $file ]] || return 1
+  pid=$(awk 'NR==1 {print $2}' "$file")
+  [[ -n ${pid:-} && -d /proc/$pid ]]
 }
 
 safety_reason() {
   local workers uid reason usages=()
   workers=$(worker_count)
   workers=${workers// /}
+  if light_permit_busy; then
+    printf 'light permit still held\n'
+    return 0
+  fi
   for uid in $(heavy_uids); do
     usages+=("$(usage_of "$uid")")
   done
@@ -156,6 +174,11 @@ cmd_apply() {
     return 2
   fi
   [[ ${EUID:-} == 0 ]] || { echo 'apply must run as root' >&2; return 1; }
+  if ! id oren-ci-light >/dev/null 2>&1; then
+    useradd --create-home --shell /bin/bash oren-ci-light
+  fi
+  [[ " $(id -nG oren-ci-light) " != *' docker '* && " $(id -nG oren-ci-light) " != *' sudo '* ]]
+  [[ " $(id -nG oren-ci-light) " != *' oren-ci-workers '* ]]
   local stamp
   stamp=$(date -u +%Y%m%dT%H%M%SZ)
   backup=${HOST_ROOT:-}/root/oren-ci-light-backup-$stamp
@@ -171,11 +194,6 @@ cmd_apply() {
   install_atomic "$SOURCE/light-started.sh" "$live/light-started.sh" 755
   install_atomic "$SOURCE/light-completed.sh" "$live/light-completed.sh" 755
   chown root:root "$live/admission.py" "$live/budgets.json" "$live/light-started.sh" "$live/light-completed.sh"
-  if ! id oren-ci-light >/dev/null 2>&1; then
-    useradd --create-home --shell /bin/bash oren-ci-light
-  fi
-  [[ " $(id -nG oren-ci-light) " != *' docker '* && " $(id -nG oren-ci-light) " != *' sudo '* ]]
-  [[ " $(id -nG oren-ci-light) " != *' oren-ci-workers '* ]]
   local light_id
   light_id=$(id -u oren-ci-light)
   write_light_slice "$light_id" "${HOST_ROOT:-}/etc/systemd/system/user-$light_id.slice.d/oren-ci.conf"

@@ -258,7 +258,8 @@ class Admission:
                  protector=protect, diagnostic_path=None, no_progress_limit=NO_PROGRESS_LIMIT,
                  available=None, light_running=None, status_path=None,
                  heavy_slots=None, light_uid=None, light_identity=None,
-                 light_configured=None, light_usage=None, control_usage=None):
+                 light_configured=None, light_usage=None, control_usage=None,
+                 light_status_path=None):
         self.users = list(users)
         self.limiter = limiter
         self.identity = identity
@@ -280,6 +281,12 @@ class Admission:
         self.light_uid = light_uid
         self.light_identity = light_identity or light_process_identity
         self.status_path = status_path
+        if light_status_path is not None:
+            self.light_status_path = light_status_path
+        elif status_path:
+            self.light_status_path = str(Path(status_path).with_name('light-lease'))
+        else:
+            self.light_status_path = None
         self.condition = threading.Condition()
         self.leases = {}
         self.light_lease = None
@@ -311,13 +318,14 @@ class Admission:
 
     def restore_lease(self):
         """Reload leases written before a crash. Do not invent one."""
-        if not self.status_path:
-            return
-        try:
-            with open(self.status_path) as handle:
-                lines = [line.split() for line in handle.read().splitlines() if line.split()]
-        except OSError:
-            return
+        if self.status_path:
+            try:
+                with open(self.status_path) as handle:
+                    lines = [line.split() for line in handle.read().splitlines() if line.split()]
+            except OSError:
+                lines = []
+        else:
+            lines = []
         for parts in lines:
             if len(parts) != 3:
                 continue
@@ -336,6 +344,33 @@ class Admission:
                 continue
             self.leases[uid] = (pid, stamp)
             self.held.add(uid)
+        self._restore_light()
+
+    def _restore_light(self):
+        """A crash must not forget a live light permit and hand out another."""
+        if not self.light_status_path or self.light_uid is None:
+            return
+        try:
+            with open(self.light_status_path) as handle:
+                parts = handle.read().split()
+        except OSError:
+            return
+        if len(parts) != 3:
+            return
+        try:
+            uid = int(parts[0])
+            pid = int(parts[1])
+        except ValueError:
+            return
+        stamp = parts[2]
+        if uid != self.light_uid:
+            return
+        try:
+            if self.light_identity(pid, uid) != stamp:
+                return
+        except (OSError, ValueError, KeyError):
+            return
+        self.light_lease = (pid, stamp)
 
     def settle(self, uid):
         """Startup must not retune a slice that still has a live worker."""
@@ -483,6 +518,7 @@ class Admission:
                     self._wait(deadline, pid, self.light_uid, stamp, identity=self.light_identity)
                     continue
                 self.light_lease = (pid, stamp)
+                self._write_light_status()
                 return stamp
 
     def _write_status(self):
@@ -502,6 +538,44 @@ class Admission:
             os.chmod(self.status_path, 0o644)
         except OSError as error:
             print(f'oren-ci admission: status write failed: {error}', file=sys.stderr)
+
+    def _write_light_status(self):
+        if not self.light_status_path:
+            return
+        if self.light_lease is None:
+            payload = b''
+        else:
+            pid, stamp = self.light_lease
+            payload = f'{self.light_uid} {pid} {stamp}\n'.encode()
+        try:
+            directory = os.path.dirname(self.light_status_path)
+            if directory:
+                os.makedirs(directory, mode=0o755, exist_ok=True)
+            descriptor = os.open(self.light_status_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o644)
+            try:
+                os.write(descriptor, payload)
+            finally:
+                os.close(descriptor)
+            os.chmod(self.light_status_path, 0o644)
+        except OSError as error:
+            print(f'oren-ci admission: light status write failed: {error}', file=sys.stderr)
+
+    def release_if_light_gone(self):
+        with self.condition:
+            lease = self.light_lease
+            uid = self.light_uid
+        if lease is None or uid is None:
+            return
+        pid, stamp = lease
+        try:
+            if self.light_identity(pid, uid) == stamp:
+                return
+        except (OSError, ValueError, KeyError):
+            pass
+        try:
+            self.release_light(pid, stamp)
+        except ValueError:
+            return
 
     def release_if_worker_gone(self):
         with self.condition:
@@ -534,6 +608,7 @@ class Admission:
             if self.light_lease != (pid, stamp):
                 raise ValueError('light lease mismatch')
             self.light_lease = None
+            self._write_light_status()
             self.condition.notify_all()
 
     def _finish_idle(self, uid):
@@ -637,6 +712,7 @@ def _reap(admission):
     while True:
         try:
             admission.release_if_worker_gone()
+            admission.release_if_light_gone()
         except (OSError, RuntimeError, subprocess.SubprocessError) as error:
             print(f'oren-ci admission: lease check failed: {error}', file=sys.stderr)
         for uid in list(admission.held):
