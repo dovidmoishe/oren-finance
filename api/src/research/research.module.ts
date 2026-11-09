@@ -5,6 +5,7 @@ import { IntelligenceModule } from '../intelligence/intelligence.module';
 import { MarketModule } from '../market/market.module';
 import { NewsModule } from '../news/news.module';
 import { PortfolioModule } from '../portfolio/portfolio.module';
+import { CompanyResearchService } from './company/company-research.service';
 import { ResearchController } from './research.controller';
 import { ResearchRepository } from './research.repository';
 import { ResearchService } from './research.service';
@@ -19,7 +20,7 @@ import { ResearchService } from './research.service';
     PortfolioModule,
   ],
   controllers: [ResearchController],
-  providers: [ResearchRepository, ResearchService],
+  providers: [ResearchRepository, CompanyResearchService, ResearchService],
   exports: [ResearchService],
 })
 export class ResearchModule {}

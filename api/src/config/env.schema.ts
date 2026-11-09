@@ -102,6 +102,11 @@ export interface AppEnv {
   VAULT_PROGRAM_ID: string;
   /** When false, vault prepare/confirm routes return 503. Defaults to false until the program is deployed. */
   VAULT_PROGRAM_LIVE: boolean;
+  /**
+   * Operator mailbox for the SEC EDGAR User-Agent. Unset or invalid disables
+   * company-facts fetches. Do not invent an address.
+   */
+  SEC_CONTACT_EMAIL?: string;
 }
 
 const REQUIRED = ['POSTGRES_URL', 'TOKENS_API_KEY', 'ALCHEMY_API_KEY'] as const;
@@ -411,5 +416,13 @@ export function validateEnv(env: EnvSource = process.env): AppEnv {
     VAULT_PROGRAM_ID:
       readEnv(env, 'VAULT_PROGRAM_ID') || DEFAULT_VAULT_PROGRAM_ID,
     VAULT_PROGRAM_LIVE: readBool(env, 'VAULT_PROGRAM_LIVE', false),
+    SEC_CONTACT_EMAIL: secContactEmail(readEnv(env, 'SEC_CONTACT_EMAIL')),
   };
+}
+
+function secContactEmail(value: string | undefined): string | undefined {
+  if (!value || value.length > 254) return undefined;
+  return /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/.test(value)
+    ? value
+    : undefined;
 }
