@@ -18,6 +18,7 @@ import {
   mcpApiTradeAuthorizations,
 } from './database/schema';
 import { MarketService } from './market/market.service';
+import { ResearchService } from './research/research.service';
 import { PortfolioService } from './portfolio/portfolio.service';
 import { ExecutionService } from './execution/execution.service';
 import { handleMcpRequest } from './mcp-auth/mcp-resource';
@@ -106,6 +107,7 @@ async function bootstrap() {
       auth: identity,
       market: app.get(MarketService, { strict: false }),
       portfolio: app.get(PortfolioService, { strict: false }),
+      research: app.get(ResearchService, { strict: false }),
       execution: app.get(ExecutionService, { strict: false }),
       gate: env.MCP_DELEGATED_TRADES_ENABLED ? grantGate : undefined,
       delegatedSides: {

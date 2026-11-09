@@ -3,16 +3,16 @@ title: Tool reference
 description: Inputs, permissions and behavior for the Oren MCP tools.
 ---
 
-The MCP implementation registers **9 distinct tool names**. A client discovers only those allowed by its approved scopes and the server's enabled features. Successful results are returned as text containing JSON; failures can contain plain text and set MCP's `isError` flag.
+The MCP implementation registers **10 distinct tool names**. A client discovers only those allowed by its approved scopes and the server's enabled features. Successful results are returned as text containing JSON; failures can contain plain text and set MCP's `isError` flag.
 
 ## At a glance
 
-- **Read:** `get_portfolio`, `search_stocks`, `get_stock`.
+- **Read:** `get_portfolio`, `search_stocks`, `get_stock`, `get_stock_research`.
 - **Prepare and review:** `prepare_trade`, `review_trade`, `trade_status`.
 - **Compatibility:** `prepare_buy`, `execute_buy`.
 - **Restricted execution:** `execute_trade`.
 
-A read-only connection exposes three tools. Read plus prepare, without execute scope, exposes eight. With read, prepare and execute scopes, `prepare_buy` and `execute_buy` are omitted; `execute_trade` appears only when the signing gate is configured. A missing tool is not necessarily a connection error.
+A read-only connection exposes four tools. Read plus prepare, without execute scope, exposes nine. With read, prepare and execute scopes, `prepare_buy` and `execute_buy` are omitted; `execute_trade` appears only when the signing gate is configured. A missing tool is not necessarily a connection error.
 
 ## Read tools
 
@@ -49,6 +49,20 @@ Fetches canonical stock detail using an asset ID from search.
 Use the returned canonical asset ID. A ticker or issuer-specific mint is not necessarily that ID.
 
 **Returns:** the market service's canonical stock detail. The tool does not sign, quote or submit a trade.
+
+### `get_stock_research`
+
+Reads the same research report the app desk uses, for one canonical asset ID.
+
+- `assetId`: a trimmed string, 1–80 characters, using letters, numbers, and `.`, `_`, `:`, or `-`.
+
+Portfolio context is the wallet approved on this connection. The tool does not accept a user id or wallet override. SEC company facts are included only for a verified issuer, with filing citations. Funds, foreign issuers, and unmapped tokens return an explicit coverage reason and no guessed figures. Writer opinions are omitted. The tool does not prepare, sign, or submit a trade.
+
+```json
+{ "assetId": "nvidia" }
+```
+
+**Returns:** the research report as JSON text. A company section can be unavailable while technical research, news, and portfolio context are still present.
 
 ## Trade preparation tools
 
