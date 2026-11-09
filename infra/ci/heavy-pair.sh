@@ -131,22 +131,24 @@ prepare_migration() {
   read_safety || return
   pause_listeners || return
   if ! read_safety; then
-    resume_listeners
+    resume_listeners || true
     return 2
   fi
-  preflight_privileges || { resume_listeners; return; }
-  preflight_host || { resume_listeners; return; }
+  # resume_listeners succeeds. A bare return would report that success and
+  # let apply copy files while the queue is live again.
+  preflight_privileges || { resume_listeners || true; return 2; }
+  preflight_host || { resume_listeners || true; return 2; }
 }
 
 hold_still_valid() {
-  read_safety || { resume_listeners; return 2; }
+  read_safety || { resume_listeners || true; return 2; }
   local pid state root=${PROC_ROOT:-/proc}
   for pid in "${LISTENER_PIDS[@]}"; do
     [[ -r $root/$pid/stat ]] || continue
     state=$(awk '{print $3}' "$root/$pid/stat")
     if [[ $state != T && $state != t ]]; then
       echo "watchdog: listener $pid is not held; resuming and stopping" >&2
-      resume_listeners
+      resume_listeners || true
       return 2
     fi
   done

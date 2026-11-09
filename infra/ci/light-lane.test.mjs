@@ -253,6 +253,58 @@ test('a live light permit blocks restart even when the heavy slices are idle', (
   assert.equal(probe.status, 0, `${probe.stdout}\n${probe.stderr}`);
 });
 
+test('a failed check after listeners are held resumes them and does not install', () => {
+  const probe = spawnSync('bash', ['-c', `
+    set -euo pipefail
+    source infra/ci/heavy-pair.sh
+    run_case() {
+      local which=$1
+      local touched signals listeners
+      touched=$(mktemp)
+      signals=$(mktemp)
+      listeners=$(mktemp)
+      rm -f "$touched"
+      printf '4242\\n' > "$listeners"
+      require_root() { true; }
+      read_safety() { true; }
+      signal_listener() { echo "$1 $2" >> "$signals"; }
+      mutate_installed_files() { echo mutated >"$touched"; }
+      ensure_account() { echo account >"$touched"; }
+      useradd() { echo account >"$touched"; }
+      install_atomic() { echo mutated >"$touched"; }
+      systemctl() { echo restart >"$touched"; }
+      export LISTENER_LIST_FILE=$listeners
+      if [[ $which == privileges ]]; then
+        preflight_host() { true; }
+        preflight_privileges() {
+          PRIV_N=\$((\${PRIV_N:-0} + 1))
+          if (( PRIV_N >= 2 )); then return 2; fi
+        }
+      else
+        preflight_privileges() { true; }
+        preflight_host() {
+          HOST_N=\$((\${HOST_N:-0} + 1))
+          if (( HOST_N >= 2 )); then return 2; fi
+        }
+      fi
+      set +e
+      cmd_apply
+      local status=$?
+      set -e
+      test "$status" -ne 0
+      test ! -e "$touched"
+      grep -q '^STOP 4242$' "$signals"
+      grep -q '^CONT 4242$' "$signals"
+      trap - EXIT
+      rm -f "$touched" "$signals" "$listeners"
+    }
+    run_case privileges
+    run_case host
+    trap - EXIT
+  `], { encoding: 'utf8', cwd: repo });
+  assert.equal(probe.status, 0, `${probe.stdout}\n${probe.stderr}`);
+});
+
 test('unreadable cgroup usage and a failed safety check do not permit mutation', () => {
   const probe = spawnSync('bash', ['-c', `
     set -euo pipefail
