@@ -85,7 +85,8 @@ test('light hooks do not reach docker or the heavy lease', () => {
   assert.doesNotMatch(provision, /usermod -a -G oren-ci-workers oren-ci-light/);
   assert.match(provision, /"\$lane" == light/);
   assert.match(provision, /MemoryMax=768M/);
-  assert.match(provision, /MemoryHigh=640M/);
+  assert.match(provision, /MemoryHigh=768M/);
+  assert.match(provision, /CPUQuota=100%/);
 });
 
 test('admission restart stays blocked for a live worker or a fat cgroup', () => {

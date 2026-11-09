@@ -12,7 +12,7 @@ Ops at 1:34 WAT measured 13 GiB total RAM (the marketed size is about 14 GB; the
 | `oren-ci-build-2` active | 3,840 MiB | 3,584 MiB | 100% (1 CPU) | no, 512 MiB |
 | `oren-ci-release` active | 3,840 MiB | 3,584 MiB | 100% (1 CPU) | yes, 512 MiB |
 | `oren-ci-control` | 512 MiB | unchanged | 25% | yes, 512 MiB |
-| `oren-ci-light` | 768 MiB | 640 MiB | 25% | yes, 768 MiB |
+| `oren-ci-light` | 768 MiB | 768 MiB | 100% | yes, 768 MiB |
 
 Admission allows two of the three heavy accounts to be active at once. The third stays at its 512 MiB idle cap. Worst case is `2 × 3840 + 512 + 512 + 768 = 9472` MiB. On a 13,312 MiB host that leaves **3,840 MiB** (3.75 GiB) outside those caps. That is the production and OS reserve. The per-job cap stays 3,840 MiB because a busy build was already measured at 3,584 MiB; this change does not raise it.
 

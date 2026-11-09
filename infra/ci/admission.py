@@ -149,15 +149,40 @@ def protect(uid, usage_bytes):
     set_slice(uid, ACTIVE_MAX_MIB, high, IDLE_CPU)
 
 
+class ReclaimDeferred(OSError):
+    """The kernel would block or returned EAGAIN. The caller must not wait."""
+
+
+def ensure_public_dir(path):
+    """Create a directory other CI users can traverse.
+
+    Admission's service umask is 0077, so makedirs(mode=0o755) would
+    leave the status directory mode 0700 and the light account could not
+    reach its socket.
+    """
+    os.makedirs(path, exist_ok=True)
+    os.chmod(path, 0o755)
+
+
 def reclaim_file_cache(uid, nbytes, root='/sys/fs/cgroup'):
     """Ask the kernel to reclaim file pages in the full user slice.
 
-    The live file is mode 0200 and owned by root. Admission runs as root.
-    Writing it does not kill dockerd.
+    The write is non-blocking. memory.reclaim returns EAGAIN when the
+    kernel will not finish without sleeping, and a blocking write stalls
+    the drain thread so no other waiter can be released. The live file is
+    mode 0200 and owned by root. Admission runs as root. Writing it does
+    not kill dockerd.
     """
     path = f'{root}/user.slice/user-{uid}.slice/memory.reclaim'
-    with open(path, 'w') as target:
-        target.write(f'{max(0, int(nbytes))}\n')
+    payload = f'{max(0, int(nbytes))}\n'.encode()
+    descriptor = os.open(path, os.O_WRONLY | os.O_NONBLOCK)
+    try:
+        try:
+            os.write(descriptor, payload)
+        except BlockingIOError as error:
+            raise ReclaimDeferred(error.errno, 'reclaim would block') from error
+    finally:
+        os.close(descriptor)
 
 
 RECLAIM_CHUNK = mib(256)
@@ -259,7 +284,7 @@ class Admission:
                  available=None, light_running=None, status_path=None,
                  heavy_slots=None, light_uid=None, light_identity=None,
                  light_configured=None, light_usage=None, control_usage=None,
-                 light_status_path=None):
+                 light_status_path=None, reclaim_timeout=2, reclaim_retry=30):
         self.users = list(users)
         self.limiter = limiter
         self.identity = identity
@@ -271,6 +296,10 @@ class Admission:
         self.protector = protector
         self.diagnostic_path = diagnostic_path
         self.no_progress_limit = no_progress_limit
+        self.reclaim_timeout = reclaim_timeout
+        self.reclaim_retry = reclaim_retry
+        self.reclaim_inflight = set()
+        self.last_reclaim = {}
         # Production must not treat memory as infinite or light work as absent.
         self.available = available if available is not None else read_mem_available
         self.light_running = light_running if light_running is not None else light_account_has_worker
@@ -483,12 +512,15 @@ class Admission:
                     # lease. Wait for it to exit. Do not lower its caps.
                     self._wait(deadline, pid, uid, stamp)
                     continue
-                deferred = False
                 for other in self.users:
                     if other != uid and other not in self.leases and not slice_within_idle(self._usage(other)):
                         self.held.add(other)
-                        deferred = True
-                if deferred:
+                # A fat slice that already exited occupies one held slot. A
+                # free slot must be granted. Continuing here without waiting
+                # used to spin while holding this condition, so a dead light
+                # permit could not be released and every other waiter stalled.
+                if self._blocking(uid):
+                    self._wait(deadline, pid, uid, stamp)
                     continue
                 if not self._decision('heavy', uid):
                     self._wait(deadline, pid, uid, stamp)
@@ -529,7 +561,7 @@ class Admission:
         try:
             directory = os.path.dirname(self.status_path)
             if directory:
-                os.makedirs(directory, mode=0o755, exist_ok=True)
+                ensure_public_dir(directory)
             descriptor = os.open(self.status_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o644)
             try:
                 os.write(descriptor, payload)
@@ -550,7 +582,7 @@ class Admission:
         try:
             directory = os.path.dirname(self.light_status_path)
             if directory:
-                os.makedirs(directory, mode=0o755, exist_ok=True)
+                ensure_public_dir(directory)
             descriptor = os.open(self.light_status_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o644)
             try:
                 os.write(descriptor, payload)
@@ -598,10 +630,23 @@ class Admission:
             del self.leases[uid]
             self.held.add(uid)
             self._write_status()
-        return self.drain(uid)
 
     def release(self, uid, pid, stamp):
         self.note_worker_exit(uid, pid, stamp)
+        self.drain(uid)
+
+    def reap_once(self):
+        """Drop dead leases before any reclaim, then reclaim without stalling.
+
+        memory.reclaim can sleep even after EAGAIN. Doing that work before
+        the light check, or on the admission lock, left a dead light pid
+        holding the only permit while a new light worker waited out the
+        1220s client timeout.
+        """
+        self.release_if_worker_gone()
+        self.release_if_light_gone()
+        for uid in list(self.held):
+            self.drain(uid)
 
     def release_light(self, pid, stamp):
         with self.condition:
@@ -633,12 +678,47 @@ class Admission:
             except OSError as error:
                 print(f'oren-ci admission: diagnostic write failed: {error}', file=sys.stderr)
 
+    def _reclaim_bounded(self, uid, nbytes):
+        """Run one reclaim without letting it stall every other waiter."""
+        with self.condition:
+            if uid in self.reclaim_inflight:
+                return
+            self.reclaim_inflight.add(uid)
+        done = threading.Event()
+        outcome = {}
+
+        def run():
+            try:
+                self.reclaimer(uid, nbytes)
+                outcome['ok'] = True
+            except BaseException as error:
+                outcome['error'] = error
+            finally:
+                with self.condition:
+                    self.reclaim_inflight.discard(uid)
+                done.set()
+
+        self.last_reclaim[uid] = time.monotonic()
+        threading.Thread(target=run, daemon=True).start()
+        if not done.wait(self.reclaim_timeout):
+            print(f'oren-ci admission: reclaim timed out for uid {uid}', file=sys.stderr, flush=True)
+            return
+        error = outcome.get('error')
+        if error is None:
+            return
+        if isinstance(error, OSError):
+            print(f'oren-ci admission: reclaim failed for uid {uid}: {error}', file=sys.stderr, flush=True)
+            return
+        raise error
+
     def drain(self, uid):
         """Reclaim file cache until the full user slice fits the idle cap.
 
         Only the identity-bound admitted worker blocks this. A later worker
-        waiting to acquire does not. No-progress stops the reclaim attempts,
-        leaves MemoryMax at the active cap, and keeps the heavy slot.
+        waiting to acquire does not. After repeated no-progress the slice
+        stays at the active cap and keeps its heavy slot. Later attempts stay
+        non-blocking and one per uid, so a cache drop can still release that
+        slot without letting a stuck write stall the other slot.
         """
         with self.condition:
             if uid not in self.held:
@@ -652,11 +732,19 @@ class Admission:
         if uid in self.stuck:
             if slice_within_idle(usage):
                 return self._finish_idle(uid)
+            due = time.monotonic() - self.last_reclaim.get(uid, 0) >= self.reclaim_retry
+            if due:
+                needed = reclaim_needed(usage)
+                if needed:
+                    self._reclaim_bounded(uid, min(RECLAIM_CHUNK, needed))
+                usage = self._usage(uid)
+                if slice_within_idle(usage):
+                    return self._finish_idle(uid)
             return False
         try:
             needed = reclaim_needed(usage)
             if needed:
-                self.reclaimer(uid, min(RECLAIM_CHUNK, needed))
+                self._reclaim_bounded(uid, min(RECLAIM_CHUNK, needed))
         except OSError as error:
             print(f'oren-ci admission: reclaim failed for uid {uid}: {error}', file=sys.stderr)
         usage = self._usage(uid)
@@ -711,15 +799,9 @@ class Server(socketserver.ThreadingUnixStreamServer):
 def _reap(admission):
     while True:
         try:
-            admission.release_if_worker_gone()
-            admission.release_if_light_gone()
+            admission.reap_once()
         except (OSError, RuntimeError, subprocess.SubprocessError) as error:
             print(f'oren-ci admission: lease check failed: {error}', file=sys.stderr)
-        for uid in list(admission.held):
-            try:
-                admission.drain(uid)
-            except (OSError, RuntimeError, subprocess.SubprocessError) as error:
-                print(f'oren-ci admission: drain uid {uid} failed: {error}', file=sys.stderr)
         time.sleep(1)
 
 
@@ -739,7 +821,7 @@ class LightHandler(socketserver.StreamRequestHandler):
             pass
         while True:
             try:
-                if light_process_identity(pid, uid) != stamp:
+                if self.server.admission.light_identity(pid, uid) != stamp:
                     break
             except (OSError, ValueError, KeyError):
                 break
@@ -770,7 +852,7 @@ def serve(admission):
     threads = [threading.Thread(target=heavy.serve_forever, daemon=True)]
     if admission.light_uid is not None:
         light_address = '/run/oren-ci-status/light-admission.sock'
-        os.makedirs('/run/oren-ci-status', mode=0o755, exist_ok=True)
+        ensure_public_dir('/run/oren-ci-status')
         if os.path.exists(light_address):
             os.unlink(light_address)
         light = Server(light_address, LightHandler)

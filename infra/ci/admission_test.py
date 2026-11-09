@@ -6,7 +6,8 @@ import time
 import unittest
 from admission import (
     ACTIVE_MAX_MIB, CONTROL_MAX_MIB, HOST_MIB, IDLE_MAX_MIB, LIGHT_MAX_MIB,
-    MARGIN_MIB, NO_PROGRESS_LIMIT, RECOVERY, Admission, heavy_raise_ok, limit,
+    MARGIN_MIB, NO_PROGRESS_LIMIT, RECOVERY, Admission, ensure_public_dir,
+    heavy_raise_ok, limit,
     light_headroom_ok, protect, reclaim_file_cache, reclaim_needed,
     simultaneous_mib, slice_within_idle, worker_identity,
 )
@@ -480,6 +481,157 @@ class AdmissionTests(unittest.TestCase):
         with open(path) as handle:
             self.assertIn('1004 88 ', handle.read())
         self.assertTrue(granted)
+
+    def test_reclaim_eagain_does_not_starve_the_other_slot(self):
+        usage = {1001: 0, 1003: 0, 1005: 0}
+
+        calls = {'block': True}
+
+        def reclaim(uid, nbytes):
+            if calls['block']:
+                raise BlockingIOError(11, 'write could not complete without blocking')
+            usage[uid] = 200 * 1024 * 1024
+
+        gate = Admission([1001, 1003, 1005], lambda *args: None, lambda pid, uid: str(pid),
+                         usage=lambda uid: usage[uid], reclaimer=reclaim,
+                         protector=lambda uid, current: None, no_progress_limit=2,
+                         reclaim_timeout=0.5, reclaim_retry=0, available=lambda: 1 << 62,
+                         light_running=lambda: False, light_configured=lambda: False,
+                         heavy_slots=2)
+        stamp = gate.acquire(1001, 42)
+        usage[1001] = 2 * 1024 ** 3
+        started = time.monotonic()
+        gate.release(1001, 42, stamp)
+        for _ in range(3):
+            self.assertFalse(gate.drain(1001))
+        self.assertLess(time.monotonic() - started, 3)
+        self.assertIn(1001, gate.stuck)
+        self.assertIn(1001, gate.held)
+        slot = time.monotonic()
+        self.assertIsNotNone(gate.acquire(1003, 43, timeout=1))
+        self.assertLess(time.monotonic() - slot, 1)
+        with self.assertRaises(TimeoutError):
+            gate.acquire(1005, 44, timeout=0.3)
+        calls['block'] = False
+        self.assertTrue(gate.drain(1001))
+        self.assertNotIn(1001, gate.held)
+        self.assertIsNotNone(gate.acquire(1005, 44, timeout=1))
+
+    def test_hung_reclaim_returns_and_the_other_slot_still_admits(self):
+        usage = {1001: 0, 1003: 0}
+
+        def reclaim(uid, nbytes):
+            time.sleep(30)
+
+        gate = Admission([1001, 1003], lambda *args: None, lambda pid, uid: str(pid),
+                         usage=lambda uid: usage[uid], reclaimer=reclaim,
+                         protector=lambda uid, current: None, no_progress_limit=1,
+                         reclaim_timeout=0.2, available=lambda: 1 << 62,
+                         light_running=lambda: False, light_configured=lambda: False,
+                         heavy_slots=2)
+        stamp = gate.acquire(1001, 42)
+        usage[1001] = 2 * 1024 ** 3
+        started = time.monotonic()
+        gate.release(1001, 42, stamp)
+        self.assertLess(time.monotonic() - started, 2)
+        self.assertIn(1001, gate.held)
+        self.assertFalse(gate.drain(1001))
+        self.assertIsNotNone(gate.acquire(1003, 43, timeout=1))
+
+    def test_dead_worker_is_cleared_while_reclaim_is_hung(self):
+        usage = {1001: 0, 1003: 0, 1005: 0}
+        alive = {42, 43}
+
+        def reclaim(uid, nbytes):
+            time.sleep(30)
+
+        def identity(pid, uid):
+            if pid == 42 and pid not in alive:
+                raise OSError('worker gone')
+            return str(pid)
+
+        gate = Admission([1001, 1003, 1005], lambda *args: None, identity,
+                         usage=lambda uid: usage[uid], reclaimer=reclaim,
+                         protector=lambda uid, current: None, no_progress_limit=6,
+                         reclaim_timeout=0.2, available=lambda: 1 << 62,
+                         light_running=lambda: False, light_configured=lambda: False,
+                         heavy_slots=2)
+        gate.acquire(1001, 42)
+        gate.acquire(1003, 43)
+        usage[1001] = 2 * 1024 ** 3
+        alive.remove(42)
+        started = time.monotonic()
+        gate.release_if_worker_gone()
+        self.assertLess(time.monotonic() - started, 2)
+        self.assertNotIn(1001, gate.leases)
+        self.assertIn(1001, gate.held)
+        self.assertIn(1003, gate.leases)
+        with self.assertRaises(TimeoutError):
+            gate.acquire(1005, 44, timeout=0.3)
+
+    def test_dead_light_permit_clears_while_heavy_reclaim_is_hung(self):
+        directory = tempfile.mkdtemp()
+        light_path = os.path.join(directory, 'light-lease')
+        with open(light_path, 'w') as handle:
+            handle.write('1005 1553788 3712540\n')
+        usage = {1001: 2 * 1024 ** 3, 1003: 0}
+        entered = threading.Event()
+
+        def reclaim(uid, nbytes):
+            entered.set()
+            time.sleep(30)
+
+        def identity(pid, uid):
+            raise OSError('worker gone')
+
+        def light_identity(pid, uid):
+            if pid == 1553788:
+                raise OSError('light worker gone')
+            return str(pid)
+
+        gate = Admission([1001, 1003], lambda *args: None, identity,
+                         usage=lambda uid: usage[uid], reclaimer=reclaim,
+                         protector=lambda uid, current: None, no_progress_limit=6,
+                         reclaim_timeout=0.2, available=lambda: 1 << 62,
+                         light_running=lambda: False, light_configured=lambda: True,
+                         heavy_slots=2, light_uid=1005, light_identity=light_identity,
+                         light_status_path=light_path, light_usage=lambda: 283 * 1024 * 1024,
+                         control_usage=lambda: 0)
+        self.assertIsNone(gate.light_lease)
+        gate.leases[1001] = (42, '42')
+        gate.held.add(1001)
+        gate.light_lease = (1553788, '3712540')
+        result = {}
+
+        def waiter():
+            try:
+                result['stamp'] = gate.acquire_light(1934397, timeout=2)
+            except Exception as error:
+                result['error'] = error
+
+        thread = threading.Thread(target=waiter)
+        thread.start()
+        self.assertTrue(thread.is_alive())
+        started = time.monotonic()
+        gate.reap_once()
+        self.assertLess(time.monotonic() - started, 1)
+        self.assertTrue(entered.is_set())
+        thread.join(2)
+        self.assertEqual(result.get('stamp'), '1934397')
+        self.assertNotIn(1001, gate.leases)
+        self.assertIn(1001, gate.held)
+        with open(light_path) as handle:
+            self.assertEqual(handle.read().split(), ['1005', '1934397', '1934397'])
+
+    def test_status_directory_stays_traversable_under_service_umask(self):
+        parent = tempfile.mkdtemp()
+        path = os.path.join(parent, 'oren-ci-status')
+        previous = os.umask(0o077)
+        try:
+            ensure_public_dir(path)
+        finally:
+            os.umask(previous)
+        self.assertEqual(os.stat(path).st_mode & 0o777, 0o755)
 
 
 if __name__ == '__main__':
