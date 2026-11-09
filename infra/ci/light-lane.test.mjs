@@ -238,13 +238,54 @@ test('build-2 unit is installed with the heavy hook environment before registrat
     set -euo pipefail
     source infra/ci/heavy-pair.sh
     root=$(mktemp -d)
-    UNIT_ROOT=$root
+    runner=$root/runner
+    mkdir -p "$runner/bin"
+    printf '#!/bin/sh\\nexec "\\$@"\\n' > "$runner/bin/runsvc.sh"
+    chmod 755 "$runner/bin/runsvc.sh"
+    printf 'stale\\n' > "$runner/runsvc.sh"
+    UNIT_ROOT=$root/unit
+    RUNNER_DIR=$runner
     write_runner_unit oren-ci-build-2 1099 build-2
-    unit=$root/oren-runner-build-2.service
+    unit=$UNIT_ROOT/oren-runner-build-2.service
     grep -q '^UMask=0022$' "$unit"
     grep -q '^Environment=DOCKER_HOST=unix:///run/user/1099/docker.sock$' "$unit"
     grep -q '^Environment=ACTIONS_RUNNER_HOOK_JOB_STARTED=/opt/oren-ci/bin/job-started.sh$' "$unit"
     grep -q '^Environment=ACTIONS_RUNNER_HOOK_JOB_COMPLETED=/opt/oren-ci/bin/job-completed.sh$' "$unit"
+    grep -q "^ExecStart=$runner/runsvc.sh$" "$unit"
+    grep -q "^WorkingDirectory=$runner$" "$unit"
+    cmp "$runner/bin/runsvc.sh" "$runner/runsvc.sh"
+    test -x "$runner/runsvc.sh"
+    test -d "$runner/_work"
+    test -d "$runner/_diag"
+    grep -q '/opt/oren-ci/toolchain/node-v22.23.4-linux-x64/bin' "$runner/.path"
+    rm -rf "$root"
+  `], { encoding: 'utf8', cwd: repo });
+  assert.equal(probe.status, 0, `${probe.stdout}\n${probe.stderr}`);
+});
+
+test('a non-root unit write refuses an unwritable runner directory', () => {
+  const heavy = text('./heavy-pair.sh');
+  assert.match(heavy, /directory=\$\{RUNNER_DIR:-\/home\/\$account_name\/runner-\$lane\}/);
+  const probe = spawnSync('bash', ['-c', `
+    set -euo pipefail
+    source infra/ci/heavy-pair.sh
+    test "$(id -u)" -ne 0
+    root=$(mktemp -d)
+    runner=$root/runner
+    mkdir -p "$runner/bin"
+    printf '#!/bin/sh\\nlive\\n' > "$runner/bin/runsvc.sh"
+    printf 'live-runner\\n' > "$runner/runsvc.sh"
+    chmod a-w "$runner"
+    unit_root=$root/unit
+    set +e
+    UNIT_ROOT=$unit_root RUNNER_DIR=$runner write_runner_unit oren-ci-build-2 1099 build-2
+    status=$?
+    set -e
+    test "$status" -eq 2
+    test ! -e "$unit_root/oren-runner-build-2.service"
+    chmod u+w "$runner"
+    cmp -s <(printf 'live-runner\\n') "$runner/runsvc.sh"
+    test ! -d "$runner/_work"
     rm -rf "$root"
   `], { encoding: 'utf8', cwd: repo });
   assert.equal(probe.status, 0, `${probe.stdout}\n${probe.stderr}`);

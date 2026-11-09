@@ -156,7 +156,7 @@ hold_still_valid() {
 
 write_runner_unit() {
   local account_name=$1 id=$2 lane=$3
-  local directory=/home/$account_name/runner-$lane
+  local directory=${RUNNER_DIR:-/home/$account_name/runner-$lane}
   local unit_dir=${UNIT_ROOT:-/home/$account_name/.config/systemd/user}
   local unit=$unit_dir/oren-runner-$lane.service
   local root=/opt/oren-ci
@@ -165,6 +165,10 @@ write_runner_unit() {
     chown "$account_name:$account_name" "$unit_dir"
   fi
   if [[ -d $directory ]]; then
+    if [[ ! -w $directory ]]; then
+      echo "refusing to update $directory: directory is not writable" >&2
+      return 2
+    fi
     install -d -m 755 "$directory/_work" "$directory/_diag"
     if [[ -f $directory/bin/runsvc.sh ]]; then
       install -m 755 "$directory/bin/runsvc.sh" "$directory/runsvc.sh"
