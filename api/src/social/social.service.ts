@@ -18,6 +18,8 @@ import type {
   TraderDetailResponse,
   TraderProfile,
   TraderPublicProfile,
+  TraderVisibilityChallengeRequest,
+  TraderVisibilityChallengeResponse,
   UpdateTraderVisibilityRequest,
   UpdateTraderVisibilityResponse,
 } from '../../types/social';
@@ -26,6 +28,12 @@ import { ExecutionService } from '../execution/execution.service';
 import { equityValueFromSnapshot } from '../portfolio/portfolio.mapper';
 import { PortfolioRepository, type SnapshotRow } from '../portfolio/portfolio.repository';
 import { PortfolioService } from '../portfolio/portfolio.service';
+import {
+  normalizeAvatarUrl,
+  normalizeBio,
+  ProfileChallenges,
+  safeStoredAvatarUrl,
+} from './profile-challenge';
 import { SocialRepository, type TraderProfileRow } from './social.repository';
 
 const ED25519_SPKI_PREFIX = Buffer.from('302a300506032b6570032100', 'hex');
@@ -37,6 +45,7 @@ export class SocialService {
     private readonly portfolioRepository: PortfolioRepository,
     private readonly portfolio: PortfolioService,
     private readonly execution: ExecutionService,
+    private readonly challenges: ProfileChallenges = new ProfileChallenges(),
   ) {}
 
   async getLeaderboard(input?: {
@@ -99,47 +108,81 @@ export class SocialService {
     };
   }
 
-  async updateVisibility(
+  /**
+   * Issues a single-use challenge covering every field the update will write.
+   * The wallet signs the returned message; `updateVisibility` then writes the
+   * stored terms, never values supplied alongside the signature.
+   */
+  async createVisibilityChallenge(
     walletAddress: string,
-    input: UpdateTraderVisibilityRequest,
-  ): Promise<UpdateTraderVisibilityResponse> {
+    input: TraderVisibilityChallengeRequest,
+  ): Promise<TraderVisibilityChallengeResponse> {
     const existing = await this.socialRepository.findByWallet(walletAddress);
     const displayName = normalizeDisplayName(
-      input.displayName ?? existing?.displayName ?? walletPreview(walletAddress),
+      input.displayName ??
+        existing?.displayName ??
+        walletPreview(walletAddress),
     );
     const slug = normalizeSlug(
       input.slug ?? existing?.slug ?? displayName,
       walletAddress,
     );
-    const expectedMessage = buildVisibilityMessage({
+    await this.assertSlugAvailable(slug, walletAddress);
+
+    const avatarUrl =
+      input.avatarUrl !== undefined
+        ? normalizeAvatarUrl(input.avatarUrl)
+        : safeStoredAvatarUrl(existing?.avatarUrl);
+    const bio =
+      input.bio !== undefined
+        ? normalizeBio(input.bio)
+        : existing?.bio?.trim() || undefined;
+
+    return this.challenges.issue({
       walletAddress,
-      isPublic: input.isPublic,
+      isPublic: Boolean(input.isPublic),
       slug,
       displayName,
+      avatarUrl,
+      bio,
     });
+  }
 
-    if (input.message !== expectedMessage) {
-      throw new BadRequestException('visibility message does not match profile update');
-    }
+  async updateVisibility(
+    walletAddress: string,
+    input: UpdateTraderVisibilityRequest,
+  ): Promise<UpdateTraderVisibilityResponse> {
+    const { nonce, terms } = this.challenges.find(walletAddress, input.message);
+
     if (!verifyWalletSignature(walletAddress, input.message, input.signature)) {
       throw new BadRequestException('invalid wallet signature');
     }
+    if (!this.challenges.consume(nonce)) {
+      throw new BadRequestException(
+        'Profile update expired or was already used. Review and sign it again.',
+      );
+    }
 
+    await this.assertSlugAvailable(terms.slug, walletAddress);
+
+    const profile = await this.socialRepository.upsertProfile({
+      walletAddress,
+      slug: terms.slug,
+      displayName: terms.displayName,
+      // null, not undefined: the stored row must match exactly what was signed.
+      avatarUrl: terms.avatarUrl ?? null,
+      bio: terms.bio ?? null,
+      isPublic: terms.isPublic,
+    });
+
+    return { profile: toTraderProfile(profile) };
+  }
+
+  private async assertSlugAvailable(slug: string, walletAddress: string) {
     const slugOwner = await this.socialRepository.findBySlug(slug);
     if (slugOwner && slugOwner.walletAddress !== walletAddress) {
       throw new ConflictException('trader slug is already taken');
     }
-
-    const profile = await this.socialRepository.upsertProfile({
-      walletAddress,
-      slug,
-      displayName,
-      avatarUrl: emptyToUndefined(input.avatarUrl),
-      bio: emptyToUndefined(input.bio),
-      isPublic: input.isPublic,
-    });
-
-    return { profile: toTraderProfile(profile) };
   }
 
   async prepareCopyPortfolio(input: {
@@ -267,7 +310,7 @@ function buildLeaderboardRow(
     slug: profile.slug,
     displayName: profile.displayName,
     walletPreview: walletPreview(profile.walletAddress),
-    avatarUrl: profile.avatarUrl ?? undefined,
+    avatarUrl: safeStoredAvatarUrl(profile.avatarUrl),
     totalValueUsd: roundMoney(latestValue),
     pnlUsd,
     pnlPct,
@@ -505,28 +548,13 @@ function verifyWalletSignature(
   }
 }
 
-function buildVisibilityMessage(input: {
-  walletAddress: string;
-  isPublic: boolean;
-  slug: string;
-  displayName: string;
-}) {
-  return [
-    'Oren social profile visibility',
-    `Wallet: ${input.walletAddress}`,
-    `Public: ${input.isPublic ? 'true' : 'false'}`,
-    `Slug: ${input.slug}`,
-    `Display name: ${input.displayName}`,
-  ].join('\n');
-}
-
 function toTraderProfile(row: TraderProfileRow): TraderProfile {
   return {
     id: row.id,
     walletAddress: row.walletAddress,
     slug: row.slug,
     displayName: row.displayName,
-    avatarUrl: row.avatarUrl ?? undefined,
+    avatarUrl: safeStoredAvatarUrl(row.avatarUrl),
     bio: row.bio ?? undefined,
     isPublic: row.isPublic,
     createdAt: row.createdAt,
@@ -539,7 +567,7 @@ function toPublicProfile(row: TraderProfileRow): TraderPublicProfile {
     slug: row.slug,
     displayName: row.displayName,
     walletPreview: walletPreview(row.walletAddress),
-    avatarUrl: row.avatarUrl ?? undefined,
+    avatarUrl: safeStoredAvatarUrl(row.avatarUrl),
     bio: row.bio ?? undefined,
   };
 }
@@ -593,10 +621,6 @@ function standardDeviation(values: number[]): number {
 function clampInt(n: number, min: number, max: number): number {
   if (!Number.isFinite(n)) return min;
   return Math.min(max, Math.max(min, Math.round(n)));
-}
-
-function emptyToUndefined(value?: string): string | undefined {
-  return value?.trim() ? value.trim() : undefined;
 }
 
 function roundMoney(n: number): number {

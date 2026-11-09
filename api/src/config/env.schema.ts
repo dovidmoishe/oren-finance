@@ -223,6 +223,43 @@ export function migrateJupiterUrl(url: string | undefined): string | undefined {
  * *before* those values are assigned to `process.env`. Always read from
  * that object (falling back to process.env when called later).
  */
+/**
+ * Browser origins allowed by the general CORS handler. Outside production an
+ * unset value keeps the permissive `*` default for local work. In production
+ * `*` is never used: fall back to the app origin (MCP_APP_ORIGIN, then
+ * https://DOMAIN, which Caddy already serves) and warn, so a deploy without an
+ * explicit CORS_ORIGIN keeps working while still being locked to the app.
+ */
+export function resolveCorsOrigin(
+  env: EnvSource,
+  environment: string | undefined,
+): string {
+  const configured = readEnv(env, 'CORS_ORIGIN');
+  if (environment !== 'production') return configured ?? '*';
+  if (configured && configured !== '*') return configured;
+
+  const domain = readEnv(env, 'DOMAIN');
+  const candidate =
+    readEnv(env, 'MCP_APP_ORIGIN') ??
+    (domain ? `https://${domain}` : undefined);
+  if (!candidate)
+    throw new Error(
+      'CORS_ORIGIN must name the app origin in production (or set MCP_APP_ORIGIN or DOMAIN)',
+    );
+  let origin: string;
+  try {
+    origin = new URL(candidate).origin;
+  } catch {
+    throw new Error(`Cannot derive a CORS origin from "${candidate}"`);
+  }
+  if (origin === 'null')
+    throw new Error(`Cannot derive a CORS origin from "${candidate}"`);
+  console.warn(
+    `CORS_ORIGIN is ${configured ? '"*"' : 'unset'} in production; allowing only ${origin}. Set CORS_ORIGIN explicitly.`,
+  );
+  return origin;
+}
+
 export function validateEnv(env: EnvSource = process.env): AppEnv {
   const missing = REQUIRED.filter((key) => !readEnv(env, key));
   if (missing.length > 0) {
@@ -286,7 +323,7 @@ export function validateEnv(env: EnvSource = process.env): AppEnv {
     PREVIEW_PR_NUMBER: deployment.prNumber,
     COMMIT_SHA: deployment.commitSha,
     PORT: port,
-    CORS_ORIGIN: readEnv(env, 'CORS_ORIGIN') ?? '*',
+    CORS_ORIGIN: resolveCorsOrigin(env, deployment.environment),
     POSTGRES_URL: requireEnv(env, 'POSTGRES_URL'),
     TOKENS_API_BASE_URL: (
       readEnv(env, 'TOKENS_API_BASE_URL') ?? 'https://api.tokens.xyz'

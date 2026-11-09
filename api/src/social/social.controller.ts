@@ -4,6 +4,7 @@ import {
   IsNumber,
   IsOptional,
   IsString,
+  MaxLength,
   Min,
   MinLength,
 } from 'class-validator';
@@ -13,6 +14,8 @@ import type {
   GetSocialTraderResponse,
   PostSocialCopyPortfolioPrepareRequest,
   PostSocialCopyPortfolioPrepareResponse,
+  PostSocialProfileVisibilityChallengeRequest,
+  PostSocialProfileVisibilityChallengeResponse,
   PostSocialProfileVisibilityRequest,
   PostSocialProfileVisibilityResponse,
 } from '../../types/api';
@@ -32,32 +35,40 @@ class LeaderboardQueryDto {
   limit?: number;
 }
 
-class TraderVisibilityDto implements PostSocialProfileVisibilityRequest {
+class TraderVisibilityChallengeDto implements PostSocialProfileVisibilityChallengeRequest {
   @IsBoolean()
   isPublic!: boolean;
 
   @IsOptional()
   @IsString()
+  @MaxLength(48)
   displayName?: string;
 
   @IsOptional()
   @IsString()
+  @MaxLength(48)
   slug?: string;
 
   @IsOptional()
   @IsString()
+  @MaxLength(512)
   avatarUrl?: string;
 
   @IsOptional()
   @IsString()
+  @MaxLength(280)
   bio?: string;
+}
 
+class TraderVisibilityDto implements PostSocialProfileVisibilityRequest {
   @IsString()
   @MinLength(1)
+  @MaxLength(2048)
   message!: string;
 
   @IsString()
   @MinLength(1)
+  @MaxLength(128)
   signature!: string;
 }
 
@@ -93,6 +104,14 @@ export class SocialController {
     @Query('timeframe') timeframe?: SocialTimeframe,
   ): Promise<GetSocialTraderResponse> {
     return this.social.getTraderDetail(slug, timeframe);
+  }
+
+  @Post('profiles/:wallet/visibility/challenge')
+  createVisibilityChallenge(
+    @Param('wallet', WalletAddressPipe) wallet: string,
+    @Body() body: TraderVisibilityChallengeDto,
+  ): Promise<PostSocialProfileVisibilityChallengeResponse> {
+    return this.social.createVisibilityChallenge(wallet, body);
   }
 
   @Post('profiles/:wallet/visibility')

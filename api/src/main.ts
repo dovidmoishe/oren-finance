@@ -896,7 +896,12 @@ async function bootstrap() {
   // MCP browser routes answer their own credentialed preflights before the
   // general Nest CORS handler handles /api requests.
   app.enableCors({
-    origin: env.CORS_ORIGIN === '*' ? true : env.CORS_ORIGIN.split(','),
+    origin:
+      env.CORS_ORIGIN === '*'
+        ? true
+        : env.CORS_ORIGIN.split(',')
+            .map((origin) => origin.trim())
+            .filter(Boolean),
   });
 
   await app.listen(env.PORT);
