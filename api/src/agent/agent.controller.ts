@@ -14,6 +14,7 @@ import {
   IsIn,
   IsOptional,
   IsString,
+  MaxLength,
   MinLength,
   ValidateNested,
 } from 'class-validator';
@@ -26,6 +27,10 @@ import type {
 import type { AgentPage } from '../../types/agent';
 import { AgentService } from './agent.service';
 import { PrivyWalletAuth } from '../auth/privy-wallet-auth';
+import { AgentUsageLimit } from '../common/rate-limit';
+
+/** Keeps each turn's model input bounded; the app composer enforces the same cap. */
+export const AGENT_MESSAGE_MAX_LENGTH = 4_000;
 
 const AGENT_PAGES: AgentPage[] = [
   'dashboard',
@@ -59,6 +64,7 @@ class AgentMessageDto implements PostAgentMessageRequest {
 
   @IsString()
   @MinLength(1)
+  @MaxLength(AGENT_MESSAGE_MAX_LENGTH)
   message!: string;
 
   @IsOptional()
@@ -78,6 +84,7 @@ export class AgentController {
   constructor(
     private readonly agent: AgentService,
     private readonly auth: PrivyWalletAuth,
+    private readonly usage: AgentUsageLimit = new AgentUsageLimit(),
   ) {}
 
   @Post('message')
@@ -86,6 +93,7 @@ export class AgentController {
     @Headers('authorization') authorization?: string,
   ): Promise<PostAgentMessageResponse> {
     await this.auth.requireWallet(authorization, body.walletAddress);
+    this.usage.assertAllowed(body.walletAddress);
     return this.agent.message(body, authorization);
   }
 
@@ -99,6 +107,7 @@ export class AgentController {
       request.headers.authorization,
       body.walletAddress,
     );
+    this.usage.assertAllowed(body.walletAddress, response);
     response.status(200);
     response.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
     response.setHeader('Cache-Control', 'no-cache, no-transform');

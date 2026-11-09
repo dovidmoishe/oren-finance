@@ -18,6 +18,7 @@ import {
   mcpApiTradeAuthorizations,
 } from './database/schema';
 import { MarketService } from './market/market.service';
+import { ResearchService } from './research/research.service';
 import { PortfolioService } from './portfolio/portfolio.service';
 import { ExecutionService } from './execution/execution.service';
 import { handleMcpRequest } from './mcp-auth/mcp-resource';
@@ -38,6 +39,7 @@ import {
   mountPathBasedDiscoveryAtIssuer,
 } from './mcp-auth/oauth-runtime';
 import { createRegistrationRateLimit } from './mcp-auth/registration-rate-limit';
+import { SlidingWindowLimiter, clientIp } from './common/rate-limit';
 import { approvalMatchesMcpIntent } from './mcp-auth/intent-approval';
 import { ApiTradeAuthorization } from './mcp-auth/api-trade-authorization';
 import { Connection } from '@solana/web3.js';
@@ -52,6 +54,11 @@ import {
 async function bootstrap() {
   const env = validateEnv();
   const app = await NestFactory.create(AppModule);
+  // Caddy is the only hop in front of the API in production and previews, so
+  // trust exactly one proxy: req.ip becomes the client Caddy saw, which the
+  // client cannot forge through X-Forwarded-For.
+  if (env.DEPLOYMENT_ENV === 'production' || env.DEPLOYMENT_ENV === 'preview')
+    (app.getHttpAdapter().getInstance() as Express).set('trust proxy', 1);
 
   app.setGlobalPrefix('api');
   app.useGlobalPipes(
@@ -100,6 +107,7 @@ async function bootstrap() {
       auth: identity,
       market: app.get(MarketService, { strict: false }),
       portfolio: app.get(PortfolioService, { strict: false }),
+      research: app.get(ResearchService, { strict: false }),
       execution: app.get(ExecutionService, { strict: false }),
       gate: env.MCP_DELEGATED_TRADES_ENABLED ? grantGate : undefined,
       delegatedSides: {
@@ -134,7 +142,13 @@ async function bootstrap() {
           });
       },
     );
+    const mcpRequests = new SlidingWindowLimiter(120, 60_000);
     expressApp.post('/mcp', (req: Request, res: Response) => {
+      const retryAfter = mcpRequests.hit(clientIp(req));
+      if (retryAfter) {
+        res.setHeader('Retry-After', String(retryAfter));
+        return res.sendStatus(429);
+      }
       void handleMcpRequest(req, res, mcpDeps).catch(() => {
         if (!res.headersSent) res.sendStatus(500);
       });
@@ -865,8 +879,8 @@ async function bootstrap() {
     const registrationRetryAfter = createRegistrationRateLimit();
     expressApp.post(
       '/oauth/reg',
-      (_req: Request, res: Response, next: NextFunction) => {
-        const retryAfter = registrationRetryAfter();
+      (req: Request, res: Response, next: NextFunction) => {
+        const retryAfter = registrationRetryAfter(clientIp(req));
         if (retryAfter) {
           res.setHeader('Retry-After', String(retryAfter));
           return res.sendStatus(429);
@@ -882,7 +896,12 @@ async function bootstrap() {
   // MCP browser routes answer their own credentialed preflights before the
   // general Nest CORS handler handles /api requests.
   app.enableCors({
-    origin: env.CORS_ORIGIN === '*' ? true : env.CORS_ORIGIN.split(','),
+    origin:
+      env.CORS_ORIGIN === '*'
+        ? true
+        : env.CORS_ORIGIN.split(',')
+            .map((origin) => origin.trim())
+            .filter(Boolean),
   });
 
   await app.listen(env.PORT);

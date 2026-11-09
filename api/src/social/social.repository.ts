@@ -10,8 +10,8 @@ export interface UpsertTraderProfileInput {
   walletAddress: string;
   slug: string;
   displayName: string;
-  avatarUrl?: string;
-  bio?: string;
+  avatarUrl?: string | null;
+  bio?: string | null;
   isPublic: boolean;
 }
 

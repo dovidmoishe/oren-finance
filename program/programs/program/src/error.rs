@@ -8,4 +8,8 @@ pub enum ErrorCode {
     ZeroAmount,
     #[msg("Total deposited would overflow.")]
     DepositOverflow,
+    #[msg("Unlock time must be in the future.")]
+    UnlockTimeInPast,
+    #[msg("Mints with a transfer hook are not supported.")]
+    TransferHookNotSupported,
 }

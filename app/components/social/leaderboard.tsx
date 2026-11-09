@@ -25,8 +25,8 @@ import {
   formatPercent,
 } from "@/components/ui";
 import {
-  buildVisibilityMessage,
   normalizeTraderSlug,
+  requestVisibilityChallenge,
   updateTraderVisibility,
 } from "@/services";
 import { useSocialStore, useWalletStore } from "@/store";
@@ -110,17 +110,13 @@ function PublishProfilePanel({ onPublished }: { onPublished: () => void }) {
     setStatus(undefined);
 
     try {
-      const message = buildVisibilityMessage({
-        walletAddress,
+      const { message } = await requestVisibilityChallenge(walletAddress, {
         isPublic: true,
-        slug: normalizedSlug,
         displayName: normalizedDisplay,
+        slug: normalizedSlug,
       });
       const signature = await signMessage(new TextEncoder().encode(message));
       await updateTraderVisibility(walletAddress, {
-        isPublic: true,
-        displayName: normalizedDisplay,
-        slug: normalizedSlug,
         message,
         signature: encodeBase58(signature),
       });

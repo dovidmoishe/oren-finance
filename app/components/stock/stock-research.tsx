@@ -222,6 +222,69 @@ export function StockResearchPanel({ assetId }: { assetId: string }) {
               </>
             ) : null}
           </article>
+          {report.company ? (
+            <article className="rounded-2xl border border-border bg-panel-subtle p-4 lg:col-span-2">
+              <h3 className="text-sm font-semibold">Company filings</h3>
+              <p className="mt-2 text-xs text-muted">
+                SEC filing facts for a verified issuer. Separate from the Oren
+                Score. Not a recommendation.
+              </p>
+              {report.company.reason ? (
+                <p className="mt-2 text-sm text-muted">
+                  {companyReason(report.company.reason)}
+                </p>
+              ) : null}
+              {report.company.data?.briefing.map((line, index) => (
+                <p className="mt-2 text-sm leading-6" key={`${index}-${line}`}>
+                  {line}
+                </p>
+              ))}
+              {report.company.data?.latestQuarter?.revenue?.display ? (
+                <p className="mt-2 text-xs text-muted">
+                  Latest quarter revenue{" "}
+                  {report.company.data.latestQuarter.revenue.display}
+                  {report.company.data.latestQuarter.derived
+                    ? " (derived)"
+                    : ""}
+                  {report.company.data.latestQuarter.netIncome?.display
+                    ? ` · Net income ${report.company.data.latestQuarter.netIncome.display}`
+                    : ""}
+                  {report.company.data.latestQuarter.operatingMargin?.display
+                    ? ` · Operating margin ${report.company.data.latestQuarter.operatingMargin.display}`
+                    : ""}
+                </p>
+              ) : null}
+              {report.company.data?.links?.length ? (
+                <ul className="mt-3 space-y-2 text-xs">
+                  {report.company.data.links.slice(0, 6).map((link) =>
+                    link.url.startsWith(
+                      "https://www.sec.gov/Archives/edgar/data/",
+                    ) ? (
+                      <li key={link.url}>
+                        <a
+                          className="underline-offset-2 hover:underline"
+                          href={link.url}
+                          onClick={recordSource}
+                          rel="noopener noreferrer"
+                          target="_blank"
+                        >
+                          {link.label}
+                        </a>
+                      </li>
+                    ) : null,
+                  )}
+                </ul>
+              ) : null}
+              {report.company.fetchedAt ? (
+                <p className="mt-2 text-xs text-muted">
+                  Fetched {dateLabel(report.company.fetchedAt)}
+                  {report.company.publishedAt
+                    ? ` · Filed ${dateLabel(report.company.publishedAt)}`
+                    : ""}
+                </p>
+              ) : null}
+            </article>
+          ) : null}
           <article className="rounded-2xl border border-border bg-panel-subtle p-4 lg:col-span-2">
             <h3 className="text-sm font-semibold">Where they disagree</h3>
             <p className="mt-2 text-sm leading-6 text-muted">
@@ -272,6 +335,18 @@ export function StockResearchPanel({ assetId }: { assetId: string }) {
 }
 
 function dateLabel(value?: string) {
+  const dateOnly = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value ?? "");
+  if (dateOnly) {
+    const date = new Date(
+      Date.UTC(Number(dateOnly[1]), Number(dateOnly[2]) - 1, Number(dateOnly[3])),
+    );
+    return new Intl.DateTimeFormat("en-US", {
+      timeZone: "UTC",
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    }).format(date);
+  }
   return value && Number.isFinite(Date.parse(value))
     ? new Date(value).toLocaleDateString(undefined, {
         year: "numeric",
@@ -279,4 +354,39 @@ function dateLabel(value?: string) {
         day: "numeric",
       })
     : "time unavailable";
+}
+
+function companyReason(reason: string): string {
+  switch (reason) {
+    case "not_mapped":
+      return "Company filings are not available. Oren has not verified this token's issuer.";
+    case "fund_no_statements":
+      return "This is a fund or ETF. Oren does not report operating-company statements for it.";
+    case "no_coverage":
+      return "Company statements are not covered for this instrument.";
+    case "mint_mismatch":
+      return "The token mint does not match the verified issuer record, so no company figures are shown.";
+    case "identity_mismatch":
+      return "The live stock record does not match the verified issuer, so no company figures are shown.";
+    case "ambiguous_identity":
+      return "More than one issuer matches this stock, so no company figures are shown.";
+    case "timeout":
+      return "Company filings timed out. Other research is unchanged.";
+    case "rate_limited":
+      return "Company filings were rate limited. Other research is unchanged.";
+    case "provider_unavailable":
+      return "Company filings could not be loaded. Other research is unchanged.";
+    case "stale":
+      return "Company figures are shown, and the filing or cache is stale.";
+    case "sec_not_configured":
+      return "Company filings are not loaded until the server contact is configured.";
+    case "sec_preview_disabled":
+      return "Company filings are not loaded in previews.";
+    case "sec_worker_unavailable":
+      return "Company filings are not loaded from this server process.";
+    case "not_licensed":
+      return "This source is not licensed for this view.";
+    default:
+      return "Company filings could not be loaded.";
+  }
 }

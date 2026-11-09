@@ -6,6 +6,7 @@ import request from 'supertest';
 import { PrivyWalletAuth } from '../auth/privy-wallet-auth';
 import { registerMcpJsonBodyParser } from '../mcp-auth/mcp-json-body';
 import { AgentController } from './agent.controller';
+import { AgentUsageLimit } from '../common/rate-limit';
 import { AgentService } from './agent.service';
 
 jest.mock('@privy-io/node', () => ({ PrivyClient: jest.fn() }));
@@ -43,6 +44,7 @@ describe('agent JSON bodies behind the MCP parser', () => {
       providers: [
         { provide: AgentService, useValue: agent },
         { provide: PrivyWalletAuth, useValue: auth },
+        AgentUsageLimit,
       ],
     }).compile();
     const app = module.createNestApplication();
