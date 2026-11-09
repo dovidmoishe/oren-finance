@@ -194,19 +194,21 @@ test('migration preflight and a live worker abort before any installed file chan
     test ! -e "$touched"
     account_exists() { return 1; }
     account_groups() { echo 'oren-ci-release'; }
+    require_root() { true; }
     safety_reason() { echo 'runner worker still exists'; }
     signals=$(mktemp)
     signal_listener() { echo "$1 $2" >> "$signals"; }
     listeners=$(mktemp)
     printf '4242\\n' > "$listeners"
-    export LISTENER_LIST_FILE=$listeners DRAIN_ATTEMPTS=2 DRAIN_SLEEP=0
+    export LISTENER_LIST_FILE=$listeners
     set +e
     cmd_apply
     status=$?
     set -e
     test "$status" -eq 2
     test ! -e "$touched"
-    grep -q '^STOP 4242$' "$signals"
+    test ! -s "$signals"
+    require_root() { true; }
     safety_reason() { echo 'light permit still held'; }
     set +e
     cmd_rollback /tmp/does-not-need-to-exist
@@ -247,6 +249,70 @@ test('a live light permit blocks restart even when the heavy slices are idle', (
     reason=$(safety_reason)
     test "$reason" = 'light permit still held'
     rm -f "$lease"
+  `], { encoding: 'utf8', cwd: repo });
+  assert.equal(probe.status, 0, `${probe.stdout}\n${probe.stderr}`);
+});
+
+test('unreadable cgroup usage and a failed safety check do not permit mutation', () => {
+  const probe = spawnSync('bash', ['-c', `
+    set -euo pipefail
+    source infra/ci/heavy-pair.sh
+    touched=$(mktemp)
+    rm -f "$touched"
+    require_root() { true; }
+    mutate_installed_files() { echo mutated >"$touched"; }
+    signal_listener() { echo "$1" >> "$touched.signals"; }
+    account_exists() { [[ $1 == oren-ci-build-2 ]]; }
+    uid_of() { echo 1099; }
+    account_groups() { echo 'oren-ci-build-2'; }
+    usage_of() { return 1; }
+    set +e
+    cmd_apply
+    status=$?
+    set -e
+    test "$status" -eq 2
+    test ! -e "$touched"
+    test ! -e "$touched.signals"
+    safety_reason() { return 1; }
+    set +e
+    read_safety
+    status=$?
+    set -e
+    test "$status" -eq 2
+    rm -f "$touched" "$touched.signals"
+  `], { encoding: 'utf8', cwd: repo });
+  assert.equal(probe.status, 0, `${probe.stdout}\n${probe.stderr}`);
+});
+
+test('a zombie runner worker is not a live job and a low MemTotal is refused', () => {
+  const probe = spawnSync('bash', ['-c', `
+    set -euo pipefail
+    source infra/ci/light-lane.sh
+    root=$(mktemp -d)
+    mkdir -p "$root/10" "$root/11"
+    printf 'Runner.Worker' > "$root/10/comm"
+    printf '10 (Runner.Worker) Z 0\\n' > "$root/10/stat"
+    printf 'Runner.Worker' > "$root/11/comm"
+    printf '11 (Runner.Worker) R 0\\n' > "$root/11/stat"
+    PROC_ROOT=$root
+    test "$(worker_count)" = 1
+    rm -rf "$root/11"
+    PROC_ROOT=$root
+    test "$(worker_count)" = 0
+    rm -rf "$root"
+    source infra/ci/heavy-pair.sh
+    mem=$(mktemp)
+    printf 'MemTotal: 12288000 kB\\nSwapTotal: 1048576 kB\\n' > "$mem"
+    MEMINFO_FILE=$mem NPROC_VALUE=4
+    set +e
+    preflight_host
+    status=$?
+    set -e
+    test "$status" -eq 2
+    printf 'MemTotal: 13312000 kB\\nSwapTotal: 1048576 kB\\n' > "$mem"
+    MEMINFO_FILE=$mem NPROC_VALUE=4
+    preflight_host
+    rm -f "$mem"
   `], { encoding: 'utf8', cwd: repo });
   assert.equal(probe.status, 0, `${probe.stdout}\n${probe.stderr}`);
 });

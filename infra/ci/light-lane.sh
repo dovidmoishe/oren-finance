@@ -40,28 +40,58 @@ restart_block_reason() {
 
 usage_of() {
   local uid=$1 root=${CGROUP_ROOT:-/sys/fs/cgroup}
-  cat "$root/user.slice/user-$uid.slice/memory.current"
+  local path=$root/user.slice/user-$uid.slice/memory.current value
+  [[ -r $path ]] || return 1
+  value=$(cat "$path") || return 1
+  [[ $value =~ ^[0-9]+$ ]] || return 1
+  printf '%s\n' "$value"
+}
+
+worker_state() {
+  local pid=$1 root=${PROC_ROOT:-/proc}
+  awk '{print $3}' "$root/$pid/stat" 2>/dev/null || echo '?'
 }
 
 worker_count() {
-  # Every Runner.Worker counts: app lint, control, build, and release.
-  # There is no idle boundary while any of them is alive.
+  # Live Runner.Worker processes only. A zombie (state Z) is an exited child
+  # whose stopped listener has not reaped it; it is not an active job.
+  local n=0 line pid state root=${PROC_ROOT:-/proc} comm
   if [[ -n ${WORKER_LIST_FILE:-} ]]; then
-    wc -l < "$WORKER_LIST_FILE"
+    while read -r line; do
+      [[ -n $line && $line != Z ]] || continue
+      n=$((n + 1))
+    done < "$WORKER_LIST_FILE"
+    printf '%s\n' "$n"
     return 0
   fi
-  pgrep -cx Runner.Worker || true
+  shopt -s nullglob
+  for pid in "$root"/[0-9]*; do
+    [[ -r $pid/comm ]] || continue
+    comm=$(cat "$pid/comm") || continue
+    [[ $comm == Runner.Worker ]] || continue
+    state=$(awk '{print $3}' "$pid/stat" 2>/dev/null || echo '?')
+    [[ $state == Z ]] && continue
+    n=$((n + 1))
+  done
+  shopt -u nullglob
+  printf '%s\n' "$n"
+}
+
+account_exists() {
+  id "$1" >/dev/null 2>&1
+}
+
+uid_of() {
+  id -u "$1"
 }
 
 heavy_uids() {
   local account
-  # build-2 and light are included once those accounts exist. A rollback
-  # that only looks at the original build and release UIDs would restart
-  # admission while the new slice or a light permit is still live.
+  # A never-created account is absent and is not a cgroup to read.
+  # An account that already exists is managed: missing usage fails closed.
   for account in oren-ci-build oren-ci-build-2 oren-ci-release oren-ci-light; do
-    if id "$account" >/dev/null 2>&1; then
-      id -u "$account"
-    fi
+    account_exists "$account" || continue
+    uid_of "$account"
   done
 }
 
@@ -73,17 +103,28 @@ light_permit_busy() {
 }
 
 safety_reason() {
-  local workers uid reason usages=()
-  workers=$(worker_count)
+  local workers uid usage reason usages=()
+  workers=$(worker_count) || {
+    printf 'worker check failed\n'
+    return 0
+  }
   workers=${workers// /}
   if light_permit_busy; then
     printf 'light permit still held\n'
     return 0
   fi
   for uid in $(heavy_uids); do
-    usages+=("$(usage_of "$uid")")
+    if ! usage=$(usage_of "$uid"); then
+      printf 'cgroup usage unreadable for uid %s\n' "$uid"
+      return 0
+    fi
+    usages+=("$usage")
   done
-  reason=$(restart_block_reason "$workers" "${usages[@]}")
+  if (( ${#usages[@]} == 0 )); then
+    reason=$(restart_block_reason "$workers")
+  else
+    reason=$(restart_block_reason "$workers" "${usages[@]}")
+  fi
   printf '%s' "$reason"
 }
 
@@ -168,7 +209,7 @@ cmd_check() {
 
 cmd_apply() {
   local reason backup manifest
-  reason=$(safety_reason) || true
+  reason=$(safety_reason) || { echo 'safety check failed; refusing before any installed-path change' >&2; return 2; }
   if [[ -n $reason ]]; then
     echo "refusing before any installed-path change: $reason" >&2
     return 2

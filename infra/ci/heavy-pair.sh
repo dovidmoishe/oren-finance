@@ -39,8 +39,42 @@ preflight_privileges() {
     fi
   fi
   [[ $(budget heavyConcurrentMax) == 2 ]]
-  [[ $(budget hostMiB) == 13312 ]]
   [[ $(budget prodReserveMiB) == 3840 ]]
+}
+
+require_root() {
+  [[ ${EUID:-} == 0 ]] || { echo 'migration must run as root' >&2; return 1; }
+}
+
+read_meminfo_kib() {
+  local key=$1 file=${MEMINFO_FILE:-/proc/meminfo}
+  awk -v key="$key:" '$1 == key { print $2; found=1 } END { if (!found) exit 1 }' "$file"
+}
+
+preflight_host() {
+  # budgets.json hostMiB is the planning figure for a marketed 13 GiB host.
+  # The gate uses the live MemTotal. SwapTotal is not required to be zero:
+  # an earlier "no swap" reading was unused swap, and every CI slice sets
+  # MemorySwapMax=0 so that swap cannot be charged to a CI cgroup.
+  local total_kib swap_kib total_mib cap remainder cpus
+  total_kib=$(read_meminfo_kib MemTotal) || {
+    echo 'refusing before any installed-path change: MemTotal is unreadable' >&2
+    return 2
+  }
+  total_mib=$((total_kib / 1024))
+  cap=$(( ($(budget heavyConcurrentMax) * $(budget heavyActiveMaxMiB)) + $(budget heavyIdleMaxMiB) + $(budget controlMaxMiB) + $(budget lightMaxMiB) ))
+  remainder=$((total_mib - cap))
+  if (( remainder < 3072 )); then
+    echo "refusing before any installed-path change: MemTotal ${total_mib} MiB leaves ${remainder} MiB after ${cap} MiB of caps; the floor is 3072 MiB" >&2
+    return 2
+  fi
+  cpus=${NPROC_VALUE:-$(nproc)}
+  if (( cpus < 4 )); then
+    echo "refusing before any installed-path change: ${cpus} logical CPUs is below the 4 required for two heavy jobs" >&2
+    return 2
+  fi
+  swap_kib=$(read_meminfo_kib SwapTotal) || swap_kib=unreadable
+  echo "host check: MemTotal=${total_mib} MiB capSum=${cap} MiB remainder=${remainder} MiB SwapTotal=${swap_kib} KiB cpus=${cpus}" >&2
 }
 
 signal_listener() {
@@ -74,25 +108,48 @@ resume_listeners() {
   done
 }
 
-wait_until_idle() {
-  local attempt reason
-  for attempt in $(seq 1 "${DRAIN_ATTEMPTS:-90}"); do
-    reason=$(safety_reason) || true
-    if [[ -z $reason ]]; then
-      return 0
-    fi
-    echo "waiting for the active job to finish: $reason" >&2
-    sleep "${DRAIN_SLEEP:-2}"
-  done
-  echo 'timed out waiting for active jobs; listeners will be resumed and no files were replaced' >&2
-  return 2
+read_safety() {
+  local status=0
+  SAFETY_REASON=$(safety_reason) || status=$?
+  if (( status != 0 )); then
+    echo 'safety check failed with no usable result; refusing before any installed-path change' >&2
+    return 2
+  fi
+  if [[ -n $SAFETY_REASON ]]; then
+    echo "not idle: $SAFETY_REASON" >&2
+    return 2
+  fi
 }
 
 prepare_migration() {
+  require_root || return
   preflight_privileges || return
+  preflight_host || return
+  # Refuse while a live job exists. Do not pause the listener first:
+  # a stopped listener does not reap an exiting Runner.Worker, and a
+  # zombie would keep the wait from ever finishing.
+  read_safety || return
   pause_listeners || return
-  wait_until_idle || return
-  preflight_privileges || return
+  if ! read_safety; then
+    resume_listeners
+    return 2
+  fi
+  preflight_privileges || { resume_listeners; return; }
+  preflight_host || { resume_listeners; return; }
+}
+
+hold_still_valid() {
+  read_safety || { resume_listeners; return 2; }
+  local pid state root=${PROC_ROOT:-/proc}
+  for pid in "${LISTENER_PIDS[@]}"; do
+    [[ -r $root/$pid/stat ]] || continue
+    state=$(awk '{print $3}' "$root/$pid/stat")
+    if [[ $state != T && $state != t ]]; then
+      echo "watchdog: listener $pid is not held; resuming and stopping" >&2
+      resume_listeners
+      return 2
+    fi
+  done
 }
 
 write_runner_unit() {
@@ -144,8 +201,12 @@ disable_new_runner() {
     systemctl --user disable --now "oren-runner-$lane.service" 2>/dev/null || true
 }
 
+note_created() {
+  printf 'created %s\n' "$1" >> "$manifest"
+}
+
 mutate_installed_files() {
-  [[ ${EUID:-} == 0 ]] || { echo 'apply must run as root' >&2; return 1; }
+  hold_still_valid || return
   ensure_account "$account"
   ensure_account oren-ci-light
   preflight_privileges
@@ -180,8 +241,12 @@ mutate_installed_files() {
   id=$(id -u "$account")
   light_id=$(id -u oren-ci-light)
   [[ "$id" != "$(id -u oren-ci-build)" && "$id" != "$light_id" ]]
+  local slice=${HOST_ROOT:-}/etc/systemd/system/user-$id.slice.d/oren-ci.conf
+  local light_slice=${HOST_ROOT:-}/etc/systemd/system/user-$light_id.slice.d/oren-ci.conf
+  [[ -e $slice ]] || note_created "$slice"
+  [[ -e $light_slice ]] || note_created "$light_slice"
   install -d -m 755 "${HOST_ROOT:-}/etc/systemd/system/user-$id.slice.d"
-  cat > "${HOST_ROOT:-}/etc/systemd/system/user-$id.slice.d/oren-ci.conf" <<EOF
+  cat > "$slice" <<EOF
 [Slice]
 MemoryAccounting=yes
 MemoryHigh=448M
@@ -192,14 +257,21 @@ CPUQuota=25%
 CPUWeight=25
 TasksMax=2048
 EOF
-  write_light_slice "$light_id" "${HOST_ROOT:-}/etc/systemd/system/user-$light_id.slice.d/oren-ci.conf"
+  write_light_slice "$light_id" "$light_slice"
+  local build_unit=${UNIT_ROOT:-/home/$account/.config/systemd/user}/oren-runner-build-2.service
+  local light_unit=/home/oren-ci-light/.config/systemd/user/oren-runner-light.service
+  [[ -e $build_unit ]] || note_created "$build_unit"
+  [[ -e $light_unit ]] || note_created "$light_unit"
   write_runner_unit "$account" "$id" build-2
   write_light_unit "$light_id"
+  note_created "linger:$account"
   loginctl enable-linger "$account"
+  hold_still_valid || return
   systemctl restart "user@$id.service"
   systemctl set-property --runtime "user-$id.slice" MemoryMax=3840M MemoryHigh=3584M CPUQuota=100%
   runuser -u "$account" -- env XDG_RUNTIME_DIR="/run/user/$id" DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$id/bus" \
     dockerd-rootless-setuptool.sh install --force
+  note_created "docker:$account"
   runuser -u "$account" -- env XDG_RUNTIME_DIR="/run/user/$id" DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$id/bus" \
     systemctl --user enable --now docker
   runuser -u "$account" -- env DOCKER_HOST="unix:///run/user/$id/docker.sock" \
@@ -207,6 +279,7 @@ EOF
   systemctl set-property --runtime "user-$id.slice" MemoryMax=512M MemoryHigh=448M CPUQuota=25%
   install -d -m 750 -o "$account" -g "$account" "/home/$account/runner-build-2"
   echo "backup manifest $manifest"
+  hold_still_valid || return
   systemctl daemon-reload
   systemctl restart oren-ci-admission.service
   echo 'admission restarted after the light account and build-2 unit existed; runners were not registered'
@@ -232,23 +305,56 @@ cmd_stage() {
   echo "staged $dest"
 }
 
+stop_created_service() {
+  local kind=$1
+  case $kind in
+    linger:*)
+      loginctl disable-linger "${kind#linger:}" || true
+      echo "rollback: linger disabled for ${kind#linger:}"
+      ;;
+    docker:*)
+      local name=${kind#docker:} id
+      account_exists "$name" || return 0
+      id=$(id -u "$name")
+      runuser -u "$name" -- env XDG_RUNTIME_DIR="/run/user/$id" DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$id/bus" \
+        systemctl --user disable --now docker || true
+      echo "rollback: rootless docker stopped for $name"
+      ;;
+    *)
+      if [[ -e $kind ]]; then
+        rm -f -- "$kind"
+        echo "rollback: removed $kind"
+      fi
+      ;;
+  esac
+}
+
 cmd_rollback() {
   local manifest=${1:?manifest}
   prepare_migration || return
   [[ -f $manifest ]]
-  [[ ${EUID:-} == 0 ]] || { echo 'rollback must run as root' >&2; return 1; }
   disable_new_runner oren-ci-build-2 build-2
   disable_new_runner oren-ci-light light
-  local backup sha mode owner path
+  local backup sha mode owner path kind
   backup=$(dirname -- "$manifest")
   while read -r sha mode owner path; do
     [[ -n ${sha:-} ]] || continue
+    if [[ $sha == created ]]; then
+      [[ -n ${mode:-} ]] && stop_created_service "$mode"
+      continue
+    fi
     install_atomic "$backup/$sha" "$path" "$mode"
     chown -- "$owner" "$path"
   done < "$manifest"
   systemctl daemon-reload
   systemctl restart oren-ci-admission.service
-  echo 'restored the backed-up files; build-2 and light runners were disabled without touching release groups'
+  if account_exists oren-ci-build-2; then
+    echo 'leftover: Unix account oren-ci-build-2 and its home remain; linger, rootless docker, slice and runner unit from this migration are removed'
+  fi
+  if account_exists oren-ci-light; then
+    echo 'leftover: Unix account oren-ci-light and its home remain if this migration created them; its runner unit and slice drop-in from this migration are removed'
+  fi
+  echo 'restored the backed-up admission files; release groups were not changed'
 }
 
 if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then

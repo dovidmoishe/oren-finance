@@ -22,7 +22,11 @@ A second `oren-build` listener on the existing build UID would share `user-<buil
 
 ## Order
 
-`apply` does not trust a single idle sample. It checks release, build, build-2, and light group membership first, and it refuses before copying any installed file if one of those accounts is in `docker` or `sudo`, or if light is in `oren-ci-workers`. It then SIGSTOPs `Runner.Listener` only. It does not signal `Runner.Worker`. It polls until every worker has exited and the build, build-2, release, and light slices are inside the idle floor, and until a live light permit pid is gone. If that wait times out, listeners are continued and nothing is replaced. Active jobs are not killed.
+`apply` must already be idle. It does not pause a listener while a job is running: a stopped `Runner.Listener` does not reap an exiting `Runner.Worker`, and that zombie keeps a wait from finishing. A live worker, an unreadable cgroup for an account that already exists, or a safety check that exits without a result all refuse before any listener is paused and before any installed file is copied. A never-created account is not a cgroup. After a clean idle reading, listeners are held for the rest of the bootstrap and continued again if a job appears or a later check fails.
+
+`budgets.json` records 13,312 MiB as the planning figure for the marketed 13 GiB host. The script reads live `MemTotal` and refuses when that value leaves less than 3,072 MiB after the 9,472 MiB of caps. A host under 13,312 MiB can still pass when the remainder stays at least 3 GiB. Earlier "no swap" was unused swap, not `SwapTotal=0`. The host may have about 1 GiB of swap allocated. Every CI slice in this migration sets `MemorySwapMax=0`, so that swap is not available to CI.
+
+Rollback stops the build-2 rootless docker service and disables its linger, and it removes slice drop-ins and runner units this migration created. It restores the backed-up admission files. It does not delete the Unix accounts or their home directories; those leftovers are printed and are not left with a running daemon. Release groups are not changed.
 
 Only after that wait does it create `oren-ci-build-2` and `oren-ci-light` if they are missing, write the root-owned `oren-runner-build-2.service` (UMask 0022, the heavy hooks, and `DOCKER_HOST` for the new UID) and the light unit, install rootless Docker for build-2, and restart admission. The light account exists before that restart, so the light socket is opened. Runners are not registered by `apply`.
 

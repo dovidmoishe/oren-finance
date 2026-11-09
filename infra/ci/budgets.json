@@ -2,7 +2,7 @@
   "hostMiB": 13312,
   "hostGiBReported": 13,
   "logicalCpus": 4,
-  "swapMiB": 0,
+  "swapTotalAssumedMiB": null,
   "observedAvailableMiB": 10240,
   "capacityProfile": "two-heavy-one-light",
   "heavyActiveMaxMiB": 3840,
