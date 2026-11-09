@@ -32,7 +32,12 @@ test('installed heavy hooks and lease client stay byte-identical', () => {
 test('light cap stays bounded and the 13 GiB host keeps a 3.75 GiB reserve', () => {
   assert.equal(budget.lintChunkPeakBytes, 468426752);
   assert.ok(budget.lintChunkPeakBytes < budget.lightHighMiB * 1024 * 1024);
-  assert.ok(budget.lintProcessPeakBytes > 512 * 1024 * 1024);
+  assert.ok(budget.lintProcessPeakBytes > budget.lightMaxMiB * 1024 * 1024);
+  assert.ok(budget.installLightOomPeakBytes > budget.lightMaxMiB * 1024 * 1024);
+  assert.ok(budget.installSerialOomPeakBytes >= budget.lightMaxMiB * 1024 * 1024);
+  assert.ok(budget.installHeavyPeakBytes < budget.heavyActiveMaxMiB * 1024 * 1024);
+  assert.equal(budget.lintHeavyPeakBytes, 643956736);
+  assert.ok(budget.lintHeavyPeakBytes < budget.heavyActiveMaxMiB * 1024 * 1024);
   assert.equal(budget.lightStartMinAvailableMiB, undefined);
   assert.equal(budget.heavyGrowthSlackMiB, undefined);
   assert.equal(budget.heavyConcurrentMax, 2);
@@ -47,7 +52,7 @@ test('light cap stays bounded and the 13 GiB host keeps a 3.75 GiB reserve', () 
   assert.ok(budget.lightMaxMiB < 1280);
 });
 
-test('lint is the only heavy-sized check moved, and it is chunked', () => {
+test('lint stays on the heavy lane because install exceeds the light cap', () => {
   const hits = [];
   for (const file of readdirSync(workflows)) {
     if (!file.endsWith('.yml')) continue;
@@ -55,17 +60,22 @@ test('lint is the only heavy-sized check moved, and it is chunked', () => {
       if (line.includes('oren-light')) hits.push(`${file}:${index + 1}:${line.trim()}`);
     });
   }
-  assert.equal(hits.length, 2);
-  assert.ok(hits.every(hit => hit.startsWith('ci.yml:')));
+  assert.equal(hits.length, 1);
+  assert.match(hits[0], /ci\.yml:\d+:runs-on: \[self-hosted, linux, x64, oren-light\]/);
   const ci = text('../../.github/workflows/ci.yml');
   const appCheck = ci.split('\n  app-check:\n')[1].split('\n  app:\n')[0];
   assert.match(appCheck, /check: test/);
-  assert.match(appCheck, /runner: oren-build/);
   assert.match(appCheck, /check: lint/);
-  assert.match(appCheck, /runner: oren-light/);
   assert.match(appCheck, /check: build/);
+  assert.equal(appCheck.match(/runner: oren-build/g).length, 3);
+  assert.doesNotMatch(appCheck, /oren-light/);
+  assert.match(appCheck, /pnpm install --frozen-lockfile/);
   assert.match(appCheck, /node scripts\/lint-bounded\.mjs/);
   assert.match(ci.split('\n  app:\n')[1], /test "\$RESULT" = success/);
+  const slice = text('./light.slice.conf');
+  assert.match(slice, /MemoryHigh=768M\nMemoryMax=768M\nMemorySwapMax=0/);
+  assert.match(slice, /CPUQuota=100%/);
+  assert.match(text('./provision.sh'), /install -m 644 "\$SOURCE\/light\.slice\.conf"/);
 });
 
 test('light hooks do not reach docker or the heavy lease', () => {
@@ -84,9 +94,9 @@ test('light hooks do not reach docker or the heavy lease', () => {
   assert.match(provision, /for account in oren-ci-build oren-ci-release; do/);
   assert.doesNotMatch(provision, /usermod -a -G oren-ci-workers oren-ci-light/);
   assert.match(provision, /"\$lane" == light/);
-  assert.match(provision, /MemoryMax=768M/);
-  assert.match(provision, /MemoryHigh=768M/);
-  assert.match(provision, /CPUQuota=100%/);
+  assert.match(text('./light.slice.conf'), /MemoryMax=768M/);
+  assert.match(text('./light.slice.conf'), /MemoryHigh=768M/);
+  assert.match(text('./light.slice.conf'), /CPUQuota=100%/);
 });
 
 test('admission restart stays blocked for a live worker or a fat cgroup', () => {

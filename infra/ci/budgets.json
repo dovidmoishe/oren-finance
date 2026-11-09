@@ -29,5 +29,9 @@
   "heavyFileBytes": 2640374988,
   "rootlessCurrentBytes": 277872640,
   "lintProcessPeakBytes": 1140269056,
-  "lintChunkPeakBytes": 468426752
+  "lintChunkPeakBytes": 468426752,
+  "installLightOomPeakBytes": 806354944,
+  "installSerialOomPeakBytes": 805306368,
+  "installHeavyPeakBytes": 2566193152,
+  "lintHeavyPeakBytes": 643956736
 }

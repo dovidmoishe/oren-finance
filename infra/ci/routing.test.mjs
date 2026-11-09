@@ -17,7 +17,7 @@ test('all workflows use dedicated self-hosted labels without hosted fallbacks', 
 test('CI aggregate runs on the light lane, so a polling control gate cannot deadlock it', () => {
   const ci = workflow('ci');
   for (const name of ['preview-infra', 'api', 'app-check']) assert.match(job(ci, name), /oren-build/);
-  assert.match(job(ci, 'app-check'), /runner: oren-light/);
+  assert.doesNotMatch(job(ci, 'app-check'), /oren-light/);
   assert.match(job(ci, 'app-check'), /node scripts\/lint-bounded\.mjs/);
   assert.match(job(ci, 'app'), /oren-light/);
   assert.match(job(ci, 'app'), /if: always\(\)/);

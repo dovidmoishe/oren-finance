@@ -27,9 +27,9 @@ Do not roll out commit `510903a2` or `c999eb5b`. `510903a2` treated every `Runne
 | Heavy, admitted | 3,840 MiB | 3,584 MiB | 100% |
 | Heavy, idle | 512 MiB | 448 MiB | 25% |
 | Light, static | 768 MiB | 768 MiB | 100% |
-
-The light max stays 768 MiB, so the 9,472 MiB cap sum and the 3,072 MiB production floor do not change. The high watermark now equals that max. A lint install was observed at about 648 MiB with `cpu.pressure` near full under the old 25% quota, without a registry failure and without crossing 768 MiB. One core for that lane makes the worst static quota 100+100+25+25+100 = 350% of one CPU on the 4 CPU host.
 | Control | 512 MiB | unchanged | 25% |
+
+The light max stays 768 MiB, so the 9,472 MiB cap sum and the 3,072 MiB production floor do not change. A frozen `pnpm install` under a 768 MiB cgroup with swap disabled is killed (peak 806,354,944 bytes). The same command with `--network-concurrency 1 --child-concurrency 1` is also killed at 805,306,368 bytes. Under a 3,840 MiB cap the install finishes and peaks at 2,566,193,152 bytes. The same cap then runs `node scripts/lint-bounded.mjs` to exit 0 with a cgroup peak of 643,956,736 bytes. App lint therefore runs on `oren-build`. The light runner keeps the aggregate check. Worst static CPU quota remains 100+100+25+25+100 = 350% of one CPU on the 4 CPU host.
 
 Sum 5,632 MiB. Remainder 1,792 MiB (1.75 GiB). That remainder is the static cap sum, and it counts only when systemd is actually enforcing every one of those caps at the same time. It is not the light-start gate. Light start and heavy raise call one decision. With neither lease held, each account that can still be admitted contributes its rise from current usage up to 3,840 MiB (from the 512 MiB floor when it is already above that floor). The measured idle host, build 487 MiB and release 254 MiB with about 4.6 GiB available, fails that decision: the larger rise is about 3,586 MiB, and 3,586 + 768 + 1,792 does not fit in 4.6 GiB. A heavy lease already at 3,584 MiB has only about 256 MiB left to climb, and that is the only case where the old 2,816 MiB figure matches the real remainder. One heavy job at a time. No second heavy admission while a slice is draining or stuck.
 
@@ -37,7 +37,7 @@ Downshift reclaims file pages through the full user slice `memory.reclaim`. The 
 
 ## What stays heavy
 
-App test, Next `pnpm run build`, API (including its image build), preview infrastructure, preview image builds, and release image builds. GitHub still FIFO-schedules `oren-build`. There is no priority queue.
+App test, app lint, Next `pnpm run build`, API (including its image build), preview infrastructure, preview image builds, and release image builds. GitHub still FIFO-schedules `oren-build`, and admission still allows two heavy jobs. Lint queues when both heavy slots are taken. There is no priority queue.
 
 ## Rollout
 
@@ -56,7 +56,19 @@ Moving the aggregate job to `oren-light` removes the wait where that job sat beh
 gh api --method POST repos/dovidmoishe/oren-finance/actions/runners/registration-token --jq .token | bash infra/ci/register-light.sh
 ```
 
-That registers one `oren-vps-light` runner with label `oren-light`. Do not merge until that runner is online; the lint job and the required aggregate check queue on the missing label until then.
+That registers one `oren-vps-light` runner with label `oren-light`. The required aggregate check uses that label. App lint does not.
+
+## Durable light slice
+
+The runtime slice can be 768/100 while `/etc/systemd/system/user-<light-uid>.slice.d/oren-ci.conf` is still `MemoryHigh=640M` and `CPUQuota=25%`. A reboot restores the file. Copy only `infra/ci/light.slice.conf` into that path and reload systemd. Do not run `provision.sh` for this file. It stops runners.
+
+```bash
+id=$(id -u oren-ci-light)
+install -m 644 infra/ci/light.slice.conf /etc/systemd/system/user-$id.slice.d/oren-ci.conf
+systemctl daemon-reload
+```
+
+The file is `MemoryHigh=768M`, `MemoryMax=768M`, `MemorySwapMax=0`, `CPUQuota=100%`. Rollback is the previous drop-in: `MemoryHigh=640M`, `MemoryMax=768M`, `MemorySwapMax=0`, `CPUQuota=25%`, then `systemctl daemon-reload`. Do not restart admission for that file alone.
 
 Before calling the lane in service: confirm `oren-ci-light` is not in `docker`, `sudo`, or `oren-ci-workers`; the slice is `MemoryMax=768M` and `MemoryHigh=768M`; production and the API return 200; a heavy worker exit reclaims file cache without a cgroup oom-kill of `dockerd`; and a second heavy job stays queued while `memory.current` is still above the idle floor. `infra/ci/light-lane-canary.sh` samples that full user slice while the chunked lint runs. A 447 MiB child RSS is not a pass and is not an input.
 

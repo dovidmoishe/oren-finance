@@ -39,7 +39,9 @@ export function chunkFiles(files, size = CHUNK_SIZE) {
 }
 
 function eslintBin() {
-  return require.resolve('eslint/bin/eslint.js');
+  const manifest = require.resolve('eslint/package.json');
+  const relative = require(manifest).bin.eslint;
+  return path.join(path.dirname(manifest), relative);
 }
 
 export function lintChunks(chunks, spawn = spawnSync) {

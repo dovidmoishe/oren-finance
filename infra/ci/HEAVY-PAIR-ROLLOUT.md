@@ -43,7 +43,7 @@ Then register the second build runner. The unit file must already exist; registr
 gh api --method POST repos/dovidmoishe/oren-finance/actions/runners/registration-token --jq .token | bash infra/ci/register-build-2.sh
 ```
 
-Light registration stays `infra/ci/register-light.sh`. Do not point lint at `oren-light` until that runner is online. Do not treat a 447 MiB child RSS as proof the light slice fits. `infra/ci/light-lane-canary.sh` must run as `oren-ci-light` and it exits before lint if the light permit is refused.
+Light registration stays `infra/ci/register-light.sh`. App lint stays on `oren-build`. The aggregate check uses `oren-light`. Do not treat a 447 MiB child RSS as proof the light slice fits. `infra/ci/light-lane-canary.sh` must run as `oren-ci-light` and it exits before lint if the light permit is refused.
 
 ## Rollback
 

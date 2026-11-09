@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { readFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
+import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { chunkFiles, listDefaultLintFiles } from '../scripts/lint-bounded.mjs';
 
@@ -17,4 +18,9 @@ test('bounded lint chunks are a partition of the default eslint file set', async
   assert.ok(chunks.every(chunk => chunk.length <= 12));
   const source = readFileSync(new URL('../scripts/lint-bounded.mjs', import.meta.url), 'utf8');
   assert.doesNotMatch(source, /--quiet|--max-warnings|--fix/);
+  assert.doesNotMatch(source, /require\.resolve\('eslint\/bin\/eslint\.js'\)/);
+  const require = createRequire(import.meta.url);
+  const manifest = require.resolve('eslint/package.json');
+  const bin = path.join(path.dirname(manifest), require(manifest).bin.eslint);
+  assert.equal(existsSync(bin), true);
 });

@@ -67,17 +67,7 @@ CPUWeight=50
 TasksMax=512
 EOF
 install -d "/etc/systemd/system/user-$LIGHT_ID.slice.d"
-cat > "/etc/systemd/system/user-$LIGHT_ID.slice.d/oren-ci.conf" <<EOF
-[Slice]
-MemoryAccounting=yes
-MemoryHigh=768M
-MemoryMax=768M
-MemorySwapMax=0
-CPUAccounting=yes
-CPUQuota=100%
-CPUWeight=50
-TasksMax=512
-EOF
+install -m 644 "$SOURCE/light.slice.conf" "/etc/systemd/system/user-$LIGHT_ID.slice.d/oren-ci.conf"
 for id in "$BUILD_ID" "$RELEASE_ID"; do
   install -d "/etc/systemd/system/user@$id.service.d" "/etc/systemd/system/user-$id.slice.d"
   cat > "/etc/systemd/system/user-$id.slice.d/oren-ci.conf" <<EOF

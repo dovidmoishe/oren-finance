@@ -174,10 +174,13 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # Frozen pnpm install peaks at about 2.4 GiB and is killed in the
+          # 768 MiB light slice. Lint uses a heavy slot and still runs the
+          # 12-file eslint chunks. The aggregate check below stays light.
           - check: test
             runner: oren-build
           - check: lint
-            runner: oren-light
+            runner: oren-build
           - check: build
             runner: oren-build
     defaults:
