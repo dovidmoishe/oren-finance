@@ -5,7 +5,7 @@ import {
   sessionSetter,
   walletSessionIsCurrent,
 } from "@/services/wallet-session";
-import { getAgentThreadMessages, streamAgentMessage } from "@/services";
+import { ApiError, getAgentThreadMessages, streamAgentMessage } from "@/services";
 import type {
   AgentDisplayMessage,
   AgentPageContext,
@@ -141,7 +141,10 @@ export const useAgentStore = create<AgentState>((set, get) => ({
         error instanceof Error
           ? error.message
           : "Unable to load this conversation";
-      removeRecent(update, walletAddress, threadId);
+      // Auth and transport failures happen before the thread is known to be gone.
+      if (shouldDropSavedRecent(error)) {
+        removeRecent(update, walletAddress, threadId);
+      }
       update({
         threadId: undefined,
         messages: [],
@@ -397,6 +400,13 @@ function updateMessage(
 ) {
   return messages.map((message) =>
     message.id === id ? update(message) : message,
+  );
+}
+
+/** A saved shortcut is stale only when this thread itself is missing or not ours. */
+export function shouldDropSavedRecent(error: unknown): boolean {
+  return (
+    error instanceof ApiError && (error.status === 400 || error.status === 404)
   );
 }
 

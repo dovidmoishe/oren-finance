@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable, Optional } from '@nestjs/common';
+import { PaidProviderToolBudget } from '../../common/rate-limit';
 import type { AgentArtifact } from '../../../types/agent';
 import type { TradeIntent } from '../../../types/execution';
 import type { ChartRange } from '../../../types/market';
@@ -63,6 +64,7 @@ export class AgentToolRegistry {
     private readonly calendar: PortfolioCalendarService,
     @Optional() private readonly drip?: DripService,
     @Optional() private readonly research?: ResearchService,
+    @Optional() private readonly paidTools?: PaidProviderToolBudget,
   ) {}
 
   getSchemas(caller: DripCaller = {}): ToolDefinition[] {
@@ -92,11 +94,12 @@ export class AgentToolRegistry {
     context: AgentToolContext = {},
   ): Promise<AgentToolResult> {
     const input = asRecord(args);
+    this.chargePaidTool(name, context);
 
     switch (name) {
       case 'getPortfolio': {
         const portfolio = await this.portfolio.getPortfolio(
-          required(input, 'wallet'),
+          connectedWallet(context),
         );
         return {
           output: portfolio,
@@ -106,12 +109,12 @@ export class AgentToolRegistry {
 
       case 'getPortfolioActivity':
         return {
-          output: await this.portfolio.getActivity(required(input, 'wallet')),
+          output: await this.portfolio.getActivity(connectedWallet(context)),
         };
 
       case 'getTradingCalendar': {
         const calendar = await this.calendar.getCalendar(
-          required(input, 'wallet'),
+          connectedWallet(context),
           {
             month: optionalString(input, 'month'),
             start: optionalString(input, 'start'),
@@ -127,7 +130,7 @@ export class AgentToolRegistry {
 
       case 'getTradingCalendarDay': {
         const day = await this.calendar.getDay(
-          required(input, 'wallet'),
+          connectedWallet(context),
           required(input, 'date'),
           { timeZone: optionalString(input, 'timeZone') },
         );
@@ -275,7 +278,7 @@ export class AgentToolRegistry {
           preferredMint: optionalString(input, 'preferredMint'),
           expiredAt: optionalNumber(input, 'expiredAt'),
           slippageBps: optionalNumber(input, 'slippageBps'),
-          wallet: optionalString(input, 'wallet'),
+          wallet: context.walletAddress,
           basis,
         });
         return {
@@ -286,7 +289,7 @@ export class AgentToolRegistry {
 
       case 'getLimitOrders': {
         const orders = await this.execution.listLimitOrders(
-          required(input, 'wallet'),
+          connectedWallet(context),
           {
             includeHistory: optional(input, 'includeHistory') === true,
           },
@@ -303,7 +306,7 @@ export class AgentToolRegistry {
           prepared = await this.execution.prepare(
             {
               quoteId: required(input, 'quoteId'),
-              wallet: required(input, 'wallet'),
+              wallet: connectedWallet(context),
             },
             'agent',
           );
@@ -330,7 +333,7 @@ export class AgentToolRegistry {
       }
 
       case 'getVaults': {
-        const vaults = await this.vault.listVaults(required(input, 'wallet'));
+        const vaults = await this.vault.listVaults(connectedWallet(context));
         return {
           output: vaults,
           artifact: { type: 'vaults', data: vaults },
@@ -340,7 +343,7 @@ export class AgentToolRegistry {
       case 'prepareLock': {
         const prepared = await this.vault.prepareLock({
           action: 'lock',
-          wallet: required(input, 'wallet'),
+          wallet: connectedWallet(context),
           asset: required(input, 'asset'),
           amount: requiredNumber(input, 'amount'),
           unlockAt: new Date(required(input, 'unlockAt')),
@@ -354,7 +357,7 @@ export class AgentToolRegistry {
       case 'prepareUnlock': {
         const prepared = await this.vault.prepareUnlock({
           action: 'unlock',
-          wallet: required(input, 'wallet'),
+          wallet: connectedWallet(context),
           lockAddress: required(input, 'lockAddress'),
         });
         return {
@@ -367,7 +370,7 @@ export class AgentToolRegistry {
         const basket = await this.execution.createBasket({
           amountUsd: requiredNumber(input, 'amountUsd'),
           prompt: required(input, 'prompt'),
-          wallet: optionalString(input, 'wallet'),
+          wallet: context.walletAddress,
           candidates: Array.isArray(input.candidates)
             ? (input.candidates as never)
             : undefined,
@@ -394,7 +397,7 @@ export class AgentToolRegistry {
       case 'prepareCopyPortfolio': {
         const proposal = await this.social.prepareCopyPortfolio({
           sourceSlug: required(input, 'sourceSlug'),
-          wallet: required(input, 'wallet'),
+          wallet: connectedWallet(context),
           amountUsd: requiredNumber(input, 'amountUsd'),
         });
         return {
@@ -406,7 +409,7 @@ export class AgentToolRegistry {
       case 'prepareBasketPurchase': {
         const prepared = await this.execution.prepareBasketPurchase({
           basketId: required(input, 'basketId'),
-          wallet: required(input, 'wallet'),
+          wallet: connectedWallet(context),
         });
         return {
           output: prepared,
@@ -480,6 +483,16 @@ export class AgentToolRegistry {
     }
   }
 
+  /** One charge per paid tool call. Internal fetches inside that call are not charged again. */
+  private readonly ownPaidTools = new PaidProviderToolBudget();
+
+  private chargePaidTool(name: string, context: AgentToolContext) {
+    if (!PAID_PROVIDER_TOOLS.has(name)) return;
+    (this.paidTools ?? this.ownPaidTools).assertAllowed(
+      context.walletAddress || 'unverified',
+    );
+  }
+
   private async getStockByInput(assetIdOrTicker: string) {
     const value = assetIdOrTicker.trim();
     try {
@@ -498,6 +511,22 @@ export class AgentToolRegistry {
   }
 }
 
+/** Tools whose work is the same class of paid provider call as the HTTP provider bucket. */
+const PAID_PROVIDER_TOOLS = new Set([
+  'getBitgetMarketContext',
+  'getStockChart',
+  'getStockNews',
+  'analyzeStock',
+  'findOpportunities',
+  'getSignals',
+  'getSwapQuote',
+  'proposeLimitOrder',
+  'createBasket',
+  'prepareBasketPurchase',
+  'prepareCopyPortfolio',
+  'getStockResearch',
+]);
+
 const stringSchema = { type: 'string' };
 const numberSchema = { type: 'number' };
 const nullableStringSchema = { type: ['string', 'null'] };
@@ -508,18 +537,17 @@ const TOOL_SCHEMAS: ToolDefinition[] = [
   tool(
     'getPortfolio',
     'Get the latest portfolio for the connected wallet. Use the attached snapshot for conversational advice; call this before trade sizing or quotes when balances may have changed.',
-    {
-      wallet: stringSchema,
-    },
+    {},
   ),
-  tool('getPortfolioActivity', 'Get Oren and wallet activity for a wallet.', {
-    wallet: stringSchema,
-  }),
+  tool(
+    'getPortfolioActivity',
+    'Get Oren and wallet activity for a wallet.',
+    {},
+  ),
   tool(
     'getTradingCalendar',
     'Get observed daily portfolio P&L, event markers, and calendar summaries for a wallet.',
     {
-      wallet: stringSchema,
       month: nullableStringSchema,
       start: nullableStringSchema,
       end: nullableStringSchema,
@@ -530,7 +558,6 @@ const TOOL_SCHEMAS: ToolDefinition[] = [
     'getTradingCalendarDay',
     'Get a day drilldown with observed P&L, contributors, trades, vault events, agent events, and wallet activity.',
     {
-      wallet: stringSchema,
       date: stringSchema,
       timeZone: nullableStringSchema,
     },
@@ -602,21 +629,18 @@ const TOOL_SCHEMAS: ToolDefinition[] = [
       preferredMint: nullableStringSchema,
       expiredAt: nullableNumberSchema,
       slippageBps: nullableNumberSchema,
-      wallet: nullableStringSchema,
     },
   ),
   tool(
     'getLimitOrders',
     'List the wallet open (and optionally historical) Jupiter Trigger limit orders.',
     {
-      wallet: stringSchema,
       includeHistory: nullableBooleanSchema,
     },
   ),
   tool('createBasket', 'Planned basket creation tool.', {
     amountUsd: numberSchema,
     prompt: stringSchema,
-    wallet: nullableStringSchema,
     candidates: {
       type: ['array', 'null'],
       items: {
@@ -632,9 +656,7 @@ const TOOL_SCHEMAS: ToolDefinition[] = [
       },
     },
   }),
-  tool('getVaults', 'List indexed Oren timelock vault positions.', {
-    wallet: stringSchema,
-  }),
+  tool('getVaults', 'List indexed Oren timelock vault positions.', {}),
   tool(
     'getLeaderboard',
     'Get the opt-in public social trading leaderboard ranked by observed portfolio P&L.',
@@ -662,7 +684,6 @@ const TOOL_SCHEMAS: ToolDefinition[] = [
     'Create a proposal-only basket that copies a public trader portfolio using a chosen USDC amount.',
     {
       sourceSlug: stringSchema,
-      wallet: stringSchema,
       amountUsd: numberSchema,
     },
   ),
@@ -717,6 +738,18 @@ function tool(
       additionalProperties: false,
     },
   };
+}
+
+/**
+ * The wallet every tool acts on: the one the request proved it owns. Model
+ * output (including text injected through tool results) never chooses it.
+ */
+function connectedWallet(context: AgentToolContext): string {
+  if (!context.walletAddress)
+    throw new BadRequestException(
+      'A connected wallet is required for this tool',
+    );
+  return context.walletAddress;
 }
 
 function asRecord(value: unknown): Record<string, unknown> {
