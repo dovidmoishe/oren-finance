@@ -12,7 +12,8 @@ services:
     mem_limit: 512m
     cpus: 0.5
     healthcheck:
-      test: [CMD-SHELL, pg_isready -U oren_preview -d oren_preview]
+      # Socket pg_isready passes while the first-boot server is shutting down. TCP does not.
+      test: [CMD-SHELL, pg_isready -h 127.0.0.1 -p 5432 -U oren_preview -d oren_preview]
       interval: 5s
       timeout: 5s
       retries: 20

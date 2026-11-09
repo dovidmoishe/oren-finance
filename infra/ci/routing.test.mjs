@@ -10,13 +10,16 @@ test('all workflows use dedicated self-hosted labels without hosted fallbacks', 
     const source = workflow(file.slice(0, -4));
     const runners = [...source.matchAll(/^\s+runs-on: (.+)$/gm)].map(m => m[1]);
     assert.ok(runners.length, file);
-    assert.ok(runners.every(r => /^\[self-hosted, linux, x64, oren-(build|release|control)\]$/.test(r)), file);
+    assert.ok(runners.every(r => /^\[self-hosted, linux, x64, (oren-(build|release|control|light)|"\$\{\{ matrix\.runner \}\}")\]$/.test(r)), file);
   }
 });
 
-test('CI aggregate runs on the build lane, so a polling control gate cannot deadlock it', () => {
+test('CI aggregate runs on the light lane, so a polling control gate cannot deadlock it', () => {
   const ci = workflow('ci');
-  for (const name of ['preview-infra', 'api', 'app-check', 'app']) assert.match(job(ci, name), /oren-build/);
+  for (const name of ['preview-infra', 'api', 'app-check']) assert.match(job(ci, name), /oren-build/);
+  assert.doesNotMatch(job(ci, 'app-check'), /oren-light/);
+  assert.match(job(ci, 'app-check'), /node scripts\/lint-bounded\.mjs/);
+  assert.match(job(ci, 'app'), /oren-light/);
   assert.match(job(ci, 'app'), /if: always\(\)/);
   assert.match(job(ci, 'app'), /test "\$RESULT" = success/);
   assert.doesNotMatch(ci, /\bsudo\b|install -d \/opt\/oren|5432:5432|--network host/);
