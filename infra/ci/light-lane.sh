@@ -156,6 +156,9 @@ write_light_unit() {
   local unit=/home/$account/.config/systemd/user/oren-runner-light.service
   local root=/opt/oren-ci
   install -d -m 700 -o "$account" -g "$account" "/home/$account/.config/systemd/user" "$directory/_work" "$directory/_diag"
+  if [[ -f $directory/bin/runsvc.sh ]]; then
+    install -m 755 -o "$account" -g "$account" "$directory/bin/runsvc.sh" "$directory/runsvc.sh"
+  fi
   cat > "$unit" <<EOF
 [Unit]
 Description=Oren GitHub Actions light runner

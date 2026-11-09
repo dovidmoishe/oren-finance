@@ -161,6 +161,20 @@ write_runner_unit() {
   local unit=$unit_dir/oren-runner-$lane.service
   local root=/opt/oren-ci
   install -d -m 755 "$unit_dir"
+  if [[ ${EUID:-} == 0 ]]; then
+    chown "$account_name:$account_name" "$unit_dir"
+  fi
+  if [[ -d $directory ]]; then
+    install -d -m 755 "$directory/_work" "$directory/_diag"
+    if [[ -f $directory/bin/runsvc.sh ]]; then
+      install -m 755 "$directory/bin/runsvc.sh" "$directory/runsvc.sh"
+    fi
+    printf '%s\n' "$root/toolchain/node-v22.23.4-linux-x64/bin:$root/bin:/usr/local/bin:/usr/bin:/bin" > "$directory/.path"
+    if [[ ${EUID:-} == 0 ]]; then
+      chown "$account_name:$account_name" "$directory/_work" "$directory/_diag" "$directory/.path"
+      [[ -f $directory/runsvc.sh ]] && chown "$account_name:$account_name" "$directory/runsvc.sh"
+    fi
+  fi
   cat > "$unit" <<EOF
 [Unit]
 Description=Oren GitHub Actions $lane runner
@@ -271,14 +285,24 @@ EOF
   hold_still_valid || return
   systemctl restart "user@$id.service"
   systemctl set-property --runtime "user-$id.slice" MemoryMax=3840M MemoryHigh=3584M CPUQuota=100%
+  set +e
   runuser -u "$account" -- env XDG_RUNTIME_DIR="/run/user/$id" DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$id/bus" \
     dockerd-rootless-setuptool.sh install --force
+  docker_status=$?
+  if (( docker_status == 0 )); then
+    runuser -u "$account" -- env XDG_RUNTIME_DIR="/run/user/$id" DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$id/bus" \
+      systemctl --user enable --now docker
+    docker_status=$?
+  fi
+  set -e
+  systemctl set-property --runtime "user-$id.slice" MemoryMax=512M MemoryHigh=448M CPUQuota=25% MemorySwapMax=0
   note_created "docker:$account"
-  runuser -u "$account" -- env XDG_RUNTIME_DIR="/run/user/$id" DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$id/bus" \
-    systemctl --user enable --now docker
+  if (( docker_status != 0 )); then
+    echo 'rootless docker setup failed; the idle cap was restored and no daemon was left running' >&2
+    return "$docker_status"
+  fi
   runuser -u "$account" -- env DOCKER_HOST="unix:///run/user/$id/docker.sock" \
     docker info --format '{{.DockerRootDir}} {{.CgroupDriver}}'
-  systemctl set-property --runtime "user-$id.slice" MemoryMax=512M MemoryHigh=448M CPUQuota=25%
   install -d -m 750 -o "$account" -g "$account" "/home/$account/runner-build-2"
   echo "backup manifest $manifest"
   hold_still_valid || return

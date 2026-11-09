@@ -222,6 +222,17 @@ test('migration preflight and a live worker abort before any installed file chan
   assert.equal(probe.status, 0, `${probe.stdout}\n${probe.stderr}`);
 });
 
+test('a failed rootless docker install still restores the idle memory cap', () => {
+  const heavy = text('./heavy-pair.sh');
+  const raised = heavy.indexOf('MemoryMax=3840M MemoryHigh=3584M CPUQuota=100%');
+  const restored = heavy.indexOf('MemoryMax=512M MemoryHigh=448M CPUQuota=25% MemorySwapMax=0');
+  assert.ok(raised > 0 && restored > raised);
+  assert.match(heavy, /install -d -m 755 "\$unit_dir"/);
+  const light = text('./register-light.sh');
+  assert.match(light, /runsvc\.sh/);
+  assert.match(light, /\.path/);
+});
+
 test('build-2 unit is installed with the heavy hook environment before registration', () => {
   const probe = spawnSync('bash', ['-c', `
     set -euo pipefail

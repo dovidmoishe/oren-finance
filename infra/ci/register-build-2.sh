@@ -36,7 +36,12 @@ if [[ ! -f $directory/.runner ]]; then
 fi
 chown -R root:"$account" "$directory"
 chmod -R g+rX,o-rwx "$directory"
-chown -R "$account:$account" "$directory/_work" "$directory/_diag"
+install -d -m 755 -o "$account" -g "$account" "$directory/_work" "$directory/_diag"
+if [[ -f $directory/bin/runsvc.sh ]]; then
+  install -m 755 -o "$account" -g "$account" "$directory/bin/runsvc.sh" "$directory/runsvc.sh"
+fi
+printf '%s\n' "/opt/oren-ci/toolchain/node-v22.23.4-linux-x64/bin:/opt/oren-ci/bin:/usr/local/bin:/usr/bin:/bin" > "$directory/.path"
+chown "$account:$account" "$directory/.path"
 runuser -u "$account" -- env XDG_RUNTIME_DIR="/run/user/$id" DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$id/bus" \
   systemctl --user daemon-reload
 runuser -u "$account" -- env XDG_RUNTIME_DIR="/run/user/$id" DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$id/bus" \
