@@ -1,5 +1,7 @@
 # Light lane and idle downshift
 
+The host measured at 1:34 WAT is 13 GiB and 4 CPUs. The budget and the second build account are in `HEAVY-PAIR-ROLLOUT.md`. The 7,424 MiB figures below are the previous host, not the profile to install.
+
 Do not roll out commit `510903a2` or `c999eb5b`. `510903a2` treated every `Runner.Worker` as the admitted job, so a queued worker could block reclaim while `acquire` waited. `c999eb5b` asks `memory.reclaim` for `max(0, usage-512MiB)`, so a 487 MiB slice (510,881,792 bytes) writes zero six times and stays stuck. It also starts light work whenever `MemAvailable` is at least 2,816 MiB, which passes while an idle heavy slice can still grow about 3,353 MiB, and its `apply` installs files before it declines the restart. This document matches the later commit only. Do not apply it on the host from this tree until that commit is the one reviewed here.
 
 `infra/ci/light-lane.sh apply` does not copy `job-started.sh` or `job-completed.sh`. Those tracked files are the live hotfix bytes. A future `provision.sh` installs those same bytes; do not replace `/opt/oren-ci/bin/job-started.sh` or `job-completed.sh` from an older tree.

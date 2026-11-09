@@ -12,8 +12,11 @@ const workflows = fileURLToPath(new URL('../../.github/workflows/', import.meta.
 const repo = fileURLToPath(new URL('../..', import.meta.url));
 
 test('installed heavy hooks and lease client stay byte-identical', () => {
-  assert.equal(sha('./job-started.sh'), '9a349f812fbbaddf53366ed2502c7040ac64d66c2fbba1163a656ac79b0272cf');
-  assert.equal(sha('./job-completed.sh'), 'adc77f9de26d18d6291a0b43950078298001e76f3e6b94bc557bd6876a3f8a9c');
+  assert.equal(sha('./job-started.sh'), '4bceb6abdbf90ec3ffa1294674b04d7c4612c8ae149f426d958583add9be9533');
+  assert.equal(sha('./job-completed.sh'), '3a642caa35bf4d624efc574e16b6cedb6f014c5bf8c0e6cef7135d3bc0dc57c0');
+  assert.match(text('./job-started.sh'), /oren-ci-build-2/);
+  assert.match(text('./job-started.sh'), /account" == oren-ci-release/);
+  assert.ok(text('./job-started.sh').indexOf('trusted-job.mjs release') > text('./job-started.sh').indexOf('oren-ci-build-2'));
   assert.equal(sha('./lease-client.py'), '8ffd8bd1a4fcfb57e7ea06d6c98959cd586e38cbd4390520e2adb5cb43ce81dd');
   const started = text('./job-started.sh');
   assert.ok(started.indexOf('lease-client.py') < started.indexOf('docker_info='));
@@ -26,16 +29,21 @@ test('installed heavy hooks and lease client stay byte-identical', () => {
   assert.doesNotMatch(text('./light-lane.sh'), /job-started\.sh|job-completed\.sh/);
 });
 
-test('light cap covers a measured chunk and keeps the 1.75 GiB reserve', () => {
+test('light cap stays bounded and the 13 GiB host keeps a 3.75 GiB reserve', () => {
   assert.equal(budget.lintChunkPeakBytes, 468426752);
   assert.ok(budget.lintChunkPeakBytes < budget.lightHighMiB * 1024 * 1024);
   assert.ok(budget.lintProcessPeakBytes > 512 * 1024 * 1024);
   assert.equal(budget.lightStartMinAvailableMiB, undefined);
   assert.equal(budget.heavyGrowthSlackMiB, undefined);
-  const sum = budget.heavyActiveMaxMiB + budget.heavyIdleMaxMiB + budget.controlMaxMiB + budget.lightMaxMiB;
-  assert.equal(sum, 5632);
+  assert.equal(budget.heavyConcurrentMax, 2);
+  assert.equal(budget.hostMiB, 13312);
+  assert.equal(budget.logicalCpus, 4);
+  const sum = (budget.heavyConcurrentMax * budget.heavyActiveMaxMiB)
+    + budget.heavyIdleMaxMiB + budget.controlMaxMiB + budget.lightMaxMiB;
+  assert.equal(sum, 9472);
   assert.equal(budget.hostMiB - sum, budget.prodReserveMiB);
-  assert.equal(budget.prodReserveMiB, 1792);
+  assert.equal(budget.prodReserveMiB, 3840);
+  assert.ok(budget.prodReserveMiB >= 3 * 1024);
   assert.ok(budget.lightMaxMiB < 1280);
 });
 
@@ -66,9 +74,12 @@ test('light hooks do not reach docker or the heavy lease', () => {
     assert.match(source, /oren-ci-light/);
     assert.doesNotMatch(source, /docker|lease-client|systemctl|MemoryMax/);
   }
-  assert.match(text('./light-started.sh'), /light_headroom_ok/);
-  assert.match(text('./light-started.sh'), /memory\.current/);
-  assert.doesNotMatch(text('./light-started.sh'), /lightStartMinAvailableMiB/);
+  assert.match(text('./light-started.sh'), /light-client\.py/);
+  assert.doesNotMatch(text('./light-started.sh'), /light_headroom_ok|MemAvailable|lightStartMinAvailableMiB/);
+  const canary = text('./light-lane-canary.sh');
+  assert.ok(canary.indexOf('light-client.py') < canary.indexOf('lint-bounded.mjs'));
+  assert.match(canary, /oren-ci-light/);
+  assert.doesNotMatch(canary, /EUID == 0/);
   const provision = text('./provision.sh');
   assert.match(provision, /for account in oren-ci-build oren-ci-release; do/);
   assert.doesNotMatch(provision, /usermod -a -G oren-ci-workers oren-ci-light/);
@@ -146,4 +157,18 @@ test('stage can copy outside installed paths and refuses installed paths', () =>
     rm -rf "$dest"
   `], { encoding: 'utf8', cwd: repo });
   assert.equal(probe.status, 0, `${probe.stdout}\n${probe.stderr}`);
+});
+
+test('the second heavy account is a separate UID and does not widen release', () => {
+  const pair = text('./heavy-pair.sh');
+  const register = text('./register-build-2.sh');
+  assert.match(pair, /oren-ci-build-2/);
+  assert.match(pair, /refusing before any installed-path change/);
+  assert.match(pair, /user-\$id\.slice/);
+  assert.doesNotMatch(pair, /usermod[^\n]*oren-ci-release/);
+  assert.doesNotMatch(pair, /usermod -a -G docker/);
+  assert.match(register, /--name oren-vps-build-2 --labels oren-build/);
+  assert.match(register, /id" != "\$\(id -u oren-ci-build\)/);
+  assert.match(register, /admission was not restarted and release was not changed/);
+  assert.doesNotMatch(text('./job-started.sh'), /oren-ci-build-2[\s\S]{0,80}trusted-job/);
 });

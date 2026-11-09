@@ -9,8 +9,8 @@ import { join } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { fileURLToPath } from 'node:url';
 
-const startedHash = '9a349f812fbbaddf53366ed2502c7040ac64d66c2fbba1163a656ac79b0272cf';
-const completedHash = 'adc77f9de26d18d6291a0b43950078298001e76f3e6b94bc557bd6876a3f8a9c';
+const startedHash = '4bceb6abdbf90ec3ffa1294674b04d7c4612c8ae149f426d958583add9be9533';
+const completedHash = '3a642caa35bf4d624efc574e16b6cedb6f014c5bf8c0e6cef7135d3bc0dc57c0';
 const scriptPath = name => fileURLToPath(new URL(name, import.meta.url));
 const text = name => readFileSync(scriptPath(name), 'utf8');
 const inspection = '/usr/bin/timeout --signal=TERM --kill-after=5s 30s docker info --format \'{{.DockerRootDir}}|{{.CgroupDriver}}\'';

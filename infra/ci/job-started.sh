@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 account=$(id -un)
-[[ "$account" == oren-ci-build || "$account" == oren-ci-release ]]
+[[ "$account" == oren-ci-build || "$account" == oren-ci-build-2 || "$account" == oren-ci-release ]]
 if [[ "$account" == oren-ci-release ]]; then
   /opt/oren-ci/toolchain/node-v22.23.4-linux-x64/bin/node /opt/oren-ci/bin/trusted-job.mjs release
 fi

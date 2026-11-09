@@ -1,15 +1,17 @@
 #!/usr/bin/env bash
-# Full-account canary for the light slice. Run on the host after
-# oren-ci-light exists and before treating chunk peaks as proof.
+# Full-account canary for the light slice. It takes the same light permit
+# as a real job before lint starts. A missing admission socket is a failure,
+# not a reason to run the measurement anyway.
 # It samples user-<uid>.slice/memory.current, not a child process RSS.
 # A 447 MiB child measurement is not an input and is not a success.
 set -euo pipefail
-[[ $(id -un) == oren-ci-light || $EUID == 0 ]]
+[[ $(id -un) == oren-ci-light ]]
 SOURCE=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 account=oren-ci-light
 uid=$(id -u "$account")
 slice=${CGROUP_ROOT:-/sys/fs/cgroup}/user.slice/user-$uid.slice/memory.current
 [[ -r $slice ]]
+/usr/bin/python3 "$SOURCE/light-client.py" "$$"
 max_bytes=$(( $(python3 - "$SOURCE/budgets.json" <<'PY'
 import json, sys
 print(json.load(open(sys.argv[1]))['lightMaxMiB'] * 1024 * 1024)

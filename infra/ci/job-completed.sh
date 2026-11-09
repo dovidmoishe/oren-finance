@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 account=$(id -un)
-[[ "$account" == oren-ci-build || "$account" == oren-ci-release ]]
+[[ "$account" == oren-ci-build || "$account" == oren-ci-build-2 || "$account" == oren-ci-release ]]
 export DOCKER_HOST="unix:///run/user/$(id -u)/docker.sock"
 # Bound completion too: a failed preflight must not strand a worker lease.
 trap 'rc=$?; if (( rc != 0 )); then echo "CI completion failed closed (status=$rc); worker exit releases its admission lease; cleanup may be incomplete." >&2; fi' EXIT

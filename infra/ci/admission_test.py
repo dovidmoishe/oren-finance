@@ -2,6 +2,7 @@ import os
 import subprocess
 import tempfile
 import threading
+import time
 import unittest
 from admission import (
     ACTIVE_MAX_MIB, CONTROL_MAX_MIB, HOST_MIB, IDLE_MAX_MIB, LIGHT_MAX_MIB,
@@ -21,7 +22,9 @@ class AdmissionTests(unittest.TestCase):
             calls.append((uid, active))
             self.assertLessEqual(sum(budgets.values()), 4352)
 
-        gate = Admission([1001, 1003], limit, lambda pid, uid: str(pid))
+        gate = Admission([1001, 1003], limit, lambda pid, uid: str(pid),
+                         available=lambda: 1 << 62, light_running=lambda: False,
+                         light_configured=lambda: False, heavy_slots=1)
         with self.assertRaises(ValueError):
             gate.acquire(0, 42)
         stamp = gate.acquire(1001, 42)
@@ -47,7 +50,9 @@ class AdmissionTests(unittest.TestCase):
         def limit(uid, active):
             if active:
                 raise RuntimeError('systemd unavailable')
-        gate = Admission([1001, 1003], limit, lambda pid, uid: 'stamp')
+        gate = Admission([1001, 1003], limit, lambda pid, uid: 'stamp',
+                         available=lambda: 1 << 62, light_running=lambda: False,
+                         light_configured=lambda: False, heavy_slots=1)
         with self.assertRaises(RuntimeError):
             gate.acquire(1001, 42)
         self.assertIsNone(gate.active)
@@ -98,7 +103,9 @@ class AdmissionTests(unittest.TestCase):
                          usage=lambda uid: usage['bytes'], reclaimer=reclaim,
                          protector=lambda uid, current: calls.append(('protect', uid, current)),
                          worker_running=lambda uid: bool(workers and workers(uid)),
-                         no_progress_limit=3)
+                         no_progress_limit=3, available=lambda: 1 << 62,
+                         light_running=lambda: False, light_configured=lambda: False,
+                         heavy_slots=1)
         return gate, calls
 
     def test_reclaim_makes_progress_then_idles_without_a_second_heavy(self):
@@ -213,6 +220,8 @@ class AdmissionTests(unittest.TestCase):
                          worker_running=lambda uid: True,
                          reclaimer=lambda uid, nbytes: None,
                          protector=lambda uid, current: None,
+                         available=lambda: 1 << 62, light_running=lambda: False,
+                         light_configured=lambda: False, heavy_slots=1,
                          status_path=path)
         self.assertEqual(gate.lease, (1001, 42, 'stamp'))
         self.assertEqual(gate.held, {1001})
@@ -237,8 +246,10 @@ class AdmissionTests(unittest.TestCase):
         self.assertEqual(LIGHT_MAX_MIB, 768)
         self.assertEqual(CONTROL_MAX_MIB, 512)
         self.assertEqual(MARGIN_MIB, 64)
-        self.assertEqual(simultaneous_mib(), 5632)
-        self.assertEqual(HOST_MIB - simultaneous_mib(), 1792)
+        self.assertEqual(simultaneous_mib(), 9472)
+        self.assertEqual(HOST_MIB - simultaneous_mib(), 3840)
+        self.assertEqual(HOST_MIB, 13312)
+        self.assertGreaterEqual(HOST_MIB - simultaneous_mib(), 3 * 1024)
         self.assertFalse(slice_within_idle(1350 * 1024 * 1024))
         self.assertTrue(slice_within_idle(235 * 1024 * 1024))
         self.assertFalse(slice_within_idle(510881792))
@@ -255,7 +266,9 @@ class AdmissionTests(unittest.TestCase):
 
         gate = Admission([1001, 1003], lambda *args: None, lambda pid, uid: f'{pid}',
                          usage=lambda uid: usage['bytes'], reclaimer=reclaim,
-                         protector=lambda uid, current: None, no_progress_limit=6)
+                         protector=lambda uid, current: None, no_progress_limit=6,
+                         available=lambda: 1 << 62, light_running=lambda: False,
+                         light_configured=lambda: False, heavy_slots=1)
         stamp = gate.acquire(1001, 42)
         usage['bytes'] = 510881792
         gate.release(1001, 42, stamp)
@@ -276,7 +289,9 @@ class AdmissionTests(unittest.TestCase):
 
         gate = Admission([1001, 1003], lambda *args: None, lambda pid, uid: f'{pid}',
                          usage=lambda uid: usage['bytes'], reclaimer=reclaim,
-                         protector=lambda uid, current: None)
+                         protector=lambda uid, current: None,
+                         available=lambda: 1 << 62, light_running=lambda: False,
+                         light_configured=lambda: False, heavy_slots=1)
         stamp = gate.acquire(1001, 42)
         usage['bytes'] = 510881792
         gate.release(1001, 42, stamp)
@@ -306,25 +321,135 @@ class AdmissionTests(unittest.TestCase):
         self.assertFalse(light_headroom_ok(available, build, release, active=None))
         self.assertFalse(light_headroom_ok(available, build, release, active='build'))
         self.assertGreaterEqual(available, (256 + 768 + 1792) * mib)
-        self.assertTrue(light_headroom_ok(3277 * mib, 3584 * mib, 254 * mib, active='build'))
+        self.assertFalse(light_headroom_ok(3277 * mib, 3584 * mib, 254 * mib, active='build'))
+        self.assertTrue(light_headroom_ok(5200 * mib, 3584 * mib, 254 * mib, active='build'))
         self.assertFalse(light_headroom_ok(3277 * mib, 3584 * mib, 254 * mib, active=None))
         self.assertFalse(light_headroom_ok(2200 * mib, 2000 * mib, 1800 * mib, active=None))
 
     def test_heavy_raise_uses_the_same_reserve_while_light_is_running(self):
         mib = 1024 * 1024
-        self.assertFalse(heavy_raise_ok(4710 * mib, 254 * mib, True))
-        self.assertTrue(heavy_raise_ok(4710 * mib, 254 * mib, False))
-        self.assertTrue(heavy_raise_ok(7000 * mib, 3600 * mib, True))
-        state = {'light': True}
+        state = {'light': True, 'available': 4710 * mib}
 
         gate = Admission([1001, 1003], lambda *args: None, lambda pid, uid: f'{pid}',
                          usage=lambda uid: 254 * mib,
-                         available=lambda: 4710 * mib,
-                         light_running=lambda: state['light'])
+                         available=lambda: state['available'],
+                         light_running=lambda: state['light'],
+                         light_configured=lambda: True,
+                         heavy_slots=1)
         with self.assertRaises(TimeoutError):
             gate.acquire(1001, 42, timeout=0.3)
+        self.assertTrue(any(line.startswith('oren-ci admission heavy deny') for line in gate.events))
+        self.assertIsNone(gate.lease)
         state['light'] = False
+        state['available'] = 1 << 62
         self.assertIsNotNone(gate.acquire(1001, 42, timeout=1))
+
+    def test_production_constructor_does_not_treat_memory_as_unlimited(self):
+        import admission as mod
+        originals = (mod.read_mem_available, mod.light_account_has_worker, mod.light_account_configured)
+        mod.read_mem_available = lambda: 100 * 1024 * 1024
+        mod.light_account_has_worker = lambda: True
+        mod.light_account_configured = lambda: True
+        try:
+            gate = Admission([1001, 1003], lambda *args: None, lambda pid, uid: str(pid),
+                             usage=lambda uid: 254 * 1024 * 1024,
+                             worker_running=lambda uid: False, heavy_slots=2)
+            with self.assertRaises(TimeoutError):
+                gate.acquire(1001, 42, timeout=0.25)
+            self.assertEqual(gate.leases, {})
+            self.assertTrue(any('heavy deny' in line for line in gate.events))
+        finally:
+            (mod.read_mem_available, mod.light_account_has_worker,
+             mod.light_account_configured) = originals
+
+    def test_unreadable_memory_denies_the_raise(self):
+        def boom():
+            raise OSError('meminfo missing')
+
+        gate = Admission([1001, 1003], lambda *args: None, lambda pid, uid: str(pid),
+                         usage=lambda uid: 0, available=boom, light_running=lambda: False,
+                         light_configured=lambda: False, heavy_slots=2)
+        with self.assertRaises(TimeoutError):
+            gate.acquire(1001, 42, timeout=0.25)
+        self.assertEqual(gate.leases, {})
+        self.assertTrue(any('meminfo missing' in line for line in gate.events))
+
+    def test_two_heavy_slots_keep_separate_caps_and_block_a_third(self):
+        calls = []
+
+        def limit(uid, active):
+            calls.append((uid, active))
+
+        gate = Admission([1001, 1003, 1005], limit, lambda pid, uid: str(pid),
+                         available=lambda: 1 << 62, light_running=lambda: False,
+                         light_configured=lambda: False, heavy_slots=2)
+        gate.acquire(1001, 42)
+        gate.acquire(1003, 43)
+        self.assertEqual(set(gate.leases), {1001, 1003})
+        self.assertIn((1001, True), calls)
+        self.assertIn((1003, True), calls)
+        self.assertNotIn((1001, False), calls[calls.index((1001, True)) + 1:])
+        ready = threading.Event()
+
+        def third():
+            try:
+                gate.acquire(1005, 44, timeout=0.3)
+            except TimeoutError:
+                return
+            ready.set()
+
+        thread = threading.Thread(target=third)
+        thread.start()
+        self.assertFalse(ready.wait(0.5))
+        thread.join(1)
+        self.assertNotIn(1005, gate.leases)
+
+    def test_light_permit_and_heavy_raise_share_one_snapshot(self):
+        mib = 1024 * 1024
+        state = {'inside': 0, 'max': 0}
+        guard = threading.Lock()
+
+        def available():
+            with guard:
+                state['inside'] += 1
+                state['max'] = max(state['max'], state['inside'])
+            time.sleep(0.02)
+            with guard:
+                state['inside'] -= 1
+            return 8000 * mib
+
+        gate = Admission([1001, 1003], lambda *args: None, lambda pid, uid: str(pid),
+                         usage=lambda uid: 200 * mib, available=available,
+                         light_running=lambda: False, light_configured=lambda: True,
+                         light_uid=1004, light_identity=lambda pid, uid: f'L{pid}',
+                         heavy_slots=2)
+        results = []
+
+        def heavy():
+            try:
+                gate.acquire(1001, 42, timeout=1)
+            except TimeoutError:
+                results.append('no-heavy')
+                return
+            results.append('heavy')
+
+        def light():
+            try:
+                gate.acquire_light(77, timeout=1)
+            except TimeoutError:
+                results.append('no-light')
+                return
+            results.append('light')
+
+        threads = [threading.Thread(target=heavy), threading.Thread(target=light)]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join(3)
+        self.assertLessEqual(state['max'], 1)
+        self.assertIn('heavy', results)
+        self.assertNotIn('light', results)
+        self.assertIsNone(gate.light_lease)
 
 
 if __name__ == '__main__':

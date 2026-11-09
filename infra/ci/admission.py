@@ -92,22 +92,39 @@ def light_headroom_ok(available_bytes, build_bytes, release_bytes, active=None):
     return available_bytes >= growth + light + reserve
 
 
-def heavy_raise_ok(available_bytes, current_bytes, light_worker):
-    """A heavy raise while light work is running must leave the reserve.
+ACTIVE_BYTES = mib(ACTIVE_MAX_MIB)
+CONTROL_BYTES = mib(CONTROL_MAX_MIB)
+LIGHT_BYTES = mib(LIGHT_MAX_MIB)
+HEAVY_SLOTS = BUDGET['heavyConcurrentMax']
+RESERVE_BYTES = mib(BUDGET['prodReserveMiB'])
+FREE_FLOOR_BYTES = mib(BUDGET['runtimeFreeFloorMiB'])
 
-    Light's current RSS is already absent from MemAvailable. If its worker
-    exists it may still climb to the full light cap, so count that cap.
-    With no light worker the existing heavy path is unchanged.
+
+def admit_fits(available_bytes, growth_bytes):
+    """True when projected growth leaves the runtime free-page floor.
+
+    `prodReserveMiB` is the static host remainder after every full slice cap.
+    Adding that remainder again on top of MemAvailable would reject the second
+    heavy job this host was sized to run. The cgroup caps enforce that
+    remainder. This check only refuses a raise whose remaining rise would
+    leave fewer free pages than the runtime floor, and it fails closed when
+    the numbers cannot be read.
     """
-    if not light_worker:
-        return True
-    growth = max(0, mib(ACTIVE_MAX_MIB) - current_bytes)
-    return available_bytes >= growth + mib(LIGHT_MAX_MIB) + mib(BUDGET['prodReserveMiB'])
+    if available_bytes < 0 or growth_bytes < 0:
+        return False
+    return available_bytes >= growth_bytes + FREE_FLOOR_BYTES
+
+
+def heavy_raise_ok(available_bytes, growth_bytes, floor_bytes=None):
+    """Compatibility wrapper. Growth already includes every slice that will expand."""
+    if floor_bytes is None:
+        return admit_fits(available_bytes, growth_bytes)
+    return available_bytes >= growth_bytes + floor_bytes
 
 
 def simultaneous_mib():
-    """One heavy active, one heavy idle, one light, and the control account."""
-    return ACTIVE_MAX_MIB + IDLE_MAX_MIB + LIGHT_MAX_MIB + CONTROL_MAX_MIB
+    """Two active heavy caps, one idle heavy cap, light, and control."""
+    return (HEAVY_SLOTS * ACTIVE_MAX_MIB) + IDLE_MAX_MIB + LIGHT_MAX_MIB + CONTROL_MAX_MIB
 
 
 def set_slice(uid, max_mib, high_mib, cpu):
@@ -160,6 +177,33 @@ def cgroup_usage(uid):
         return int(source.read().strip())
 
 
+def read_mem_available():
+    with open('/proc/meminfo') as source:
+        for line in source:
+            if line.startswith('MemAvailable:'):
+                return int(line.split()[1]) * 1024
+    raise OSError('MemAvailable missing')
+
+
+def light_account_has_worker():
+    try:
+        uid = pwd.getpwnam('oren-ci-light').pw_uid
+    except KeyError:
+        return False
+    try:
+        return account_has_worker(uid)
+    except OSError:
+        return True
+
+
+def light_account_configured():
+    try:
+        pwd.getpwnam('oren-ci-light')
+    except KeyError:
+        return False
+    return True
+
+
 def account_has_worker(uid):
     for name in os.listdir('/proc'):
         if not name.isdigit():
@@ -176,6 +220,22 @@ def account_has_worker(uid):
             continue
         return True
     return False
+
+
+def light_process_identity(pid, uid):
+    """Light permits bind a same-user pid. They do not require Runner.Worker.
+
+    The canary shell is not a runner worker. The socket peer still has to be
+    the light account, so a heavy user cannot hold this permit.
+    """
+    if not isinstance(pid, int) or pid <= 1:
+        raise ValueError('invalid light pid')
+    with open(f'/proc/{pid}/status') as source:
+        status = dict(line.split(':', 1) for line in source if ':' in line)
+    if any(int(value) != uid for value in status['Uid'].split()):
+        raise ValueError('light process belongs to another user')
+    with open(f'/proc/{pid}/stat') as source:
+        return source.read().rsplit(')', 1)[1].split()[19]
 
 
 def worker_identity(pid, uid):
@@ -196,8 +256,10 @@ class Admission:
     def __init__(self, users, limiter=limit, identity=worker_identity, usage=None,
                  softener=None, worker_running=None, reclaimer=reclaim_file_cache,
                  protector=protect, diagnostic_path=None, no_progress_limit=NO_PROGRESS_LIMIT,
-                 available=None, light_running=None, status_path=None):
-        self.users = users
+                 available=None, light_running=None, status_path=None,
+                 heavy_slots=None, light_uid=None, light_identity=None,
+                 light_configured=None, light_usage=None, control_usage=None):
+        self.users = list(users)
         self.limiter = limiter
         self.identity = identity
         self.usage = usage or (lambda uid: 0)
@@ -208,17 +270,33 @@ class Admission:
         self.protector = protector
         self.diagnostic_path = diagnostic_path
         self.no_progress_limit = no_progress_limit
-        self.available = available or (lambda: 1 << 62)
-        self.light_running = light_running or (lambda: False)
+        # Production must not treat memory as infinite or light work as absent.
+        self.available = available if available is not None else read_mem_available
+        self.light_running = light_running if light_running is not None else light_account_has_worker
+        self.light_configured = light_configured if light_configured is not None else light_account_configured
+        self.light_usage = light_usage if light_usage is not None else (lambda: 0)
+        self.control_usage = control_usage if control_usage is not None else (lambda: 0)
+        self.heavy_slots = HEAVY_SLOTS if heavy_slots is None else heavy_slots
+        self.light_uid = light_uid
+        self.light_identity = light_identity or light_process_identity
         self.status_path = status_path
         self.condition = threading.Condition()
-        self.lease = None
+        self.leases = {}
+        self.light_lease = None
         self.held = set()
         self.progress = {}
         self.stuck = set()
+        self.events = []
         self.restore_lease()
-        for uid in users:
+        for uid in self.users:
             self.settle(uid)
+
+    @property
+    def lease(self):
+        if len(self.leases) != 1:
+            return None
+        uid, (pid, stamp) = next(iter(self.leases.items()))
+        return (uid, pid, stamp)
 
     @property
     def active(self):
@@ -232,35 +310,36 @@ class Admission:
             return IDLE_BYTES + MARGIN_BYTES + 1
 
     def restore_lease(self):
-        """Reload a lease written before a crash. Do not invent one."""
+        """Reload leases written before a crash. Do not invent one."""
         if not self.status_path:
             return
         try:
             with open(self.status_path) as handle:
-                parts = handle.read().split()
+                lines = [line.split() for line in handle.read().splitlines() if line.split()]
         except OSError:
             return
-        if len(parts) != 3:
-            return
-        try:
-            uid = int(parts[0])
-            pid = int(parts[1])
-        except ValueError:
-            return
-        stamp = parts[2]
-        if uid not in self.users:
-            return
-        try:
-            if self.identity(pid, uid) != stamp:
-                return
-        except (OSError, ValueError, KeyError):
-            return
-        self.lease = (uid, pid, stamp)
-        self.held.add(uid)
+        for parts in lines:
+            if len(parts) != 3:
+                continue
+            try:
+                uid = int(parts[0])
+                pid = int(parts[1])
+            except ValueError:
+                continue
+            stamp = parts[2]
+            if uid not in self.users:
+                continue
+            try:
+                if self.identity(pid, uid) != stamp:
+                    continue
+            except (OSError, ValueError, KeyError):
+                continue
+            self.leases[uid] = (pid, stamp)
+            self.held.add(uid)
 
     def settle(self, uid):
         """Startup must not retune a slice that still has a live worker."""
-        if self.lease and self.lease[0] == uid:
+        if uid in self.leases:
             return
         if self.worker_running(uid) and not slice_within_idle(self._usage(uid)):
             return
@@ -271,13 +350,88 @@ class Admission:
         else:
             self.held.add(uid)
 
-    def _wait(self, deadline, pid, uid, stamp):
+    def _occupied(self):
+        return set(self.leases) | set(self.held)
+
+    def _blocking(self, uid):
+        if uid in self.held or uid in self.leases:
+            return True
+        return len(self._occupied()) >= self.heavy_slots
+
+    def _wait(self, deadline, pid, uid, stamp, identity=None):
         remaining = deadline - time.monotonic()
         if remaining <= 0:
             raise TimeoutError('build queue timeout')
         self.condition.wait(min(remaining, 1))
-        if self.identity(pid, uid) != stamp:
+        check = identity or self.identity
+        if check(pid, uid) != stamp:
             raise ValueError('worker exited while queued')
+
+    def _telemetry(self, kind, allowed, detail):
+        line = f'oren-ci admission {kind} {"allow" if allowed else "deny"} {detail}'
+        self.events.append(line)
+        del self.events[:-50]
+        print(line, file=sys.stderr, flush=True)
+        if self.diagnostic_path and not allowed:
+            try:
+                with open(self.diagnostic_path, 'a') as target:
+                    target.write(line + '\n')
+            except OSError as error:
+                print(f'oren-ci admission: diagnostic write failed: {error}', file=sys.stderr)
+
+    def _optional_bytes(self, reader):
+        try:
+            return max(0, int(reader()))
+        except OSError as error:
+            raise OSError(f'usage unreadable: {error}') from error
+
+    def _light_on(self):
+        if self.light_lease is not None:
+            return True
+        try:
+            return bool(self.light_running())
+        except OSError as error:
+            raise OSError(f'light state unreadable: {error}') from error
+
+    def _growth(self, raise_uid=None):
+        """Bytes the enforced caps can still add, worst case for a light start."""
+        leased = set(self.leases)
+        if raise_uid is not None:
+            leased.add(raise_uid)
+        speculative = 0 if raise_uid is not None else max(0, self.heavy_slots - len(leased))
+        ranked = []
+        growth = 0
+        for uid in self.users:
+            current = self._usage(uid)
+            if uid in leased:
+                growth += max(0, ACTIVE_BYTES - current)
+            else:
+                ranked.append((max(0, ACTIVE_BYTES - current), current))
+        ranked.sort(reverse=True)
+        for index, (active_rise, current) in enumerate(ranked):
+            if index < speculative:
+                growth += active_rise
+            else:
+                growth += max(0, IDLE_BYTES - current)
+        # An idle light slice still has its full MemoryMax. Count it whenever
+        # the account exists or a light worker is already running.
+        if self.light_configured() or self._light_on():
+            growth += max(0, LIGHT_BYTES - self._optional_bytes(self.light_usage))
+        growth += max(0, CONTROL_BYTES - self._optional_bytes(self.control_usage))
+        return growth
+
+    def _decision(self, kind, raise_uid=None):
+        try:
+            available = self.available()
+            if raise_uid is None:
+                self._light_on()
+            growth = self._growth(raise_uid)
+        except OSError as error:
+            self._telemetry(kind, False, f'unreadable:{error}')
+            return False
+        ok = admit_fits(available, growth)
+        self._telemetry(kind, ok, f'available={available} growth={growth} floor={FREE_FLOOR_BYTES} slots={self.heavy_slots}')
+        return ok
 
     def acquire(self, uid, pid, timeout=1200):
         if uid not in self.users:
@@ -286,38 +440,56 @@ class Admission:
         deadline = time.monotonic() + timeout
         with self.condition:
             while True:
-                while self.held or self.lease is not None:
+                while self._blocking(uid):
                     self._wait(deadline, pid, uid, stamp)
-                if any(other != uid and self.worker_running(other)
+                if any(other != uid and other not in self.leases and self.worker_running(other)
                        and not slice_within_idle(self._usage(other)) for other in self.users):
-                    # A live worker on the other account has no reconstructed
+                    # A live worker on another account has no reconstructed
                     # lease. Wait for it to exit. Do not lower its caps.
                     self._wait(deadline, pid, uid, stamp)
                     continue
                 deferred = False
                 for other in self.users:
-                    if other != uid and not slice_within_idle(self._usage(other)):
+                    if other != uid and other not in self.leases and not slice_within_idle(self._usage(other)):
                         self.held.add(other)
                         deferred = True
                 if deferred:
                     continue
-                if not heavy_raise_ok(self.available(), self._usage(uid), self.light_running()):
+                if not self._decision('heavy', uid):
                     self._wait(deadline, pid, uid, stamp)
                     continue
                 for other in self.users:
-                    if other != uid:
-                        self.limiter(other, False)
+                    if other != uid and other not in self.leases and other not in self.held:
+                        if slice_within_idle(self._usage(other)):
+                            self.limiter(other, False)
                 self.limiter(uid, True)
                 self.held.add(uid)
-                self.lease = (uid, pid, stamp)
-                self._write_status(uid, pid, stamp)
+                self.leases[uid] = (pid, stamp)
+                self._write_status()
                 break
         return stamp
 
-    def _write_status(self, uid, pid=None, stamp=None):
+    def acquire_light(self, pid, timeout=1200):
+        if self.light_uid is None:
+            raise ValueError('no light account')
+        stamp = self.light_identity(pid, self.light_uid)
+        deadline = time.monotonic() + timeout
+        with self.condition:
+            while True:
+                if self.light_lease is not None:
+                    self._wait(deadline, pid, self.light_uid, stamp, identity=self.light_identity)
+                    continue
+                if not self._decision('light', None):
+                    self._wait(deadline, pid, self.light_uid, stamp, identity=self.light_identity)
+                    continue
+                self.light_lease = (pid, stamp)
+                return stamp
+
+    def _write_status(self):
         if not self.status_path:
             return
-        payload = b'' if uid is None else f'{uid} {pid} {stamp}\n'.encode()
+        lines = [f'{uid} {pid} {stamp}\n' for uid, (pid, stamp) in sorted(self.leases.items())]
+        payload = ''.join(lines).encode()
         try:
             directory = os.path.dirname(self.status_path)
             if directory:
@@ -333,36 +505,41 @@ class Admission:
 
     def release_if_worker_gone(self):
         with self.condition:
-            lease = self.lease
-        if lease is None:
-            return
-        uid, pid, stamp = lease
-        try:
-            if self.identity(pid, uid) == stamp:
-                return
-        except (OSError, ValueError, KeyError):
-            pass
-        try:
-            self.note_worker_exit(uid, pid, stamp)
-        except ValueError:
-            return
+            items = list(self.leases.items())
+        for uid, (pid, stamp) in items:
+            try:
+                if self.identity(pid, uid) == stamp:
+                    continue
+            except (OSError, ValueError, KeyError):
+                pass
+            try:
+                self.note_worker_exit(uid, pid, stamp)
+            except ValueError:
+                continue
 
     def note_worker_exit(self, uid, pid, stamp):
         with self.condition:
-            if self.lease != (uid, pid, stamp):
+            if self.leases.get(uid) != (pid, stamp):
                 raise ValueError('lease mismatch')
-            self.lease = None
+            del self.leases[uid]
             self.held.add(uid)
-            self._write_status(None)
+            self._write_status()
         return self.drain(uid)
 
     def release(self, uid, pid, stamp):
         self.note_worker_exit(uid, pid, stamp)
 
+    def release_light(self, pid, stamp):
+        with self.condition:
+            if self.light_lease != (pid, stamp):
+                raise ValueError('light lease mismatch')
+            self.light_lease = None
+            self.condition.notify_all()
+
     def _finish_idle(self, uid):
         self.limiter(uid, False)
         with self.condition:
-            if self.lease and self.lease[0] == uid:
+            if uid in self.leases:
                 return False
             self.held.discard(uid)
             self.stuck.discard(uid)
@@ -391,7 +568,7 @@ class Admission:
         with self.condition:
             if uid not in self.held:
                 return True
-            if self.lease and self.lease[0] == uid:
+            if uid in self.leases:
                 return False
         usage = self._usage(uid)
         if slice_within_idle(usage):
@@ -470,17 +647,73 @@ def _reap(admission):
         time.sleep(1)
 
 
-if __name__ == '__main__':
-    users = [pwd.getpwnam(name).pw_uid for name in ('oren-ci-build', 'oren-ci-release')]
-    admission = Admission(
-        users, usage=cgroup_usage, worker_running=account_has_worker,
-        status_path='/run/oren-ci-status/heavy-lease')
+class LightHandler(socketserver.StreamRequestHandler):
+    def handle(self):
+        uid = struct.unpack('3i', self.request.getsockopt(
+            socket.SOL_SOCKET, socket.SO_PEERCRED, 12))[1]
+        if uid != self.server.admission.light_uid:
+            raise ValueError('light admission is only for the light account')
+        self.request.settimeout(5)
+        pid = int(self.rfile.readline(32).strip())
+        stamp = self.server.admission.acquire_light(pid)
+        try:
+            self.wfile.write(b'OK\n')
+            self.wfile.flush()
+        except OSError:
+            pass
+        while True:
+            try:
+                if light_process_identity(pid, uid) != stamp:
+                    break
+            except (OSError, ValueError, KeyError):
+                break
+            time.sleep(1)
+        self.server.admission.release_light(pid, stamp)
+
+
+def production_users():
+    users = []
+    for name in ('oren-ci-build', 'oren-ci-build-2', 'oren-ci-release'):
+        try:
+            users.append(pwd.getpwnam(name).pw_uid)
+        except KeyError:
+            if name != 'oren-ci-build-2':
+                raise
+    return users
+
+
+def serve(admission):
     threading.Thread(target=_reap, args=(admission,), daemon=True).start()
     address = '/run/oren-ci-build/admission.sock'
     if os.path.exists(address):
         os.unlink(address)
-    with Server(address, Handler) as server:
-        server.admission = admission
-        os.chown(address, 0, grp.getgrnam('oren-ci-workers').gr_gid)
-        os.chmod(address, 0o660)
-        server.serve_forever()
+    heavy = Server(address, Handler)
+    heavy.admission = admission
+    os.chown(address, 0, grp.getgrnam('oren-ci-workers').gr_gid)
+    os.chmod(address, 0o660)
+    threads = [threading.Thread(target=heavy.serve_forever, daemon=True)]
+    if admission.light_uid is not None:
+        light_address = '/run/oren-ci-status/light-admission.sock'
+        os.makedirs('/run/oren-ci-status', mode=0o755, exist_ok=True)
+        if os.path.exists(light_address):
+            os.unlink(light_address)
+        light = Server(light_address, LightHandler)
+        light.admission = admission
+        os.chown(light_address, 0, pwd.getpwuid(admission.light_uid).pw_gid)
+        os.chmod(light_address, 0o660)
+        threads.append(threading.Thread(target=light.serve_forever, daemon=True))
+    for thread in threads:
+        thread.start()
+    threads[0].join()
+
+
+if __name__ == '__main__':
+    light_uid = None
+    try:
+        light_uid = pwd.getpwnam('oren-ci-light').pw_uid
+    except KeyError:
+        light_uid = None
+    admission = Admission(
+        production_users(), usage=cgroup_usage, worker_running=account_has_worker,
+        status_path='/run/oren-ci-status/heavy-lease', light_uid=light_uid)
+    serve(admission)
