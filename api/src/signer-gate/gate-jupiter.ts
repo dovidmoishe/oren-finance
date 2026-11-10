@@ -111,6 +111,8 @@ export async function buildGateJupiterRoute(
     intent.side === 'buy' ? stockProgram : TOKEN_PROGRAM_ID;
   const inputMint = intent.side === 'buy' ? USDC_MINT : intent.stockMint;
   const outputMint = intent.side === 'buy' ? intent.stockMint : USDC_MINT;
+  // In-chat signing and its slippage re-quote stay on Jupiter at the
+  // original slippage. Titan cannot be signed by the delegated grant.
   const freshQuote = await deps.jupiter.getQuote({
     inputMint,
     outputMint,

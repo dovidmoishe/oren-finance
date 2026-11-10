@@ -32,7 +32,7 @@ import {
 } from './signer-gate.errors';
 import { signingOutcome } from './signing-outcome';
 import { rawSellShares, rawSellReferenceUsd } from './delegated-amounts';
-import { delegatedModeDecision } from './delegated-mode';
+import { canSignInChat, delegatedModeDecision } from './delegated-mode';
 import { delegatedFailureBody } from '../execution/simulation-reason';
 
 export interface McpResourceDeps {
@@ -227,7 +227,7 @@ export async function handleMcpRequest(
       {
         title: 'Prepare stock trade',
         description:
-          'Prepare a USDC stock buy or stock sell. When mode is delegated and signingGrant is active, call execute_trade. When mode is browser, read browserReason before telling the user why. unsupported_venue, slippage_above_grant, sells_not_allowed, and unpriced_sell mean the signing grant is still active; do not say signing permission is missing. inactive_delegation means no active grant.',
+          'Prepare a USDC stock buy or stock sell. In-chat signing quotes Jupiter so execute_trade can sign it; browser review may use another venue. When mode is delegated and signingGrant is active, call execute_trade. When mode is browser, read browserReason. unsupported_venue means Jupiter had no route. Do not say signing permission is missing unless browserReason is inactive_delegation.',
         inputSchema: z.object({
           assetId: z.string().trim().min(1).max(80),
           side: z.enum(['buy', 'sell']),
@@ -258,7 +258,27 @@ export async function handleMcpRequest(
             ],
             isError: true,
           };
-        const quote = await deps.execution.getQuote({
+        const executeEnabled = Boolean(
+          deps.gate &&
+          deps.delegatedSides?.[side] &&
+          connection.tokenScopes.has('oren.trade.execute'),
+        );
+        const [delegation] = executeEnabled
+          ? await deps.db
+              .select()
+              .from(mcpTradeDelegations)
+              .where(
+                and(
+                  eq(mcpTradeDelegations.userId, connection.userId),
+                  eq(mcpTradeDelegations.walletId, connection.walletId),
+                  eq(mcpTradeDelegations.wallet, connection.wallet),
+                  eq(mcpTradeDelegations.status, 'active'),
+                  gt(mcpTradeDelegations.expiresAt, new Date()),
+                ),
+              )
+              .limit(1)
+          : [];
+        const quoteRequest = {
           assetId,
           ticker: '',
           side,
@@ -266,7 +286,31 @@ export async function handleMcpRequest(
           amount: amountShares,
           slippageBps,
           wallet: connection.wallet,
+        };
+        // Chat signing can only sign Jupiter. Ask for that route first, at
+        // the caller's slippage. If Jupiter has no route, fall back to
+        // best-of so the user can still review in the browser.
+        const chatSigning = canSignInChat({
+          executeEnabled,
+          slippageBps,
+          side,
+          delegation,
+          connectionCreatedAt: connection.createdAt,
         });
+        let quote: Awaited<ReturnType<ExecutionService['getQuote']>>;
+        if (chatSigning) {
+          try {
+            quote = await deps.execution.getQuote({
+              ...quoteRequest,
+              jupiterOnly: true,
+            });
+          } catch {
+            // Jupiter had no signable route. Best-of may still be reviewed.
+            quote = await deps.execution.getQuote(quoteRequest);
+          }
+        } else {
+          quote = await deps.execution.getQuote(quoteRequest);
+        }
         const maxIn = rawIn(quote);
         const minOut = enforcedMinimumOut(quote);
         const reviewed = reviewedTermsFor(quote);
@@ -315,26 +359,6 @@ export async function handleMcpRequest(
           quote.outputAmount > 0
             ? (Math.ceil(quote.outputAmount * 1_000_000) / 1_000_000).toFixed(6)
             : null;
-        const executeEnabled = Boolean(
-          deps.gate &&
-          deps.delegatedSides?.[side] &&
-          connection.tokenScopes.has('oren.trade.execute'),
-        );
-        const [delegation] = executeEnabled
-          ? await deps.db
-              .select()
-              .from(mcpTradeDelegations)
-              .where(
-                and(
-                  eq(mcpTradeDelegations.userId, connection.userId),
-                  eq(mcpTradeDelegations.walletId, connection.walletId),
-                  eq(mcpTradeDelegations.wallet, connection.wallet),
-                  eq(mcpTradeDelegations.status, 'active'),
-                  gt(mcpTradeDelegations.expiresAt, new Date()),
-                ),
-              )
-              .limit(1)
-          : [];
         const decision = delegatedModeDecision({
           executeEnabled,
           provider: quote.provider,

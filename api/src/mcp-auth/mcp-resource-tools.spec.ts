@@ -61,6 +61,7 @@ async function registeredTools(
         ),
     }),
   });
+  const getQuote = jest.fn().mockResolvedValue(quote);
   const deps = {
     db: {
       update: () => ({ set }),
@@ -108,7 +109,7 @@ async function registeredTools(
     },
     gate: { execute: jest.fn().mockRejectedValue(review?.gateError) },
     delegatedSides: { buy: true, sell: true },
-    execution: { getQuote: jest.fn().mockResolvedValue(quote) },
+    execution: { getQuote },
     market: { getStock: jest.fn().mockResolvedValue({ price: 100 }) },
   } as unknown as McpResourceDeps;
   const req = {
@@ -149,6 +150,7 @@ async function registeredTools(
       amountShares: number;
       slippageBps: number;
     }) => Promise<{ content: { text: string }[]; isError?: boolean }>,
+    getQuote,
   };
 }
 
@@ -404,26 +406,28 @@ describe('MCP trade tool exposure', () => {
         amountShares: 0.12345679,
         maxInRaw: raw,
       });
+      const calls = tools.getQuote.mock.calls as [{ jupiterOnly?: boolean }][];
+      expect(calls[0][0].jupiterOnly).toBe(execute ? true : undefined);
     },
   );
 
-  it('says an active grant stays active when the quote venue needs browser review', async () => {
+  it('signs a chat trade with Jupiter when Titan would otherwise win', async () => {
     const quote = {
-      id: 'quote-titan',
-      assetId: 'spacex',
-      ticker: 'SPCX',
+      id: 'quote-jup',
+      assetId: 'nvda',
+      ticker: 'NVDA',
       side: 'buy',
       variant: { mint: 'stock-mint', decimals: 8 },
       inputMint: USDC_MINT,
       outputMint: 'stock-mint',
-      inputAmount: 6,
-      outputAmount: 0.01,
-      provider: 'titan:Titan-DART',
+      inputAmount: 5,
+      outputAmount: 0.02,
+      provider: 'jupiter',
       slippageBps: 50,
       routePayload: {
-        inAmount: '6000000',
-        outAmount: '1000000',
-        otherAmountThreshold: '995000',
+        inAmount: '5000000',
+        outAmount: '2000000',
+        otherAmountThreshold: '1990000',
         swapMode: 'ExactIn',
       },
     } as Quote;
@@ -438,23 +442,79 @@ describe('MCP trade tool exposure', () => {
       slippageBps: number;
     }) => Promise<{ content: { text: string }[] }>;
     const result = await prepare({
-      assetId: 'spacex',
+      assetId: 'nvda',
       side: 'buy',
-      amountUsd: 6,
+      amountUsd: 5,
       slippageBps: 50,
     });
-    const body = JSON.parse(result.content[0].text) as {
-      mode: string;
-      message: string;
-    };
+    expect(tools.getQuote).toHaveBeenCalledTimes(1);
+    expect(tools.getQuote).toHaveBeenCalledWith(
+      expect.objectContaining({
+        assetId: 'nvda',
+        slippageBps: 50,
+        jupiterOnly: true,
+      }),
+    );
+    expect(JSON.parse(result.content[0].text)).toMatchObject({
+      mode: 'delegated',
+      signingGrant: 'active',
+      ticker: 'NVDA',
+    });
+    expect(
+      (
+        tools.values.mock.calls as [{ mode: string; delegationId: string }][]
+      )[0][0],
+    ).toMatchObject({ mode: 'delegated', delegationId: 'delegation-test' });
+  });
+
+  it('uses browser review only when Jupiter has no route', async () => {
+    const titan = {
+      id: 'quote-titan',
+      assetId: 'nvda',
+      ticker: 'NVDA',
+      side: 'buy',
+      variant: { mint: 'stock-mint', decimals: 8 },
+      inputMint: USDC_MINT,
+      outputMint: 'stock-mint',
+      inputAmount: 5,
+      outputAmount: 0.02,
+      provider: 'titan:Titan-DART',
+      slippageBps: 50,
+      routePayload: {
+        inAmount: '5000000',
+        outAmount: '2100000',
+        otherAmountThreshold: '2089500',
+        swapMode: 'ExactIn',
+      },
+    } as Quote;
+    const tools = await registeredTools(
+      ['oren.read', 'oren.trade.prepare', 'oren.trade.execute'],
+      titan,
+    );
+    tools.getQuote
+      .mockRejectedValueOnce(new Error('No swap routes for NVDA'))
+      .mockResolvedValueOnce(titan);
+    const prepare = tools.prepare as unknown as (input: {
+      assetId: string;
+      side: 'buy';
+      amountUsd: number;
+      slippageBps: number;
+    }) => Promise<{ content: { text: string }[] }>;
+    const result = await prepare({
+      assetId: 'nvda',
+      side: 'buy',
+      amountUsd: 5,
+      slippageBps: 50,
+    });
+    const calls = tools.getQuote.mock.calls as [{ jupiterOnly?: boolean }][];
+    expect(calls[0][0].jupiterOnly).toBe(true);
+    expect(calls[1][0].jupiterOnly).toBeUndefined();
+    const body = JSON.parse(result.content[0].text) as { message: string };
     expect(body).toMatchObject({
       mode: 'browser',
       signingGrant: 'active',
       browserReason: 'unsupported_venue',
     });
     expect(body.message).toContain('not a missing signing permission');
-    expect((tools.values.mock.calls as [{ mode: string }][])[0][0].mode).toBe(
-      'browser',
-    );
   });
 });

@@ -1,4 +1,4 @@
-import { delegatedModeDecision } from './delegated-mode';
+import { canSignInChat, delegatedModeDecision } from './delegated-mode';
 
 const grant = {
   activatedAt: new Date('2026-11-10T00:00:00Z'),
@@ -54,5 +54,26 @@ describe('delegated mode reasons', () => {
         sellPriced: false,
       }).delegated,
     ).toBe(true);
+  });
+
+  it('asks for a Jupiter quote only when chat signing can use it', () => {
+    expect(
+      canSignInChat({
+        executeEnabled: true,
+        slippageBps: 50,
+        side: 'buy',
+        delegation: grant,
+        connectionCreatedAt: connectedAfter,
+      }),
+    ).toBe(true);
+    expect(
+      canSignInChat({
+        executeEnabled: true,
+        slippageBps: 50,
+        side: 'buy',
+        delegation: null,
+        connectionCreatedAt: connectedAfter,
+      }),
+    ).toBe(false);
   });
 });

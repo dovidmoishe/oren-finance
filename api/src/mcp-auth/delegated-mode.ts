@@ -18,6 +18,29 @@ const BROWSER_MESSAGES: Record<BrowserReason, string> = {
     'This sell could not be priced for in-chat signing. The signing grant is still active. The user can approve it in the browser.',
 };
 
+/** True when a Jupiter quote on this connection can be signed in chat. */
+export function canSignInChat(input: {
+  executeEnabled: boolean;
+  slippageBps: number;
+  side: 'buy' | 'sell';
+  delegation?: {
+    activatedAt: Date | null;
+    maxSlippageBps: number;
+    allowSell: boolean;
+  } | null;
+  connectionCreatedAt: Date;
+}): boolean {
+  const grant = input.delegation;
+  if (
+    !input.executeEnabled ||
+    !grant?.activatedAt ||
+    input.connectionCreatedAt <= grant.activatedAt ||
+    input.slippageBps > grant.maxSlippageBps
+  )
+    return false;
+  return input.side === 'buy' || grant.allowSell;
+}
+
 export function delegatedModeDecision(input: {
   executeEnabled: boolean;
   provider: string;
