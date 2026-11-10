@@ -4,12 +4,12 @@
 set -euo pipefail
 [[ $EUID == 0 ]]
 SOURCE=$(cd -- "$(dirname -- "$0")" && pwd)
-for account in oren-ci-build oren-ci-release oren-ci-control; do
+for account in oren-ci-build oren-ci-release oren-ci-control oren-ci-light; do
   if id "$account" >/dev/null 2>&1 && pgrep -u "$(id -u "$account")" -x Runner.Worker >/dev/null; then
     echo "Wait for $account jobs to finish before provisioning" >&2; exit 1
   fi
 done
-for spec in oren-ci-build:build oren-ci-release:release oren-ci-control:control-1 oren-ci-control:control-2; do
+for spec in oren-ci-build:build oren-ci-release:release oren-ci-control:control-1 oren-ci-control:control-2 oren-ci-light:light; do
   account=${spec%:*}; lane=${spec#*:}
   if id "$account" >/dev/null 2>&1; then
     id=$(id -u "$account")
@@ -19,13 +19,13 @@ done
 ROOT=/opt/oren-ci
 install -d -m 755 "$ROOT" "$ROOT/bin" "$ROOT/downloads" "$ROOT/toolchain"
 install -m 755 "$SOURCE/network.sh" "$SOURCE/job-started.sh" "$SOURCE/job-completed.sh" "$ROOT/bin/"
-install -m 755 "$SOURCE/control-started.sh" "$ROOT/bin/"
-install -m 644 "$SOURCE/admission.py" "$SOURCE/lease-client.py" "$SOURCE/trusted-job.mjs" "$ROOT/bin/"
+install -m 755 "$SOURCE/control-started.sh" "$SOURCE/light-started.sh" "$SOURCE/light-completed.sh" "$ROOT/bin/"
+install -m 644 "$SOURCE/admission.py" "$SOURCE/budgets.json" "$SOURCE/lease-client.py" "$SOURCE/trusted-job.mjs" "$ROOT/bin/"
 export DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=l
 apt-get update -qq
 apt-get install -y --no-install-recommends uidmap dbus-user-session slirp4netns fuse-overlayfs curl jq git unzip zip python3-minimal
 getent group oren-ci-workers >/dev/null || groupadd --system oren-ci-workers
-for account in oren-ci-build oren-ci-release oren-ci-control; do
+for account in oren-ci-build oren-ci-release oren-ci-control oren-ci-light; do
   if ! id "$account" >/dev/null 2>&1; then useradd --create-home --shell /bin/bash "$account"; fi
   # Refuse accidental reuse of a privileged identity.
   [[ " $(id -nG "$account") " != *' docker '* && " $(id -nG "$account") " != *' sudo '* ]]
@@ -34,6 +34,7 @@ done
 BUILD_ID=$(id -u oren-ci-build)
 RELEASE_ID=$(id -u oren-ci-release)
 CONTROL_ID=$(id -u oren-ci-control)
+LIGHT_ID=$(id -u oren-ci-light)
 usermod -a -G oren-ci-workers oren-ci-build
 usermod -a -G oren-ci-workers oren-ci-release
 install -d -m 750 -o root -g oren-ci-workers /run/oren-ci-build
@@ -65,6 +66,8 @@ CPUQuota=25%
 CPUWeight=50
 TasksMax=512
 EOF
+install -d "/etc/systemd/system/user-$LIGHT_ID.slice.d"
+install -m 644 "$SOURCE/light.slice.conf" "/etc/systemd/system/user-$LIGHT_ID.slice.d/oren-ci.conf"
 for id in "$BUILD_ID" "$RELEASE_ID"; do
   install -d "/etc/systemd/system/user@$id.service.d" "/etc/systemd/system/user-$id.slice.d"
   cat > "/etc/systemd/system/user-$id.slice.d/oren-ci.conf" <<EOF
@@ -121,14 +124,14 @@ systemctl enable oren-ci-network.service
 systemctl restart oren-ci-network.service
 systemctl enable oren-ci-admission.service
 systemctl restart oren-ci-admission.service
-for account in oren-ci-build oren-ci-release oren-ci-control; do
+for account in oren-ci-build oren-ci-release oren-ci-control oren-ci-light; do
   loginctl enable-linger "$account"
   id=$(id -u "$account")
-  if [[ "$account" != oren-ci-control ]]; then
+  if [[ "$account" == oren-ci-build || "$account" == oren-ci-release ]]; then
     systemctl set-property --runtime "user-$id.slice" MemoryMax=3840M MemoryHigh=3584M CPUQuota=100%
   fi
   systemctl restart "user@$id.service"
-  if [[ "$account" != oren-ci-control ]]; then
+  if [[ "$account" == oren-ci-build || "$account" == oren-ci-release ]]; then
     systemctl set-property --runtime "user-$id.slice" MemoryMax=512M MemoryHigh=448M CPUQuota=25%
   fi
 done
@@ -141,7 +144,7 @@ for account in oren-ci-build oren-ci-release; do
   runuser -u "$account" -- env DOCKER_HOST="unix:///run/user/$id/docker.sock" docker info --format '{{.DockerRootDir}} {{.CgroupVersion}} {{.CgroupDriver}}'
   systemctl set-property --runtime "user-$id.slice" MemoryMax=512M MemoryHigh=448M CPUQuota=25%
 done
-for spec in oren-ci-build:build oren-ci-release:release oren-ci-control:control-1 oren-ci-control:control-2; do
+for spec in oren-ci-build:build oren-ci-release:release oren-ci-control:control-1 oren-ci-control:control-2 oren-ci-light:light; do
   account=${spec%:*}; lane=${spec#*:}; directory="/home/$account/runner-$lane"
   if [[ ! -d "$directory" ]]; then
     install -d -m 750 -o "$account" -g "$account" "$directory"
@@ -151,7 +154,11 @@ for spec in oren-ci-build:build oren-ci-release:release oren-ci-control:control-
   install -d -m 700 -o "$account" -g "$account" "$directory/_work" "$directory/_diag" "/home/$account/.config/systemd/user"
   hooks="Environment=ACTIONS_RUNNER_HOOK_JOB_STARTED=$ROOT/bin/control-started.sh"
   mask=0077
-  if [[ "$lane" == build || "$lane" == release ]]; then
+  if [[ "$lane" == light ]]; then
+    mask=0022
+    hooks="Environment=ACTIONS_RUNNER_HOOK_JOB_STARTED=$ROOT/bin/light-started.sh
+Environment=ACTIONS_RUNNER_HOOK_JOB_COMPLETED=$ROOT/bin/light-completed.sh"
+  elif [[ "$lane" == build || "$lane" == release ]]; then
     id=$(id -u "$account")
     mask=0022
     hooks="Environment=ACTIONS_RUNNER_HOOK_JOB_STARTED=$ROOT/bin/job-started.sh
