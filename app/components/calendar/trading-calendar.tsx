@@ -14,7 +14,6 @@ import {
   Skeleton,
   cn,
   formatCurrency,
-  formatDate,
   formatNumber,
   formatPercent,
   formatRelativeTime,
@@ -22,12 +21,34 @@ import {
 import { usePortfolioStore, useWalletStore } from "@/store";
 import type { TradingCalendarDaySummary, TradingCalendarEvent } from "@/types";
 
-function currentMonth() {
-  return new Date().toISOString().slice(0, 7);
+function calendarMonth(timeZone: string, now = new Date()) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+  }).formatToParts(now);
+  const year = parts.find((part) => part.type === "year")?.value;
+  const month = parts.find((part) => part.type === "month")?.value;
+  return year && month ? `${year}-${month}` : now.toISOString().slice(0, 7);
+}
+
+// YYYY-MM and YYYY-MM-DD are civil dates. UTC midnight on the first of a month
+// is still the previous local day west of UTC, which shifts the visible month.
+function civilDate(value: string) {
+  const [year, month, day = 1] = value.split("-").map(Number);
+  return new Date(year, month - 1, day);
 }
 
 function monthLabel(month: string) {
-  return new Intl.DateTimeFormat("en-US", { month: "long", year: "numeric" }).format(new Date(`${month}-01T00:00:00Z`));
+  return new Intl.DateTimeFormat("en-US", { month: "long", year: "numeric" }).format(civilDate(month));
+}
+
+function dayLabel(date: string) {
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  }).format(civilDate(date));
 }
 
 function shiftMonth(month: string, delta: number) {
@@ -112,7 +133,7 @@ export function TradingCalendar() {
   const loadCalendar = usePortfolioStore((state) => state.loadCalendar);
   const loadCalendarDay = usePortfolioStore((state) => state.loadCalendarDay);
   const reset = usePortfolioStore((state) => state.reset);
-  const [month, setMonth] = useState(currentMonth);
+  const [month, setMonth] = useState(() => calendarMonth(browserTimeZone()));
   const [selectedDate, setSelectedDate] = useState<string>();
   const timeZone = useMemo(() => browserTimeZone(), []);
 
@@ -238,7 +259,7 @@ export function TradingCalendar() {
         <Card className="overflow-hidden">
           <CardHeader>
             <h2 className="font-display text-xl font-semibold">Day Drilldown</h2>
-            <p className="mt-1 text-sm text-muted">{selectedDate ? formatDate(selectedDate) : "Select a day to inspect performance."}</p>
+            <p className="mt-1 text-sm text-muted">{selectedDate ? dayLabel(selectedDate) : "Select a day to inspect performance."}</p>
           </CardHeader>
           <CardContent>
             {selectedSummary ? (
