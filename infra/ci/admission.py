@@ -418,8 +418,12 @@ class Admission:
         return set(self.leases) | set(self.held)
 
     def _blocking(self, uid):
-        if uid in self.held or uid in self.leases:
+        if uid in self.leases:
             return True
+        # A finished worker's draining slice already occupies a heavy slot.
+        # Reusing that same UID does not allocate another slot or raise its cap.
+        if uid in self.held:
+            return len(self._occupied()) > self.heavy_slots
         return len(self._occupied()) >= self.heavy_slots
 
     def _wait(self, deadline, pid, uid, stamp, identity=None):
@@ -459,7 +463,8 @@ class Admission:
 
     def _growth(self, raise_uid=None):
         """Bytes the enforced caps can still add, worst case for a light start."""
-        leased = set(self.leases)
+        # Draining slices retain the active cap and must count at that cap too.
+        leased = self._occupied()
         if raise_uid is not None:
             leased.add(raise_uid)
         speculative = 0 if raise_uid is not None else max(0, self.heavy_slots - len(leased))
@@ -506,7 +511,7 @@ class Admission:
             while True:
                 while self._blocking(uid):
                     self._wait(deadline, pid, uid, stamp)
-                if any(other != uid and other not in self.leases and self.worker_running(other)
+                if any(other != uid and other not in self._occupied() and self.worker_running(other)
                        and not slice_within_idle(self._usage(other)) for other in self.users):
                     # A live worker on another account has no reconstructed
                     # lease. Wait for it to exit. Do not lower its caps.
@@ -532,6 +537,8 @@ class Admission:
                 self.limiter(uid, True)
                 self.held.add(uid)
                 self.leases[uid] = (pid, stamp)
+                self.stuck.discard(uid)
+                self.progress.pop(uid, None)
                 self._write_status()
                 break
         return stamp
@@ -657,10 +664,12 @@ class Admission:
             self.condition.notify_all()
 
     def _finish_idle(self, uid):
-        self.limiter(uid, False)
         with self.condition:
             if uid in self.leases:
                 return False
+            if not slice_within_idle(self._usage(uid)):
+                return False
+            self.limiter(uid, False)
             self.held.discard(uid)
             self.stuck.discard(uid)
             self.progress.pop(uid, None)
@@ -681,7 +690,7 @@ class Admission:
     def _reclaim_bounded(self, uid, nbytes):
         """Run one reclaim without letting it stall every other waiter."""
         with self.condition:
-            if uid in self.reclaim_inflight:
+            if uid in self.leases or uid in self.reclaim_inflight:
                 return
             self.reclaim_inflight.add(uid)
         done = threading.Event()
@@ -755,7 +764,12 @@ class Admission:
             state['flat'] = 0
         else:
             state['flat'] += 1
-        self.protector(uid, usage)
+        # Reclaim runs outside the lock. A successor may have reused this slot
+        # while it ran; never downshift that newly admitted worker.
+        with self.condition:
+            if uid in self.leases:
+                return False
+            self.protector(uid, self._usage(uid))
         if state['flat'] >= self.no_progress_limit:
             self.stuck.add(uid)
             self._diagnose(uid, usage)
