@@ -74,6 +74,9 @@ importers:
       rxjs:
         specifier: ^7.8.1
         version: 7.8.2
+      senviok:
+        specifier: 1.0.2
+        version: 1.0.2
       zod:
         specifier: ^4.6.7
         version: 4.6.7
@@ -3673,6 +3676,9 @@ packages:
   send@1.2.1:
     resolution: {integrity: sha512-1gnZf7DFcoIcajTjTwjwuDjzuz4PPcY2StKPlsGAQ1+YH20IRVrBaXSWmdjowTJ6u8Rc01PoYOGHXfP1mYcZNQ==}
     engines: {node: '>= 18'}
+
+  senviok@1.0.2:
+    resolution: {integrity: sha512-i/5YgG8B1viYpbyhnSQmLbsgdiTwvQ04CNvwi8Bo+dQ8sfQffDsZiIEHAK507/Mh8qlrS8zGMmYtOzPkdDHG7A==}
 
   serve-static@2.2.1:
     resolution: {integrity: sha512-xRXBn0pPqQTVQiC8wyQrKs2MOlX24zQ0POGaj0kultvoOCstBQM5yvOhAVSUwOMjQtTvsPWoNCHfPGwaaQJhTw==}
@@ -7905,6 +7911,8 @@ snapshots:
       statuses: 2.0.2
     transitivePeerDependencies:
       - supports-color
+
+  senviok@1.0.2: {}
 
   serve-static@2.2.1(supports-color@8.1.1):
     dependencies:
