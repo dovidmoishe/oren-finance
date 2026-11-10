@@ -23,7 +23,8 @@
     "transfer": "Transfer",
     "deposit": "Setor",
     "helpFeedback": "Bantuan & masukan",
-    "signOut": "Keluar"
+    "signOut": "Keluar",
+    "tradeReceipts": "Tanda terima transaksi via email"
   },
   "auth": {
     "title": "Masuk ke Oren",
@@ -951,5 +952,23 @@
     "intro": "Catatan kinerja berbasis snapshot untuk portofolio yang diamati Oren.",
     "refresh": "Muat ulang",
     "closeValue": "{value} penutupan"
+  },
+  "tradeEmail": {
+    "title": "Tanda terima transaksi via email",
+    "intro": "Pilih apakah Oren mengirim email setelah transaksi saham dikonfirmasi di blockchain.",
+    "heading": "Tanda terima transaksi terkonfirmasi",
+    "body": "Kami mengirim satu tanda terima setelah Oren memverifikasi swap yang selesai. Transaksi tertunda atau gagal tidak akan mengirim tanda terima.",
+    "enabled": "Kirim tanda terima transaksi terkonfirmasi ke email saya",
+    "sendTo": "Tanda terima dikirim ke {email}, alamat yang terhubung ke login Oren Anda.",
+    "unavailable": "Tanda terima email sementara tidak tersedia. Coba lagi nanti.",
+    "noEmail": "Hubungkan email ke akun Oren untuk mengaktifkan tanda terima.",
+    "signIn": "Masuk untuk mengelola preferensi email",
+    "back": "Kembali ke dasbor",
+    "loading": "Memuat preferensi…",
+    "loadFailed": "Preferensi tidak dapat dimuat. Coba lagi.",
+    "save": "Simpan preferensi",
+    "saving": "Menyimpan…",
+    "saved": "Preferensi email Anda telah disimpan.",
+    "saveFailed": "Preferensi tidak dapat disimpan. Coba lagi."
   }
 }

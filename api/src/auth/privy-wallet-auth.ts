@@ -84,6 +84,20 @@ export class PrivyWalletAuth {
     return (await this.verifiedUser(authorization)).userId;
   }
 
+  /** Resolve the current linked email for a durable server-side job. */
+  async emailForUserId(userId: string): Promise<string | undefined> {
+    if (!this.client)
+      throw new ServiceUnavailableException('Authentication is not configured');
+    try {
+      const user = await this.client.users()._get(userId);
+      return emailFromPrivyUser(user);
+    } catch {
+      throw new ServiceUnavailableException(
+        'Unable to verify the account email address',
+      );
+    }
+  }
+
   /**
    * Best-effort session identity for feature allowlists. A missing or invalid
    * token returns undefined so public agent chat keeps working.

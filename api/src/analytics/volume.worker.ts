@@ -73,7 +73,7 @@ export class VolumeWorker implements OnModuleInit, OnModuleDestroy {
         // Swaps are signed and paid by the user; limit fills by Jupiter's keeper.
         { requireWalletFeePayer: job.kind === 'swap_fill' },
       );
-      await this.repository.completeFill(job.id, fill);
+      await this.repository.completeFill(job, fill);
       void this.portfolio.getPortfolio(execution.walletAddress).catch((error) => {
         this.logger.warn(`Post-fill portfolio refresh failed: ${message(error)}`);
       });

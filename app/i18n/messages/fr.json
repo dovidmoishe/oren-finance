@@ -23,7 +23,8 @@
     "transfer": "Transférer",
     "deposit": "Déposer",
     "helpFeedback": "Aide et commentaires",
-    "signOut": "Se déconnecter"
+    "signOut": "Se déconnecter",
+    "tradeReceipts": "Reçus de trading par e-mail"
   },
   "auth": {
     "title": "Connexion à Oren",
@@ -951,5 +952,23 @@
     "intro": "Mémoire de performance basée sur des instantanés de votre portefeuille observé par Oren.",
     "refresh": "Actualiser",
     "closeValue": "{value} clôture"
+  },
+  "tradeEmail": {
+    "title": "Reçus de trading par e-mail",
+    "intro": "Choisissez si Oren vous envoie un e-mail après la confirmation sur la blockchain d’un trade.",
+    "heading": "Reçus des trades confirmés",
+    "body": "Nous envoyons un reçu après vérification de votre swap. Les transactions en attente ou échouées ne déclenchent aucun reçu.",
+    "enabled": "Recevoir les reçus des trades confirmés par e-mail",
+    "sendTo": "Les reçus seront envoyés à {email}, l’adresse liée à votre connexion Oren.",
+    "unavailable": "Les reçus par e-mail sont temporairement indisponibles. Réessayez plus tard.",
+    "noEmail": "Associez une adresse e-mail à votre compte Oren pour activer les reçus.",
+    "signIn": "Connectez-vous pour gérer vos préférences e-mail",
+    "back": "Retour au tableau de bord",
+    "loading": "Chargement de votre préférence…",
+    "loadFailed": "Impossible de charger votre préférence. Réessayez.",
+    "save": "Enregistrer la préférence",
+    "saving": "Enregistrement…",
+    "saved": "Votre préférence e-mail a été enregistrée.",
+    "saveFailed": "Impossible d’enregistrer votre préférence. Réessayez."
   }
 }

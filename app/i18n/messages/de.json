@@ -23,7 +23,8 @@
     "transfer": "Überweisen",
     "deposit": "Einzahlen",
     "helpFeedback": "Hilfe & Feedback",
-    "signOut": "Abmelden"
+    "signOut": "Abmelden",
+    "tradeReceipts": "E-Mail-Belege für Trades"
   },
   "auth": {
     "title": "Bei Oren anmelden",
@@ -951,5 +952,23 @@
     "intro": "Performance aus Momentaufnahmen für dein von Oren beobachtetes Portfolio.",
     "refresh": "Aktualisieren",
     "closeValue": "{value} Schluss"
+  },
+  "tradeEmail": {
+    "title": "E-Mail-Belege für Trades",
+    "intro": "Wähle, ob Oren dir nach der On-Chain-Bestätigung eines Aktien-Trades eine E-Mail sendet.",
+    "heading": "Belege für bestätigte Trades",
+    "body": "Wir senden einen Beleg, nachdem Oren deinen abgeschlossenen Swap verifiziert hat. Ausstehende oder fehlgeschlagene Transaktionen lösen keinen Beleg aus.",
+    "enabled": "E-Mail-Belege für bestätigte Trades erhalten",
+    "sendTo": "Belege gehen an {email}, die mit deiner Oren-Anmeldung verknüpfte Adresse.",
+    "unavailable": "E-Mail-Belege sind vorübergehend nicht verfügbar. Versuche es später erneut.",
+    "noEmail": "Verknüpfe eine E-Mail-Adresse mit deinem Oren-Konto, um Belege zu aktivieren.",
+    "signIn": "Anmelden, um E-Mail-Einstellungen zu verwalten",
+    "back": "Zurück zum Dashboard",
+    "loading": "Einstellung wird geladen…",
+    "loadFailed": "Einstellung kann nicht geladen werden. Versuche es erneut.",
+    "save": "Einstellung speichern",
+    "saving": "Wird gespeichert…",
+    "saved": "Deine E-Mail-Einstellung wurde gespeichert.",
+    "saveFailed": "Einstellung konnte nicht gespeichert werden. Versuche es erneut."
   }
 }

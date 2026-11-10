@@ -23,7 +23,8 @@
     "transfer": "Transferir",
     "deposit": "Depositar",
     "helpFeedback": "Ajuda e feedback",
-    "signOut": "Sair"
+    "signOut": "Sair",
+    "tradeReceipts": "Recibos de negociação por e-mail"
   },
   "auth": {
     "title": "Entrar na Oren",
@@ -951,5 +952,23 @@
     "intro": "Memória de desempenho baseada em snapshots da sua carteira observada pela Oren.",
     "refresh": "Atualizar",
     "closeValue": "{value} fechamento"
+  },
+  "tradeEmail": {
+    "title": "Recibos de negociação por e-mail",
+    "intro": "Escolha se o Oren deve enviar um e-mail após confirmar uma negociação de ações na blockchain.",
+    "heading": "Recibos de negociações confirmadas",
+    "body": "Enviamos um recibo após verificar que a troca foi concluída. Transações pendentes ou com falha não geram recibos.",
+    "enabled": "Enviar recibos de negociações confirmadas por e-mail",
+    "sendTo": "Os recibos serão enviados para {email}, o endereço vinculado ao seu acesso ao Oren.",
+    "unavailable": "Os recibos por e-mail estão temporariamente indisponíveis. Tente novamente mais tarde.",
+    "noEmail": "Vincule um e-mail à sua conta Oren para ativar os recibos.",
+    "signIn": "Entre para gerenciar as preferências de e-mail",
+    "back": "Voltar ao painel",
+    "loading": "Carregando sua preferência…",
+    "loadFailed": "Não foi possível carregar sua preferência. Tente novamente.",
+    "save": "Salvar preferência",
+    "saving": "Salvando…",
+    "saved": "Sua preferência de e-mail foi salva.",
+    "saveFailed": "Não foi possível salvar sua preferência. Tente novamente."
   }
 }

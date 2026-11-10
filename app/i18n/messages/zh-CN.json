@@ -23,7 +23,8 @@
     "transfer": "转账",
     "deposit": "存入",
     "helpFeedback": "帮助与反馈",
-    "signOut": "退出登录"
+    "signOut": "退出登录",
+    "tradeReceipts": "交易邮件回执"
   },
   "auth": {
     "title": "登录 Oren",
@@ -951,5 +952,23 @@
     "intro": "基于快照的业绩记录，对应你在 Oren 观察到的投资组合。",
     "refresh": "刷新",
     "closeValue": "{value} 收盘"
+  },
+  "tradeEmail": {
+    "title": "交易邮件回执",
+    "intro": "选择是否在股票交易经链上确认后接收 Oren 邮件。",
+    "heading": "已确认交易的回执",
+    "body": "Oren 验证兑换完成后会发送一封回执。待处理或失败的交易不会触发回执。",
+    "enabled": "通过邮件接收已确认交易的回执",
+    "sendTo": "回执将发送至 {email}，即与你的 Oren 登录关联的邮箱。",
+    "unavailable": "邮件回执暂时不可用，请稍后重试。",
+    "noEmail": "请先为 Oren 账户关联邮箱以启用回执。",
+    "signIn": "登录以管理邮件偏好设置",
+    "back": "返回仪表板",
+    "loading": "正在加载偏好设置…",
+    "loadFailed": "无法加载偏好设置，请重试。",
+    "save": "保存偏好设置",
+    "saving": "正在保存…",
+    "saved": "邮件偏好设置已保存。",
+    "saveFailed": "无法保存偏好设置，请重试。"
   }
 }

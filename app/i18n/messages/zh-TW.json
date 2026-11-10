@@ -23,7 +23,8 @@
     "transfer": "轉帳",
     "deposit": "存入",
     "helpFeedback": "說明與意見回饋",
-    "signOut": "登出"
+    "signOut": "登出",
+    "tradeReceipts": "交易電子郵件收據"
   },
   "auth": {
     "title": "登入 Oren",
@@ -951,5 +952,23 @@
     "intro": "以快照為基礎的績效紀錄，對應你在 Oren 觀察到的投資組合。",
     "refresh": "重新整理",
     "closeValue": "{value} 收盤"
+  },
+  "tradeEmail": {
+    "title": "交易電子郵件收據",
+    "intro": "選擇是否在股票交易經鏈上確認後收到 Oren 電子郵件。",
+    "heading": "已確認交易的收據",
+    "body": "Oren 驗證兌換完成後會寄送一封收據。處理中或失敗的交易不會觸發收據。",
+    "enabled": "透過電子郵件接收已確認交易的收據",
+    "sendTo": "收據將寄送至 {email}，也就是與 Oren 登入帳戶連結的電子郵件。",
+    "unavailable": "電子郵件收據暫時無法使用，請稍後再試。",
+    "noEmail": "請先為 Oren 帳戶連結電子郵件以啟用收據。",
+    "signIn": "登入以管理電子郵件偏好設定",
+    "back": "返回儀表板",
+    "loading": "正在載入偏好設定…",
+    "loadFailed": "無法載入偏好設定，請重試。",
+    "save": "儲存偏好設定",
+    "saving": "正在儲存…",
+    "saved": "電子郵件偏好設定已儲存。",
+    "saveFailed": "無法儲存偏好設定，請重試。"
   }
 }
