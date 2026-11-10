@@ -99,6 +99,8 @@ export interface AppEnv {
   DRIP_API_KEY?: string;
   DRIP_API_BASE_URL: string;
   DRIP_REQUEST_TIMEOUT_MS: number;
+  SENVIOK_API_KEY?: string;
+  SENVIOK_FROM?: string;
   VAULT_PROGRAM_ID: string;
   /** When false, vault prepare/confirm routes return 503. Defaults to false until the program is deployed. */
   VAULT_PROGRAM_LIVE: boolean;
@@ -376,6 +378,8 @@ export function validateEnv(env: EnvSource = process.env): AppEnv {
       'DRIP_REQUEST_TIMEOUT_MS',
       DEFAULT_DRIP_REQUEST_TIMEOUT_MS,
     ),
+    SENVIOK_API_KEY: readEnv(env, 'SENVIOK_API_KEY'),
+    SENVIOK_FROM: readEnv(env, 'SENVIOK_FROM'),
     VAULT_PROGRAM_ID:
       readEnv(env, 'VAULT_PROGRAM_ID') || DEFAULT_VAULT_PROGRAM_ID,
     VAULT_PROGRAM_LIVE: readBool(env, 'VAULT_PROGRAM_LIVE', false),
