@@ -32,6 +32,8 @@ import {
 } from './signer-gate.errors';
 import { signingOutcome } from './signing-outcome';
 import { rawSellShares, rawSellReferenceUsd } from './delegated-amounts';
+import { delegatedModeDecision } from './delegated-mode';
+import { delegatedFailureBody } from '../execution/simulation-reason';
 
 export interface McpResourceDeps {
   db: Database;
@@ -225,7 +227,7 @@ export async function handleMcpRequest(
       {
         title: 'Prepare stock trade',
         description:
-          'Prepare a USDC stock buy or stock sell. For delegated mode, call execute_trade with the returned intent ID; for browser mode, give the user the approval link.',
+          'Prepare a USDC stock buy or stock sell. When mode is delegated and signingGrant is active, call execute_trade. When mode is browser, read browserReason before telling the user why. unsupported_venue, slippage_above_grant, sells_not_allowed, and unpriced_sell mean the signing grant is still active; do not say signing permission is missing. inactive_delegation means no active grant.',
         inputSchema: z.object({
           assetId: z.string().trim().min(1).max(80),
           side: z.enum(['buy', 'sell']),
@@ -313,32 +315,36 @@ export async function handleMcpRequest(
           quote.outputAmount > 0
             ? (Math.ceil(quote.outputAmount * 1_000_000) / 1_000_000).toFixed(6)
             : null;
-        const [delegation] =
+        const executeEnabled = Boolean(
           deps.gate &&
           deps.delegatedSides?.[side] &&
-          connection.tokenScopes.has('oren.trade.execute') &&
-          quote.provider === 'jupiter'
-            ? await deps.db
-                .select()
-                .from(mcpTradeDelegations)
-                .where(
-                  and(
-                    eq(mcpTradeDelegations.userId, connection.userId),
-                    eq(mcpTradeDelegations.walletId, connection.walletId),
-                    eq(mcpTradeDelegations.wallet, connection.wallet),
-                    eq(mcpTradeDelegations.status, 'active'),
-                    gt(mcpTradeDelegations.expiresAt, new Date()),
-                  ),
-                )
-                .limit(1)
-            : [];
-        const delegated = Boolean(
-          delegation?.activatedAt &&
-          connection.createdAt > delegation.activatedAt &&
-          slippageBps <= delegation.maxSlippageBps &&
-          (side === 'buy' || Boolean(referenceValueUsd && quotedProceedsUsd)) &&
-          (side === 'buy' || delegation.allowSell),
+          connection.tokenScopes.has('oren.trade.execute'),
         );
+        const [delegation] = executeEnabled
+          ? await deps.db
+              .select()
+              .from(mcpTradeDelegations)
+              .where(
+                and(
+                  eq(mcpTradeDelegations.userId, connection.userId),
+                  eq(mcpTradeDelegations.walletId, connection.walletId),
+                  eq(mcpTradeDelegations.wallet, connection.wallet),
+                  eq(mcpTradeDelegations.status, 'active'),
+                  gt(mcpTradeDelegations.expiresAt, new Date()),
+                ),
+              )
+              .limit(1)
+          : [];
+        const decision = delegatedModeDecision({
+          executeEnabled,
+          provider: quote.provider,
+          slippageBps,
+          side,
+          delegation,
+          connectionCreatedAt: connection.createdAt,
+          sellPriced: Boolean(referenceValueUsd && quotedProceedsUsd),
+        });
+        const delegated = decision.delegated;
         const [intent] = await deps.db
           .insert(mcpTradeIntents)
           .values({
@@ -390,9 +396,12 @@ export async function handleMcpRequest(
                   ? { marketSession: quote.marketSession }
                   : {}),
                 mode: delegated ? 'delegated' : 'browser',
+                signingGrant: decision.signingGrant,
                 ...(delegated
                   ? {}
                   : {
+                      browserReason: decision.browserReason,
+                      message: decision.message,
                       approvalUrl: `${deps.oauth.appOrigin}/app/trades/review/${intent.id}`,
                     }),
               }),
@@ -530,7 +539,7 @@ export async function handleMcpRequest(
         {
           title: 'Execute a prepared stock trade',
           description:
-            'Execute an intent returned in delegated mode by prepare_trade under the active browser-granted signer delegation.',
+            'Execute an intent returned in delegated mode by prepare_trade under the active signing grant. slippage_exceeded means the price moved past the original slippage after one automatic re-quote; the grant is still active. Say that and do not send a browser review link. inactive_delegation is the only result that means signing permission is missing.',
           inputSchema: z.object({
             intentId: z.uuid(),
             idempotencyKey: z.string().regex(/^[A-Za-z0-9_-]{16,64}$/),
@@ -638,13 +647,31 @@ export async function handleMcpRequest(
                       intentId,
                       status: 'quote_changed',
                       reason: 'reviewed_terms_changed',
+                      signingGrant: 'active',
                       message:
-                        'The execution quote no longer meets the approved terms. Prepare a fresh quote and obtain fresh approval. No signing attempt was made for this rejection.',
+                        'The fresh quote no longer meets the price that was approved. The signing grant is still active. Prepare a new quote to continue. No transaction was broadcast.',
                     }),
                   },
                 ],
                 isError: true,
               };
+            }
+            if (error instanceof SignerGateRejection) {
+              const failure = delegatedFailureBody(
+                intentId,
+                error.code,
+                intent.slippageBps,
+              );
+              if (failure)
+                return {
+                  content: [
+                    {
+                      type: 'text' as const,
+                      text: JSON.stringify(failure),
+                    },
+                  ],
+                  isError: true,
+                };
             }
             if (
               error instanceof SignerGateRejection &&
@@ -701,6 +728,7 @@ export async function handleMcpRequest(
             approvalId: mcpTradeIntents.approvalId,
             mode: mcpTradeIntents.mode,
             status: mcpTradeIntents.status,
+            slippageBps: mcpTradeIntents.slippageBps,
             expiresAt: mcpTradeIntents.expiresAt,
           })
           .from(mcpTradeIntents)
@@ -740,7 +768,10 @@ export async function handleMcpRequest(
           if (execution) {
             status = execution.state;
             signature = execution.chainSignature ?? undefined;
-            signingDetails = signingOutcome(execution.errorCode, signature);
+            signingDetails = {
+              ...signingOutcome(execution.errorCode, signature),
+              ...statusFailure(execution.errorCode, intent.slippageBps),
+            };
           }
         }
         if (intent.approvalId) {
@@ -793,4 +824,16 @@ export async function handleMcpRequest(
   } finally {
     await server.close();
   }
+}
+
+function statusFailure(code: string | null, slippageBps: number) {
+  if (!code) return {};
+  const body = delegatedFailureBody('status', code, slippageBps);
+  if (!body) return {};
+  return {
+    reason: body.reason,
+    message: body.message,
+    signingGrant: body.signingGrant,
+    broadcast: body.broadcast,
+  };
 }

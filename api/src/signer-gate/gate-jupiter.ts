@@ -48,10 +48,14 @@ export async function buildGateJupiterRoute(
     rpc: ApprovalRpc;
     connection: Connection;
   },
+  options?: { allowExecuting?: boolean },
 ): Promise<GateRoute> {
+  const statusAllowed =
+    intent.status === 'prepared' ||
+    (options?.allowExecuting === true && intent.status === 'executing');
   if (
     intent.mode !== 'delegated' ||
-    intent.status !== 'prepared' ||
+    !statusAllowed ||
     intent.expiresAt <= new Date() ||
     !intent.stockMint ||
     !positiveRaw(intent.maxInRaw) ||

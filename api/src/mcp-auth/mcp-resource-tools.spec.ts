@@ -25,7 +25,13 @@ async function registeredTools(
   scopes: string[],
   quote?: Quote,
   review?: {
-    intent?: { id: string; mode: string };
+    intent?: {
+      id: string;
+      mode: string;
+      status?: string;
+      slippageBps?: number;
+      expiresAt?: Date;
+    };
     converted?: boolean;
     gateError?: Error;
   },
@@ -172,7 +178,73 @@ describe('MCP trade tool exposure', () => {
       expect(tools.set).not.toHaveBeenCalled();
     },
   );
-  it('reports quote movement as requiring fresh approval, not a pending submission or forced browser conversion', async () => {
+  it('reports slippage after the automatic re-quote without a browser link or a permission reason', async () => {
+    const tools = await registeredTools(
+      ['oren.read', 'oren.trade.prepare', 'oren.trade.execute'],
+      undefined,
+      {
+        intent: {
+          id: 'intent-test',
+          mode: 'delegated',
+          status: 'prepared',
+          slippageBps: 50,
+          expiresAt: new Date(Date.now() + 60_000),
+        },
+        converted: true,
+        gateError: new SignerGateRejection('slippage_exceeded'),
+      },
+    );
+    const result = await tools.execute({
+      intentId: 'intent-test',
+      idempotencyKey: 'same-key-123456789',
+    });
+    const body = JSON.parse(result.content[0].text) as {
+      message: string;
+      reason: string;
+    };
+    expect(body).toMatchObject({
+      status: 'slippage_exceeded',
+      reason: 'slippage_exceeded',
+      signingGrant: 'active',
+      slippageBps: 50,
+      broadcast: false,
+    });
+    expect(body.message).toContain('more than 0.5%');
+    expect(body.message).toContain('not a missing signing permission');
+    expect(body.reason).not.toBe('inactive_delegation');
+    expect(result.isError).toBe(true);
+    expect(tools.set).not.toHaveBeenCalled();
+  });
+
+  it('sends a genuinely inactive grant to browser review', async () => {
+    const tools = await registeredTools(
+      ['oren.read', 'oren.trade.prepare', 'oren.trade.execute'],
+      undefined,
+      {
+        intent: {
+          id: 'intent-test',
+          mode: 'delegated',
+          status: 'prepared',
+          expiresAt: new Date(Date.now() + 60_000),
+        },
+        converted: true,
+        gateError: new SignerGateRejection('inactive_delegation'),
+      },
+    );
+    const result = await tools.execute({
+      intentId: 'intent-test',
+      idempotencyKey: 'same-key-123456789',
+    });
+    expect(JSON.parse(result.content[0].text)).toMatchObject({
+      status: 'browser_approval_required',
+    });
+    expect(tools.set).toHaveBeenCalledWith({
+      mode: 'browser',
+      delegationId: null,
+    });
+  });
+
+  it('reports quote movement as a price change, not a missing grant or a forced browser conversion', async () => {
     const tools = await registeredTools(
       ['oren.read', 'oren.trade.prepare', 'oren.trade.execute'],
       undefined,
@@ -334,4 +406,55 @@ describe('MCP trade tool exposure', () => {
       });
     },
   );
+
+  it('says an active grant stays active when the quote venue needs browser review', async () => {
+    const quote = {
+      id: 'quote-titan',
+      assetId: 'spacex',
+      ticker: 'SPCX',
+      side: 'buy',
+      variant: { mint: 'stock-mint', decimals: 8 },
+      inputMint: USDC_MINT,
+      outputMint: 'stock-mint',
+      inputAmount: 6,
+      outputAmount: 0.01,
+      provider: 'titan:Titan-DART',
+      slippageBps: 50,
+      routePayload: {
+        inAmount: '6000000',
+        outAmount: '1000000',
+        otherAmountThreshold: '995000',
+        swapMode: 'ExactIn',
+      },
+    } as Quote;
+    const tools = await registeredTools(
+      ['oren.read', 'oren.trade.prepare', 'oren.trade.execute'],
+      quote,
+    );
+    const prepare = tools.prepare as unknown as (input: {
+      assetId: string;
+      side: 'buy';
+      amountUsd: number;
+      slippageBps: number;
+    }) => Promise<{ content: { text: string }[] }>;
+    const result = await prepare({
+      assetId: 'spacex',
+      side: 'buy',
+      amountUsd: 6,
+      slippageBps: 50,
+    });
+    const body = JSON.parse(result.content[0].text) as {
+      mode: string;
+      message: string;
+    };
+    expect(body).toMatchObject({
+      mode: 'browser',
+      signingGrant: 'active',
+      browserReason: 'unsupported_venue',
+    });
+    expect(body.message).toContain('not a missing signing permission');
+    expect((tools.values.mock.calls as [{ mode: string }][])[0][0].mode).toBe(
+      'browser',
+    );
+  });
 });

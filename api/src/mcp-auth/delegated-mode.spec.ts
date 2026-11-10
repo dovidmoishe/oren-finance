@@ -1,0 +1,58 @@
+import { delegatedModeDecision } from './delegated-mode';
+
+const grant = {
+  activatedAt: new Date('2026-11-10T00:00:00Z'),
+  maxSlippageBps: 50,
+  allowSell: true,
+};
+const connectedAfter = new Date('2026-11-10T01:00:00Z');
+
+describe('delegated mode reasons', () => {
+  it('keeps an active grant when the quote venue cannot be signed in chat', () => {
+    const decision = delegatedModeDecision({
+      executeEnabled: true,
+      provider: 'titan:Titan-DART',
+      slippageBps: 50,
+      side: 'buy',
+      delegation: grant,
+      connectionCreatedAt: connectedAfter,
+      sellPriced: false,
+    });
+    expect(decision).toMatchObject({
+      delegated: false,
+      signingGrant: 'active',
+      browserReason: 'unsupported_venue',
+    });
+    expect(decision.message).toContain('signing grant is still active');
+    expect(decision.message).toContain('not a missing signing permission');
+  });
+
+  it('reports a missing grant as inactive and a jupiter buy as delegated', () => {
+    expect(
+      delegatedModeDecision({
+        executeEnabled: true,
+        provider: 'jupiter',
+        slippageBps: 50,
+        side: 'buy',
+        delegation: null,
+        connectionCreatedAt: connectedAfter,
+        sellPriced: false,
+      }),
+    ).toMatchObject({
+      delegated: false,
+      signingGrant: 'inactive',
+      browserReason: 'inactive_delegation',
+    });
+    expect(
+      delegatedModeDecision({
+        executeEnabled: true,
+        provider: 'jupiter',
+        slippageBps: 50,
+        side: 'buy',
+        delegation: grant,
+        connectionCreatedAt: connectedAfter,
+        sellPriced: false,
+      }).delegated,
+    ).toBe(true);
+  });
+});
