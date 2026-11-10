@@ -1,4 +1,6 @@
+import { BadRequestException } from '@nestjs/common';
 import { gateFailureCode } from './failure-code';
+import { slippageExceededMessage } from '../execution/simulation-reason';
 import { simulationFailureCode } from '../execution/simulation-failure';
 import {
   SOL_RENT_MESSAGE,
@@ -62,6 +64,30 @@ describe('bounded gate rejection reasons', () => {
       );
     },
   );
+  it('classifies a slippage simulation separately from a missing grant', () => {
+    const slippage = gateFailureCode(
+      new BadRequestException({
+        message: slippageExceededMessage(50),
+        code: 'QUOTE_SLIPPAGE_EXCEEDED',
+      }),
+    );
+    expect(slippage).toBe('slippage_exceeded');
+    expect(publicGateFailureCode(new SignerGateRejection(slippage))).toBe(
+      'slippage_exceeded',
+    );
+    expect(
+      gateFailureCode(
+        new Error('Delegation is inactive or exceeds owner-only limits'),
+      ),
+    ).toBe('inactive_delegation');
+    expect(
+      gateFailureCode(
+        new Error(
+          'The price moved outside the approved tolerance. Request a fresh quote and review its minimum proceeds.',
+        ),
+      ),
+    ).toBe('slippage_exceeded');
+  });
   it('does not expose arbitrary exceptions or gate response strings', () => {
     expect(
       simulationFailureCode({ InsufficientFundsForRent: { account_index: 0 } }),
