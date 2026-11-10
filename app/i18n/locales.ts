@@ -49,6 +49,25 @@ export function openGraphLocale(locale: Locale): string {
   return locale.replace("-", "_");
 }
 
+/** Routes whose layout reads the locale cookie. Everything else stays static English. */
+export function isPersonalizedPath(pathname: string): boolean {
+  return pathname === "/app" || pathname.startsWith("/app/")
+    || pathname === "/connect" || pathname.startsWith("/connect/")
+    || pathname === "/settings" || pathname.startsWith("/settings/");
+}
+
+/**
+ * A returning browser that already stored Oren state, but never a locale.
+ * The old switcher deleted `oren-locale` when the choice was English.
+ */
+export function hasOtherOrenStorage(keys: Iterable<string>): boolean {
+  for (const key of keys) {
+    if (key === LEGACY_LOCALE_STORAGE_KEY) continue;
+    if (key.startsWith("oren-") || key.startsWith("oren.")) return true;
+  }
+  return false;
+}
+
 function languageRanges(header: string): string[] {
   return header
     .split(",")

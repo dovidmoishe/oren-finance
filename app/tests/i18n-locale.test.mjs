@@ -26,8 +26,10 @@ test("the server locale prefers the NEXT_LOCALE cookie over Accept-Language", ()
   assert.equal(locales.resolveLocale("pt-BR", "fr-CA,fr;q=0.8"), "pt-BR");
   assert.equal(locales.LOCALE_COOKIE, "NEXT_LOCALE");
   const request = readFileSync(new URL("../i18n/request.ts", import.meta.url), "utf8");
-  assert.match(request, /resolveLocale\(cookieStore\.get\(LOCALE_COOKIE\)\?\.value/);
-  assert.match(request, /messagesFor\(locale\)/);
+  const personalized = readFileSync(new URL("../i18n/personalized-intl.tsx", import.meta.url), "utf8");
+  assert.doesNotMatch(request, /next\/headers/);
+  assert.match(personalized, /resolveLocale\(cookieStore\.get\(LOCALE_COOKIE\)\?\.value/);
+  assert.match(personalized, /messagesFor\(locale\)/);
 });
 
 test("an invalid cookie falls through to Accept-Language and then English", () => {
@@ -81,6 +83,20 @@ test("dates, currency and relative time follow the active locale", () => {
   const past = new Date(Date.now() - 3 * 86_400_000).toISOString();
   assert.match(format.formatRelativeTime(past, "en", { justNow: "just now", unknown: "Unknown" }), /day|ago/);
   assert.match(format.formatRelativeTime(past, "de", { justNow: "gerade eben", unknown: "Unbekannt" }), /Tag/);
+});
+
+test("a returning browser with no saved locale is pinned to English", () => {
+  assert.equal(locales.hasOtherOrenStorage(["oren.active-wallet.v1"]), true);
+  assert.equal(locales.hasOtherOrenStorage(["oren-agent-panel-v1", "oren-locale"]), true);
+  assert.equal(locales.hasOtherOrenStorage(["oren-locale"]), false);
+  assert.equal(locales.hasOtherOrenStorage(["theme"]), false);
+  assert.equal(locales.isPersonalizedPath("/app"), true);
+  assert.equal(locales.isPersonalizedPath("/app/markets"), true);
+  assert.equal(locales.isPersonalizedPath("/connect/mcp"), true);
+  assert.equal(locales.isPersonalizedPath("/settings/mcp"), true);
+  assert.equal(locales.isPersonalizedPath("/"), false);
+  assert.equal(locales.isPersonalizedPath("/changelog"), false);
+  assert.equal(locales.isPersonalizedPath("/agents"), false);
 });
 
 test("trading copy keeps its English meaning", () => {

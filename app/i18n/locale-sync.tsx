@@ -1,14 +1,17 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { useLocale } from "next-intl";
 import {
+  DEFAULT_LOCALE,
   LEGACY_LOCALE_STORAGE_KEY,
   LOCALE_COOKIE,
   LOCALE_MAX_AGE,
   TIME_ZONE_COOKIE,
+  hasOtherOrenStorage,
   isLocale,
+  isPersonalizedPath,
   isTimeZone,
   type Locale,
 } from "./locales";
@@ -46,20 +49,33 @@ export function rememberLocale(locale: Locale) {
   }
 }
 
+function storageKeys(): string[] {
+  const keys: string[] = [];
+  for (let index = 0; index < localStorage.length; index += 1) {
+    const key = localStorage.key(index);
+    if (key) keys.push(key);
+  }
+  return keys;
+}
+
 /**
- * Copies a saved `oren-locale` into the cookie once, remembers the browser
- * time zone, keeps `<html lang>` current, and follows a language change made
- * in another tab.
+ * Copies a saved `oren-locale` into the cookie once, pins English for a
+ * returning browser that never stored a locale, remembers the time zone,
+ * keeps `<html lang>` current, and follows a language change from another tab.
  */
-export function LocaleSync() {
+export function LocaleSync({ force = false }: { force?: boolean }) {
   const locale = useLocale();
+  const pathname = usePathname();
   const router = useRouter();
+  const enabled = force || !isPersonalizedPath(pathname);
 
   useEffect(() => {
+    if (!enabled) return;
     document.documentElement.lang = locale;
-  }, [locale]);
+  }, [enabled, locale]);
 
   useEffect(() => {
+    if (!enabled) return;
     if (!pendingLocale) return;
     if (pendingLocale === locale) {
       pendingAttempts = 0;
@@ -71,17 +87,27 @@ export function LocaleSync() {
     pendingAttempts += 1;
     writeCookie(LOCALE_COOKIE, pendingLocale);
     router.refresh();
-  }, [locale, router]);
+  }, [enabled, locale, router]);
 
   useEffect(() => {
-    if (bootstrapped) return;
+    if (!enabled || bootstrapped) return;
     bootstrapped = true;
     let refresh = false;
     try {
       const saved = localStorage.getItem(LEGACY_LOCALE_STORAGE_KEY);
-      if (isLocale(saved) && !isLocale(readCookie(LOCALE_COOKIE))) {
+      const cookie = readCookie(LOCALE_COOKIE);
+      if (isLocale(saved) && !isLocale(cookie)) {
         writeCookie(LOCALE_COOKIE, saved);
-        refresh = true;
+        if (locale !== saved) refresh = true;
+      } else if (!isLocale(cookie) && !isLocale(saved) && hasOtherOrenStorage(storageKeys())) {
+        // The previous switcher removed oren-locale for an explicit English choice.
+        writeCookie(LOCALE_COOKIE, DEFAULT_LOCALE);
+        try {
+          localStorage.setItem(LEGACY_LOCALE_STORAGE_KEY, DEFAULT_LOCALE);
+        } catch {
+          // The cookie is the part the server reads.
+        }
+        if (locale !== DEFAULT_LOCALE) refresh = true;
       }
     } catch {
       // Ignore blocked storage and keep the negotiated language.
@@ -92,9 +118,10 @@ export function LocaleSync() {
       refresh = true;
     }
     if (refresh) router.refresh();
-  }, [router]);
+  }, [enabled, locale, router]);
 
   useEffect(() => {
+    if (!enabled) return;
     function onStorage(event: StorageEvent) {
       if (event.key !== LEGACY_LOCALE_STORAGE_KEY || !isLocale(event.newValue)) return;
       if (readCookie(LOCALE_COOKIE) === event.newValue) return;
@@ -103,7 +130,7 @@ export function LocaleSync() {
     }
     window.addEventListener("storage", onStorage);
     return () => window.removeEventListener("storage", onStorage);
-  }, [router]);
+  }, [enabled, router]);
 
   return null;
 }

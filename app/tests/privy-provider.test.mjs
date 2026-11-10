@@ -103,6 +103,8 @@ test('MCP connection page receives the app authentication provider', () => {
     require(id) {
       if (id === '../../providers')
         return { AppProviders({ children }) { return createElement(AuthContext.Provider, { value: auth }, children); } };
+      if (id === '@/i18n/personalized-intl')
+        return { PersonalizedIntl({ children }) { return children; } };
       return require(id);
     },
   });
