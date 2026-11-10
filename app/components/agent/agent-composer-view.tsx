@@ -4,6 +4,7 @@ import type { RefObject } from 'react';
 import { ArrowUp02Icon, StopCircleIcon } from '@hugeicons/core-free-icons';
 import { HugeiconsIcon } from '@hugeicons/react';
 import { Button } from '@/components/ui';
+import { useT } from "@/i18n/i18n";
 
 export function AgentComposerView({
   placeholder,
@@ -24,11 +25,12 @@ export function AgentComposerView({
   onSubmit: () => void;
   onStop: () => void;
 }) {
+  const t = useT();
   return (
     <footer className="shrink-0 border-t border-border bg-panel/95 p-3 backdrop-blur">
       <div className="rounded-[20px] border border-border-strong bg-panel-subtle p-2 focus-within:border-foreground">
         <textarea
-          aria-label="Ask Oren"
+          aria-label={t("agent.ask")}
           className="max-h-32 min-h-12 w-full resize-none bg-transparent px-2 py-2 text-sm leading-6 outline-none placeholder:text-muted-2"
           disabled={!connected || isSending}
           maxLength={4000}
@@ -45,10 +47,10 @@ export function AgentComposerView({
           value={composer}
         />
         <div className="flex items-center justify-between gap-3 px-1 pb-1">
-          <p className="text-[10px] text-muted">Oren proposes. Your wallet approves.</p>
+          <p className="text-[10px] text-muted">{t("agent.proposes")}</p>
           {isSending ? (
             <Button
-              aria-label="Stop response"
+              aria-label={t("agent.stop")}
               className="h-9 w-9 rounded-full"
               onClick={onStop}
               size="icon"
@@ -58,7 +60,7 @@ export function AgentComposerView({
             </Button>
           ) : (
             <Button
-              aria-label="Send message"
+              aria-label={t("agent.send")}
               className="h-9 w-9 rounded-full"
               disabled={!connected || !composer.trim()}
               onClick={() => onSubmit()}

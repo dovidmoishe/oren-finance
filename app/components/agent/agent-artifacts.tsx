@@ -21,6 +21,7 @@ import type {
 } from '@/types';
 import { TechnicalBriefPanel } from '@/components/stock/technical-brief-panel';
 import { Button, cn, formatCurrency, formatNumber } from '@/components/ui';
+import { useI18n } from '@/i18n/i18n';
 import { useQuoteRefresh } from '@/hooks/use-quote-refresh';
 import { useExecutionStore } from '@/store';
 import { BasketProposal } from '@/components/trading/basket-proposal';
@@ -43,6 +44,7 @@ export function AgentArtifacts({
   onReviewLimitOrder,
   onNavigate,
 }: AgentArtifactsProps) {
+  const { locale } = useI18n();
   if (density === 'chips') {
     return (
       <div className="mt-3 flex flex-wrap gap-1.5">
@@ -51,7 +53,7 @@ export function AgentArtifacts({
             className="rounded-full border border-border bg-panel-subtle px-2.5 py-1 text-[11px] font-semibold text-muted"
             key={`${artifact.type}-${index}`}
           >
-            {artifactChipLabel(artifact)}
+            {artifactChipLabel(artifact, locale)}
           </span>
         ))}
       </div>
@@ -90,6 +92,7 @@ function AgentArtifactCard({
   onReviewLimitOrder: (proposal: LimitOrderProposal) => void;
   onNavigate?: () => void;
 }) {
+  const { locale } = useI18n();
   switch (artifact.type) {
     case 'research': {
       const report = artifact.data;
@@ -106,11 +109,11 @@ function AgentArtifactCard({
       return (
         <ArtifactShell icon={Briefcase01Icon} label="Portfolio" tone="pink">
           <p className="font-display text-2xl font-semibold">
-            {formatCurrency(portfolio.totalValueUsd)}
+            {formatCurrency(portfolio.totalValueUsd, locale)}
           </p>
           <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
-            <Metric label="Available" value={formatCurrency(portfolio.availableValueUsd)} />
-            <Metric label="Locked" value={formatCurrency(portfolio.lockedValueUsd)} />
+            <Metric label="Available" value={formatCurrency(portfolio.availableValueUsd, locale)} />
+            <Metric label="Locked" value={formatCurrency(portfolio.lockedValueUsd, locale)} />
           </div>
           {portfolio.positions.length ? (
             <div className="mt-3 space-y-2 border-t border-black/8 pt-3">
@@ -118,9 +121,9 @@ function AgentArtifactCard({
                 <div className="flex items-center justify-between text-xs" key={position.assetId}>
                   <span className="font-semibold">{position.ticker}</span>
                   <span className="font-mono">
-                    {formatCurrency(position.valueUsd)} ·{' '}
+                    {formatCurrency(position.valueUsd, locale)} ·{' '}
                     {portfolio.totalValueUsd > 0
-                      ? `${formatNumber((position.valueUsd / portfolio.totalValueUsd) * 100, 0)}%`
+                      ? `${formatNumber((position.valueUsd / portfolio.totalValueUsd) * 100, locale, 0)}%`
                       : '0%'}
                   </span>
                 </div>
@@ -141,12 +144,12 @@ function AgentArtifactCard({
             </div>
             <div className="text-right">
               <p className="font-mono font-semibold">
-                {stock.priceUsd === undefined ? '—' : formatCurrency(stock.priceUsd)}
+                {stock.priceUsd === undefined ? '—' : formatCurrency(stock.priceUsd, locale)}
               </p>
               <p className={cn('text-xs', (stock.change24hPct ?? 0) >= 0 ? 'text-positive' : 'text-negative')}>
                 {stock.change24hPct === undefined
                   ? 'No daily change'
-                  : `${stock.change24hPct >= 0 ? '+' : ''}${formatNumber(stock.change24hPct, 2)}%`}
+                  : `${stock.change24hPct >= 0 ? '+' : ''}${formatNumber(stock.change24hPct, locale, 2)}%`}
               </p>
             </div>
           </div>
@@ -185,9 +188,9 @@ function AgentArtifactCard({
               </div>
             ) : (
               <div className="mt-3 grid grid-cols-3 gap-2">
-                <Metric label="RSI" value={formatSignal(analysis.signals.rsi14)} />
-                <Metric label="30d momentum" value={formatPercentSignal(analysis.signals.momentum30d)} />
-                <Metric label="30d volatility" value={formatPercentSignal(analysis.signals.volatility30d)} />
+                <Metric label="RSI" value={formatSignal(analysis.signals.rsi14, locale)} />
+                <Metric label="30d momentum" value={formatPercentSignal(analysis.signals.momentum30d, locale)} />
+                <Metric label="30d volatility" value={formatPercentSignal(analysis.signals.volatility30d, locale)} />
               </div>
             )}
             {analysis.highlights.length ? (
@@ -233,9 +236,9 @@ function AgentArtifactCard({
             </div>
             {quote ? (
               <div className="text-right">
-                <p className="font-mono font-semibold">{formatCurrency(quote.lastPriceUsd)}</p>
+                <p className="font-mono font-semibold">{formatCurrency(quote.lastPriceUsd, locale)}</p>
                 <p className={cn('text-xs', (change ?? 0) >= 0 ? 'text-positive' : 'text-negative')}>
-                  {change === undefined ? '24h —' : `${change >= 0 ? '+' : ''}${formatNumber(change, 2)}%`}
+                  {change === undefined ? '24h —' : `${change >= 0 ? '+' : ''}${formatNumber(change, locale, 2)}%`}
                 </p>
               </div>
             ) : null}
@@ -244,11 +247,11 @@ function AgentArtifactCard({
             <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
               <Metric
                 label="24h turnover"
-                value={quote.turnover24hUsd === undefined ? '—' : formatCurrency(quote.turnover24hUsd)}
+                value={quote.turnover24hUsd === undefined ? '—' : formatCurrency(quote.turnover24hUsd, locale)}
               />
               <Metric
                 label="Bid / ask spread"
-                value={quote.spreadBps === undefined ? '—' : `${formatNumber(quote.spreadBps, 1)} bps`}
+                value={quote.spreadBps === undefined ? '—' : `${formatNumber(quote.spreadBps, locale, 1)} bps`}
               />
             </div>
           ) : null}
@@ -257,7 +260,7 @@ function AgentArtifactCard({
               <span className="text-muted">vs Oren reference</span>
               <span className="font-mono font-semibold">
                 {context.comparison.differencePct >= 0 ? '+' : ''}
-                {formatNumber(context.comparison.differencePct, 2)}%
+                {formatNumber(context.comparison.differencePct, locale, 2)}%
               </span>
             </div>
           ) : null}
@@ -312,17 +315,17 @@ function AgentArtifactCard({
               <p className="font-display text-xl font-semibold">{artifact.data.ticker}</p>
             </div>
             <p className="font-mono text-sm font-semibold">
-              {formatCurrency(artifact.data.limitPriceUsd)}
+              {formatCurrency(artifact.data.limitPriceUsd, locale)}
             </p>
           </div>
           <div className="mt-3 flex items-center justify-between border-t border-black/8 pt-3 text-xs">
             <span className="text-muted">Notional</span>
-            <span className="font-mono">{formatCurrency(artifact.data.amountUsd)}</span>
+            <span className="font-mono">{formatCurrency(artifact.data.amountUsd, locale)}</span>
           </div>
           <div className="mt-2 flex items-center justify-between text-xs">
             <span className="text-muted">If filled</span>
             <span className="font-mono">
-              {formatNumber(artifact.data.takingAmount, 6)} {artifact.data.outputSymbol}
+              {formatNumber(artifact.data.takingAmount, locale, 6)} {artifact.data.outputSymbol}
             </span>
           </div>
           <MarketSessionNotice session={artifact.data.marketSession} variant="note" />
@@ -354,7 +357,7 @@ function AgentArtifactCard({
                 >
                   <span>
                     <strong className="capitalize">{order.side}</strong>{' '}
-                    {order.ticker ?? '—'} @ {formatCurrency(order.limitPriceUsd)}
+                    {order.ticker ?? '—'} @ {formatCurrency(order.limitPriceUsd, locale)}
                   </span>
                   <span className="font-mono capitalize text-muted">{order.status}</span>
                 </div>
@@ -373,7 +376,7 @@ function AgentArtifactCard({
           <div className="flex items-end justify-between gap-3">
             <div>
               <p className="text-xs text-muted">Copying {artifact.data.source.displayName}</p>
-              <p className="font-display text-xl font-semibold">{formatCurrency(artifact.data.amountUsd)}</p>
+              <p className="font-display text-xl font-semibold">{formatCurrency(artifact.data.amountUsd, locale)}</p>
             </div>
             <span className="rounded-full bg-white/75 px-2 py-1 text-xs font-semibold">
               {artifact.data.allocations.length} stocks
@@ -382,7 +385,7 @@ function AgentArtifactCard({
           <div className="mt-3 flex flex-wrap gap-1.5">
             {artifact.data.allocations.map((allocation) => (
               <span className="rounded-full bg-white/75 px-2 py-1 text-[11px] font-semibold" key={allocation.assetId}>
-                {allocation.ticker} {formatNumber(allocation.weightPercent, 0)}%
+                {allocation.ticker} {formatNumber(allocation.weightPercent, locale, 0)}%
               </span>
             ))}
           </div>
@@ -400,7 +403,7 @@ function AgentArtifactCard({
             <div>
               <p className="text-xs text-muted">{artifact.data.range.month ?? `${artifact.data.range.start} to ${artifact.data.range.end}`}</p>
               <p className="font-display text-xl font-semibold">
-                {formatCurrency(artifact.data.days.reduce((sum, day) => sum + day.pnlUsd, 0))}
+                {formatCurrency(artifact.data.days.reduce((sum, day) => sum + day.pnlUsd, 0), locale)}
               </p>
             </div>
             <span className="rounded-full bg-white/75 px-2 py-1 text-xs font-semibold">
@@ -418,10 +421,10 @@ function AgentArtifactCard({
           <div className="flex items-end justify-between gap-3">
             <div>
               <p className="text-xs text-muted">{artifact.data.date}</p>
-              <p className="font-display text-xl font-semibold">{formatCurrency(artifact.data.summary.pnlUsd)}</p>
+              <p className="font-display text-xl font-semibold">{formatCurrency(artifact.data.summary.pnlUsd, locale)}</p>
             </div>
             <span className={cn('rounded-full px-2 py-1 text-xs font-semibold', artifact.data.summary.pnlUsd >= 0 ? 'bg-accent-yellow' : 'bg-accent-pink')}>
-              {formatNumber(artifact.data.summary.returnPct, 2)}%
+              {formatNumber(artifact.data.summary.returnPct, locale, 2)}%
             </span>
           </div>
           {artifact.data.contributors.length ? (
@@ -429,7 +432,7 @@ function AgentArtifactCard({
               {artifact.data.contributors.slice(0, 3).map((item) => (
                 <div className="flex items-center justify-between text-xs" key={item.assetId}>
                   <span className="font-semibold">{item.ticker}</span>
-                  <span className="font-mono">{formatCurrency(item.valueChangeUsd)}</span>
+                  <span className="font-mono">{formatCurrency(item.valueChangeUsd, locale)}</span>
                 </div>
               ))}
             </div>
@@ -442,7 +445,7 @@ function AgentArtifactCard({
       )[0];
       return (
         <ArtifactShell icon={SafeIcon} label="Vault" tone="lavender">
-          <p className="font-display text-2xl font-semibold">{formatCurrency(artifact.data.totalLockedValueUsd)}</p>
+          <p className="font-display text-2xl font-semibold">{formatCurrency(artifact.data.totalLockedValueUsd, locale)}</p>
           <p className="mt-1 text-xs text-muted">
             {artifact.data.positions.length} locked position{artifact.data.positions.length === 1 ? '' : 's'}
             {nextUnlock ? ` · next unlock ${nextUnlock.ticker ?? 'asset'}` : ''}
@@ -475,6 +478,7 @@ function QuoteArtifact({
   quote: QuoteResponse;
   onReview: (quote: QuoteResponse) => void;
 }) {
+  const { locale } = useI18n();
   const seedQuote = useExecutionStore((state) => state.seedQuote);
   const storeQuote = useExecutionStore((state) => state.quote);
   const {
@@ -507,15 +511,15 @@ function QuoteArtifact({
           <p className="text-xs uppercase tracking-[0.12em] text-muted">{liveQuote.side}</p>
           <p className="font-display text-xl font-semibold">{liveQuote.ticker}</p>
         </div>
-        <p className="font-mono text-sm font-semibold">{formatCurrency(liveQuote.amountUsd)}</p>
+        <p className="font-mono text-sm font-semibold">{formatCurrency(liveQuote.amountUsd, locale)}</p>
       </div>
       <div className="mt-3 flex items-center justify-between border-t border-black/8 pt-3 text-xs">
         <span className="text-muted">Estimated receive</span>
-        <span className="font-mono">{formatNumber(liveQuote.outputAmount, 6)} {liveQuote.outputSymbol}</span>
+        <span className="font-mono">{formatNumber(liveQuote.outputAmount, locale, 6)} {liveQuote.outputSymbol}</span>
       </div>
       <div className="mt-2 flex items-center justify-between text-xs">
         <span className="text-muted">Price impact</span>
-        <span className="font-mono">{formatNumber(liveQuote.priceImpactPercent, 2)}%</span>
+        <span className="font-mono">{formatNumber(liveQuote.priceImpactPercent, locale, 2)}%</span>
       </div>
       <div className="mt-2 flex items-center justify-between text-xs">
         <span className="text-muted">Quote expiry</span>
@@ -602,20 +606,20 @@ function Metric({ label, value }: { label: string; value: string }) {
   );
 }
 
-function formatSignal(value?: number) {
-  return value === undefined ? '—' : formatNumber(value, 1);
+function formatSignal(value: number | undefined, locale: string) {
+  return value === undefined ? '—' : formatNumber(value, locale, 1);
 }
 
-function formatPercentSignal(value?: number) {
-  return value === undefined ? '—' : `${value >= 0 ? '+' : ''}${formatNumber(value, 1)}%`;
+function formatPercentSignal(value: number | undefined, locale: string) {
+  return value === undefined ? '—' : `${value >= 0 ? '+' : ''}${formatNumber(value, locale, 1)}%`;
 }
 
-function artifactChipLabel(artifact: AgentArtifact): string {
+function artifactChipLabel(artifact: AgentArtifact, locale: string): string {
   switch (artifact.type) {
     case 'research':
       return `${artifact.data.ticker} research`;
     case 'portfolio':
-      return `Portfolio ${formatCurrency(artifact.data.totalValueUsd)}`;
+      return `Portfolio ${formatCurrency(artifact.data.totalValueUsd, locale)}`;
     case 'stock':
       return artifact.data.ticker;
     case 'analysis':
@@ -633,7 +637,7 @@ function artifactChipLabel(artifact: AgentArtifact): string {
     case 'limit_orders':
       return `${artifact.data.length} limit orders`;
     case 'basket':
-      return `Basket ${formatCurrency(artifact.data.totalAmountUsd)}`;
+      return `Basket ${formatCurrency(artifact.data.totalAmountUsd, locale)}`;
     case 'copy_portfolio_proposal':
       return `Copy ${artifact.data.source.displayName}`;
     case 'trading_calendar':

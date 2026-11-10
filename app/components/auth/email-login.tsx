@@ -2,15 +2,18 @@
 
 import { Captcha, useLoginWithEmail } from "@privy-io/react-auth";
 import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useT } from "@/i18n/i18n";
+import { signInErrorKey, type SignInErrorKey } from "./sign-in-error";
 
 /** The enclosing dialog owns visibility; Privy owns OTP delivery and verification. */
 export function EmailLogin({ onComplete }: { onComplete: () => void }) {
+  const t = useT();
   const { sendCode, loginWithCode } = useLoginWithEmail();
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
   const [step, setStep] = useState<"email" | "code">("email");
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string>();
+  const [error, setError] = useState<SignInErrorKey>();
   const mounted = useRef(false);
   const pending = useRef(false);
   useEffect(() => {
@@ -31,7 +34,7 @@ export function EmailLogin({ onComplete }: { onComplete: () => void }) {
       setCode("");
     } catch (cause) {
       if (!mounted.current) return;
-      setError(cause instanceof Error ? cause.message : "Unable to send a code. Please try again.");
+      setError(signInErrorKey(cause, "send"));
     } finally {
       pending.current = false;
       if (mounted.current) setBusy(false);
@@ -49,7 +52,7 @@ export function EmailLogin({ onComplete }: { onComplete: () => void }) {
       if (mounted.current) onComplete();
     } catch (cause) {
       if (!mounted.current) return;
-      setError(cause instanceof Error ? cause.message : "Unable to verify the code. Please try again.");
+      setError(signInErrorKey(cause, "verify"));
     } finally {
       pending.current = false;
       if (mounted.current) setBusy(false);
@@ -60,23 +63,52 @@ export function EmailLogin({ onComplete }: { onComplete: () => void }) {
     <form className="space-y-4" onSubmit={step === "email" ? requestCode : verifyCode}>
       <Captcha />
       <div>
-        <h2 className="text-xl font-semibold">{step === "email" ? "Sign in to Oren" : "Check your email"}</h2>
-        <p className="mt-1 text-sm text-muted">{step === "email" ? "We’ll email you a one-time code." : `Enter the code sent to ${email}.`}</p>
+        <h2 className="text-xl font-semibold">{step === "email" ? t("auth.title") : t("auth.codeTitle")}</h2>
+        <p className="mt-1 text-sm text-muted">
+          {step === "email" ? t("auth.subtitle") : t("auth.codeSent", { email })}
+        </p>
       </div>
       {step === "email" ? (
-        <label className="block text-sm font-medium">Email address
-          <input autoComplete="email" autoFocus className="mt-2 w-full rounded-xl border border-border bg-white px-4 py-3 text-foreground" onChange={(event) => setEmail(event.target.value)} required type="email" value={email} />
+        <label className="block text-sm font-medium">
+          {t("auth.emailLabel")}
+          <input
+            aria-label={t("auth.emailLabel")}
+            autoComplete="email"
+            autoFocus
+            className="mt-2 w-full rounded-xl border border-border bg-white px-4 py-3 text-foreground"
+            onChange={(event) => setEmail(event.target.value)}
+            placeholder={t("auth.emailPlaceholder")}
+            required
+            type="email"
+            value={email}
+          />
         </label>
       ) : (
-        <label className="block text-sm font-medium">Verification code
-          <input autoComplete="one-time-code" autoFocus className="mt-2 w-full rounded-xl border border-border bg-white px-4 py-3 text-foreground" inputMode="numeric" onChange={(event) => setCode(event.target.value)} required value={code} />
+        <label className="block text-sm font-medium">
+          {t("auth.codeLabel")}
+          <input
+            aria-label={t("auth.codeLabel")}
+            autoComplete="one-time-code"
+            autoFocus
+            className="mt-2 w-full rounded-xl border border-border bg-white px-4 py-3 text-foreground"
+            inputMode="numeric"
+            onChange={(event) => setCode(event.target.value)}
+            placeholder={t("auth.codePlaceholder")}
+            required
+            value={code}
+          />
         </label>
       )}
-      {error && <p className="text-sm text-red-700" role="alert">{error}</p>}
+      {error ? <p className="text-sm text-red-700" role="alert">{t(error)}</p> : null}
       <button className="w-full rounded-xl bg-foreground px-4 py-3 text-sm font-medium text-white disabled:opacity-50" disabled={busy} type="submit">
-        {busy ? "Please wait…" : step === "email" ? "Continue" : "Verify and sign in"}
+        {busy ? t("auth.waiting") : step === "email" ? t("auth.continue") : t("auth.verify")}
       </button>
-      {step === "code" && <div className="flex justify-between text-sm"><button disabled={busy} onClick={() => { setStep("email"); setError(undefined); }} type="button">Change email</button><button disabled={busy} onClick={() => void requestCode()} type="button">Resend code</button></div>}
+      {step === "code" ? (
+        <div className="flex justify-between text-sm">
+          <button disabled={busy} onClick={() => { setStep("email"); setError(undefined); }} type="button">{t("auth.changeEmail")}</button>
+          <button disabled={busy} onClick={() => void requestCode()} type="button">{t("auth.resend")}</button>
+        </div>
+      ) : null}
     </form>
   );
 }

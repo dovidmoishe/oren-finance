@@ -6,9 +6,11 @@ import { AppShell } from "@/components/shell";
 import { Button, EmptyState } from "@/components/ui";
 import { usePortfolioStore, useWalletStore } from "@/store";
 import { ActivityList } from "./activity-list";
+import { useT } from "@/i18n/i18n";
 
 export function ActivityTimeline() {
   const auth = useOrenAuth();
+  const t = useT();
   const wallet = useWalletStore((state) => state.address);
   const connected = useWalletStore((state) => state.connected);
   const activity = usePortfolioStore((state) => state.activity);
@@ -23,17 +25,17 @@ export function ActivityTimeline() {
   return (
     <AppShell>
       <div className="mx-auto max-w-3xl pb-20">
-        <p className="text-sm text-muted">History</p>
-        <h1 className="mt-1 font-display text-4xl font-semibold tracking-normal">Activity</h1>
+        <p className="text-sm text-muted">{t("common.historyEyebrow")}</p>
+        <h1 className="mt-1 font-display text-4xl font-semibold tracking-normal">{t("common.activityTitle")}</h1>
         <p className="mt-2 max-w-xl text-sm leading-6 text-muted">
-          Trades for this wallet. Titan or Jupiter is shown when that route was saved with the trade.
+          {t("common.activityIntro")}
         </p>
         <div className="mt-6">
           {!connected ? (
             <EmptyState
-              action={auth.ready && !auth.authenticated ? <Button onClick={auth.open}>Sign in</Button> : undefined}
-              description={auth.authenticated ? "Your trades will appear as soon as your wallet is ready." : "Sign in to see the routes used on your trades."}
-              title={auth.authenticated ? "Preparing your wallet…" : "Sign in to see activity"}
+              action={auth.ready && !auth.authenticated ? <Button onClick={auth.open}>{t("common.signIn")}</Button> : undefined}
+              description={auth.authenticated ? t("common.activityPreparing") : t("common.activitySignedOut")}
+              title={auth.authenticated ? t("common.preparingWallet") : t("common.activitySignInTitle")}
             />
           ) : (
             <>

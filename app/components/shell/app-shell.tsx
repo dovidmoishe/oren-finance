@@ -12,6 +12,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { OrenLogo } from "@/components/brand/oren-logo";
 import { AccountMenu } from "./account-menu";
+import { LanguageMenu } from "@/components/language/language-menu";
+import { useT, type MessageKey } from "@/i18n/i18n";
 import { PendingApprovalNotice } from "@/components/trading/pending-approval-notice";
 import { Button, cn } from "@/components/ui";
 import { useAgentStore } from "@/store";
@@ -21,11 +23,11 @@ import { useAgentStore } from "@/store";
 const AgentPanel = dynamic(() => import("@/components/agent/agent-panel").then((mod) => mod.AgentPanel), { ssr: false });
 const DepositModal = dynamic(() => import("@/components/portfolio/deposit-dashboard").then((mod) => mod.DepositModal), { ssr: false });
 
-const navItems = [
-  { href: "/app", label: "Dashboard", icon: Home01Icon },
-  { href: "/app/markets", label: "Market", icon: MarketAnalysisIcon },
-  { href: "/app/leaderboard", label: "Leaderboard", icon: RankingIcon },
-  { href: "/app/vault", label: "Vault", icon: SafeIcon },
+const navItems: Array<{ href: string; label: MessageKey; icon: IconSvgElement }> = [
+  { href: "/app", label: "nav.dashboard", icon: Home01Icon },
+  { href: "/app/markets", label: "nav.market", icon: MarketAnalysisIcon },
+  { href: "/app/leaderboard", label: "nav.leaderboard", icon: RankingIcon },
+  { href: "/app/vault", label: "nav.vault", icon: SafeIcon },
 ];
 
 function Icon({ icon, className, size = 18 }: { icon: IconSvgElement; className?: string; size?: number }) {
@@ -34,6 +36,7 @@ function Icon({ icon, className, size = 18 }: { icon: IconSvgElement; className?
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const t = useT();
   const agentOpen = useAgentStore((state) => state.panelOpen && state.hydrated);
   const agentExpanded = useAgentStore((state) => state.expanded);
   const setPanelOpen = useAgentStore((state) => state.setPanelOpen);
@@ -66,13 +69,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   key={item.href}
                 >
                   <Icon className="hidden sm:block" icon={item.icon} size={14} />
-                  {item.label}
+                  {t(item.label)}
                   {active ? <span className="absolute bottom-0 left-0 h-0.5 w-full rounded-full bg-foreground" /> : null}
                 </Link>
               );
             })}
           </nav>
-          <div aria-label="Your account" className="flex items-center gap-2 justify-self-end">
+          <div aria-label={t("nav.yourAccount")} className="flex items-center gap-2 justify-self-end">
+            <LanguageMenu />
             <AccountMenu />
           </div>
         </div>
@@ -87,7 +91,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <div className="pointer-events-none fixed inset-x-0 bottom-5 z-[100] px-4 sm:px-6">
           <div className="mx-auto flex max-w-[1540px] justify-end">
             <Button
-              aria-label="Open Oren"
+              aria-label={t("nav.openOren")}
               className="pointer-events-auto h-12 w-12 overflow-visible rounded-[20px] bg-foreground text-white shadow-[0_18px_50px_rgba(23,23,23,0.24)] transition-[background-color,transform] hover:scale-[1.04] hover:bg-black/85"
               id="oren-agent-launcher"
               onClick={() => setPanelOpen(true)}

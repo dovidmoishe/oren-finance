@@ -21,7 +21,7 @@ function load(path, states, mocks = {}) {
     if (id === '@/components/auth/auth-context') return { useOrenAuth: () => auth };
     if (id === '@/services/mcp-api-origin') return { mcpApiOrigin: () => 'https://api.example.com' };
     if (id === '@/components/brand/agent-client') return { agentClient: mcpConnectorForKind, AgentClientLogo: ({ kind }) => React.createElement('img', { src: mcpConnectorForKind(kind)?.logo ?? '/generic.svg', alt: '' }) };
-    if (id === '@/components/ui') return { Button: ({ children, size, variant, ...props }) => React.createElement('button', props, children) };
+    if (id === '@/components/ui') return { Button: ({ children, size, variant, ...props }) => React.createElement('button', props, children), formatDate: (value) => String(value ?? "") };
     if (id === 'next/link') return { default: ({ children, ...props }) => React.createElement('a', props, children) };
     if (id.endsWith('.module.css')) return { default: {} };
     if (id === '@hugeicons/react') return { HugeiconsIcon: () => null };
