@@ -8,6 +8,11 @@ fetchTimeout: 60000
 fetchRetries: 2
 
 allowBuilds:
+  # next-intl's plugin imports the extractor, which loads these native
+  # packages when Next reads next.config. The scripts are approved so a
+  # frozen install is not rejected for an unlisted build.
+  '@parcel/watcher': true
+  '@swc/core': true
   '@reown/appkit': false
   '@stellar/stellar-sdk': false
   blake-hash: false

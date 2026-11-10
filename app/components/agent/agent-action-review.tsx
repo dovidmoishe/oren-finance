@@ -20,6 +20,7 @@ import { BasketReview } from '@/components/trading/basket-review';
 import { QuoteReviewModal } from '@/components/trading/quote-review-modal';
 import { PriceMovedReview } from '@/components/trading/price-moved-review';
 import { LimitOrderReviewModal } from '@/components/trading/limit-order-review-modal';
+import { useT } from "@/i18n/i18n";
 
 interface AgentActionReviewProps {
   quote?: QuoteResponse;
@@ -111,6 +112,7 @@ export function AgentActionReview({
 
 function BasketExecutionReview({ basket, onClose }: { basket: BasketResponse; onClose: () => void }) {
   const auth = useOrenAuth();
+  const t = useT();
   const [progress, setProgress] = useState<BasketExecutionProgress>();
   const [nextLeg, setNextLeg] = useState(0);
   const [preparing, setPreparing] = useState(false);
@@ -132,19 +134,19 @@ function BasketExecutionReview({ basket, onClose }: { basket: BasketResponse; on
       await prepareBasketTrades({ basketId: basket.id, wallet: auth.address });
       if (!current()) return;
       const prepared = useExecutionStore.getState().preparedBasket;
-      if (!prepared) throw new Error(useExecutionStore.getState().error || 'Unable to prepare basket');
+      if (!prepared) throw new Error(useExecutionStore.getState().error || t("agent.basketPrepareFailed"));
       setProgress(prepared.progress);
     } catch (error) {
-      if (current()) setPreparationError(error instanceof Error ? error.message : 'Unable to prepare basket');
+      if (current()) setPreparationError(error instanceof Error ? error.message : t("agent.basketPrepareFailed"));
     } finally { setPreparing(false); }
   }
   const legQuote = leg ? acceptedAlternatives[nextLeg] ?? leg.quote : undefined;
   if (leg && legQuote) return <QuoteReviewModal open quote={legQuote} status={flowStatus} confirmation={confirmation} error={error}
     onClose={onClose} onSign={(id, reviewed) => executeQuote(reviewed, id)} />;
-  return <Modal open title="Review basket" onClose={onClose}>
+  return <Modal open title={t("agent.reviewBasket")} onClose={onClose}>
     <BasketReview basket={basket} progress={progress} />
-    <p className="my-4 text-sm text-muted">Review and confirm each stock separately. Completed trades are not repeated.</p>
-    {preparationError ? <Toast title="Basket preparation" description={preparationError} tone="error" /> : null}
+    <p className="my-4 text-sm text-muted">{t("agent.basketNote")}</p>
+    {preparationError ? <Toast title={t("agent.basketPreparation")} description={preparationError} tone="error" /> : null}
     {leg && !leg.quote && leg.priceMoved ? (
       <PriceMovedReview
         details={leg.priceMoved}
@@ -152,11 +154,11 @@ function BasketExecutionReview({ basket, onClose }: { basket: BasketResponse; on
         onCancel={() => setNextLeg(index => index + 1)}
       />
     ) : leg && !leg.quote ? <>
-      <Toast title={`${leg.ticker} unavailable`} description={leg.error || 'This stock could not be prepared. No trade was submitted.'} tone="error" />
-      <Button onClick={() => setNextLeg(index => index + 1)}>Skip this stock</Button>
+      <Toast title={t("agent.legUnavailable", { ticker: leg.ticker })} description={leg.error || t("agent.legUnavailableDescription")} tone="error" />
+      <Button onClick={() => setNextLeg(index => index + 1)}>{t("agent.skipStock")}</Button>
     </> : null}
     <Button disabled={!financialExecutionEnabled || preparing || Boolean(progress) || !auth.address} onClick={() => void prepare()}>
-      {progress ? leg ? 'Review paused' : 'Basket review complete' : preparing ? 'Preparing…' : 'Review first stock'}
+      {progress ? leg ? t("agent.reviewPaused") : t("agent.basketComplete") : preparing ? t("agent.preparing") : t("agent.reviewFirst")}
     </Button>
   </Modal>;
 }

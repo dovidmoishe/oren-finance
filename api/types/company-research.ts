@@ -87,7 +87,17 @@ export interface CompanyResearchData {
   };
   latestQuarter?: CompanyPeriod;
   latestAnnual?: CompanyPeriod;
-  ttm?: { revenue: CompanyMetric; netIncome: CompanyMetric };
+  ttm?: {
+    revenue: CompanyMetric;
+    netIncome: CompanyMetric;
+    operatingMargin?: CompanyMetric;
+    /** Current trailing twelve months compared with the prior trailing twelve months. */
+    revenueGrowth?: CompanyMetric;
+    /** Start of the oldest quarter in the trailing window. */
+    start?: string;
+    /** End of the newest quarter in the trailing window. */
+    end?: string;
+  };
   growth?: { quarterlyRevenue: CompanyMetric; annualRevenue: CompanyMetric };
   position?: {
     cash: CompanyMetric;
