@@ -35,6 +35,7 @@ jobs:
     permissions:
       contents: read
       actions: write
+      pull-requests: read
     steps:
       # Always execute trusted gating code, including during manual rollback.
       - uses: actions/checkout@v4

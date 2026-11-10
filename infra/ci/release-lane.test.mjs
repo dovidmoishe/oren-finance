@@ -11,6 +11,7 @@ function actions(overrides = {}) {
     listWorkflowRuns: async query => {
       calls.list.push(query);
       if (overrides.listError) throw overrides.listError;
+      if (query.branch) return {data: {workflow_runs: overrides.recent ?? []}};
       return {data: {workflow_runs: overrides.runs?.[`${query.workflow_id}:${query.status}`] ?? []}};
     },
     cancelWorkflowRun: async ({run_id}) => {
@@ -23,16 +24,23 @@ function actions(overrides = {}) {
       const jobs = typeof overrides.jobs === 'function' ? overrides.jobs() : (overrides.jobs ?? []);
       return {data: {jobs}};
     },
+    getWorkflowRun: async ({run_id}) => ({data: pr(run_id, 'ci.yml', {
+      status: 'completed', conclusion: 'cancelled', ...overrides.run,
+    })}),
     reRunWorkflow: async ({run_id}) => {
       calls.rerun.push(run_id);
       if (overrides.rerunError) throw overrides.rerunError;
     },
+  }, pulls: {
+    list: async () => ({data: overrides.pulls ?? [{head: {repo: {id: 123}, sha}}]}),
   }}};
   return {calls, github};
 }
 
 const pr = (id, workflow, extra = {}) => ({
   id, event: 'pull_request', path: `.github/workflows/${workflow}`, ...extra,
+  head_branch: 'feature', head_sha: sha, head_repository: {id: 123, owner: {login: 'owner'}},
+  run_number: id,
 });
 
 test('cancels only active pull-request CI and documentation runs', async () => {
@@ -69,6 +77,15 @@ test('a finished cancel is ignored and other cancel errors propagate', async () 
   await assert.rejects(cancelCompetingPullRequests({github: failing.github, repo}), /denied/);
 });
 
+test('caps cancellation requests even when the listed runs have already finished', async () => {
+  const {calls, github} = actions({
+    runs: {'ci.yml:queued': Array.from({length: 50}, (_, id) => pr(id + 1, 'ci.yml'))},
+    cancelError: Object.assign(Error('finished'), {status: 409}),
+  });
+  assert.deepEqual(await cancelCompetingPullRequests({github, repo}), []);
+  assert.equal(calls.cancel.length, 30);
+});
+
 test('release build completion follows the image job', async () => {
   const running = actions({jobs: [{name: RELEASE_IMAGE_JOB, status: 'in_progress'}]});
   assert.equal(await releaseBuildsFinished({github: running.github, repo, runId: 5}), false);
@@ -99,6 +116,87 @@ test('rerun retries then records a permanent failure', async () => {
   assert.deepEqual(result.rerun, []);
   assert.equal(result.failed[0].id, 9);
   assert.match(result.failed[0].message, /nope/);
+});
+
+test('only reruns a cancelled workflow for the current open PR head and latest run', async () => {
+  for (const overrides of [
+    {pulls: []},
+    {pulls: [{head: {repo: {id: 123}, sha: 'b'.repeat(40)}}]},
+    {recent: [pr(10, 'ci.yml')]},
+    {run: {conclusion: 'success'}},
+  ]) {
+    const {calls, github} = actions(overrides);
+    assert.deepEqual(await rerunWorkflows({github, repo, runIds: [9]}), {rerun: [], failed: []});
+    assert.deepEqual(calls.rerun, []);
+  }
+});
+
+test('rechecks the PR head when retrying a rejected rerun', async () => {
+  const overrides = {rerunError: Error('not ready')};
+  const {calls, github} = actions(overrides);
+  const result = await rerunWorkflows({
+    github, repo, runIds: [9],
+    sleep: async () => { overrides.pulls = [{head: {repo: {id: 123}, sha: 'b'.repeat(40)}}]; },
+  });
+  assert.deepEqual(result, {rerun: [], failed: []});
+  assert.deepEqual(calls.rerun, [9]);
+});
+
+test('scans once per two minutes across CI and image polling', async () => {
+  const {calls, github} = actions({});
+  let elapsed = 0;
+  let polls = 0;
+  github.rest.actions.listJobsForWorkflowRun = async () => ({
+    data: {jobs: [{name: RELEASE_IMAGE_JOB, status: ++polls === 9 ? 'completed' : 'in_progress'}]},
+  });
+  await coordinateReleaseGate({
+    github, repo, sha, runId: 99, eventName: 'push', core: {notice() {}, warning() {}},
+    now: () => elapsed, sleep: async ms => { elapsed += ms; },
+    requireCi: async ({sleep}) => {
+      for (let i = 0; i < 8; i++) await sleep(15_000);
+      return 42;
+    },
+  });
+  assert.equal(calls.list.length, 20);
+  assert.equal(elapsed, 240_000);
+});
+
+test('waits for GitHub rate limits before retrying the master CI request', async () => {
+  for (const [headers, expected] of [
+    [{'retry-after': '2'}, 2000],
+    [{'x-ratelimit-remaining': '0', 'x-ratelimit-reset': '3'}, 4000],
+  ]) {
+    const {github} = actions({});
+    let elapsed = 0;
+    let requests = 0;
+    await coordinateReleaseGate({
+      github, repo, sha, runId: 99, eventName: 'workflow_dispatch', core: {notice() {}, warning() {}},
+      now: () => elapsed, sleep: async ms => { elapsed += ms; },
+      requireCi: ({request}) => request(async () => {
+        if (++requests === 1) throw Object.assign(Error('API rate limit'), {status: 403, response: {headers}});
+        return 42;
+      }),
+    });
+    assert.equal(requests, 2);
+    assert.equal(elapsed, expected);
+  }
+});
+
+test('preserves successfully paused runs when a later scan request fails', async () => {
+  const {calls, github} = actions({
+    runs: {'ci.yml:queued': [pr(9, 'ci.yml')]},
+    jobs: [{name: RELEASE_IMAGE_JOB, status: 'completed'}],
+  });
+  const list = github.rest.actions.listWorkflowRuns;
+  github.rest.actions.listWorkflowRuns = async query => {
+    if (query.status === 'in_progress') throw Error('list unavailable');
+    return list(query);
+  };
+  await coordinateReleaseGate({
+    github, repo, sha, runId: 99, eventName: 'push', core: {notice() {}, warning() {}},
+    requireCi: async () => 42,
+  });
+  assert.deepEqual(calls.rerun, [9]);
 });
 
 test('a push pauses pull request CI until the image job finishes, then requeues it', async () => {
