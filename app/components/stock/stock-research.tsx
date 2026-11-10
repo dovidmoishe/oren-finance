@@ -372,7 +372,7 @@ function CompanyFilings({
             .filter((line) => line !== COMPANY_DISCLAIMER)
             .map((line) => (
               <p className="text-sm leading-6 text-muted" key={line}>
-                {line}
+                <BriefingText line={line} onOpenSource={onOpenSource} />
               </p>
             ))}
         </div>
@@ -412,6 +412,63 @@ function CompanyFilings({
       ) : null}
     </article>
   );
+}
+
+function BriefingText({
+  line,
+  onOpenSource,
+}: {
+  line: string;
+  onOpenSource: () => void;
+}) {
+  return briefingParts(line).map((part, index) =>
+    part.kind === "link" ? (
+      <a
+        className={FILING_LINK_CLASS}
+        href={part.url}
+        key={`${part.url}-${index}`}
+        onClick={onOpenSource}
+        rel="noopener noreferrer"
+        target="_blank"
+      >
+        {part.label}
+      </a>
+    ) : (
+      <span key={`${index}-${part.text}`}>{part.text}</span>
+    ),
+  );
+}
+
+function briefingParts(
+  line: string,
+): Array<
+  | { kind: "text"; text: string }
+  | { kind: "link"; label: string; url: string }
+> {
+  const pattern = /\[([^\]]+)\]\(([^)\s]+)\)/g;
+  const parts: Array<
+    | { kind: "text"; text: string }
+    | { kind: "link"; label: string; url: string }
+  > = [];
+  let cursor = 0;
+  for (const match of line.matchAll(pattern)) {
+    const index = match.index ?? 0;
+    if (index > cursor) {
+      parts.push({ kind: "text", text: line.slice(cursor, index) });
+    }
+    const label = match[1] ?? "";
+    const url = match[2] ?? "";
+    if (url.startsWith(SEC_ARCHIVE)) {
+      parts.push({ kind: "link", label, url });
+    } else if (label) {
+      parts.push({ kind: "text", text: label });
+    }
+    cursor = index + match[0].length;
+  }
+  if (cursor < line.length) {
+    parts.push({ kind: "text", text: line.slice(cursor) });
+  }
+  return parts;
 }
 
 function MetricFact({

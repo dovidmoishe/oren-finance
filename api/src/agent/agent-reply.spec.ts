@@ -364,6 +364,23 @@ describe('agent reply shaping', () => {
     expect(shaped.companyFacts).toEqual([
       `Latest quarter FY2027 Q2 (2026-04-27 to 2026-07-26) revenue is $96,221,000,000, ${link}.`,
     ]);
+    const oversized = researchModelOutput({
+      assetId: 'nvda',
+      ticker: 'NVDA',
+      name: 'NVIDIA',
+      generatedAt: '2026-11-10T00:00:00.000Z',
+      analysis: { available: true, data: { opportunityScore: 40 } },
+      news: { available: true, data: [] },
+      portfolio: { available: true, data: null },
+      opinions: { available: false, reason: 'not_enabled' },
+      company: {
+        available: true,
+        data: {
+          briefing: [`${'x'.repeat(501)}`, 'Latest quarter revenue is $1.'],
+        },
+      },
+    } as never);
+    expect(oversized.companyFacts).toEqual(['Latest quarter revenue is $1.']);
   });
 });
 

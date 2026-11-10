@@ -978,7 +978,7 @@ describe('NVDA companyfacts concept switch', () => {
     expect(text).toContain('[10-Q filed 2026-08-26](https://www.sec.gov/');
     expect(text).not.toMatch(/filed \d{4}-\d{2}-\d{2} \(https:\/\//);
     for (const line of result.data.briefing) {
-      expect(line.length).toBeLessThanOrEqual(2000);
+      expect(line.length).toBeLessThanOrEqual(500);
       expect(line).toMatch(/^[\x20-\x7E]+$/);
     }
     const disclaimer = result.data.briefing.filter((line) =>
@@ -1108,5 +1108,160 @@ describe('MSFT-shaped revenue tags', () => {
     });
     expect(result.data.latestAnnual?.revenue.value).not.toBe(62_484_000_000);
     expect(result.data.latestAnnual?.revenue.value).not.toBe(110_360_000_000);
+  });
+});
+
+describe('same filing, two revenue tags', () => {
+  const period = {
+    start: '2025-02-03',
+    end: '2026-02-01',
+    accn: '0000320193-26-000021',
+    form: '10-K' as const,
+    filed: '2026-02-20',
+  };
+  const preferred = 'RevenueFromContractWithCustomerExcludingAssessedTax';
+
+  function report(order: 'preferred-first' | 'revenues-first') {
+    const preferredFact = fact({
+      ...period,
+      concept: preferred,
+      val: 111,
+    });
+    const revenuesFact = fact({
+      ...period,
+      concept: 'Revenues',
+      val: 222,
+    });
+    return run(
+      order === 'preferred-first'
+        ? [preferredFact, revenuesFact]
+        : [revenuesFact, preferredFact],
+      { fiscalYearEndMonth: 1, asOf: '2026-03-01' },
+    );
+  }
+
+  it.each(['preferred-first', 'revenues-first'] as const)(
+    'keeps the earlier GAAP alias when %s',
+    (order) => {
+      const result = report(order);
+      expect(result.data.latestAnnual?.revenue).toMatchObject({
+        value: 111,
+        citation: { concept: preferred, accession: period.accn },
+      });
+      expect(result.data.latestAnnual?.revenue.value).not.toBe(222);
+      expect(JSON.stringify(result.data.latestAnnual)).not.toContain('222');
+    },
+  );
+});
+
+describe('mixed revenue tags across a year', () => {
+  const contract = 'RevenueFromContractWithCustomerExcludingAssessedTax';
+
+  it('does not derive Q4 from a full year and quarters that use different tags', () => {
+    const result = run(
+      [
+        fact({
+          concept: 'Revenues',
+          start: '2025-02-03',
+          end: '2026-02-01',
+          val: 1000,
+          form: '10-K',
+          filed: '2026-02-20',
+          accn: '0000320193-26-000010',
+        }),
+        fact({
+          concept: contract,
+          start: '2025-02-03',
+          end: '2025-05-04',
+          val: 10,
+          accn: '0000320193-25-000001',
+          filed: '2025-06-01',
+        }),
+        fact({
+          concept: contract,
+          start: '2025-05-05',
+          end: '2025-08-03',
+          val: 20,
+          accn: '0000320193-25-000002',
+          filed: '2025-09-01',
+        }),
+        fact({
+          concept: contract,
+          start: '2025-08-04',
+          end: '2025-11-02',
+          val: 30,
+          accn: '0000320193-25-000003',
+          filed: '2025-12-01',
+        }),
+      ],
+      { fiscalYearEndMonth: 1, asOf: '2026-03-01' },
+    );
+    expect(result.data.latestAnnual?.revenue.value).toBe(1000);
+    expect(result.data.latestQuarter).toMatchObject({
+      fiscalQuarter: 3,
+      end: '2025-11-02',
+      derived: undefined,
+      revenue: { value: 30, citation: { concept: contract } },
+    });
+    expect(result.data.ttm?.revenue).toMatchObject({
+      available: false,
+      reason: 'insufficient_periods',
+    });
+    expect(JSON.stringify(result.data)).not.toContain('"value":940');
+    expect(JSON.stringify(result.data)).not.toContain('"value":60');
+  });
+
+  it('does not sum a trailing year or a margin across different revenue tags', () => {
+    const quarters = [
+      ['2025-02-03', '2025-05-04', 10, contract, '0000320193-25-000001'],
+      ['2025-05-05', '2025-08-03', 20, contract, '0000320193-25-000002'],
+      ['2025-08-04', '2025-11-02', 30, 'Revenues', '0000320193-25-000003'],
+      ['2025-11-03', '2026-02-01', 40, 'Revenues', '0000320193-26-000004'],
+    ] as const;
+    const result = run(
+      [
+        ...quarters.flatMap(([start, end, val, concept, accn]) => [
+          fact({
+            concept,
+            start,
+            end,
+            val,
+            accn,
+            filed: '2026-02-20',
+            form: end === '2026-02-01' ? '10-K' : '10-Q',
+          }),
+          fact({
+            concept: 'OperatingIncomeLoss',
+            start,
+            end,
+            val: 5,
+            accn:
+              accn === '0000320193-26-000004'
+                ? '0000320193-26-000014'
+                : accn.replace('00000', '00009'),
+            filed: '2026-02-20',
+            form: end === '2026-02-01' ? '10-K' : '10-Q',
+          }),
+        ]),
+      ],
+      { fiscalYearEndMonth: 1, asOf: '2026-03-01' },
+    );
+    expect(result.data.latestQuarter?.revenue).toMatchObject({
+      value: 40,
+      citation: { concept: 'Revenues' },
+    });
+    expect(result.data.ttm?.revenue).toMatchObject({
+      available: false,
+      reason: 'not_comparable',
+    });
+    expect(result.data.ttm?.revenue.value).toBeUndefined();
+    expect(result.data.ttm?.operatingMargin).toMatchObject({
+      available: false,
+      reason: 'not_comparable',
+    });
+    expect(result.data.ttm?.operatingMargin?.value).toBeUndefined();
+    const text = JSON.stringify(result.data);
+    expect(text).not.toContain('"value":100');
+    expect(text).not.toContain('20%');
   });
 });

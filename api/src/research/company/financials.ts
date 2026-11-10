@@ -458,6 +458,7 @@ function seriesFor(
     rows.filter((row) => row.unit === chosen),
     chosen,
     cik,
+    aliases,
   );
   const labeled = labelFlow(collapsed.points, fiscalYearEndMonth);
   const acceptedEnds = labeled.points
@@ -501,6 +502,7 @@ function collapse(
   rows: NormalizedFactInput[],
   unit: string,
   cik: string,
+  aliases: readonly string[],
 ): { points: Point[]; refusedQuarterEnds: string[]; refusedAnnual: boolean } {
   const groups = new Map<string, NormalizedFactInput[]>();
   for (const row of rows) {
@@ -547,7 +549,9 @@ function collapse(
     resolved.sort(
       (a, b) =>
         b.current.filed.localeCompare(a.current.filed) ||
-        b.current.accn.localeCompare(a.current.accn),
+        b.current.accn.localeCompare(a.current.accn) ||
+        conceptRank(a.current.concept, aliases) -
+          conceptRank(b.current.concept, aliases),
     );
     const winner = resolved[0];
     if (!winner || (refusedFiled && refusedFiled > winner.current.filed)) {
@@ -598,8 +602,9 @@ function collapse(
  * once with a frame and once without. The latest filing of an identical
  * value wins. A later amending form (10-Q/A or 10-K/A) with one replacement
  * value is a restatement. Any other disagreement inside one concept is
- * withheld. A different concept for the same period is resolved on its own,
- * and the latest filed concept is kept.
+ * withheld. A different concept for the same period is resolved on its own.
+ * A later filing wins. The same filing (same date and accession) with two
+ * values uses GAAP_ALIASES order, earlier alias first.
  */
 function chooseComparable(group: NormalizedFactInput[]):
   | {
@@ -833,6 +838,13 @@ function deriveQ4(
     if (addDays(q1.end, 1) !== q2.start || addDays(q2.end, 1) !== q3.start) {
       continue;
     }
+    if (
+      q1.concept !== year.concept ||
+      q2.concept !== year.concept ||
+      q3.concept !== year.concept
+    ) {
+      continue;
+    }
     const start = addDays(q3.end, 1);
     if (!start || start > year.end || q3.end >= year.end) continue;
     const value = year.val - q1.val - q2.val - q3.val;
@@ -926,6 +938,9 @@ function trailingWindow(
     }
     parts.push(point);
   }
+  if (parts.some((point) => point.concept !== latest.concept)) {
+    return { metric: unavailable('not_comparable'), parts: [] };
+  }
   const value = parts.reduce((sum, point) => sum + point.val, 0);
   if (!Number.isSafeInteger(value)) {
     return { metric: unavailable('not_comparable'), parts: [] };
@@ -999,6 +1014,16 @@ function marginFromSums(
   ) {
     return unavailable('insufficient_periods');
   }
+  const revenueConcept = revenue.parts[0]?.concept;
+  const incomeConcept = income.parts[0]?.concept;
+  if (
+    !revenueConcept ||
+    !incomeConcept ||
+    revenue.parts.some((part) => part.concept !== revenueConcept) ||
+    income.parts.some((part) => part.concept !== incomeConcept)
+  ) {
+    return unavailable('not_comparable');
+  }
   for (let index = 0; index < income.parts.length; index += 1) {
     const left = income.parts[index];
     const right = revenue.parts[index];
@@ -1007,7 +1032,8 @@ function marginFromSums(
       !right ||
       left.start !== right.start ||
       left.end !== right.end ||
-      left.unit !== right.unit
+      left.unit !== right.unit ||
+      right.concept !== revenueConcept
     ) {
       return unavailable('not_comparable');
     }
@@ -1308,7 +1334,7 @@ function sourceLinks(metric: CompanyMetric | undefined): string {
   const links = new Map<string, CompanyCitation>();
   for (const item of [metric?.citation, ...(metric?.inputCitations ?? [])]) {
     if (
-      !item?.sourceUrl.startsWith('https://www.sec.gov/Archives/edgar/data/')
+      !item?.sourceUrl?.startsWith('https://www.sec.gov/Archives/edgar/data/')
     ) {
       continue;
     }
@@ -1320,10 +1346,14 @@ function sourceLinks(metric: CompanyMetric | undefined): string {
     (a, b) =>
       b.filed.localeCompare(a.filed) || b.accession.localeCompare(a.accession),
   );
-  if (!sorted.length) return '';
-  return `, ${sorted
-    .map((item) => `[${item.form} filed ${item.filed}](${item.sourceUrl})`)
-    .join(', ')}`;
+  const newest = sorted[0];
+  if (!newest) return '';
+  return `, [${newest.form} filed ${newest.filed}](${newest.sourceUrl})`;
+}
+
+function conceptRank(concept: string, aliases: readonly string[]): number {
+  const index = aliases.indexOf(concept);
+  return index === -1 ? aliases.length : index;
 }
 
 function moneySentence(

@@ -130,3 +130,47 @@ test('stock research renders cited company filings without treating them as the 
   const sourceList = html.slice(html.indexOf('Source filings'));
   assert.ok(sourceList.indexOf('10-K') < sourceList.indexOf('10-Q'));
 });
+
+test('company filing fallback renders SEC markdown links and drops other urls', () => {
+  const secUrl = 'https://www.sec.gov/Archives/edgar/data/320193/000032019326000026/0000320193-26-000026-index.html';
+  const report = {
+    assetId: 'apple',
+    ticker: 'AAPL',
+    name: 'Apple',
+    analysis: { available: false },
+    news: { available: false },
+    portfolio: { available: false },
+    opinions: { available: false },
+    company: {
+      available: false,
+      reason: 'provider_unavailable',
+      data: {
+        briefing: [
+          `Quarterly revenue is unavailable (not_comparable), [10-K filed 2026-02-20](${secUrl}) [ignore](https://evil.example/buy).`,
+          'Filing facts, not the Oren Score, not a recommendation.',
+        ],
+        links: [],
+        filings: [],
+      },
+    },
+  };
+  let state = 0;
+  const values = [report, 'owned', false, undefined];
+  const react = { useState() { return [values[state++], () => {}]; }, useRef: () => ({ current: 0 }), useEffect() {}, useCallback: (fn) => fn };
+  const exports = {};
+  const code = ts.transpileModule(readFileSync(new URL('../components/stock/stock-research.tsx', import.meta.url), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX } }).outputText;
+  vm.runInNewContext(code, { exports, setTimeout, clearTimeout, require(id) {
+    if (id === 'react') return react;
+    if (id === '@/components/auth/auth-context') return { useOrenAuth: () => ({ address: 'owned', getAccessToken: async () => 'token' }) };
+    if (id === '@/services/research-service') return {};
+    return require(id);
+  } });
+  const html = renderToStaticMarkup(require('react').createElement(exports.StockResearchPanel, { assetId: 'apple' }));
+  assert.ok(html.includes(`href="${secUrl}"`));
+  assert.ok(html.includes('10-K filed 2026-02-20'));
+  assert.ok(html.includes('target="_blank"'));
+  assert.ok(html.includes('rel="noopener noreferrer"'));
+  assert.equal(html.includes('(https://www.sec.gov/'), false);
+  assert.equal(html.includes('https://evil.example/buy'), false);
+  assert.equal(html.split('not a recommendation').length - 1, 1);
+});
