@@ -206,9 +206,11 @@ export function researchModelOutput(report: StockResearch) {
 
 function companyFacts(report: StockResearch): string[] {
   // Briefing lines are built from our templates. This filter is hygiene, not a boundary.
+  // Briefing lines are templates plus SEC index links. The cap leaves room
+  // for a trailing-twelve-month figure to cite each quarter's filing.
   return (report.company?.data?.briefing ?? []).filter(
     (line) =>
-      /^[\x20-\x7E]{1,360}$/.test(line) &&
+      /^[\x20-\x7E]{1,2000}$/.test(line) &&
       !/\b(ignore|instruction|system prompt|tool)\b/i.test(line),
   );
 }

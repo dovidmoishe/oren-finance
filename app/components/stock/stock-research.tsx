@@ -6,7 +6,13 @@ import {
   getStockResearch,
   recordResearchSourceOpen,
 } from "@/services/research-service";
-import type { StockResearch } from "@/types";
+import type {
+  CompanyCitationView,
+  CompanyMetricView,
+  CompanyPeriodView,
+  CompanyResearchData,
+  StockResearch,
+} from "@/types";
 
 export function StockResearchPanel({ assetId }: { assetId: string }) {
   const auth = useOrenAuth();
@@ -223,67 +229,10 @@ export function StockResearchPanel({ assetId }: { assetId: string }) {
             ) : null}
           </article>
           {report.company ? (
-            <article className="rounded-2xl border border-border bg-panel-subtle p-4 lg:col-span-2">
-              <h3 className="text-sm font-semibold">Company filings</h3>
-              <p className="mt-2 text-xs text-muted">
-                SEC filing facts for a verified issuer. Separate from the Oren
-                Score. Not a recommendation.
-              </p>
-              {report.company.reason ? (
-                <p className="mt-2 text-sm text-muted">
-                  {companyReason(report.company.reason)}
-                </p>
-              ) : null}
-              {report.company.data?.briefing.map((line, index) => (
-                <p className="mt-2 text-sm leading-6" key={`${index}-${line}`}>
-                  {line}
-                </p>
-              ))}
-              {report.company.data?.latestQuarter?.revenue?.display ? (
-                <p className="mt-2 text-xs text-muted">
-                  Latest quarter revenue{" "}
-                  {report.company.data.latestQuarter.revenue.display}
-                  {report.company.data.latestQuarter.derived
-                    ? " (derived)"
-                    : ""}
-                  {report.company.data.latestQuarter.netIncome?.display
-                    ? ` · Net income ${report.company.data.latestQuarter.netIncome.display}`
-                    : ""}
-                  {report.company.data.latestQuarter.operatingMargin?.display
-                    ? ` · Operating margin ${report.company.data.latestQuarter.operatingMargin.display}`
-                    : ""}
-                </p>
-              ) : null}
-              {report.company.data?.links?.length ? (
-                <ul className="mt-3 space-y-2 text-xs">
-                  {report.company.data.links.slice(0, 6).map((link) =>
-                    link.url.startsWith(
-                      "https://www.sec.gov/Archives/edgar/data/",
-                    ) ? (
-                      <li key={link.url}>
-                        <a
-                          className="underline-offset-2 hover:underline"
-                          href={link.url}
-                          onClick={recordSource}
-                          rel="noopener noreferrer"
-                          target="_blank"
-                        >
-                          {link.label}
-                        </a>
-                      </li>
-                    ) : null,
-                  )}
-                </ul>
-              ) : null}
-              {report.company.fetchedAt ? (
-                <p className="mt-2 text-xs text-muted">
-                  Fetched {dateLabel(report.company.fetchedAt)}
-                  {report.company.publishedAt
-                    ? ` · Filed ${dateLabel(report.company.publishedAt)}`
-                    : ""}
-                </p>
-              ) : null}
-            </article>
+            <CompanyFilings
+              company={report.company}
+              onOpenSource={recordSource}
+            />
           ) : null}
           <article className="rounded-2xl border border-border bg-panel-subtle p-4 lg:col-span-2">
             <h3 className="text-sm font-semibold">Where they disagree</h3>
@@ -354,6 +303,272 @@ function dateLabel(value?: string) {
         day: "numeric",
       })
     : "time unavailable";
+}
+
+const FILING_LINK_CLASS =
+  "font-medium text-foreground underline decoration-foreground/40 underline-offset-2 hover:decoration-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2";
+const SEC_ARCHIVE = "https://www.sec.gov/Archives/edgar/data/";
+const COMPANY_DISCLAIMER =
+  "Filing facts, not the Oren Score, not a recommendation.";
+
+function CompanyFilings({
+  company,
+  onOpenSource,
+}: {
+  company: NonNullable<StockResearch["company"]>;
+  onOpenSource: () => void;
+}) {
+  const data = company.data;
+  const cards = data ? companyCards(data) : [];
+  const filings = sourceFilings(data);
+  return (
+    <article className="rounded-2xl border border-border bg-panel-subtle p-4 lg:col-span-2">
+      <h3 className="text-sm font-semibold">Company filings</h3>
+      <p className="mt-2 text-xs text-muted">{COMPANY_DISCLAIMER}</p>
+      {company.reason ? (
+        <p className="mt-2 text-sm text-muted">{companyReason(company.reason)}</p>
+      ) : null}
+      {cards.length ? (
+        <div className="mt-3 grid gap-3 md:grid-cols-3">
+          {cards.map((card) => (
+            <section
+              className="rounded-xl border border-border bg-panel p-3"
+              key={card.key}
+            >
+              <h4 className="text-[11px] font-semibold uppercase tracking-wide text-muted">
+                {card.title}
+              </h4>
+              <p className="mt-1 text-sm font-semibold">{card.period}</p>
+              <p className="text-[11px] text-muted">{card.range}</p>
+              <dl className="mt-3 space-y-2">
+                <MetricFact
+                  label="Revenue"
+                  metric={card.revenue}
+                  onOpenSource={onOpenSource}
+                />
+                <MetricFact
+                  label="Net income"
+                  metric={card.netIncome}
+                  onOpenSource={onOpenSource}
+                />
+                <MetricFact
+                  label="Operating margin"
+                  metric={card.margin}
+                  onOpenSource={onOpenSource}
+                />
+                <MetricFact
+                  label="YoY"
+                  metric={card.yoy}
+                  note={card.yoyNote}
+                  onOpenSource={onOpenSource}
+                />
+              </dl>
+            </section>
+          ))}
+        </div>
+      ) : data?.briefing.length ? (
+        <div className="mt-3 space-y-2">
+          {data.briefing
+            .filter((line) => line !== COMPANY_DISCLAIMER)
+            .map((line) => (
+              <p className="text-sm leading-6 text-muted" key={line}>
+                {line}
+              </p>
+            ))}
+        </div>
+      ) : null}
+      {filings.length ? (
+        <div className="mt-4 border-t border-border pt-3">
+          <h4 className="text-xs font-semibold">Source filings</h4>
+          <ul className="mt-2 divide-y divide-border">
+            {filings.map((filing) => (
+              <li
+                className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2"
+                key={filing.key}
+              >
+                <span className="inline-flex rounded-md border border-border bg-background px-1.5 py-0.5 font-mono text-[10px] font-semibold text-foreground">
+                  {filing.form}
+                </span>
+                <span className="text-xs text-muted">{filing.period}</span>
+                <span className="text-xs text-muted">Filed {filing.filed}</span>
+                <a
+                  className={`ml-auto text-xs ${FILING_LINK_CLASS}`}
+                  href={filing.url}
+                  onClick={onOpenSource}
+                  rel="noopener noreferrer"
+                  target="_blank"
+                >
+                  View on SEC
+                </a>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+      {company.fetchedAt ? (
+        <p className="mt-2 text-xs text-muted">
+          Fetched {dateLabel(company.fetchedAt)}
+        </p>
+      ) : null}
+    </article>
+  );
+}
+
+function MetricFact({
+  label,
+  metric,
+  note,
+  onOpenSource,
+}: {
+  label: string;
+  metric?: CompanyMetricView;
+  note?: string;
+  onOpenSource: () => void;
+}) {
+  const sources = metricSources(metric);
+  return (
+    <div className="flex items-start justify-between gap-3">
+      <dt className="text-[11px] text-muted">{label}</dt>
+      <dd className="text-right">
+        <p className="text-xs font-medium tabular-nums">
+          {metric?.available && metric.display ? metric.display : "Unavailable"}
+          {metric?.derived && metric.available ? (
+            <span className="ml-1 font-normal text-muted">derived</span>
+          ) : null}
+        </p>
+        {note ? <p className="text-[11px] text-muted">{note}</p> : null}
+        {sources.map((source) => (
+          <a
+            className={`mt-0.5 block text-[11px] ${FILING_LINK_CLASS}`}
+            href={source.sourceUrl}
+            key={source.sourceUrl}
+            onClick={onOpenSource}
+            rel="noopener noreferrer"
+            target="_blank"
+          >
+            {source.form} filed {dateLabel(source.filed)}
+          </a>
+        ))}
+      </dd>
+    </div>
+  );
+}
+
+function companyCards(data: CompanyResearchData): Array<{
+  key: string;
+  title: string;
+  period: string;
+  range: string;
+  revenue?: CompanyMetricView;
+  netIncome?: CompanyMetricView;
+  margin?: CompanyMetricView;
+  yoy?: CompanyMetricView;
+  yoyNote?: string;
+}> {
+  const cards = [];
+  if (data.latestQuarter) {
+    const period = data.latestQuarter;
+    cards.push({
+      key: "quarter",
+      title: "Latest quarter",
+      period: fiscalLabel(period),
+      range: rangeLabel(period.start, period.end),
+      revenue: period.revenue,
+      netIncome: period.netIncome,
+      margin: period.operatingMargin,
+      yoy: period.revenueGrowth,
+      yoyNote: period.fiscalQuarter
+        ? `vs FY${period.fiscalYear - 1} Q${period.fiscalQuarter}`
+        : undefined,
+    });
+  }
+  if (data.ttm) {
+    cards.push({
+      key: "ttm",
+      title: "TTM",
+      period: "Trailing twelve months",
+      range:
+        data.ttm.start && data.ttm.end
+          ? rangeLabel(data.ttm.start, data.ttm.end)
+          : "Period not stated",
+      revenue: data.ttm.revenue,
+      netIncome: data.ttm.netIncome,
+      margin: data.ttm.operatingMargin,
+      yoy: data.ttm.revenueGrowth,
+      yoyNote: "vs prior trailing twelve months",
+    });
+  }
+  if (data.latestAnnual) {
+    const period = data.latestAnnual;
+    cards.push({
+      key: "year",
+      title: "Full year",
+      period: fiscalLabel(period),
+      range: rangeLabel(period.start, period.end),
+      revenue: period.revenue,
+      netIncome: period.netIncome,
+      margin: period.operatingMargin,
+      yoy: period.revenueGrowth,
+      yoyNote: `vs FY${period.fiscalYear - 1}`,
+    });
+  }
+  return cards;
+}
+
+function sourceFilings(data: CompanyResearchData | undefined) {
+  const rows = (data?.filings ?? [])
+    .filter((filing) => filing.sourceUrl.startsWith(SEC_ARCHIVE))
+    .map((filing) => ({
+      key: filing.accession,
+      form: filing.form,
+      period: filing.reportDate
+        ? `Period ended ${dateLabel(filing.reportDate)}`
+        : "Period not stated",
+      filed: dateLabel(filing.filed),
+      filedSort: filing.filed,
+      url: filing.sourceUrl,
+    }));
+  if (rows.length) {
+    return rows.sort(
+      (a, b) => b.filedSort.localeCompare(a.filedSort) || b.key.localeCompare(a.key),
+    );
+  }
+  return (data?.links ?? [])
+    .filter((link) => link.url.startsWith(SEC_ARCHIVE))
+    .map((link) => ({
+      key: link.url,
+      form: link.label.split(" ")[0] || "Filing",
+      period: "Period not stated",
+      filed: "date unavailable",
+      filedSort: "",
+      url: link.url,
+    }));
+}
+
+function metricSources(metric?: CompanyMetricView): CompanyCitationView[] {
+  const items = [metric?.citation, ...(metric?.inputCitations ?? [])].filter(
+    (item): item is CompanyCitationView =>
+      Boolean(item?.sourceUrl?.startsWith(SEC_ARCHIVE)),
+  );
+  const byUrl = new Map<string, CompanyCitationView>();
+  for (const item of items) {
+    const existing = byUrl.get(item.sourceUrl);
+    if (!existing || item.filed > existing.filed) byUrl.set(item.sourceUrl, item);
+  }
+  return [...byUrl.values()].sort(
+    (a, b) => b.filed.localeCompare(a.filed) || a.form.localeCompare(b.form),
+  );
+}
+
+function fiscalLabel(period: CompanyPeriodView) {
+  return period.fiscalQuarter
+    ? `FY${period.fiscalYear} Q${period.fiscalQuarter}`
+    : `FY${period.fiscalYear}`;
+}
+
+function rangeLabel(start?: string, end?: string) {
+  if (!start || !end) return "Period not stated";
+  return `${dateLabel(start)} to ${dateLabel(end)}`;
 }
 
 function companyReason(reason: string): string {
