@@ -14,6 +14,29 @@ from admission import (
 
 
 class AdmissionTests(unittest.TestCase):
+    def test_verified_waiters_do_not_mistake_each_other_for_untracked_work(self):
+        usage = {1001: 0, 1003: 0}
+        gate = Admission(list(usage), lambda *args: None, lambda pid, uid: str(pid),
+                         usage=lambda uid: usage[uid], worker_running=lambda uid: True,
+                         available=lambda: 1 << 62, light_running=lambda: False,
+                         light_configured=lambda: False, heavy_slots=2)
+        usage.update({1001: 500 * 1024 ** 2, 1003: 500 * 1024 ** 2})
+        errors = []
+        def acquire(uid, pid):
+            try:
+                gate.acquire(uid, pid, timeout=2)
+            except Exception as error:
+                errors.append(error)
+        threads = [threading.Thread(target=acquire, args=(uid, pid))
+                   for uid, pid in [(1001, 42), (1003, 43)]]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join(3)
+        self.assertEqual(errors, [])
+        self.assertEqual(set(gate.leases), {1001, 1003})
+        self.assertEqual(gate.waiters, set())
+
     def test_same_uid_reuses_draining_slot_without_waiting_for_reclaim(self):
         usage = {1001: 0, 1003: 0, 1004: 0}
         limits = []

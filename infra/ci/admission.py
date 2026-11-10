@@ -318,6 +318,7 @@ class Admission:
             self.light_status_path = None
         self.condition = threading.Condition()
         self.leases = {}
+        self.waiters = set()
         self.light_lease = None
         self.held = set()
         self.progress = {}
@@ -508,39 +509,46 @@ class Admission:
         stamp = self.identity(pid, uid)
         deadline = time.monotonic() + timeout
         with self.condition:
-            while True:
-                while self._blocking(uid):
-                    self._wait(deadline, pid, uid, stamp)
-                if any(other != uid and other not in self._occupied() and self.worker_running(other)
-                       and not slice_within_idle(self._usage(other)) for other in self.users):
-                    # A live worker on another account has no reconstructed
-                    # lease. Wait for it to exit. Do not lower its caps.
-                    self._wait(deadline, pid, uid, stamp)
-                    continue
-                for other in self.users:
-                    if other != uid and other not in self.leases and not slice_within_idle(self._usage(other)):
-                        self.held.add(other)
-                # A fat slice that already exited occupies one held slot. A
-                # free slot must be granted. Continuing here without waiting
-                # used to spin while holding this condition, so a dead light
-                # permit could not be released and every other waiter stalled.
-                if self._blocking(uid):
-                    self._wait(deadline, pid, uid, stamp)
-                    continue
-                if not self._decision('heavy', uid):
-                    self._wait(deadline, pid, uid, stamp)
-                    continue
-                for other in self.users:
-                    if other != uid and other not in self.leases and other not in self.held:
-                        if slice_within_idle(self._usage(other)):
-                            self.limiter(other, False)
-                self.limiter(uid, True)
-                self.held.add(uid)
-                self.leases[uid] = (pid, stamp)
-                self.stuck.discard(uid)
-                self.progress.pop(uid, None)
-                self._write_status()
-                break
+            waiter = (uid, pid, stamp)
+            self.waiters.add(waiter)
+            try:
+                while True:
+                    while self._blocking(uid):
+                        self._wait(deadline, pid, uid, stamp)
+                    if any(other != uid and other not in self._occupied()
+                           and not any(waiter[0] == other for waiter in self.waiters)
+                           and self.worker_running(other)
+                           and not slice_within_idle(self._usage(other)) for other in self.users):
+                        # A live worker on another account has no reconstructed
+                        # lease. Wait for it to exit. Do not lower its caps.
+                        self._wait(deadline, pid, uid, stamp)
+                        continue
+                    for other in self.users:
+                        if other != uid and other not in self.leases and not slice_within_idle(self._usage(other)):
+                            self.held.add(other)
+                    # A fat slice that already exited occupies one held slot. A
+                    # free slot must be granted. Continuing here without waiting
+                    # used to spin while holding this condition, so a dead light
+                    # permit could not be released and every other waiter stalled.
+                    if self._blocking(uid):
+                        self._wait(deadline, pid, uid, stamp)
+                        continue
+                    if not self._decision('heavy', uid):
+                        self._wait(deadline, pid, uid, stamp)
+                        continue
+                    for other in self.users:
+                        if other != uid and other not in self.leases and other not in self.held:
+                            if slice_within_idle(self._usage(other)):
+                                self.limiter(other, False)
+                    self.limiter(uid, True)
+                    self.held.add(uid)
+                    self.leases[uid] = (pid, stamp)
+                    self.stuck.discard(uid)
+                    self.progress.pop(uid, None)
+                    self._write_status()
+                    break
+            finally:
+                self.waiters.discard(waiter)
         return stamp
 
     def acquire_light(self, pid, timeout=1200):
