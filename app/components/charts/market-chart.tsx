@@ -16,6 +16,7 @@ import type {
 } from "lightweight-charts";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Button, EmptyState, LoadingState, Tabs, cn, formatCurrency, formatDate, formatPercent } from "@/components/ui";
+import { useI18n } from "@/i18n/i18n";
 
 // lightweight-charts is only needed once there is data to draw, so it loads on
 // demand instead of with every page that shows a chart card.
@@ -120,7 +121,7 @@ export function MarketChart({
   dateLabel,
   loading,
   error,
-  emptyDescription = "Portfolio snapshots will appear here after the API records history for this wallet.",
+  emptyDescription,
   className,
   compact = false,
 }: MarketChartProps) {
@@ -131,7 +132,8 @@ export function MarketChart({
   const [libraryFailed, setLibraryFailed] = useState(false);
   const canUseCandles = candleData.length > 0;
   const effectiveMode = mode === "candles" && canUseCandles ? "candles" : "line";
-  const formattedDate = dateLabel ?? formatDate(lineData.at(-1)?.timestamp ?? candleData.at(-1)?.timestamp);
+  const { locale, timeZone, t } = useI18n();
+  const formattedDate = dateLabel ?? formatDate(lineData.at(-1)?.timestamp ?? candleData.at(-1)?.timestamp, locale, timeZone, t("common.notUpdated"));
   const lineSeriesData = useMemo(() => buildLineData(lineData), [lineData]);
   const candleSeriesData = useMemo(() => buildCandleData(candleData), [candleData]);
   const hasData = effectiveMode === "candles" ? candleSeriesData.length > 0 : lineSeriesData.length > 0;
@@ -235,8 +237,8 @@ export function MarketChart({
         setTooltip({
           x: param.point.x,
           y: param.point.y,
-          value: formatCurrency(rawValue),
-          date: epochSeconds ? formatDate(new Date(epochSeconds * 1000).toISOString()) : "",
+          value: formatCurrency(rawValue, locale),
+          date: epochSeconds ? formatDate(new Date(epochSeconds * 1000).toISOString(), locale, timeZone, "") : "",
         });
       };
 
@@ -256,16 +258,16 @@ export function MarketChart({
       disposed = true;
       dispose?.();
     };
-  }, [candleSeriesData, effectiveMode, error, hasData, lineSeriesData, loading]);
+  }, [candleSeriesData, effectiveMode, error, hasData, lineSeriesData, loading, locale, timeZone]);
 
   return (
     <section className={cn("flex flex-col rounded-[24px] border border-border bg-panel shadow-[0_18px_60px_rgba(23,23,23,0.025)]", compact ? "p-3" : "p-[var(--app-card-padding,1.5rem)]", className)}>
       <div className="flex shrink-0 flex-wrap items-start justify-between gap-4">
         <div>
-          <p className={cn("font-display font-semibold tracking-normal", compact ? "text-3xl" : "text-6xl")}>{formatCurrency(value)}</p>
+          <p className={cn("font-display font-semibold tracking-normal", compact ? "text-3xl" : "text-6xl")}>{formatCurrency(value, locale)}</p>
           <div className={cn("mt-1 flex items-center gap-3", compact ? "text-xs" : "text-sm")}>
             <span className={cn((changePct ?? 0) < 0 ? "text-negative" : "text-positive")}>
-              {(changePct ?? 0) < 0 ? "▼" : "▲"} {formatPercent(changePct)}
+              {(changePct ?? 0) < 0 ? "▼" : "▲"} {formatPercent(changePct, locale)}
             </span>
             <span className="text-muted">{formattedDate}</span>
           </div>
@@ -275,14 +277,14 @@ export function MarketChart({
       <div className={cn("relative", compact ? "mt-3 h-[180px] min-h-[160px] flex-1 sm:h-[200px] sm:min-h-[180px]" : "mt-[var(--app-chart-gap,2rem)] h-[var(--app-chart-height,430px)] min-h-[var(--app-chart-min-height,340px)]")}>
         {loading ? (
           <div className="flex h-full items-center justify-center">
-            <LoadingState label="Loading chart" />
+            <LoadingState label={t("common.loadingChart")} />
           </div>
         ) : error || libraryFailed ? (
-          <EmptyState title="Chart unavailable" description={error || "The chart could not be loaded. Refresh to try again."} />
+          <EmptyState title={t("common.chartUnavailable")} description={error || t("common.chartLoadFailed")} />
         ) : !hasData ? (
           <EmptyState
-            title="No chart history yet"
-            description={emptyDescription}
+            title={t("common.noChartHistory")}
+            description={emptyDescription ?? t("common.chartEmptyDefault")}
           />
         ) : (
           <>
@@ -301,23 +303,23 @@ export function MarketChart({
       </div>
 
       <div className={cn("flex shrink-0 flex-wrap items-center justify-between gap-3", compact ? "mt-3" : "mt-6")}>
-        <Tabs ariaLabel="Chart range" items={ranges} onValueChange={onRangeChange} value={activeRange} />
+        <Tabs ariaLabel={t("common.chartRange")} items={ranges} onValueChange={onRangeChange} value={activeRange} />
         <div className="flex items-center gap-2 rounded-full bg-panel-subtle p-1">
           <Button
-            aria-label="Line chart mode"
+            aria-label={t("common.lineMode")}
             onClick={() => onModeChange("line")}
             size="icon"
-            title="Line chart"
+            title={t("common.lineChart")}
             variant={effectiveMode === "line" ? "secondary" : "ghost"}
           >
             <HugeiconsIcon color="currentColor" icon={ChartLineData01Icon} size={16} strokeWidth={1.8} />
           </Button>
           <Button
-            aria-label="Candlestick chart mode"
+            aria-label={t("common.candleMode")}
             disabled={!canUseCandles}
             onClick={() => onModeChange("candles")}
             size="icon"
-            title={canUseCandles ? "Candlestick chart" : "Candles need OHLC data"}
+            title={canUseCandles ? t("common.candleChart") : t("common.candlesNeedOhlc")}
             variant={effectiveMode === "candles" ? "secondary" : "ghost"}
           >
             <HugeiconsIcon color="currentColor" icon={ChartCandlestickIcon} size={16} strokeWidth={1.8} />

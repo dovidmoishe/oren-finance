@@ -80,12 +80,20 @@
 .oren-account-menu {
   inset: calc(var(--app-nav-height, 4.5rem) + .5rem) 1rem auto auto;
   margin: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  /* A transform on the popover itself shifts iOS Safari's hit targets, so a
+     tap on a language lands nowhere and the checkmark never moves. Animate
+     the inner surface instead. */
+}
+.oren-account-menu-surface {
   transform-origin: top right;
-  transition: opacity 150ms ease, transform 150ms cubic-bezier(0.22, 1, 0.36, 1), display 150ms allow-discrete, overlay 150ms allow-discrete;
+  transition: opacity 150ms ease, transform 150ms cubic-bezier(0.22, 1, 0.36, 1);
   opacity: 0;
   transform: scale(.97);
 }
-.oren-account-menu:popover-open {
+.oren-account-menu:popover-open .oren-account-menu-surface {
   opacity: 1;
   transform: scale(1);
   transition-duration: 250ms;
@@ -102,14 +110,14 @@
 }
 .oren-deposit-modal::backdrop { background: rgb(0 0 0 / .24); backdrop-filter: blur(8px); }
 @starting-style {
-  .oren-account-menu:popover-open { opacity: 0; transform: scale(.97); }
+  .oren-account-menu:popover-open .oren-account-menu-surface { opacity: 0; transform: scale(.97); }
   .oren-deposit-modal[open] { opacity: 0; transform: scale(.96); }
 }
 @media (min-width: 640px) {
   .oren-account-menu { right: max(1.5rem, calc((100vw - 1540px) / 2 + 1.5rem)); }
 }
 @media (prefers-reduced-motion: reduce) {
-  .oren-account-menu, .oren-deposit-modal { transition: none; transform: none; }
+  .oren-account-menu-surface, .oren-deposit-modal { transition: none; transform: none; }
 }
 
 :root {

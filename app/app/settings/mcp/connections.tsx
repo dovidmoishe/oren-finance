@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { useOrenAuth } from "@/components/auth/auth-context";
 import { mcpApiOrigin } from "@/services/mcp-api-origin";
 import { TradeGrant } from "./trade-grant";
+import { useI18n } from "@/i18n/i18n";
+import { formatDate } from "@/components/ui";
 
 type Connection = {
   grantId: string;
@@ -20,6 +22,7 @@ export function McpConnections({ connectionUid }: { connectionUid?: string }) {
   const [busy, setBusy] = useState<string>();
   const apiOrigin = mcpApiOrigin();
   const { authenticated, ready, getAccessToken, open } = auth;
+  const { locale, timeZone, t } = useI18n();
 
   useEffect(() => {
     if (!ready || !authenticated || !apiOrigin) return;
@@ -113,7 +116,7 @@ export function McpConnections({ connectionUid }: { connectionUid?: string }) {
               Wallet: {connection.wallet}
             </p>
             <p className="mt-1 text-sm text-muted">
-              Connected {new Date(connection.createdAt).toLocaleDateString()}
+              Connected {formatDate(connection.createdAt, locale, timeZone, t("common.notUpdated"))}
             </p>
             <p className="mt-2 text-sm">
               {connection.scopes.includes("oren.trade.execute")

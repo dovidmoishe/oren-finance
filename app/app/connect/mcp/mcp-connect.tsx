@@ -11,6 +11,8 @@ import styles from './mcp-connect.module.css';
 import { mcpApiOrigin } from '@/services/mcp-api-origin';
 import { mcpConnector } from '@/services/mcp-connector';
 import { mcpEnrollmentLinks } from '@/services/mcp-enrollment-flow';
+import { useI18n } from '@/i18n/i18n';
+import { formatDateTime, formatNumber } from '@/components/ui';
 
 type Interaction = {
   clientId: string;
@@ -38,6 +40,7 @@ export function McpConnect({ uid }: { uid: string }) {
 
 function McpConnection({ uid }: { uid: string }) {
   const auth = useOrenAuth();
+  const { locale, timeZone, t } = useI18n();
   const { authenticated, getAccessToken } = auth;
   const [details, setDetails] = useState<Interaction>();
   const [error, setError] = useState<string>();
@@ -171,8 +174,8 @@ function McpConnection({ uid }: { uid: string }) {
               <div><dt>Rolling 24 hours</dt><dd>${delegation.dailyUsd}</dd></div>
               <div><dt>Used in this window</dt><dd>${delegation.usedTodayUsd}</dd></div>
               <div><dt>Allowed trades</dt><dd>{delegation.sides?.join(' and ')}</dd></div>
-              <div><dt>Price tolerance</dt><dd>{delegation.maxSlippageBps == null ? 'Unavailable' : `${delegation.maxSlippageBps / 100}%`}</dd></div>
-              <div><dt>Expires</dt><dd>{delegation.expiresAt ? new Date(delegation.expiresAt).toLocaleString() : 'soon'}</dd></div>
+              <div><dt>Price tolerance</dt><dd>{delegation.maxSlippageBps == null ? 'Unavailable' : `${formatNumber(delegation.maxSlippageBps / 100, locale, 2)}%`}</dd></div>
+              <div><dt>Expires</dt><dd>{delegation.expiresAt ? formatDateTime(delegation.expiresAt, locale, timeZone, t("common.unknown")) : 'soon'}</dd></div>
             </dl>
             <label className={styles.checkbox}>
             <input checked={allowExecute} className="mt-1" onChange={(event) => setAllowExecute(event.target.checked)} type="checkbox" />

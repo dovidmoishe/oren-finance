@@ -3,6 +3,7 @@ import test from 'node:test';
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 import ts from 'typescript';
+import { englishI18n } from './support/i18n-english.mjs';
 
 async function checkNotice(kind, status) {
   const slots = [[{ id: 'approval', wallet: 'wallet' }], undefined, undefined, false, []];
@@ -15,6 +16,7 @@ async function checkNotice(kind, status) {
     if (id === 'react') return { useEffect() {}, useState(initial) { const i = cursor++; if (!(i in slots)) slots[i] = initial; return [slots[i], value => { slots[i] = typeof value === 'function' ? value(slots[i]) : value; }]; } };
     if (id === 'react/jsx-runtime') return { jsx, jsxs: jsx };
     if (id === '@/components/ui') return { Button: 'button' };
+    if (id === '@/i18n/i18n') return englishI18n;
     if (id === '@/components/auth/auth-context') return { useOrenAuth: () => ({ address: 'wallet', getAccessToken: async () => 'jwt' }) };
     if (id === '@/services/wallet-session') return { walletSessionIsCurrent: () => () => true };
     if (id === '@/hooks/use-portfolio-refresh') return { usePortfolioRefresh: () => async () => {} };

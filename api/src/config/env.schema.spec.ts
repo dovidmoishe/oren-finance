@@ -260,3 +260,21 @@ describe('validateEnv — CORS_ORIGIN', () => {
     );
   });
 });
+
+describe('validateEnv — Senviok', () => {
+  it('keeps transactional email credentials optional', () => {
+    const env = validateEnv(required);
+    expect(env.SENVIOK_API_KEY).toBeUndefined();
+    expect(env.SENVIOK_FROM).toBeUndefined();
+  });
+
+  it('reads the server-side API key and sender', () => {
+    const env = validateEnv({
+      ...required,
+      SENVIOK_API_KEY: 'svk_test',
+      SENVIOK_FROM: 'updates@example.com',
+    });
+    expect(env.SENVIOK_API_KEY).toBe('svk_test');
+    expect(env.SENVIOK_FROM).toBe('updates@example.com');
+  });
+});

@@ -4,6 +4,7 @@ import { Cancel01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Button } from "./button";
 import { cn } from "./utils";
+import { useT } from "@/i18n/i18n";
 
 interface ModalProps {
   open: boolean;
@@ -14,6 +15,7 @@ interface ModalProps {
 }
 
 export function Modal({ open, title, children, onClose, side = "center" }: ModalProps) {
+  const t = useT();
   if (!open) {
     return null;
   }
@@ -28,7 +30,7 @@ export function Modal({ open, title, children, onClose, side = "center" }: Modal
       >
         <div className="flex items-center justify-between border-b border-border px-4 py-3">
           <h2 className="font-display text-lg font-semibold">{title}</h2>
-          <Button aria-label="Close" onClick={onClose} size="icon" variant="ghost">
+          <Button aria-label={t("common.close")} onClick={onClose} size="icon" variant="ghost">
             <HugeiconsIcon color="currentColor" icon={Cancel01Icon} size={18} strokeWidth={1.8} />
           </Button>
         </div>

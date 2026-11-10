@@ -5,9 +5,11 @@ import { Button } from '@/components/ui';
 import { approveServerTrade, forgetApproval, getServerApproval, getPendingServerApprovals, pendingApprovals, type TradeApproval } from '@/services/approval-service';
 import { walletSessionIsCurrent } from '@/services/wallet-session';
 import { usePortfolioRefresh } from '@/hooks/use-portfolio-refresh';
+import { useT } from "@/i18n/i18n";
 export function PendingApprovalNotice() {
   const { address, getAccessToken } = useOrenAuth();
   const refreshPortfolio = usePortfolioRefresh();
+  const t = useT();
   const [entries, setEntries] = useState<{ id: string; wallet: string }[]>([]);
   const [state, setState] = useState<TradeApproval>();
   const [message, setMessage] = useState<string>();
@@ -46,15 +48,15 @@ export function PendingApprovalNotice() {
         setRecovered(items => items.filter(item => item.id !== first.id));
       }
       if (result.status === 'confirmed') await refreshPortfolio();
-      setMessage(result.status === 'confirmed' ? 'Transaction confirmed.' : result.status === 'failed' ? 'Transaction failed or expired.' : result.status === 'prepared' ? result.kind === 'withdrawal' ? 'Transfer approval may still be processing. Check again until it completes or expires.' : 'No approval was processed. Reopen the transaction review to confirm.' : result.message || 'Still waiting for confirmation.');
-    } catch { if (current()) setMessage('Status unavailable. Check again before creating another transaction.'); }
+      setMessage(result.status === 'confirmed' ? t("review.txConfirmed") : result.status === 'failed' ? t("review.txFailed") : result.status === 'prepared' ? result.kind === 'withdrawal' ? t("review.transferProcessing") : t("review.noApproval") : result.message || t("review.stillWaiting"));
+    } catch { if (current()) setMessage(t("review.statusUnavailable")); }
     finally { setBusy(false); }
   }
   if (!first) return null;
   return <div role="status" className="mb-4 rounded-xl border border-border bg-panel-subtle p-3 text-sm">
-    <p>A transaction is awaiting confirmation. Check its status before repeating it.</p>
+    <p>{t("review.pendingTx")}</p>
     {message ? <p className="mt-1 text-xs text-muted">{message}</p> : null}
-    <Button className="mt-2" size="sm" disabled={busy} onClick={() => void check()}>Check transaction status</Button>
-    {state?.id === first.id && state.status === 'signed' ? <Button className="ml-2 mt-2" size="sm" disabled={busy} onClick={() => void check(true)}>Retry same submission</Button> : null}
+    <Button className="mt-2" size="sm" disabled={busy} onClick={() => void check()}>{t("review.checkTx")}</Button>
+    {state?.id === first.id && state.status === 'signed' ? <Button className="ml-2 mt-2" size="sm" disabled={busy} onClick={() => void check(true)}>{t("review.retrySame")}</Button> : null}
   </div>;
 }
