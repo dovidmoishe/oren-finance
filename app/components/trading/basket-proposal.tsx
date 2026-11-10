@@ -6,16 +6,18 @@ import type { BasketResponse } from "@/types";
 import { StockLogo } from "@/components/stock/stock-logo";
 import { Button, formatCurrency, formatNumber } from "@/components/ui";
 import { MarketSessionNotice } from "./market-session-notice";
+import { useT } from "@/i18n/i18n";
 
 export function BasketProposal({ basket, onReview }: { basket: BasketResponse; onReview: (basket: BasketResponse) => void }) {
+  const t = useT();
   return <section className="overflow-hidden rounded-[20px] border border-border bg-panel">
     <header className="flex items-center justify-between gap-3 border-b border-border px-5 py-4">
-      <span className="flex items-center gap-2 text-xs font-medium"><HugeiconsIcon icon={Briefcase01Icon} size={15} strokeWidth={1.8} />Stock mix</span>
-      <span className="text-[11px] text-muted">{basket.allocations.length} stocks</span>
+      <span className="flex items-center gap-2 text-xs font-medium"><HugeiconsIcon icon={Briefcase01Icon} size={15} strokeWidth={1.8} />{t("basket.stockMix")}</span>
+      <span className="text-[11px] text-muted">{t("basket.stockCount", { count: basket.allocations.length })}</span>
     </header>
     <div className="p-5">
       <div className="mb-5 flex items-end justify-between gap-3">
-        <div><p className="text-[11px] text-muted">Total amount</p><p className="mt-1 font-display text-3xl font-medium tracking-[-0.04em]">{formatCurrency(basket.totalAmountUsd)}</p></div>
+        <div><p className="text-[11px] text-muted">{t("basket.totalAmount")}</p><p className="mt-1 font-display text-3xl font-medium tracking-[-0.04em]">{formatCurrency(basket.totalAmountUsd)}</p></div>
         {basket.riskLabel && <span className="rounded-full bg-panel-subtle px-2.5 py-1 text-[10px] text-muted">{basket.riskLabel}</span>}
       </div>
       <div className="space-y-4">
@@ -30,7 +32,7 @@ export function BasketProposal({ basket, onReview }: { basket: BasketResponse; o
       </div>
       {basket.thesis && <p className="mt-5 text-xs leading-5 text-muted">{basket.thesis}</p>}
       <MarketSessionNotice className="mt-5" session={basket.marketSession} />
-      <Button variant="primary" className="mt-5 h-10 w-full rounded-[12px]" onClick={() => onReview(basket)}>Review mix <HugeiconsIcon icon={ArrowUpRight01Icon} size={14} strokeWidth={1.8} /></Button>
+      <Button variant="primary" className="mt-5 h-10 w-full rounded-[12px]" onClick={() => onReview(basket)}>{t("basket.reviewMix")} <HugeiconsIcon icon={ArrowUpRight01Icon} size={14} strokeWidth={1.8} /></Button>
     </div>
   </section>;
 }

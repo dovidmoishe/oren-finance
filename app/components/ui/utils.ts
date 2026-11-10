@@ -30,7 +30,7 @@ export function formatPercent(value?: number, showSign = true) {
   return `${showSign && value >= 0 ? "+" : ""}${value.toFixed(2)}%`;
 }
 
-export function formatDate(value?: string) {
+export function formatDate(value?: string, locale = "en-US") {
   if (!value) {
     return "Not updated";
   }
@@ -40,14 +40,14 @@ export function formatDate(value?: string) {
     return "Not updated";
   }
 
-  return new Intl.DateTimeFormat("en-US", {
+  return new Intl.DateTimeFormat(locale, {
     month: "short",
     day: "numeric",
     year: "numeric",
   }).format(date);
 }
 
-export function formatRelativeTime(value?: string) {
+export function formatRelativeTime(value?: string, locale = "en") {
   if (!value) {
     return "Unknown";
   }
@@ -63,7 +63,7 @@ export function formatRelativeTime(value?: string) {
     ["hour", 3_600_000],
     ["minute", 60_000],
   ];
-  const rtf = new Intl.RelativeTimeFormat("en", { numeric: "auto" });
+  const rtf = new Intl.RelativeTimeFormat(locale, { numeric: "auto" });
 
   for (const [unit, ms] of units) {
     if (absMs >= ms) {
@@ -71,5 +71,5 @@ export function formatRelativeTime(value?: string) {
     }
   }
 
-  return "just now";
+  return locale === "en" ? "just now" : rtf.format(0, "second");
 }

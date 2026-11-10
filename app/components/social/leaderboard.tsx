@@ -31,6 +31,7 @@ import {
 } from "@/services";
 import { useSocialStore, useWalletStore } from "@/store";
 import type { LeaderboardRow, SocialTimeframe } from "@/types";
+import { useI18n, useT } from "@/i18n/i18n";
 
 const timeframes: SocialTimeframe[] = ["7D", "30D", "90D", "ALL"];
 const base58Alphabet = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
@@ -92,16 +93,17 @@ function PublishProfilePanel({ onPublished }: { onPublished: () => void }) {
   const [status, setStatus] = useState<string>();
   const [error, setError] = useState<string>();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const t = useT();
   const normalizedDisplay = displayName.trim() || "Oren Trader";
   const normalizedSlug = normalizeTraderSlug(slug || normalizedDisplay, walletAddress);
 
   const handlePublish = async () => {
     if (!walletAddress || !connected) {
-      setError("Sign in and wait for your wallet to be ready before publishing.");
+      setError(t("leaderboard.walletNotReady"));
       return;
     }
     if (!signMessage) {
-      setError("This wallet does not support message signing.");
+      setError(t("leaderboard.noSigning"));
       return;
     }
 
@@ -120,10 +122,10 @@ function PublishProfilePanel({ onPublished }: { onPublished: () => void }) {
         message,
         signature: encodeBase58(signature),
       });
-      setStatus("Profile published. Your wallet can now appear after Oren records portfolio snapshots.");
+      setStatus(t("leaderboard.published"));
       onPublished();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to publish profile");
+      setError(err instanceof Error ? err.message : t("leaderboard.publishFailed"));
     } finally {
       setIsSubmitting(false);
     }
@@ -132,12 +134,12 @@ function PublishProfilePanel({ onPublished }: { onPublished: () => void }) {
   return (
     <Card>
       <CardHeader>
-        <h2 className="font-display text-lg font-semibold">Go public</h2>
-        <p className="mt-1 text-sm text-muted">Opt in with a signed wallet message before your performance can rank.</p>
+        <h2 className="font-display text-lg font-semibold">{t("leaderboard.goPublic")}</h2>
+        <p className="mt-1 text-sm text-muted">{t("leaderboard.goPublicSubtitle")}</p>
       </CardHeader>
       <CardContent className="space-y-3">
         <label className="block text-xs font-semibold text-muted">
-          Display name
+          {t("leaderboard.displayName")}
           <input
             className="mt-1 h-11 w-full rounded-[14px] border border-border bg-panel-subtle px-3 text-sm text-foreground outline-none focus:border-border-strong"
             maxLength={48}
@@ -147,7 +149,7 @@ function PublishProfilePanel({ onPublished }: { onPublished: () => void }) {
           />
         </label>
         <label className="block text-xs font-semibold text-muted">
-          Slug
+          {t("leaderboard.slug")}
           <input
             className="mt-1 h-11 w-full rounded-[14px] border border-border bg-panel-subtle px-3 text-sm text-foreground outline-none focus:border-border-strong"
             maxLength={48}
@@ -156,11 +158,11 @@ function PublishProfilePanel({ onPublished }: { onPublished: () => void }) {
             value={slug}
           />
         </label>
-        <p className="text-xs text-muted">Public URL: /leaderboard/{normalizedSlug || "trader"}</p>
+        <p className="text-xs text-muted">{t("leaderboard.publicUrl", { url: `/leaderboard/${normalizedSlug || "trader"}` })}</p>
         {error ? <p className="rounded-[12px] bg-red-50 p-3 text-xs text-red-900">{error}</p> : null}
         {status ? <p className="rounded-[12px] bg-green-50 p-3 text-xs text-green-900">{status}</p> : null}
         <Button className="w-full" disabled={isSubmitting || !connected} onClick={handlePublish} variant="primary">
-          {isSubmitting ? "Signing..." : "Publish profile"}
+          {isSubmitting ? t("leaderboard.signing") : t("leaderboard.publish")}
         </Button>
       </CardContent>
     </Card>
@@ -173,6 +175,7 @@ export function Leaderboard() {
   const isLoading = useSocialStore((state) => state.isLoading);
   const error = useSocialStore((state) => state.error);
   const loadLeaderboard = useSocialStore((state) => state.loadLeaderboard);
+  const t = useT();
 
   useEffect(() => {
     void loadLeaderboard("30D");
@@ -180,7 +183,7 @@ export function Leaderboard() {
 
   const rows = leaderboard?.rows ?? [];
   const stats = leaderboard?.stats;
-  const topName = stats?.topPerformer?.displayName ?? "No leader yet";
+  const topName = stats?.topPerformer?.displayName ?? t("leaderboard.noLeader");
   const topReturn = stats?.topPerformer ? formatPercent(stats.topPerformer.pnlPct) : "0.00%";
   const averageReturn = formatPercent(stats?.averagePnlPct ?? 0);
 
@@ -190,19 +193,19 @@ export function Leaderboard() {
     <div className="mx-auto max-w-[1540px] space-y-5 pb-20">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="text-sm text-muted">Social trading</p>
-          <h1 className="font-display text-4xl font-semibold tracking-normal">Leaderboard</h1>
+          <p className="text-sm text-muted">{t("leaderboard.eyebrow")}</p>
+          <h1 className="font-display text-4xl font-semibold tracking-normal">{t("leaderboard.title")}</h1>
           <p className="mt-1 max-w-2xl text-sm text-muted">
-            Opt-in trader rankings based on Oren-observed portfolio P&amp;L. Public rankings are not audited tax records.
+            {t("leaderboard.intro")}
           </p>
         </div>
-        <Tabs ariaLabel="Leaderboard timeframe" items={timeframes} onValueChange={(value) => void loadLeaderboard(value)} value={timeframe} />
+        <Tabs ariaLabel={t("leaderboard.timeframe")} items={timeframes} onValueChange={(value) => void loadLeaderboard(value)} value={timeframe} />
       </div>
 
       <div className="grid gap-4 md:grid-cols-3">
-        <MetricBand className="bg-accent-yellow" detail={topName} label="Top Performer" value={topReturn} />
-        <MetricBand className="bg-accent-pink" detail="Opted-in trader profiles" label="Public Traders" value={formatNumber(stats?.totalPublicTraders ?? 0, 0)} />
-        <MetricBand className="bg-accent-lavender" detail={`${timeframe} observed return`} label="Average P&L" value={averageReturn} />
+        <MetricBand className="bg-accent-yellow" detail={topName} label={t("leaderboard.topPerformer")} value={topReturn} />
+        <MetricBand className="bg-accent-pink" detail={t("leaderboard.optedIn")} label={t("leaderboard.publicTraders")} value={formatNumber(stats?.totalPublicTraders ?? 0, 0)} />
+        <MetricBand className="bg-accent-lavender" detail={t("leaderboard.observedReturn", { timeframe })} label={t("leaderboard.averagePnl")} value={averageReturn} />
       </div>
 
       {error ? <ErrorState description={error} onRetry={() => void loadLeaderboard(timeframe)} /> : null}
@@ -211,21 +214,21 @@ export function Leaderboard() {
         <Card className="overflow-hidden">
           <CardHeader className="flex flex-row items-center justify-between gap-4">
             <div>
-              <h2 className="font-display text-xl font-semibold">Top wallets</h2>
-              <p className="mt-1 text-sm text-muted">Ranked by {timeframe} P&amp;L percentage.</p>
+              <h2 className="font-display text-xl font-semibold">{t("leaderboard.topWallets")}</h2>
+              <p className="mt-1 text-sm text-muted">{t("leaderboard.rankedBy", { timeframe })}</p>
             </div>
             <HugeiconsIcon className="text-muted" color="currentColor" icon={Medal01Icon} size={22} strokeWidth={1.8} />
           </CardHeader>
 
           <div className="hidden overflow-x-auto md:block">
             <div className="grid min-w-[940px] grid-cols-[80px_minmax(240px,1.3fr)_130px_130px_150px_150px_120px] bg-panel-subtle/70 px-4 py-3 text-xs font-semibold text-foreground">
-              <div>Rank</div>
-              <div>Trader</div>
-              <div>P&amp;L %</div>
-              <div>P&amp;L $</div>
-              <div>Portfolio</div>
-              <div>Top holding</div>
-              <div>Risk</div>
+              <div>{t("leaderboard.rank")}</div>
+              <div>{t("leaderboard.trader")}</div>
+              <div>{t("leaderboard.pnlPct")}</div>
+              <div>{t("leaderboard.pnlUsd")}</div>
+              <div>{t("leaderboard.portfolio")}</div>
+              <div>{t("leaderboard.topHolding")}</div>
+              <div>{t("leaderboard.risk")}</div>
             </div>
             {isLoading && rows.length === 0
               ? skeletonRows.map((_, index) => <Skeleton className="mx-4 my-3 h-14" key={index} />)
@@ -241,8 +244,8 @@ export function Leaderboard() {
           {!isLoading && rows.length === 0 ? (
             <div className="p-4">
               <EmptyState
-                description="Published trader profiles appear here after Oren has at least one portfolio snapshot to rank."
-                title="No public traders yet"
+                description={t("leaderboard.emptyDescription")}
+                title={t("leaderboard.emptyTitle")}
               />
             </div>
           ) : null}
@@ -257,8 +260,8 @@ export function Leaderboard() {
                   <HugeiconsIcon color="currentColor" icon={UserGroupIcon} size={20} strokeWidth={1.8} />
                 </div>
                 <div>
-                  <p className="font-display text-lg font-semibold">Copy with review</p>
-                  <p className="text-xs leading-5 text-muted">Copying creates a proportional basket proposal. You still review and sign every transaction.</p>
+                  <p className="font-display text-lg font-semibold">{t("leaderboard.copyTitle")}</p>
+                  <p className="text-xs leading-5 text-muted">{t("leaderboard.copyBody")}</p>
                 </div>
               </div>
             </CardContent>
@@ -270,6 +273,7 @@ export function Leaderboard() {
 }
 
 function LeaderboardTableRow({ row }: { row: LeaderboardRow }) {
+  const t = useT();
   return (
     <Link
       className="grid min-w-[940px] grid-cols-[80px_minmax(240px,1.3fr)_130px_130px_150px_150px_120px] items-center border-t border-border px-4 py-4 text-sm transition-colors hover:bg-panel-subtle"
@@ -286,13 +290,14 @@ function LeaderboardTableRow({ row }: { row: LeaderboardRow }) {
       <PnlText row={row} />
       <div className={cn("font-mono", row.pnlUsd >= 0 ? "text-positive" : "text-negative")}>{formatCurrency(row.pnlUsd)}</div>
       <div className="font-mono">{formatCurrency(row.totalValueUsd)}</div>
-      <div className="font-mono">{row.topHolding?.ticker ?? "None"}</div>
+      <div className="font-mono">{row.topHolding?.ticker ?? t("leaderboard.none")}</div>
       <div className="capitalize">{row.riskLabel}</div>
     </Link>
   );
 }
 
 function LeaderboardMobileRow({ row }: { row: LeaderboardRow }) {
+  const { locale, t } = useI18n();
   return (
     <Link className="block rounded-[20px] border border-border bg-panel p-4 shadow-sm" href={`/app/leaderboard/${row.slug}`}>
       <div className="flex items-start justify-between gap-3">
@@ -306,10 +311,10 @@ function LeaderboardMobileRow({ row }: { row: LeaderboardRow }) {
         <HugeiconsIcon color="currentColor" icon={ArrowUpRight01Icon} size={17} strokeWidth={1.8} />
       </div>
       <div className="mt-4 grid grid-cols-2 gap-3 text-xs">
-        <Metric label="P&L" value={`${formatPercent(row.pnlPct)} · ${formatCurrency(row.pnlUsd)}`} />
-        <Metric label="Portfolio" value={formatCurrency(row.totalValueUsd)} />
-        <Metric label="Top holding" value={row.topHolding?.ticker ?? "None" } />
-        <Metric label="Updated" value={formatDate(row.updatedAt)} />
+        <Metric label={t("leaderboard.pnl")} value={`${formatPercent(row.pnlPct)} · ${formatCurrency(row.pnlUsd)}`} />
+        <Metric label={t("leaderboard.portfolio")} value={formatCurrency(row.totalValueUsd)} />
+        <Metric label={t("leaderboard.topHolding")} value={row.topHolding?.ticker ?? t("leaderboard.none")} />
+        <Metric label={t("leaderboard.updated")} value={formatDate(row.updatedAt, locale)} />
       </div>
     </Link>
   );

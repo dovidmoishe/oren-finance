@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import localFont from "next/font/local";
 import "./globals.css";
 import { PreviewBanner } from "@/components/preview-banner";
+import { localeBootScript } from "@/i18n/locales";
 
 const neueFreigeist = localFont({
   variable: "--font-neue-freigeist",
@@ -42,7 +43,11 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     <html
       lang="en"
       className={`${neueFreigeist.variable} h-full antialiased`}
+      suppressHydrationWarning
     >
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: localeBootScript }} />
+      </head>
       <body className="min-h-full">
         <PreviewBanner />
         {children}

@@ -1,18 +1,21 @@
+"use client";
+
 import type { ReactNode } from "react";
 import { cn, formatNumber } from "@/components/ui";
 import type { TechnicalBrief } from "@/types";
+import { useT, type MessageKey } from "@/i18n/i18n";
 
-const REGIME_LABEL: Record<TechnicalBrief["regime"], string> = {
-  uptrend: "Uptrend",
-  downtrend: "Downtrend",
-  range: "Range-bound",
+const REGIME_LABEL: Record<TechnicalBrief["regime"], MessageKey> = {
+  uptrend: "stock.uptrend",
+  downtrend: "stock.downtrend",
+  range: "stock.range",
 };
 
-const SETUP_LABEL: Record<TechnicalBrief["setup"], string> = {
-  continuation: "Trend continuation",
-  mean_reversion: "Mean reversion",
-  breakout: "Breakout",
-  insufficient: "Insufficient history",
+const SETUP_LABEL: Record<TechnicalBrief["setup"], MessageKey> = {
+  continuation: "stock.continuation",
+  mean_reversion: "stock.meanReversion",
+  breakout: "stock.breakout",
+  insufficient: "stock.insufficient",
 };
 
 interface TechnicalBriefPanelProps {
@@ -26,6 +29,7 @@ export function TechnicalBriefPanel({
   compact = false,
   className,
 }: TechnicalBriefPanelProps) {
+  const t = useT();
   const daily = brief.primaryTimeframe;
   const support = brief.levels.find((level) => level.label === "support");
   const resistance = brief.levels.find((level) => level.label === "resistance");
@@ -33,20 +37,20 @@ export function TechnicalBriefPanel({
   return (
     <div className={cn("space-y-4", className)}>
       <div className="flex flex-wrap gap-2">
-        <Badge>{REGIME_LABEL[brief.regime]}</Badge>
-        <Badge tone="muted">{SETUP_LABEL[brief.setup]}</Badge>
+        <Badge>{t(REGIME_LABEL[brief.regime])}</Badge>
+        <Badge tone="muted">{t(SETUP_LABEL[brief.setup])}</Badge>
         {brief.limitedHistory ? (
           <Badge tone="warn">
-            {brief.hourlyTimeframe ? "Thin daily history" : "Limited history"}
+            {brief.hourlyTimeframe ? t("stock.thinDaily") : t("stock.limitedHistory")}
           </Badge>
         ) : null}
       </div>
 
       <div className={cn("grid gap-2", compact ? "grid-cols-2" : "grid-cols-2 sm:grid-cols-4")}>
-        <Metric label="RSI (daily)" value={formatNumber(daily.rsi14, 1)} />
-        <Metric label="MACD hist." value={formatSigned(daily.macd.histogram)} />
-        <Metric label="ATR (14)" value={formatNumber(daily.atr14, 2)} />
-        <Metric label="Band width" value={`${formatNumber(daily.bollinger.bandwidth, 1)}%`} />
+        <Metric label={t("stock.rsiDaily")} value={formatNumber(daily.rsi14, 1)} />
+        <Metric label={t("stock.macdHist")} value={formatSigned(daily.macd.histogram)} />
+        <Metric label={t("stock.atr14")} value={formatNumber(daily.atr14, 2)} />
+        <Metric label={t("stock.bandWidth")} value={`${formatNumber(daily.bollinger.bandwidth, 1)}%`} />
       </div>
 
       {(support || resistance) && (
@@ -54,14 +58,14 @@ export function TechnicalBriefPanel({
           {support ? (
             <LevelCard
               distancePct={support.distancePct}
-              label="Support"
+              label={t("stock.support")}
               price={support.price}
             />
           ) : null}
           {resistance ? (
             <LevelCard
               distancePct={resistance.distancePct}
-              label="Resistance"
+              label={t("stock.resistance")}
               price={resistance.price}
             />
           ) : null}
@@ -71,7 +75,7 @@ export function TechnicalBriefPanel({
       {brief.limitZones?.length ? (
         <div>
           <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted">
-            Limit zones
+            {t("stock.limitZones")}
           </p>
           <div className="mt-2 flex flex-wrap gap-2">
             {brief.limitZones.map((zone) => (
@@ -85,7 +89,7 @@ export function TechnicalBriefPanel({
                 key={`${zone.side}-${zone.preferredUsd}`}
                 type="button"
               >
-                {zone.side === "buy" ? "Buy" : "Sell"} @{" "}
+                {zone.side === "buy" ? t("stock.buyAt") : t("stock.sellAt")}{" "}
                 {formatNumber(zone.preferredUsd, 2)}
                 <span className="ml-1 font-normal opacity-70">
                   ({zone.basis.replaceAll("_", " ")})
@@ -99,7 +103,7 @@ export function TechnicalBriefPanel({
       {brief.risks.length ? (
         <div>
           <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted">
-            Risks
+            {t("stock.risks")}
           </p>
           <ul className="mt-2 space-y-1.5 text-xs leading-5 text-muted">
             {brief.risks.slice(0, compact ? 2 : 4).map((risk) => (
@@ -115,7 +119,7 @@ export function TechnicalBriefPanel({
       {brief.newsOverlay?.length ? (
         <div>
           <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted">
-            News overlay
+            {t("stock.newsOverlay")}
           </p>
           <ul className="mt-2 space-y-2">
             {brief.newsOverlay.slice(0, compact ? 1 : 3).map((item) => (
@@ -170,11 +174,12 @@ function LevelCard({
   price: number;
   distancePct: number;
 }) {
+  const t = useT();
   return (
     <div className="rounded-[14px] border border-border bg-white px-3 py-2">
       <p className="text-[10px] uppercase tracking-[0.12em] text-muted">{label}</p>
       <p className="mt-1 font-mono text-sm font-semibold">{formatNumber(price, 2)}</p>
-      <p className="mt-0.5 text-xs text-muted">{formatSigned(distancePct)} from price</p>
+      <p className="mt-0.5 text-xs text-muted">{t("stock.fromPrice", { distance: formatSigned(distancePct) })}</p>
     </div>
   );
 }

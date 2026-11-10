@@ -12,7 +12,8 @@ import type {
 import { cn } from '@/components/ui';
 import { AgentArtifacts } from './agent-artifacts';
 import { AgentComposer, AgentConversationThread } from './agent-conversation';
-import { contextLabel } from './agent-utils';
+import { contextLabelKey } from './agent-utils';
+import { useT } from "@/i18n/i18n";
 
 export function AgentContextCard({
   context,
@@ -23,6 +24,7 @@ export function AgentContextCard({
   ticker?: string;
   className?: string;
 }) {
+  const t = useT();
   return (
     <section
       className={cn(
@@ -30,10 +32,10 @@ export function AgentContextCard({
         className,
       )}
     >
-      <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">Page context</p>
-      <p className="mt-2 font-display text-xl font-semibold">{contextLabel(context, ticker)}</p>
+      <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">{t("agent.pageContext")}</p>
+      <p className="mt-2 font-display text-xl font-semibold">{t(...contextLabelKey(context, ticker))}</p>
       <p className="mt-2 text-sm leading-6 text-muted">
-        Oren uses this page when you ask a question. Artifacts from the latest response will appear here.
+        {t("agent.pageContextBody")}
       </p>
     </section>
   );
@@ -56,14 +58,15 @@ export function AgentArtifactRail({
   onReviewLimitOrder: (proposal: LimitOrderProposal) => void;
   onNavigate?: () => void;
 }) {
+  const t = useT();
   return (
     <aside className="flex min-h-0 w-full flex-col border-l border-border bg-panel-subtle/40 lg:w-[420px] lg:shrink-0">
       <div className="shrink-0 border-b border-border px-4 py-3">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">Working set</p>
+        <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">{t("agent.workingSet")}</p>
         <p className="mt-0.5 text-xs text-muted">
           {artifacts.length
-            ? `${artifacts.length} artifact${artifacts.length === 1 ? '' : 's'} from the latest response`
-            : 'Artifacts appear here after Oren finishes responding'}
+            ? t("agent.artifactCount", { count: artifacts.length })
+            : t("agent.artifactsAppear")}
         </p>
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4">

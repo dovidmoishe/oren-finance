@@ -30,6 +30,7 @@ import { usePortfolioRefresh } from "@/hooks/use-portfolio-refresh";
 import { useOrenAuth } from "@/components/auth/auth-context";
 import { usePortfolioStore, useWalletStore } from "@/store";
 import type { PortfolioPosition, PortfolioRange } from "@/types";
+import { useT } from "@/i18n/i18n";
 
 const chartRangeToPortfolioRange: Record<MarketChartRange, PortfolioRange> = {
   "24H": "1D",
@@ -62,6 +63,7 @@ function normalizeLogoUrl(url?: string) {
 }
 
 function PositionLogo({ position }: { position: PortfolioPosition }) {
+  const t = useT();
   const [failed, setFailed] = useState(false);
   const logoUrl = normalizeLogoUrl(position.logoUrl);
 
@@ -69,7 +71,7 @@ function PositionLogo({ position }: { position: PortfolioPosition }) {
     return (
       // eslint-disable-next-line @next/next/no-img-element
       <img
-        alt={`${position.name} logo`}
+        alt={t("portfolio.logoAlt", { name: position.name })}
         className="h-10 w-10 rounded-full border border-border bg-panel object-contain p-1"
         onError={() => setFailed(true)}
         src={logoUrl}
@@ -97,6 +99,7 @@ function DetailMetric({
   change?: number;
   className: string;
 }) {
+  const t = useT();
   return (
     <section className={cn("rounded-[24px] p-7 text-foreground shadow-[0_18px_60px_rgba(23,23,23,0.05)]", className)}>
       <p className="text-base font-semibold">{label}</p>
@@ -104,7 +107,7 @@ function DetailMetric({
       <p className="mt-7 font-display text-3xl font-semibold tracking-normal">{value}</p>
       <div className="mt-3 flex items-center gap-2 text-xs font-medium">
         <ChangePill value={change} />
-        <span>This week</span>
+        <span>{t("portfolio.thisWeek")}</span>
       </div>
     </section>
   );
@@ -139,14 +142,15 @@ function ReturnPanel({
   rangeLabel: string;
   bars: number[];
 }) {
+  const t = useT();
   const maxBar = Math.max(...bars.map((bar) => Math.abs(bar)), 1);
 
   return (
     <Card className="overflow-hidden">
       <CardHeader className="flex flex-row items-center justify-between gap-4">
         <div>
-          <p className="text-sm font-semibold">Return on Investment</p>
-          <p className="mt-1 text-xs text-muted">Portfolio change</p>
+          <p className="text-sm font-semibold">{t("portfolio.roiTitle")}</p>
+          <p className="mt-1 text-xs text-muted">{t("portfolio.roiSubtitle")}</p>
         </div>
         <span className="rounded-[10px] bg-panel-subtle px-3 py-1 text-xs font-semibold">{rangeLabel}</span>
       </CardHeader>
@@ -154,7 +158,7 @@ function ReturnPanel({
         <p className="font-display text-4xl font-semibold tracking-normal">
           {formatCurrency(Math.abs(value ?? 0))}
         </p>
-        <p className="mt-2 text-sm text-muted">Based on recorded Oren snapshots.</p>
+        <p className="mt-2 text-sm text-muted">{t("portfolio.roiBasis")}</p>
         {bars.length ? (
           <div className="mt-8 flex h-36 items-end gap-4 border-b border-foreground/25 pb-2">
             {bars.map((bar, index) => {
@@ -177,7 +181,7 @@ function ReturnPanel({
           </div>
         ) : (
           <div className="mt-8 flex h-36 items-center justify-center rounded-[18px] border border-dashed border-border bg-panel-subtle text-center text-xs text-muted">
-            Return bars appear after multiple portfolio snapshots.
+            {t("portfolio.roiEmpty")}
           </div>
         )}
       </CardContent>
@@ -187,6 +191,7 @@ function ReturnPanel({
 
 export function PortfolioDashboard() {
   const auth = useOrenAuth();
+  const t = useT();
   const wallet = useWalletStore((state) => state.address);
   const connected = useWalletStore((state) => state.connected);
   const portfolio = usePortfolioStore((state) => state.portfolio);
@@ -241,17 +246,17 @@ export function PortfolioDashboard() {
     return (
       <div className="mx-auto max-w-6xl">
         <div className="mb-5">
-          <p className="text-sm text-muted">Dashboard</p>
-          <h1 className="font-display text-4xl font-semibold tracking-normal">Overview</h1>
+          <p className="text-sm text-muted">{t("portfolio.eyebrow")}</p>
+          <h1 className="font-display text-4xl font-semibold tracking-normal">{t("portfolio.title")}</h1>
         </div>
         <EmptyState
           action={
             !auth.ready ? null : auth.authenticated
-              ? auth.error && <Button disabled={auth.busy} onClick={() => void auth.createWallet()}>Retry wallet setup</Button>
-              : <Button onClick={auth.open}>Sign in</Button>
+              ? auth.error && <Button disabled={auth.busy} onClick={() => void auth.createWallet()}>{t("portfolio.retryWallet")}</Button>
+              : <Button onClick={auth.open}>{t("portfolio.signIn")}</Button>
           }
-          description={!auth.ready ? "Restoring your session and wallet." : auth.authenticated ? auth.error || "Your account is signed in. Your portfolio will appear as soon as your wallet is ready." : "Sign in to see your balances, positions, and activity."}
-          title={!auth.ready ? "Restoring your account…" : auth.authenticated ? auth.error ? "Wallet setup needs a retry" : "Preparing your wallet…" : "Sign in to your dashboard"}
+          description={!auth.ready ? t("portfolio.restoringDescription") : auth.authenticated ? auth.error || t("portfolio.preparingDescription") : t("portfolio.signedOutDescription")}
+          title={!auth.ready ? t("portfolio.restoringTitle") : auth.authenticated ? auth.error ? t("portfolio.walletRetryTitle") : t("portfolio.preparingTitle") : t("portfolio.signedOutTitle")}
         />
       </div>
     );
@@ -267,11 +272,11 @@ export function PortfolioDashboard() {
     <div className="space-y-5">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="text-sm text-muted">Dashboard</p>
-          <h1 className="font-display text-4xl font-semibold tracking-normal">Overview</h1>
+          <p className="text-sm text-muted">{t("portfolio.eyebrow")}</p>
+          <h1 className="font-display text-4xl font-semibold tracking-normal">{t("portfolio.title")}</h1>
         </div>
         <Link className="text-sm font-semibold underline underline-offset-4" href="/app/portfolio">
-          View Details
+          {t("portfolio.viewDetails")}
         </Link>
       </div>
 
@@ -294,10 +299,10 @@ export function PortfolioDashboard() {
       </div>
 
       <div className="flex flex-wrap items-end justify-between gap-4">
-        <h2 className="font-display text-3xl font-semibold tracking-normal">Portfolio Details</h2>
+        <h2 className="font-display text-3xl font-semibold tracking-normal">{t("portfolio.detailsTitle")}</h2>
         <Button disabled={isLoading} onClick={() => void refresh()} variant="secondary">
           <HugeiconsIcon className={cn(isLoading && "animate-spin")} color="currentColor" icon={RefreshCwIcon} size={16} strokeWidth={1.8} />
-          Refresh
+          {t("portfolio.refresh")}
         </Button>
       </div>
 
@@ -305,51 +310,51 @@ export function PortfolioDashboard() {
         <DetailMetric
           change={portfolio?.changePct}
           className="bg-accent-yellow"
-          detail="Supported equities ready to trade"
-          label="Available Assets"
+          detail={t("portfolio.availableDetail")}
+          label={t("portfolio.availableLabel")}
           value={formatCurrency(portfolio?.availableValueUsd)}
         />
         <DetailMetric
           change={portfolio?.changePct}
           className="bg-accent-pink"
-          detail="Timelocked holdings"
-          label="Locked Positions"
+          detail={t("portfolio.lockedDetail")}
+          label={t("portfolio.lockedLabel")}
           value={formatCurrency(portfolio?.lockedValueUsd)}
         />
         <DetailMetric
           change={0}
           className="bg-accent-lavender"
-          detail="Stablecoin balance available for quotes"
-          label="Cash Balance"
+          detail={t("portfolio.cashDetail")}
+          label={t("portfolio.cashLabel")}
           value={formatCurrency(portfolio?.cashValueUsd)}
         />
       </div>
 
       <p className="text-sm text-muted">
         <Link className="font-semibold text-foreground underline-offset-2 hover:underline" href="/app/vault">
-          Open Vault
+          {t("portfolio.openVault")}
         </Link>
         {" "}
-        to preview locks and unlock eligibility. The onchain program is not live yet, so signing stays disabled.
+        {t("portfolio.vaultNote")}
       </p>
 
       <div className="grid gap-4 ">
         <Card className="overflow-hidden">
           <CardHeader>
-            <h2 className="font-display text-lg font-semibold">Positions</h2>
-            <p className="text-sm text-muted">Allocation, available quantity, and locked quantity.</p>
+            <h2 className="font-display text-lg font-semibold">{t("portfolio.positions")}</h2>
+            <p className="text-sm text-muted">{t("portfolio.positionsSubtitle")}</p>
           </CardHeader>
           <div className="overflow-x-auto">
             {portfolio?.positions.length ? (
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Asset</TableHead>
-                    <TableHead>Gain %</TableHead>
-                    <TableHead>Available</TableHead>
-                    <TableHead>Locked</TableHead>
-                    <TableHead>Price</TableHead>
-                    <TableHead className="text-right">Balance</TableHead>
+                    <TableHead>{t("portfolio.colAsset")}</TableHead>
+                    <TableHead>{t("portfolio.colGain")}</TableHead>
+                    <TableHead>{t("portfolio.colAvailable")}</TableHead>
+                    <TableHead>{t("portfolio.colLocked")}</TableHead>
+                    <TableHead>{t("portfolio.colPrice")}</TableHead>
+                    <TableHead className="text-right">{t("portfolio.colBalance")}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -380,8 +385,8 @@ export function PortfolioDashboard() {
             ) : (
               <div className="p-4">
                 <EmptyState
-                  description="When this wallet holds supported tokenized equities, they will appear here."
-                  title="No positions yet"
+                  description={t("portfolio.noPositionsDescription")}
+                  title={t("portfolio.noPositionsTitle")}
                 />
               </div>
             )}
@@ -391,11 +396,11 @@ export function PortfolioDashboard() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between gap-4">
             <div>
-              <h2 className="font-display text-lg font-semibold">Activity</h2>
-              <p className="text-sm text-muted">Recent trades. The route appears when Oren recorded it.</p>
+              <h2 className="font-display text-lg font-semibold">{t("portfolio.activity")}</h2>
+              <p className="text-sm text-muted">{t("portfolio.activitySubtitle")}</p>
             </div>
             <Link className="text-sm font-semibold underline underline-offset-4" href="/app/activity">
-              View all
+              {t("portfolio.viewAll")}
             </Link>
           </CardHeader>
           <CardContent>

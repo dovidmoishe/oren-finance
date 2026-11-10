@@ -6,6 +6,7 @@ import { Button, Toast, formatNumber } from "@/components/ui";
 import { priceMovedChangePercent } from "@/services/price-moved";
 import { routeVenueLabel } from "@/services/route-label";
 import type { PriceMovedDetails, PriceMovedTerms, QuoteResponse } from "@/types";
+import { useT } from "@/i18n/i18n";
 
 interface PriceMovedReviewProps {
   details: PriceMovedDetails;
@@ -29,13 +30,14 @@ function Row({ label, value }: { label: string; value: string }) {
 }
 
 function Terms({ title, terms }: { title: string; terms: PriceMovedTerms }) {
+  const t = useT();
   return (
     <div className="space-y-3 rounded-[24px] border border-border p-4" data-terms={title}>
       <p className="text-xs uppercase tracking-[0.12em] text-muted">{title}</p>
-      <Row label="Expected" value={`${formatNumber(terms.outputAmount, 6)} ${terms.outputSymbol}`} />
-      <Row label="Minimum received" value={`${formatNumber(terms.minimumOutputAmount, 6)} ${terms.outputSymbol}`} />
-      <Row label="Slippage" value={`${formatNumber(terms.slippageBps / 100, 2)}%`} />
-      <Row label="Route" value={venueLabel(terms.provider)} />
+      <Row label={t("review.expected")} value={`${formatNumber(terms.outputAmount, 6)} ${terms.outputSymbol}`} />
+      <Row label={t("review.minimumReceived")} value={`${formatNumber(terms.minimumOutputAmount, 6)} ${terms.outputSymbol}`} />
+      <Row label={t("review.slippage")} value={`${formatNumber(terms.slippageBps / 100, 2)}%`} />
+      <Row label={t("review.route")} value={venueLabel(terms.provider)} />
     </div>
   );
 }
@@ -47,21 +49,22 @@ function Terms({ title, terms }: { title: string; terms: PriceMovedTerms }) {
  * only starts a new review/approval for that quote.
  */
 export function PriceMovedReview({ details, onAccept, onCancel, disabled }: PriceMovedReviewProps) {
+  const t = useT();
   const alternative = details.alternative;
   const change = priceMovedChangePercent(details);
   return (
     <div className="space-y-4" data-price-moved={details.quoteId}>
       <Toast
-        title="Price moved"
-        description="The route you reviewed is no longer available at those terms. Nothing was signed or submitted."
+        title={t("review.priceMoved")}
+        description={t("review.priceMovedDescription")}
         tone="info"
       />
-      <Terms title="You reviewed" terms={details.reviewed} />
-      {details.latest ? <Terms title="Best route now" terms={details.latest} /> : null}
+      <Terms title={t("review.youReviewed")} terms={details.reviewed} />
+      {details.latest ? <Terms title={t("review.bestNow")} terms={details.latest} /> : null}
       {alternative ? (
         <>
           <Terms
-            title="Jupiter alternative"
+            title={t("review.jupiterAlternative")}
             terms={{
               provider: alternative.provider,
               outputAmount: alternative.outputAmount,
@@ -73,16 +76,16 @@ export function PriceMovedReview({ details, onAccept, onCancel, disabled }: Pric
           />
           {change !== undefined ? (
             <p className="text-sm text-muted">
-              You would receive {formatNumber(Math.abs(change), 2)}% {change < 0 ? "less" : "more"} than the quote you reviewed.
+              {t(change < 0 ? "review.receiveLess" : "review.receiveMore", { percent: formatNumber(Math.abs(change), 2) })}
             </p>
           ) : null}
           <div className="grid grid-cols-2 gap-3">
             <Button className="h-12 rounded-[16px]" disabled={disabled} onClick={onCancel} variant="secondary">
-              Cancel
+              {t("review.cancel")}
             </Button>
             <Button className="h-12 rounded-[16px]" disabled={disabled} onClick={() => onAccept(alternative)} variant="primary">
               <HugeiconsIcon color="currentColor" icon={ArrowRight01Icon} size={16} strokeWidth={1.8} />
-              Review new quote
+              {t("review.reviewNewQuote")}
             </Button>
           </div>
         </>
@@ -90,10 +93,10 @@ export function PriceMovedReview({ details, onAccept, onCancel, disabled }: Pric
         <>
           <div className="flex items-start gap-2 text-sm text-muted">
             <HugeiconsIcon className="mt-0.5 shrink-0" color="currentColor" icon={AlertCircleIcon} size={14} strokeWidth={1.8} />
-            <span>No alternative route is available right now. Request a fresh quote to continue.</span>
+            <span>{t("review.noAlternative")}</span>
           </div>
           <Button className="h-12 w-full rounded-[16px]" disabled={disabled} onClick={onCancel} variant="secondary">
-            Cancel
+            {t("review.cancel")}
           </Button>
         </>
       )}

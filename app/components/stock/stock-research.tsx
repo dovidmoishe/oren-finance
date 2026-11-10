@@ -7,9 +7,11 @@ import {
   recordResearchSourceOpen,
 } from "@/services/research-service";
 import type { StockResearch } from "@/types";
+import { useT, type MessageKey, type Translate } from "@/i18n/i18n";
 
 export function StockResearchPanel({ assetId }: { assetId: string }) {
   const auth = useOrenAuth();
+  const t = useT();
   const [loadedReport, setReport] = useState<StockResearch>();
   const [reportWallet, setReportWallet] = useState<string>();
   const [loading, setLoading] = useState(false);
@@ -39,7 +41,7 @@ export function StockResearchPanel({ assetId }: { assetId: string }) {
     setError(undefined);
     try {
       const token = await getAccessToken();
-      if (!token) throw new Error("Sign in to load research.");
+      if (!token) throw new Error(t("research.signInToLoad"));
       const next = await getStockResearch(assetId, wallet, token);
       if (current !== requestId.current) return;
       setReport(next);
@@ -47,11 +49,13 @@ export function StockResearchPanel({ assetId }: { assetId: string }) {
     } catch (cause) {
       if (current === requestId.current)
         setError(
-          cause instanceof Error ? cause.message : "Research is unavailable.",
+          cause instanceof Error ? cause.message : t("research.unavailable"),
         );
     } finally {
       if (current === requestId.current) setLoading(false);
     }
+    // `t` only labels errors; a language change must not refetch research.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [assetId, wallet, getAccessToken]);
 
   useEffect(() => {
@@ -83,10 +87,10 @@ export function StockResearchPanel({ assetId }: { assetId: string }) {
             id="stock-research-title"
             className="font-display text-lg font-semibold"
           >
-            Research desk
+            {t("research.title")}
           </h2>
           <p className="mt-1 text-xs text-muted">
-            Market data and cited views in one place.
+            {t("research.subtitle")}
           </p>
         </div>
         <button
@@ -95,12 +99,12 @@ export function StockResearchPanel({ assetId }: { assetId: string }) {
           onClick={() => void refresh()}
           type="button"
         >
-          {loading ? "Refreshing…" : "Refresh research"}
+          {loading ? t("research.refreshing") : t("research.refresh")}
         </button>
       </div>
       {!wallet ? (
         <p className="mt-5 text-sm text-muted">
-          Sign in to see portfolio-aware research.
+          {t("research.signedOut")}
         </p>
       ) : null}
       {error ? (
@@ -111,16 +115,17 @@ export function StockResearchPanel({ assetId }: { assetId: string }) {
       {report ? (
         <div className="mt-5 grid gap-4 lg:grid-cols-2">
           <article className="rounded-2xl border border-border bg-panel-subtle p-4">
-            <h3 className="text-sm font-semibold">Oren read</h3>
+            <h3 className="text-sm font-semibold">{t("research.orenRead")}</h3>
             <p className="mt-2 text-sm leading-6 text-muted">
               {report.analysis.data?.summary ??
-                "Market analysis is temporarily unavailable."}
+                t("research.analysisUnavailable")}
             </p>
             {report.analysis.data ? (
               <p className="mt-3 text-xs text-muted">
-                Deterministic Oren Score:{" "}
-                {Math.round(report.analysis.data.opportunityScore)} / 100 ·
-                Observed {dateLabel(report.analysis.observedAt)}
+                {t("research.scoreLine", {
+                  score: Math.round(report.analysis.data.opportunityScore),
+                  date: dateLabel(t, report.analysis.observedAt),
+                })}
               </p>
             ) : null}
             {report.news.available &&
@@ -130,7 +135,7 @@ export function StockResearchPanel({ assetId }: { assetId: string }) {
                 Number.isFinite(Date.parse(item.publishedAt)),
             ) ? (
               <div className="mt-3 border-t border-border pt-3">
-                <p className="text-xs font-medium">Recent cited news</p>
+                <p className="text-xs font-medium">{t("research.citedNews")}</p>
                 <ul className="mt-2 space-y-2 text-xs">
                   {report.news.data
                     .filter(
@@ -151,7 +156,7 @@ export function StockResearchPanel({ assetId }: { assetId: string }) {
                         {item.headline}
                       </a>
                       <span className="ml-1 text-muted">
-                        · {dateLabel(item.publishedAt)}
+                        · {dateLabel(t, item.publishedAt)}
                       </span>
                     </li>
                   ))}
@@ -160,34 +165,39 @@ export function StockResearchPanel({ assetId }: { assetId: string }) {
             ) : null}
             {report.portfolio.available ? (
               <p className="mt-2 text-xs text-muted">
-                Your exposure:{" "}
-                {report.portfolio.data
-                  ? `${report.portfolio.data.allocationPercent.toFixed(1)}% of portfolio`
-                  : "No current position"}
+                {t("research.exposure", {
+                  value: report.portfolio.data
+                    ? t("research.exposurePercent", { percent: report.portfolio.data.allocationPercent.toFixed(1) })
+                    : t("research.noPosition"),
+                })}
               </p>
             ) : null}
           </article>
           <article className="rounded-2xl border border-border bg-panel-subtle p-4">
-            <h3 className="text-sm font-semibold">Writer views</h3>
+            <h3 className="text-sm font-semibold">{t("research.writerViews")}</h3>
             {!report.opinions.available ? (
               <p className="mt-2 text-sm text-muted">
                 {report.opinions.reason === "not_enabled"
-                  ? "Writer opinions are not enabled for this signed-in view."
-                  : "Writer opinions could not be loaded for this research view."}
+                  ? t("research.opinionsDisabled")
+                  : t("research.opinionsFailed")}
               </p>
             ) : null}
             {report.opinions.data ? (
               <>
                 <p className="mt-2 text-xs text-muted">
-                  {report.opinions.data.distinctAuthors} distinct writers ·{" "}
-                  {report.opinions.data.mentionCount} mentions ·{" "}
-                  {report.opinions.data.coverage} coverage · Observed{" "}
-                  {dateLabel(report.opinions.observedAt)}
+                  {t("research.opinionsMeta", {
+                    writers: report.opinions.data.distinctAuthors,
+                    mentions: report.opinions.data.mentionCount,
+                    coverage: report.opinions.data.coverage,
+                    date: dateLabel(t, report.opinions.observedAt),
+                  })}
                 </p>
                 {report.opinions.data.window ? (
                   <p className="mt-1 text-xs text-muted">
-                    Covered {dateLabel(report.opinions.data.window.from)}–
-                    {dateLabel(report.opinions.data.window.to)}
+                    {t("research.covered", {
+                      from: dateLabel(t, report.opinions.data.window.from),
+                      to: dateLabel(t, report.opinions.data.window.to),
+                    })}
                   </p>
                 ) : null}
                 <div className="mt-3 space-y-3">
@@ -211,9 +221,9 @@ export function StockResearchPanel({ assetId }: { assetId: string }) {
                         )}
                       </a>
                       <p className="mt-1 text-xs text-muted">
-                        {item.stance ?? "Unstated"}
+                        {item.stance ?? t("research.unstated")}
                         {item.action ? ` · ${item.action}` : ""} ·{" "}
-                        {dateLabel(item.date)}
+                        {dateLabel(t, item.date)}
                       </p>
                       <p className="mt-1 text-sm leading-5">{item.summary}</p>
                     </div>
@@ -224,14 +234,13 @@ export function StockResearchPanel({ assetId }: { assetId: string }) {
           </article>
           {report.company ? (
             <article className="rounded-2xl border border-border bg-panel-subtle p-4 lg:col-span-2">
-              <h3 className="text-sm font-semibold">Company filings</h3>
+              <h3 className="text-sm font-semibold">{t("research.filings")}</h3>
               <p className="mt-2 text-xs text-muted">
-                SEC filing facts for a verified issuer. Separate from the Oren
-                Score. Not a recommendation.
+                {t("research.filingsNote")}
               </p>
               {report.company.reason ? (
                 <p className="mt-2 text-sm text-muted">
-                  {companyReason(report.company.reason)}
+                  {t(companyReason(report.company.reason))}
                 </p>
               ) : null}
               {report.company.data?.briefing.map((line, index) => (
@@ -241,16 +250,15 @@ export function StockResearchPanel({ assetId }: { assetId: string }) {
               ))}
               {report.company.data?.latestQuarter?.revenue?.display ? (
                 <p className="mt-2 text-xs text-muted">
-                  Latest quarter revenue{" "}
-                  {report.company.data.latestQuarter.revenue.display}
+                  {t("research.quarterRevenue", { value: report.company.data.latestQuarter.revenue.display })}
                   {report.company.data.latestQuarter.derived
-                    ? " (derived)"
+                    ? t("research.derived")
                     : ""}
                   {report.company.data.latestQuarter.netIncome?.display
-                    ? ` · Net income ${report.company.data.latestQuarter.netIncome.display}`
+                    ? t("research.netIncome", { value: report.company.data.latestQuarter.netIncome.display })
                     : ""}
                   {report.company.data.latestQuarter.operatingMargin?.display
-                    ? ` · Operating margin ${report.company.data.latestQuarter.operatingMargin.display}`
+                    ? t("research.operatingMargin", { value: report.company.data.latestQuarter.operatingMargin.display })
                     : ""}
                 </p>
               ) : null}
@@ -277,22 +285,22 @@ export function StockResearchPanel({ assetId }: { assetId: string }) {
               ) : null}
               {report.company.fetchedAt ? (
                 <p className="mt-2 text-xs text-muted">
-                  Fetched {dateLabel(report.company.fetchedAt)}
+                  {t("research.fetched", { date: dateLabel(t, report.company.fetchedAt) })}
                   {report.company.publishedAt
-                    ? ` · Filed ${dateLabel(report.company.publishedAt)}`
+                    ? t("research.filed", { date: dateLabel(t, report.company.publishedAt) })
                     : ""}
                 </p>
               ) : null}
             </article>
           ) : null}
           <article className="rounded-2xl border border-border bg-panel-subtle p-4 lg:col-span-2">
-            <h3 className="text-sm font-semibold">Where they disagree</h3>
+            <h3 className="text-sm font-semibold">{t("research.disagreeTitle")}</h3>
             <p className="mt-2 text-sm leading-6 text-muted">
               {report.opinions.data?.disagreement
-                ? "Distinct writers have both bullish and bearish views. Read the sources before drawing a conclusion."
+                ? t("research.disagree")
                 : report.opinions.data?.coverage === "current"
-                  ? "No opposing writer stances appear in the covered sample. This is not market consensus."
-                  : "Coverage is too limited for a useful agreement read."}
+                  ? t("research.noOpposing")
+                  : t("research.limitedCoverage")}
             </p>
             {report.opinions.data?.disagreement &&
             bullishView &&
@@ -328,13 +336,13 @@ export function StockResearchPanel({ assetId }: { assetId: string }) {
           {/* Thesis posting stays off the desk. saveStockThesis remains on the API for a later pass. */}
         </div>
       ) : loading ? (
-        <p className="mt-5 text-sm text-muted">Loading research…</p>
+        <p className="mt-5 text-sm text-muted">{t("research.loading")}</p>
       ) : null}
     </section>
   );
 }
 
-function dateLabel(value?: string) {
+function dateLabel(t: Translate, value?: string) {
   const dateOnly = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value ?? "");
   if (dateOnly) {
     const date = new Date(
@@ -353,40 +361,26 @@ function dateLabel(value?: string) {
         month: "short",
         day: "numeric",
       })
-    : "time unavailable";
+    : t("research.timeUnavailable");
 }
 
-function companyReason(reason: string): string {
-  switch (reason) {
-    case "not_mapped":
-      return "Company filings are not available. Oren has not verified this token's issuer.";
-    case "fund_no_statements":
-      return "This is a fund or ETF. Oren does not report operating-company statements for it.";
-    case "no_coverage":
-      return "Company statements are not covered for this instrument.";
-    case "mint_mismatch":
-      return "The token mint does not match the verified issuer record, so no company figures are shown.";
-    case "identity_mismatch":
-      return "The live stock record does not match the verified issuer, so no company figures are shown.";
-    case "ambiguous_identity":
-      return "More than one issuer matches this stock, so no company figures are shown.";
-    case "timeout":
-      return "Company filings timed out. Other research is unchanged.";
-    case "rate_limited":
-      return "Company filings were rate limited. Other research is unchanged.";
-    case "provider_unavailable":
-      return "Company filings could not be loaded. Other research is unchanged.";
-    case "stale":
-      return "Company figures are shown, and the filing or cache is stale.";
-    case "sec_not_configured":
-      return "Company filings are not loaded until the server contact is configured.";
-    case "sec_preview_disabled":
-      return "Company filings are not loaded in previews.";
-    case "sec_worker_unavailable":
-      return "Company filings are not loaded from this server process.";
-    case "not_licensed":
-      return "This source is not licensed for this view.";
-    default:
-      return "Company filings could not be loaded.";
-  }
+const companyReasonKeys: Record<string, MessageKey> = {
+  not_mapped: "research.reasonNotMapped",
+  fund_no_statements: "research.reasonFund",
+  no_coverage: "research.reasonNoCoverage",
+  mint_mismatch: "research.reasonMintMismatch",
+  identity_mismatch: "research.reasonIdentityMismatch",
+  ambiguous_identity: "research.reasonAmbiguous",
+  timeout: "research.reasonTimeout",
+  rate_limited: "research.reasonRateLimited",
+  provider_unavailable: "research.reasonProviderUnavailable",
+  stale: "research.reasonStale",
+  sec_not_configured: "research.reasonNotConfigured",
+  sec_preview_disabled: "research.reasonPreview",
+  sec_worker_unavailable: "research.reasonWorker",
+  not_licensed: "research.reasonNotLicensed",
+};
+
+function companyReason(reason: string): MessageKey {
+  return companyReasonKeys[reason] ?? "research.reasonDefault";
 }
