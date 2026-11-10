@@ -4,7 +4,7 @@ import { ArrowDown01Icon, ArrowUp01Icon, Search01Icon } from "@hugeicons/core-fr
 import { HugeiconsIcon } from "@hugeicons/react";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Button, Skeleton, cn, formatCurrency, formatPercent } from "@/components/ui";
+import { Button, Skeleton, cn, formatCompactCurrency, formatCurrency, formatPercent } from "@/components/ui";
 import { getStockChart } from "@/services";
 import { useMarketStore } from "@/store";
 import type { MarketCandle, StockSummary } from "@/types";
@@ -141,19 +141,6 @@ function normalizeLogoUrl(url: string) {
   return url;
 }
 
-function formatCompactCurrency(value?: number) {
-  if (typeof value !== "number" || Number.isNaN(value)) {
-    return "$0";
-  }
-
-  return new Intl.NumberFormat("en-US", {
-    currency: "USD",
-    maximumFractionDigits: 2,
-    notation: "compact",
-    style: "currency",
-  }).format(value);
-}
-
 function StockRow({ stock }: { stock: StockSummary }) {
   const { locale } = useI18n();
   const positive = (stock.change24hPct ?? 0) >= 0;
@@ -176,7 +163,7 @@ function StockRow({ stock }: { stock: StockSummary }) {
         {positive ? "▲" : "▼"} {formatPercent(Math.abs(stock.change24hPct ?? 0), locale, false)}
       </div>
       <Sparkline stock={stock} />
-      <div className="font-mono">{formatCompactCurrency(stock.liquidityUsd)}</div>
+      <div className="font-mono">{formatCompactCurrency(stock.liquidityUsd, locale)}</div>
     </Link>
   );
 }

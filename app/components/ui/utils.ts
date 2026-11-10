@@ -15,6 +15,17 @@ export function formatCurrency(value: number | undefined, locale: string, maximu
   }).format(amount(value));
 }
 
+/** Compact USD, still using the active language's grouping. Invalid amounts render as zero. */
+export function formatCompactCurrency(value: number | undefined, locale: string) {
+  const finite = typeof value === "number" && Number.isFinite(value) ? value : 0;
+  return new Intl.NumberFormat(locale, {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: 2,
+    notation: "compact",
+  }).format(finite);
+}
+
 export function formatNumber(value: number | undefined, locale: string, maximumFractionDigits = 4) {
   return new Intl.NumberFormat(locale, { maximumFractionDigits }).format(amount(value));
 }
