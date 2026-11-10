@@ -34,6 +34,8 @@ The current server is slower than hosted parallel runners. Five or six PRs queue
 
 Admission lets a verified successor reuse its own UID's draining heavy slot after the previous worker exits. Reclaim does not have to reach the idle floor first. The slot still counts toward the two-account limit, all active and draining caps count toward memory headroom, and a late drain cannot downshift a newly admitted worker. An account with a live lease cannot admit a second worker.
 
+Verified admission waiters are tracked until acquisition succeeds or fails. Concurrent workers preparing actions can temporarily exceed the idle margin; they must not mistake each other's authenticated pending requests for untracked heavy work. Workers without a verified request or restored lease retain the startup safety block.
+
 CI services run under the dedicated users' systemd managers. Stop/start them with `systemctl --user` under the corresponding account and XDG runtime directory. The rootless Docker socket is `/run/user/<build-uid>/docker.sock`; never substitute `/var/run/docker.sock`. Inspect `journalctl _UID=<uid>` and runner `_diag` logs. To undo routing, use a reviewed workflow change; do not leave required jobs targeting missing labels. Existing GitHub account billing restrictions may still affect hosted-only features; verify actual self-hosted runs.
 
 Official references: [rootless resource limits](https://docs.docker.com/engine/security/rootless/tips/), [GitHub runner routing](https://docs.github.com/en/actions/how-tos/manage-runners/self-hosted-runners/use-in-a-workflow), [runner security](https://docs.github.com/en/actions/reference/security/secure-use).
