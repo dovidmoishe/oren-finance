@@ -13,7 +13,14 @@ import {
 } from 'drizzle-orm';
 import { DRIZZLE } from '../config/constants';
 import type { Database } from '../database/database.provider';
-import { executionJobs, executions, tradeFills } from '../database/schema';
+import {
+  executionJobs,
+  executions,
+  tradeApprovals,
+  tradeEmailPreferences,
+  tradeFills,
+  tradeReceiptJobs,
+} from '../database/schema';
 import type {
   FeatureVolume,
   StockVolume,
@@ -161,7 +168,7 @@ export class VolumeRepository {
       .onConflictDoNothing({ target: executionJobs.dedupeKey });
   }
 
-  async completeFill(jobId: string, fill: VerifiedTradeFill): Promise<void> {
+  async completeFill(job: ExecutionJobRow, fill: VerifiedTradeFill): Promise<void> {
     await this.db.transaction(async (tx) => {
       await tx
         .insert(tradeFills)
@@ -188,10 +195,38 @@ export class VolumeRepository {
         .update(executions)
         .set({ status: 'confirmed' })
         .where(eq(executions.id, fill.executionId));
+
+      // Create the email outbox row in the same transaction that records the
+      // verified fill. A receipt is never sent for an unconfirmed/failed swap.
+      if (job.kind === 'swap_fill') {
+        const [owner] = await tx
+          .select({ userId: tradeApprovals.userId })
+          .from(tradeApprovals)
+          .innerJoin(
+            tradeEmailPreferences,
+            and(
+              eq(tradeEmailPreferences.userId, tradeApprovals.userId),
+              eq(tradeEmailPreferences.tradeReceiptsEnabled, true),
+            ),
+          )
+          .where(eq(tradeApprovals.executionId, fill.executionId))
+          .limit(1);
+        if (owner) {
+          await tx
+            .insert(tradeReceiptJobs)
+            .values({
+              userId: owner.userId,
+              executionId: fill.executionId,
+              transactionSignature: fill.transactionSignature,
+            })
+            .onConflictDoNothing({ target: tradeReceiptJobs.executionId });
+        }
+      }
+
       await tx
         .update(executionJobs)
         .set({ status: 'completed', completedAt: new Date(), lockedAt: null })
-        .where(eq(executionJobs.id, jobId));
+        .where(eq(executionJobs.id, job.id));
       await tx
         .insert(executionJobs)
         .values({

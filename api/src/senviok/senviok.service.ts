@@ -37,6 +37,10 @@ export class SenviokEmailService {
     }
   }
 
+  get isConfigured(): boolean {
+    return Boolean(this.client && this.from);
+  }
+
   async sendEmail(
     email: SenviokEmailInput,
   ): Promise<SenviokApiEndpointsEmailsSendEmailResponse> {

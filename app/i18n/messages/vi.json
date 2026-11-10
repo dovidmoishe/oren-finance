@@ -23,7 +23,8 @@
     "transfer": "Chuyển",
     "deposit": "Nạp tiền",
     "helpFeedback": "Trợ giúp & góp ý",
-    "signOut": "Đăng xuất"
+    "signOut": "Đăng xuất",
+    "tradeReceipts": "Biên nhận giao dịch qua email"
   },
   "auth": {
     "title": "Đăng nhập vào Oren",
@@ -951,5 +952,23 @@
     "intro": "Bộ nhớ hiệu suất theo ảnh chụp cho danh mục được Oren ghi nhận.",
     "refresh": "Làm mới",
     "closeValue": "{value} đóng cửa"
+  },
+  "tradeEmail": {
+    "title": "Biên nhận giao dịch qua email",
+    "intro": "Chọn nhận email từ Oren sau khi giao dịch cổ phiếu được xác nhận trên chuỗi.",
+    "heading": "Biên nhận giao dịch đã xác nhận",
+    "body": "Oren sẽ gửi một biên nhận sau khi xác minh giao dịch hoán đổi hoàn tất. Giao dịch đang chờ hoặc thất bại sẽ không gửi biên nhận.",
+    "enabled": "Gửi biên nhận giao dịch đã xác nhận qua email",
+    "sendTo": "Biên nhận sẽ được gửi đến {email}, địa chỉ liên kết với tài khoản Oren của bạn.",
+    "unavailable": "Biên nhận email tạm thời không khả dụng. Vui lòng thử lại sau.",
+    "noEmail": "Liên kết email với tài khoản Oren để bật biên nhận.",
+    "signIn": "Đăng nhập để quản lý tùy chọn email",
+    "back": "Quay lại bảng điều khiển",
+    "loading": "Đang tải tùy chọn…",
+    "loadFailed": "Không thể tải tùy chọn. Vui lòng thử lại.",
+    "save": "Lưu tùy chọn",
+    "saving": "Đang lưu…",
+    "saved": "Đã lưu tùy chọn email.",
+    "saveFailed": "Không thể lưu tùy chọn. Vui lòng thử lại."
   }
 }

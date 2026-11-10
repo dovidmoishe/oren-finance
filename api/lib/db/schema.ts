@@ -600,6 +600,50 @@ export const tradeFills = pgTable(
   ],
 );
 
+/** User-controlled delivery preference for confirmed Oren-routed trades. */
+export const tradeEmailPreferences = pgTable('trade_email_preferences', {
+  userId: text('user_id').primaryKey(),
+  tradeReceiptsEnabled: boolean('trade_receipts_enabled')
+    .notNull()
+    .default(false),
+  updatedAt: timestamp('updated_at', { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});
+
+/** Durable, deduplicated outbox for opt-in trade confirmation receipts. */
+export const tradeReceiptJobs = pgTable(
+  'trade_receipt_jobs',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    userId: text('user_id').notNull(),
+    executionId: uuid('execution_id')
+      .notNull()
+      .references(() => executions.id),
+    transactionSignature: text('transaction_signature').notNull(),
+    status: text('status')
+      .$type<'pending' | 'processing' | 'retry' | 'completed' | 'dead'>()
+      .notNull()
+      .default('pending'),
+    attempts: integer('attempts').notNull().default(0),
+    availableAt: timestamp('available_at', { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    lockedAt: timestamp('locked_at', { withTimezone: true }),
+    completedAt: timestamp('completed_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    uniqueIndex('trade_receipt_jobs_execution_idx').on(table.executionId),
+    index('trade_receipt_jobs_available_idx').on(
+      table.status,
+      table.availableAt,
+    ),
+  ],
+);
+
 /** Durable Postgres outbox. Workers lease rows; user requests never await RPC/Dune. */
 export const executionJobs = pgTable(
   'execution_jobs',

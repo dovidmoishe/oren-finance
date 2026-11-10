@@ -23,7 +23,8 @@
     "transfer": "Transfer",
     "deposit": "Deposit",
     "helpFeedback": "Help & feedback",
-    "signOut": "Sign out"
+    "signOut": "Sign out",
+    "tradeReceipts": "Trade email receipts"
   },
   "auth": {
     "title": "Sign in to Oren",
@@ -951,5 +952,23 @@
     "intro": "Snapshot-based performance memory for your Oren-observed portfolio.",
     "refresh": "Refresh",
     "closeValue": "{value} close"
+  },
+  "tradeEmail": {
+    "title": "Trade email receipts",
+    "intro": "Choose whether Oren emails you after a stock trade is confirmed on-chain.",
+    "heading": "Confirmed trade receipts",
+    "body": "We send one receipt after Oren verifies your completed swap. Pending or failed transactions do not trigger a receipt.",
+    "enabled": "Email me confirmed trade receipts",
+    "sendTo": "Receipts go to {email}, the email linked to your Oren sign-in.",
+    "unavailable": "Email receipts are temporarily unavailable. Try again later.",
+    "noEmail": "Link an email to your Oren account to enable receipts.",
+    "signIn": "Sign in to manage email preferences",
+    "back": "Back to dashboard",
+    "loading": "Loading your preference…",
+    "loadFailed": "Unable to load your preference. Try again.",
+    "save": "Save preference",
+    "saving": "Saving…",
+    "saved": "Your email preference has been saved.",
+    "saveFailed": "Unable to save your preference. Try again."
   }
 }
