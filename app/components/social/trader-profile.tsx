@@ -184,7 +184,7 @@ export function TraderProfile({ slug }: { slug: string }) {
   const loadTrader = useSocialStore((state) => state.loadTrader);
   const [chartMode, setChartMode] = useState<MarketChartMode>("line");
   const [chartRange, setChartRange] = useState<MarketChartRange>("30D");
-  const { locale, t } = useI18n();
+  const { locale, timeZone, t } = useI18n();
 
   useEffect(() => {
     void loadTrader(slug, "30D");
@@ -242,9 +242,9 @@ export function TraderProfile({ slug }: { slug: string }) {
       </section>
 
       <div className="grid gap-4 md:grid-cols-3">
-        <DetailMetric className="bg-accent-yellow" detail={t("trader.observedReturn", { timeframe: trader.timeframe })} label={t("trader.pnl")} value={`${positive ? "+" : ""}${formatPercent(trader.stats.pnlPct, false)}`} />
-        <DetailMetric className="bg-accent-pink" detail={t("trader.observedValue")} label={t("trader.portfolio")} value={formatCurrency(trader.portfolio.totalValueUsd)} />
-        <DetailMetric className="bg-accent-lavender" detail={t("trader.observedPnl")} label={t("trader.netChange")} value={formatCurrency(trader.stats.pnlUsd)} />
+        <DetailMetric className="bg-accent-yellow" detail={t("trader.observedReturn", { timeframe: trader.timeframe })} label={t("trader.pnl")} value={`${positive ? "+" : ""}${formatPercent(trader.stats.pnlPct, locale, false)}`} />
+        <DetailMetric className="bg-accent-pink" detail={t("trader.observedValue")} label={t("trader.portfolio")} value={formatCurrency(trader.portfolio.totalValueUsd, locale)} />
+        <DetailMetric className="bg-accent-lavender" detail={t("trader.observedPnl")} label={t("trader.netChange")} value={formatCurrency(trader.stats.pnlUsd, locale)} />
       </div>
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
@@ -252,7 +252,7 @@ export function TraderProfile({ slug }: { slug: string }) {
           activeRange={chartRange}
           changePct={trader.stats.pnlPct}
           className="min-w-0 rounded-[24px]"
-          dateLabel={formatDate(trader.stats.updatedAt, locale)}
+          dateLabel={formatDate(trader.stats.updatedAt, locale, timeZone, t("common.notUpdated"))}
           emptyDescription={t("trader.chartEmpty")}
           lineData={chartData}
           mode={chartMode}
@@ -271,7 +271,7 @@ export function TraderProfile({ slug }: { slug: string }) {
                 <div className="space-y-2" key={position.assetId}>
                   <div className="flex items-center justify-between gap-3 text-sm">
                     <span className="font-semibold">{position.ticker}</span>
-                    <span className="font-mono">{formatPercent(position.allocationPct, false)}</span>
+                    <span className="font-mono">{formatPercent(position.allocationPct, locale, false)}</span>
                   </div>
                   <div className="h-2 overflow-hidden rounded-full bg-panel-subtle">
                     <div className="h-full rounded-full bg-foreground" style={{ width: `${Math.min(100, Math.max(0, position.allocationPct))}%` }} />
@@ -315,10 +315,10 @@ export function TraderProfile({ slug }: { slug: string }) {
                           </div>
                         </Link>
                       </TableCell>
-                      <TableCell className="font-mono">{formatPercent(position.allocationPct, false)}</TableCell>
-                      <TableCell className="font-mono">{formatNumber(position.quantity)}</TableCell>
-                      <TableCell>{formatCurrency(position.priceUsd)}</TableCell>
-                      <TableCell className="text-right font-semibold">{formatCurrency(position.valueUsd)}</TableCell>
+                      <TableCell className="font-mono">{formatPercent(position.allocationPct, locale, false)}</TableCell>
+                      <TableCell className="font-mono">{formatNumber(position.quantity, locale)}</TableCell>
+                      <TableCell>{formatCurrency(position.priceUsd, locale)}</TableCell>
+                      <TableCell className="text-right font-semibold">{formatCurrency(position.valueUsd, locale)}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>

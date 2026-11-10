@@ -2,15 +2,18 @@
 
 import { Globe02Icon, Tick02Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
+import { useRouter } from "next/navigation";
 import { useId, useRef } from "react";
 import { cn } from "@/components/ui";
-import { setLocale, useI18n } from "@/i18n/i18n";
+import { useI18n } from "@/i18n/i18n";
+import { rememberLocale } from "@/i18n/locale-sync";
 import { LOCALES } from "@/i18n/locales";
 
 /** Header globe button with a popover listing every supported language. */
 export function LanguageMenu() {
   const id = useId();
   const menu = useRef<HTMLDivElement>(null);
+  const router = useRouter();
   const { locale, t } = useI18n();
   return (
     <>
@@ -37,7 +40,9 @@ export function LanguageMenu() {
               lang={option.code}
               onClick={() => {
                 menu.current?.hidePopover();
-                void setLocale(option.code);
+                if (selected) return;
+                rememberLocale(option.code);
+                router.refresh();
               }}
               role="menuitemradio"
               type="button"

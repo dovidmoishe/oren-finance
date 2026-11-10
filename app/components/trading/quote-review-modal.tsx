@@ -17,7 +17,7 @@ import type { ExecutionStatus, QuoteResponse } from "@/types";
 import { useApprovalReview } from "@/hooks/use-approval-review";
 import { MarketSessionNotice } from "./market-session-notice";
 import { PriceMovedReview } from "./price-moved-review";
-import { useT, type Translate } from "@/i18n/i18n";
+import { useI18n, type Translate } from "@/i18n/i18n";
 
 type TradeFlowStatus = "idle" | "quoted" | "preparing" | "signing" | "confirming" | "submitted" | "confirmed" | "failed";
 
@@ -72,7 +72,7 @@ export function QuoteReviewModal({
   onSign,
   onAcceptAlternative,
 }: QuoteReviewModalProps) {
-  const t = useT();
+  const { locale, t } = useI18n();
   const [accepted, setAccepted] = useState<{ forId: string; quote: QuoteResponse }>();
   // An accepted alternative replaces the requested quote until that changes.
   const reviewQuote =
@@ -96,7 +96,7 @@ export function QuoteReviewModal({
     : 0;
   const route = routeVenueLabel(quote?.provider);
   const warnings = [
-    quote && quote.priceImpactPercent >= 1 ? t("review.priceImpactWarning", { percent: formatNumber(quote.priceImpactPercent, 2) }) : null,
+    quote && quote.priceImpactPercent >= 1 ? t("review.priceImpactWarning", { percent: formatNumber(quote.priceImpactPercent, locale, 2) }) : null,
     refreshFailed ? t("review.refreshFailedWarning") : null,
   ].filter((warning): warning is string => Boolean(warning));
 
@@ -114,12 +114,12 @@ export function QuoteReviewModal({
       ) : (
         <div className="space-y-5">
           <div className="space-y-3 rounded-[24px] border border-border p-4">
-            <Row label={t("review.youPay")} value={`${formatNumber(quote.inputAmount, 6)} ${quote.inputSymbol}`} />
-            <Row label={t("review.youReceive")} value={`${formatNumber(quote.outputAmount, 6)} ${quote.outputSymbol}`} />
-            <Row label={t("review.minimumReceived")} value={`${formatNumber(minimumReceived, 6)} ${quote.outputSymbol}`} />
-            <Row label={t("review.estimatedPrice")} value={formatCurrency(quote.estimatedPriceUsd)} />
-            <Row label={t("review.priceImpact")} value={`${formatNumber(quote.priceImpactPercent, 2)}%`} />
-            <Row label={t("review.slippage")} value={`${formatNumber(quote.slippageBps / 100, 2)}%`} />
+            <Row label={t("review.youPay")} value={`${formatNumber(quote.inputAmount, locale, 6)} ${quote.inputSymbol}`} />
+            <Row label={t("review.youReceive")} value={`${formatNumber(quote.outputAmount, locale, 6)} ${quote.outputSymbol}`} />
+            <Row label={t("review.minimumReceived")} value={`${formatNumber(minimumReceived, locale, 6)} ${quote.outputSymbol}`} />
+            <Row label={t("review.estimatedPrice")} value={formatCurrency(quote.estimatedPriceUsd, locale)} />
+            <Row label={t("review.priceImpact")} value={`${formatNumber(quote.priceImpactPercent, locale, 2)}%`} />
+            <Row label={t("review.slippage")} value={`${formatNumber(quote.slippageBps / 100, locale, 2)}%`} />
             {route ? <Row label={t("review.route")} value={route} /> : null}
             <Row label={t("review.estimatedFee")} value={review.approval ? `${Number(review.approval.feeLamports) / 1e9} SOL` : t("review.preparing")} />
             <Row label={t("review.quoteExpiry")} value={formatExpiryLabel(t, secondsLeft, isRefreshingQuote)} />

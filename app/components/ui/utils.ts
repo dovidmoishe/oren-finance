@@ -2,74 +2,87 @@ export function cn(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
 }
 
-export function formatCurrency(value?: number, maximumFractionDigits = 2) {
-  if (typeof value !== "number" || Number.isNaN(value)) {
-    return "$0.00";
-  }
+function amount(value: number | undefined) {
+  return typeof value === "number" && Number.isFinite(value) ? value : 0;
+}
 
-  return new Intl.NumberFormat("en-US", {
+/** USD amount written with the active language's grouping and decimal marks. */
+export function formatCurrency(value: number | undefined, locale: string, maximumFractionDigits = 2) {
+  return new Intl.NumberFormat(locale, {
     style: "currency",
     currency: "USD",
     maximumFractionDigits,
-  }).format(value);
+  }).format(amount(value));
 }
 
-export function formatNumber(value?: number, maximumFractionDigits = 4) {
-  if (typeof value !== "number" || Number.isNaN(value)) {
-    return "0";
-  }
-
-  return new Intl.NumberFormat("en-US", { maximumFractionDigits }).format(value);
+export function formatNumber(value: number | undefined, locale: string, maximumFractionDigits = 4) {
+  return new Intl.NumberFormat(locale, { maximumFractionDigits }).format(amount(value));
 }
 
-export function formatPercent(value?: number, showSign = true) {
-  if (typeof value !== "number" || Number.isNaN(value)) {
-    return "0.00%";
-  }
-
-  return `${showSign && value >= 0 ? "+" : ""}${value.toFixed(2)}%`;
+export function formatPercent(value: number | undefined, locale: string, showSign = true) {
+  const finite = typeof value === "number" && Number.isFinite(value);
+  const body = new Intl.NumberFormat(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(finite ? Math.abs(value) : 0);
+  if (!finite) return `${body}%`;
+  const sign = value < 0 ? "-" : showSign ? "+" : "";
+  return `${sign}${body}%`;
 }
 
-export function formatDate(value?: string, locale = "en-US") {
-  if (!value) {
-    return "Not updated";
-  }
-
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return "Not updated";
-  }
-
+/**
+ * Calendar dates (`YYYY-MM-DD`) stay on that UTC day. Timestamps use `timeZone`,
+ * which the request config shares between server and client.
+ */
+export function formatDate(value: string | undefined, locale: string, timeZone = "UTC", missing = "Not updated") {
+  if (!value) return missing;
+  const dateOnly = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  const date = dateOnly
+    ? new Date(Date.UTC(Number(dateOnly[1]), Number(dateOnly[2]) - 1, Number(dateOnly[3])))
+    : new Date(value);
+  if (Number.isNaN(date.getTime())) return missing;
   return new Intl.DateTimeFormat(locale, {
     month: "short",
     day: "numeric",
     year: "numeric",
+    timeZone: dateOnly ? "UTC" : timeZone,
   }).format(date);
 }
 
-export function formatRelativeTime(value?: string, locale = "en") {
-  if (!value) {
-    return "Unknown";
-  }
+export function formatDateTime(value: string | number | Date | undefined, locale: string, timeZone = "UTC", missing = "Unknown") {
+  if (value == null || value === "") return missing;
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return missing;
+  return new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeStyle: "short", timeZone }).format(date);
+}
 
+export function formatRelativeTime(
+  value: string | undefined,
+  locale: string,
+  labels: { justNow?: string; unknown?: string } = {},
+) {
+  const unknown = labels.unknown ?? "Unknown";
+  if (!value) return unknown;
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return "Unknown";
-  }
+  if (Number.isNaN(date.getTime())) return unknown;
   const diffMs = date.getTime() - Date.now();
   const absMs = Math.abs(diffMs);
+  if (absMs < 60_000) return labels.justNow ?? "just now";
   const units: Array<[Intl.RelativeTimeFormatUnit, number]> = [
     ["day", 86_400_000],
     ["hour", 3_600_000],
     ["minute", 60_000],
   ];
   const rtf = new Intl.RelativeTimeFormat(locale, { numeric: "auto" });
-
   for (const [unit, ms] of units) {
-    if (absMs >= ms) {
-      return rtf.format(Math.round(diffMs / ms), unit);
-    }
+    if (absMs >= ms) return rtf.format(Math.round(diffMs / ms), unit);
   }
+  return labels.justNow ?? "just now";
+}
 
-  return locale === "en" ? "just now" : rtf.format(0, "second");
+export function formatMonth(month: string, locale: string) {
+  return new Intl.DateTimeFormat(locale, { month: "long", year: "numeric", timeZone: "UTC" }).format(new Date(`${month}-01T00:00:00Z`));
+}
+
+/** Sunday-first short weekday names. 2023-01-01 was a Sunday. */
+export function weekdayLabels(locale: string) {
+  const format = new Intl.DateTimeFormat(locale, { weekday: "short", timeZone: "UTC" });
+  return Array.from({ length: 7 }, (_, day) => format.format(new Date(Date.UTC(2023, 0, 1 + day))));
 }

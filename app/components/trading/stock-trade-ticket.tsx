@@ -20,7 +20,7 @@ import { QuoteReviewModal } from "./quote-review-modal";
 import { LimitOrderReviewModal } from "./limit-order-review-modal";
 import { CancelOrderReviewModal } from "./cancel-order-review-modal";
 import { LimitOrderToggle, OrderControls } from "./order-controls";
-import { useT } from "@/i18n/i18n";
+import { useI18n } from "@/i18n/i18n";
 
 type OrderMode = "market" | "limit";
 
@@ -93,7 +93,7 @@ export function StockTradeTicket({ stock, limitZones, onConfirmed }: StockTradeT
   const limitFieldsId = useId();
   const { publicKey, connected } = useWallet();
   const auth = useOrenAuth();
-  const t = useT();
+  const { locale, t } = useI18n();
   const { authenticated, error: walletError, open: openSignIn } = auth;
   const wallet = publicKey?.toBase58();
   const portfolio = usePortfolioStore((state) => state.portfolio);
@@ -196,8 +196,8 @@ export function StockTradeTicket({ stock, limitZones, onConfirmed }: StockTradeT
         : sellQuantity * (stock.priceUsd ?? 0);
   const formattedOutput =
     side === "buy"
-      ? `${formatNumber(estimatedReceive, 6)} ${stock.ticker}`
-      : formatCurrency(estimatedReceive);
+      ? `${formatNumber(estimatedReceive, locale, 6)} ${stock.ticker}`
+      : formatCurrency(estimatedReceive, locale);
   const blockingError =
     tradableRoutes === 0
       ? t("ticket.noRoute")
@@ -221,7 +221,7 @@ export function StockTradeTicket({ stock, limitZones, onConfirmed }: StockTradeT
           ? t("ticket.catalogRoutes", { count: tradableRoutes })
           : t("ticket.noRouteShort");
   const minimumReceivedValue = activeQuote
-    ? `${formatNumber(activeQuote.outputAmount * (1 - activeQuote.slippageBps / 10_000), 6)} ${activeQuote.outputSymbol}`
+    ? `${formatNumber(activeQuote.outputAmount * (1 - activeQuote.slippageBps / 10_000), locale, 6)} ${activeQuote.outputSymbol}`
     : isLoading
       ? t("ticket.fetchingQuote")
       : liveRouteUnavailable
@@ -459,10 +459,10 @@ export function StockTradeTicket({ stock, limitZones, onConfirmed }: StockTradeT
   const inputBalance =
     side === "buy"
       ? typeof cashBalance === "number"
-        ? formatCurrency(cashBalance)
+        ? formatCurrency(cashBalance, locale)
         : auth.authenticated ? t("ticket.loadingBalance") : t("ticket.signInToLoad")
-      : `${formatNumber(stockBalance, 6)} ${stock.ticker}`;
-  const outputEstimate = activeQuote ? `${formatNumber(activeQuote.outputAmount, 6)} ${activeQuote.outputSymbol}` : formattedOutput;
+      : `${formatNumber(stockBalance, locale, 6)} ${stock.ticker}`;
+  const outputEstimate = activeQuote ? `${formatNumber(activeQuote.outputAmount, locale, 6)} ${activeQuote.outputSymbol}` : formattedOutput;
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -515,12 +515,12 @@ export function StockTradeTicket({ stock, limitZones, onConfirmed }: StockTradeT
               <p className="min-w-0 flex-1 truncate text-right font-display text-xl font-semibold">
                 {orderMode === "limit"
                   ? amountIsValid && limitPriceIsValid
-                    ? formatNumber(limitEstimatedReceive, side === "buy" ? 4 : 2)
+                    ? formatNumber(limitEstimatedReceive, locale, side === "buy" ? 4 : 2)
                     : "0"
                   : activeQuote
-                    ? formatNumber(activeQuote.outputAmount, 4)
+                    ? formatNumber(activeQuote.outputAmount, locale, 4)
                     : amountIsValid
-                      ? formatNumber(estimatedReceive, side === "buy" ? 4 : 2)
+                      ? formatNumber(estimatedReceive, locale, side === "buy" ? 4 : 2)
                       : "0"}
               </p>
             </div>
@@ -536,7 +536,7 @@ export function StockTradeTicket({ stock, limitZones, onConfirmed }: StockTradeT
             <div className="rounded-[18px] border border-border bg-panel-subtle px-3 py-2.5">
               <div className="flex items-center justify-between text-xs uppercase tracking-[0.12em] text-muted">
                 <span>{t("ticket.limitPriceUsd")}</span>
-                {stock.priceUsd ? <span>{t("ticket.market", { price: formatCurrency(stock.priceUsd) })}</span> : null}
+                {stock.priceUsd ? <span>{t("ticket.market", { price: formatCurrency(stock.priceUsd, locale) })}</span> : null}
               </div>
               <input
                 aria-label={t("ticket.limitPriceAria")}
@@ -558,7 +558,7 @@ export function StockTradeTicket({ stock, limitZones, onConfirmed }: StockTradeT
                       onClick={() => setLimitPrice(String(zone.preferredUsd))}
                       type="button"
                     >
-                      {t("ticket.taZone", { price: formatCurrency(zone.preferredUsd) })}
+                      {t("ticket.taZone", { price: formatCurrency(zone.preferredUsd, locale) })}
                     </button>
                   ))}
               </div>
@@ -575,23 +575,23 @@ export function StockTradeTicket({ stock, limitZones, onConfirmed }: StockTradeT
               <>
                 <RouteRow label={t("ticket.route")} value={routeValue} />
                 <RouteRow label={t("ticket.minimumReceived")} value={minimumReceivedValue} />
-                <RouteRow label={t("ticket.rate")} value={activeQuote ? `1 ${activeQuote.outputSymbol} ~ ${formatCurrency(activeQuote.estimatedPriceUsd)}` : stock.priceUsd ? formatCurrency(stock.priceUsd) : t("ticket.unavailable")} />
-                <RouteRow label={t("ticket.networkFee")} value={activeQuote?.networkFeeUsd ? formatCurrency(activeQuote.networkFeeUsd, 4) : t("ticket.estimatedByWallet")} />
+                <RouteRow label={t("ticket.rate")} value={activeQuote ? `1 ${activeQuote.outputSymbol} ~ ${formatCurrency(activeQuote.estimatedPriceUsd, locale)}` : stock.priceUsd ? formatCurrency(stock.priceUsd, locale) : t("ticket.unavailable")} />
+                <RouteRow label={t("ticket.networkFee")} value={activeQuote?.networkFeeUsd ? formatCurrency(activeQuote.networkFeeUsd, locale, 4) : t("ticket.estimatedByWallet")} />
               </>
             ) : (
               <>
                 <RouteRow label={t("ticket.orderType")} value={t("ticket.triggerLimit")} />
                 <RouteRow
                   label={t("ticket.limitPrice")}
-                  value={limitPriceIsValid ? formatCurrency(parsedLimitPrice) : t("ticket.enterPrice")}
+                  value={limitPriceIsValid ? formatCurrency(parsedLimitPrice, locale) : t("ticket.enterPrice")}
                 />
                 <RouteRow
                   label={t("ticket.ifFilled")}
                   value={
                     amountIsValid && limitPriceIsValid
                       ? side === "buy"
-                        ? `${formatNumber(limitEstimatedReceive, 6)} ${stock.ticker}`
-                        : formatCurrency(limitEstimatedReceive)
+                        ? `${formatNumber(limitEstimatedReceive, locale, 6)} ${stock.ticker}`
+                        : formatCurrency(limitEstimatedReceive, locale)
                       : "—"
                   }
                 />
@@ -619,9 +619,9 @@ export function StockTradeTicket({ stock, limitZones, onConfirmed }: StockTradeT
                 <div className="flex items-center justify-between gap-3 text-xs" key={order.orderKey}>
                   <div>
                     <p className="font-semibold">
-                      {t(order.side === "buy" ? "ticket.orderBuyAt" : "ticket.orderSellAt", { price: formatCurrency(order.limitPriceUsd) })}
+                      {t(order.side === "buy" ? "ticket.orderBuyAt" : "ticket.orderSellAt", { price: formatCurrency(order.limitPriceUsd, locale) })}
                     </p>
-                    <p className="text-muted">{formatCurrency(order.amountUsd ?? 0)}</p>
+                    <p className="text-muted">{formatCurrency(order.amountUsd ?? 0, locale)}</p>
                   </div>
                   <Button
                     disabled={!financialExecutionEnabled || limitFlowStatus === "preparing" || limitFlowStatus === "signing"}

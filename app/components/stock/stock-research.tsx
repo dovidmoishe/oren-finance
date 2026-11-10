@@ -13,15 +13,15 @@ import type {
   CompanyResearchData,
   StockResearch,
 } from "@/types";
-import { useT, type MessageKey, type Translate } from "@/i18n/i18n";
+import { MessageKeyError, useI18n, useShownMessage, shownFromUnknown, type MessageKey, type ShownMessage, type Translate } from "@/i18n/i18n";
 
 export function StockResearchPanel({ assetId }: { assetId: string }) {
   const auth = useOrenAuth();
-  const t = useT();
+  const { locale, timeZone, t } = useI18n();
   const [loadedReport, setReport] = useState<StockResearch>();
   const [reportWallet, setReportWallet] = useState<string>();
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string>();
+  const [error, setError] = useState<ShownMessage>();
   const requestId = useRef(0);
   const wallet = auth.address;
   const report =
@@ -38,6 +38,7 @@ export function StockResearchPanel({ assetId }: { assetId: string }) {
       item.action?.toUpperCase() !== "EXIT" &&
       item.author.toLowerCase() !== bullishView?.author.toLowerCase(),
   );
+  const errorText = useShownMessage(error);
   const getAccessToken = auth.getAccessToken;
 
   const refresh = useCallback(async () => {
@@ -47,21 +48,17 @@ export function StockResearchPanel({ assetId }: { assetId: string }) {
     setError(undefined);
     try {
       const token = await getAccessToken();
-      if (!token) throw new Error(t("research.signInToLoad"));
+      if (!token) throw new MessageKeyError("research.signInToLoad");
       const next = await getStockResearch(assetId, wallet, token);
       if (current !== requestId.current) return;
       setReport(next);
       setReportWallet(wallet);
     } catch (cause) {
       if (current === requestId.current)
-        setError(
-          cause instanceof Error ? cause.message : t("research.unavailable"),
-        );
+        setError(shownFromUnknown(cause, "research.unavailable"));
     } finally {
       if (current === requestId.current) setLoading(false);
     }
-    // `t` only labels errors; a language change must not refetch research.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [assetId, wallet, getAccessToken]);
 
   useEffect(() => {
@@ -113,9 +110,9 @@ export function StockResearchPanel({ assetId }: { assetId: string }) {
           {t("research.signedOut")}
         </p>
       ) : null}
-      {error ? (
+      {errorText ? (
         <p role="alert" className="mt-4 text-sm text-red-400">
-          {error}
+          {errorText}
         </p>
       ) : null}
       {report ? (
@@ -130,7 +127,7 @@ export function StockResearchPanel({ assetId }: { assetId: string }) {
               <p className="mt-3 text-xs text-muted">
                 {t("research.scoreLine", {
                   score: Math.round(report.analysis.data.opportunityScore),
-                  date: dateLabel(t, report.analysis.observedAt),
+                  date: dateLabel(t, report.analysis.observedAt, locale, timeZone),
                 })}
               </p>
             ) : null}
@@ -162,7 +159,7 @@ export function StockResearchPanel({ assetId }: { assetId: string }) {
                         {item.headline}
                       </a>
                       <span className="ml-1 text-muted">
-                        · {dateLabel(t, item.publishedAt)}
+                        · {dateLabel(t, item.publishedAt, locale, timeZone)}
                       </span>
                     </li>
                   ))}
@@ -195,14 +192,14 @@ export function StockResearchPanel({ assetId }: { assetId: string }) {
                     writers: report.opinions.data.distinctAuthors,
                     mentions: report.opinions.data.mentionCount,
                     coverage: report.opinions.data.coverage,
-                    date: dateLabel(t, report.opinions.observedAt),
+                    date: dateLabel(t, report.opinions.observedAt, locale, timeZone),
                   })}
                 </p>
                 {report.opinions.data.window ? (
                   <p className="mt-1 text-xs text-muted">
                     {t("research.covered", {
-                      from: dateLabel(t, report.opinions.data.window.from),
-                      to: dateLabel(t, report.opinions.data.window.to),
+                      from: dateLabel(t, report.opinions.data.window.from, locale, timeZone),
+                      to: dateLabel(t, report.opinions.data.window.to, locale, timeZone),
                     })}
                   </p>
                 ) : null}
@@ -229,7 +226,7 @@ export function StockResearchPanel({ assetId }: { assetId: string }) {
                       <p className="mt-1 text-xs text-muted">
                         {item.stance ?? t("research.unstated")}
                         {item.action ? ` · ${item.action}` : ""} ·{" "}
-                        {dateLabel(t, item.date)}
+                        {dateLabel(t, item.date, locale, timeZone)}
                       </p>
                       <p className="mt-1 text-sm leading-5">{item.summary}</p>
                     </div>
@@ -293,26 +290,20 @@ export function StockResearchPanel({ assetId }: { assetId: string }) {
   );
 }
 
-function dateLabel(t: Translate, value?: string) {
-  const dateOnly = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value ?? "");
-  if (dateOnly) {
-    const date = new Date(
-      Date.UTC(Number(dateOnly[1]), Number(dateOnly[2]) - 1, Number(dateOnly[3])),
-    );
-    return new Intl.DateTimeFormat("en-US", {
-      timeZone: "UTC",
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    }).format(date);
-  }
-  return value && Number.isFinite(Date.parse(value))
-    ? new Date(value).toLocaleDateString(undefined, {
-        year: "numeric",
-        month: "short",
-        day: "numeric",
-      })
-    : t("research.timeUnavailable");
+function dateLabel(t: Translate, value: string | undefined, locale: string, timeZone: string) {
+  const missing = t("research.timeUnavailable");
+  if (!value) return missing;
+  const dateOnly = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  const date = dateOnly
+    ? new Date(Date.UTC(Number(dateOnly[1]), Number(dateOnly[2]) - 1, Number(dateOnly[3])))
+    : new Date(value);
+  if (Number.isNaN(date.getTime())) return missing;
+  return new Intl.DateTimeFormat(locale, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    timeZone: dateOnly ? "UTC" : timeZone,
+  }).format(date);
 }
 
 const FILING_LINK_CLASS =
@@ -330,10 +321,10 @@ function CompanyFilings({
   company: NonNullable<StockResearch["company"]>;
   onOpenSource: () => void;
 }) {
-  const t = useT();
+  const { locale, timeZone, t } = useI18n();
   const data = company.data;
-  const cards = data ? companyCards(t, data) : [];
-  const filings = sourceFilings(t, data);
+  const cards = data ? companyCards(t, data, locale, timeZone) : [];
+  const filings = sourceFilings(t, data, locale, timeZone);
   return (
     <article className="rounded-2xl border border-border bg-panel-subtle p-4 lg:col-span-2">
       <h3 className="text-sm font-semibold">{t("research.filings")}</h3>
@@ -426,7 +417,7 @@ function CompanyFilings({
       ) : null}
       {company.fetchedAt ? (
         <p className="mt-2 text-xs text-muted">
-          {t("research.fetched", { date: dateLabel(t, company.fetchedAt) })}
+          {t("research.fetched", { date: dateLabel(t, company.fetchedAt, locale, timeZone) })}
         </p>
       ) : null}
     </article>
@@ -501,7 +492,7 @@ function MetricFact({
   note?: string;
   onOpenSource: () => void;
 }) {
-  const t = useT();
+  const { locale, timeZone, t } = useI18n();
   const sources = metricSources(metric);
   return (
     <div className="flex items-start justify-between gap-3">
@@ -529,7 +520,7 @@ function MetricFact({
           >
             {t("research.citationFiled", {
               form: source.form,
-              date: dateLabel(t, source.filed),
+              date: dateLabel(t, source.filed, locale, timeZone),
             })}
           </a>
         ))}
@@ -541,6 +532,8 @@ function MetricFact({
 function companyCards(
   t: Translate,
   data: CompanyResearchData,
+  locale: string,
+  timeZone: string,
 ): Array<{
   key: string;
   title: string;
@@ -559,7 +552,7 @@ function companyCards(
       key: "quarter",
       title: t("research.latestQuarter"),
       period: fiscalLabel(period),
-      range: rangeLabel(t, period.start, period.end),
+      range: rangeLabel(t, period.start, period.end, locale, timeZone),
       revenue: period.revenue,
       netIncome: period.netIncome,
       margin: period.operatingMargin,
@@ -579,7 +572,7 @@ function companyCards(
       period: t("research.ttmPeriod"),
       range:
         data.ttm.start && data.ttm.end
-          ? rangeLabel(t, data.ttm.start, data.ttm.end)
+          ? rangeLabel(t, data.ttm.start, data.ttm.end, locale, timeZone)
           : t("research.periodNotStated"),
       revenue: data.ttm.revenue,
       netIncome: data.ttm.netIncome,
@@ -594,7 +587,7 @@ function companyCards(
       key: "year",
       title: t("research.fullYear"),
       period: fiscalLabel(period),
-      range: rangeLabel(t, period.start, period.end),
+      range: rangeLabel(t, period.start, period.end, locale, timeZone),
       revenue: period.revenue,
       netIncome: period.netIncome,
       margin: period.operatingMargin,
@@ -605,16 +598,16 @@ function companyCards(
   return cards;
 }
 
-function sourceFilings(t: Translate, data: CompanyResearchData | undefined) {
+function sourceFilings(t: Translate, data: CompanyResearchData | undefined, locale: string, timeZone: string) {
   const rows = (data?.filings ?? [])
     .filter((filing) => filing.sourceUrl.startsWith(SEC_ARCHIVE))
     .map((filing) => ({
       key: filing.accession,
       form: filing.form,
       period: filing.reportDate
-        ? t("research.periodEnded", { date: dateLabel(t, filing.reportDate) })
+        ? t("research.periodEnded", { date: dateLabel(t, filing.reportDate, locale, timeZone) })
         : t("research.periodNotStated"),
-      filed: dateLabel(t, filing.filed),
+      filed: dateLabel(t, filing.filed, locale, timeZone),
       filedSort: filing.filed,
       url: filing.sourceUrl,
     }));
@@ -658,11 +651,11 @@ function fiscalLabel(period: CompanyPeriodView) {
     : `FY${period.fiscalYear}`;
 }
 
-function rangeLabel(t: Translate, start?: string, end?: string) {
+function rangeLabel(t: Translate, start: string | undefined, end: string | undefined, locale: string, timeZone: string) {
   if (!start || !end) return t("research.periodNotStated");
   return t("research.range", {
-    from: dateLabel(t, start),
-    to: dateLabel(t, end),
+    from: dateLabel(t, start, locale, timeZone),
+    to: dateLabel(t, end, locale, timeZone),
   });
 }
 

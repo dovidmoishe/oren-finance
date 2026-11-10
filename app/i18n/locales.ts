@@ -1,4 +1,4 @@
-// Imported by the root layout (a server component), so no hooks here.
+// Shared locale list. Imported by server and client code, so no hooks or headers.
 
 export const LOCALES = [
   { code: "en", name: "English" },
@@ -15,11 +15,80 @@ export const LOCALES = [
 export type Locale = (typeof LOCALES)[number]["code"];
 
 export const DEFAULT_LOCALE: Locale = "en";
-export const LOCALE_STORAGE_KEY = "oren-locale";
+
+/** next-intl's conventional name, read by the server on each request. */
+export const LOCALE_COOKIE = "NEXT_LOCALE";
+
+/** Browser zone for date formatting. The page refreshes once after it is saved. */
+export const TIME_ZONE_COOKIE = "NEXT_TIMEZONE";
+
+/** Previous client-only preference. Copied into the cookie once. */
+export const LEGACY_LOCALE_STORAGE_KEY = "oren-locale";
+
+export const LOCALE_MAX_AGE = 60 * 60 * 24 * 365;
+
+const CODES = new Set<string>(LOCALES.map((locale) => locale.code));
 
 export function isLocale(value: unknown): value is Locale {
-  return LOCALES.some((locale) => locale.code === value);
+  return typeof value === "string" && CODES.has(value);
 }
 
-/** Sets `<html lang>` from the saved choice before the page paints. */
-export const localeBootScript = `(function(){try{var v=localStorage.getItem(${JSON.stringify(LOCALE_STORAGE_KEY)});if(${JSON.stringify(LOCALES.map((l) => l.code))}.indexOf(v)>0)document.documentElement.lang=v}catch(e){}})()`;
+export function isTimeZone(value: unknown): value is string {
+  if (typeof value !== "string" || value.length === 0 || value.length > 80) return false;
+  try {
+    Intl.DateTimeFormat("en", { timeZone: value }).format(0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Open Graph locale tags use underscores. English has no region in our catalog. */
+export function openGraphLocale(locale: Locale): string {
+  if (locale === "en") return "en_US";
+  return locale.replace("-", "_");
+}
+
+function languageRanges(header: string): string[] {
+  return header
+    .split(",")
+    .map((part) => {
+      const [tag, ...params] = part.trim().split(";");
+      const quality = params.find((param) => param.trim().toLowerCase().startsWith("q="));
+      const q = quality ? Number(quality.split("=")[1]) : 1;
+      return { tag: tag.trim().toLowerCase(), q: Number.isFinite(q) ? q : 0 };
+    })
+    .filter((item) => item.tag && item.tag !== "*" && item.q > 0)
+    .sort((a, b) => b.q - a.q)
+    .map((item) => item.tag);
+}
+
+function matchRange(range: string): Locale | undefined {
+  if (isLocale(range)) return range;
+  const folded = range.toLowerCase();
+  const exact = LOCALES.find((locale) => locale.code.toLowerCase() === folded);
+  if (exact) return exact.code;
+  if (folded === "zh" || folded.startsWith("zh-hans") || folded === "zh-cn" || folded.startsWith("zh-hans-")) return "zh-CN";
+  if (folded.startsWith("zh-hant") || folded === "zh-tw" || folded === "zh-hk" || folded === "zh-mo") return "zh-TW";
+  // The catalog has Brazilian Portuguese only.
+  if (folded === "pt" || folded.startsWith("pt-")) return "pt-BR";
+  // Former Indonesian tag.
+  if (folded === "in" || folded.startsWith("in-")) return "id";
+  const primary = folded.split("-")[0];
+  return LOCALES.find((locale) => locale.code.toLowerCase() === primary)?.code;
+}
+
+/**
+ * Explicit cookie, then the best Accept-Language match, then English.
+ * An invalid cookie does not block negotiation.
+ */
+export function resolveLocale(cookieValue: string | undefined, acceptLanguage: string | null | undefined): Locale {
+  if (isLocale(cookieValue)) return cookieValue;
+  if (acceptLanguage) {
+    for (const range of languageRanges(acceptLanguage)) {
+      const match = matchRange(range);
+      if (match) return match;
+    }
+  }
+  return DEFAULT_LOCALE;
+}

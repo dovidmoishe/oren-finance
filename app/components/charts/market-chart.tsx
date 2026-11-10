@@ -132,8 +132,8 @@ export function MarketChart({
   const [libraryFailed, setLibraryFailed] = useState(false);
   const canUseCandles = candleData.length > 0;
   const effectiveMode = mode === "candles" && canUseCandles ? "candles" : "line";
-  const { locale, t } = useI18n();
-  const formattedDate = dateLabel ?? formatDate(lineData.at(-1)?.timestamp ?? candleData.at(-1)?.timestamp, locale);
+  const { locale, timeZone, t } = useI18n();
+  const formattedDate = dateLabel ?? formatDate(lineData.at(-1)?.timestamp ?? candleData.at(-1)?.timestamp, locale, timeZone, t("common.notUpdated"));
   const lineSeriesData = useMemo(() => buildLineData(lineData), [lineData]);
   const candleSeriesData = useMemo(() => buildCandleData(candleData), [candleData]);
   const hasData = effectiveMode === "candles" ? candleSeriesData.length > 0 : lineSeriesData.length > 0;
@@ -237,8 +237,8 @@ export function MarketChart({
         setTooltip({
           x: param.point.x,
           y: param.point.y,
-          value: formatCurrency(rawValue),
-          date: epochSeconds ? formatDate(new Date(epochSeconds * 1000).toISOString()) : "",
+          value: formatCurrency(rawValue, locale),
+          date: epochSeconds ? formatDate(new Date(epochSeconds * 1000).toISOString(), locale, timeZone, "") : "",
         });
       };
 
@@ -258,16 +258,16 @@ export function MarketChart({
       disposed = true;
       dispose?.();
     };
-  }, [candleSeriesData, effectiveMode, error, hasData, lineSeriesData, loading]);
+  }, [candleSeriesData, effectiveMode, error, hasData, lineSeriesData, loading, locale, timeZone]);
 
   return (
     <section className={cn("flex flex-col rounded-[24px] border border-border bg-panel shadow-[0_18px_60px_rgba(23,23,23,0.025)]", compact ? "p-3" : "p-[var(--app-card-padding,1.5rem)]", className)}>
       <div className="flex shrink-0 flex-wrap items-start justify-between gap-4">
         <div>
-          <p className={cn("font-display font-semibold tracking-normal", compact ? "text-3xl" : "text-6xl")}>{formatCurrency(value)}</p>
+          <p className={cn("font-display font-semibold tracking-normal", compact ? "text-3xl" : "text-6xl")}>{formatCurrency(value, locale)}</p>
           <div className={cn("mt-1 flex items-center gap-3", compact ? "text-xs" : "text-sm")}>
             <span className={cn((changePct ?? 0) < 0 ? "text-negative" : "text-positive")}>
-              {(changePct ?? 0) < 0 ? "▼" : "▲"} {formatPercent(changePct)}
+              {(changePct ?? 0) < 0 ? "▼" : "▲"} {formatPercent(changePct, locale)}
             </span>
             <span className="text-muted">{formattedDate}</span>
           </div>

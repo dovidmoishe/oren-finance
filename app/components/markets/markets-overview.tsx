@@ -8,7 +8,7 @@ import { Button, Skeleton, cn, formatCurrency, formatPercent } from "@/component
 import { getStockChart } from "@/services";
 import { useMarketStore } from "@/store";
 import type { MarketCandle, StockSummary } from "@/types";
-import { useT } from "@/i18n/i18n";
+import { useI18n, useT } from "@/i18n/i18n";
 
 const sparklineCache = new Map<string, MarketCandle[]>();
 
@@ -155,6 +155,7 @@ function formatCompactCurrency(value?: number) {
 }
 
 function StockRow({ stock }: { stock: StockSummary }) {
+  const { locale } = useI18n();
   const positive = (stock.change24hPct ?? 0) >= 0;
 
   return (
@@ -170,9 +171,9 @@ function StockRow({ stock }: { stock: StockSummary }) {
           <span className="ml-2 font-mono text-muted">${stock.ticker}</span>
         </div>
       </div>
-      <div className="font-mono">{formatCurrency(stock.priceUsd)}</div>
+      <div className="font-mono">{formatCurrency(stock.priceUsd, locale)}</div>
       <div className={cn("font-mono", positive ? "text-positive" : "text-negative")}>
-        {positive ? "▲" : "▼"} {formatPercent(Math.abs(stock.change24hPct ?? 0), false)}
+        {positive ? "▲" : "▼"} {formatPercent(Math.abs(stock.change24hPct ?? 0), locale, false)}
       </div>
       <Sparkline stock={stock} />
       <div className="font-mono">{formatCompactCurrency(stock.liquidityUsd)}</div>
@@ -218,7 +219,7 @@ export function MarketsOverview() {
   const search = useMarketStore((state) => state.search);
   const loadMoreRef = useRef<HTMLDivElement>(null);
   const [query, setQuery] = useState("");
-  const t = useT();
+  const { locale, t } = useI18n();
 
   useEffect(() => {
     void loadMarkets();
@@ -314,7 +315,7 @@ export function MarketsOverview() {
                   <p className="mt-1 line-clamp-1 text-sm text-foreground/70">{item.stock.name}</p>
                 </div>
                 <div className="text-right">
-                  <p className="font-mono text-sm">{formatCurrency(item.stock.priceUsd)}</p>
+                  <p className="font-mono text-sm">{formatCurrency(item.stock.priceUsd, locale)}</p>
                   <ChangePill positive={(item.stock.change24hPct ?? 0) >= 0} value={item.stock.change24hPct} />
                 </div>
               </Link>
@@ -370,9 +371,10 @@ export function MarketsOverview() {
 }
 
 function ChangePill({ positive, value }: { positive: boolean; value?: number }) {
+  const { locale } = useI18n();
   return (
     <span className={cn("mt-2 inline-flex rounded-full bg-panel px-2 py-1 text-xs font-semibold", positive ? "text-foreground" : "text-negative")}>
-      {positive ? "▲" : "▼"} {formatPercent(Math.abs(value ?? 0), false)}
+      {positive ? "▲" : "▼"} {formatPercent(Math.abs(value ?? 0), locale, false)}
     </span>
   );
 }

@@ -12,7 +12,7 @@ import { Card, CardContent, CardHeader, cn, formatCurrency, formatNumber } from 
 import type { BasketExecutionProgress, BasketLegStatus, BasketResponse } from "@/types";
 import { StockLogo } from "@/components/stock/stock-logo";
 import { MarketSessionNotice } from "./market-session-notice";
-import { useT, type MessageKey } from "@/i18n/i18n";
+import { useI18n, type MessageKey } from "@/i18n/i18n";
 
 interface BasketReviewProps {
   basket: BasketResponse;
@@ -50,7 +50,7 @@ const statusTone: Record<BasketLegStatus, string> = {
 };
 
 export function BasketReview({ basket, progress }: BasketReviewProps) {
-  const t = useT();
+  const { locale, t } = useI18n();
   const legsByAsset = new Map(progress?.legs.map((leg) => [leg.assetId, leg]));
   const completeCount = progress?.legs.filter((leg) => leg.status === "confirmed").length ?? 0;
   const failedCount = progress?.legs.filter((leg) => leg.status === "failed").length ?? 0;
@@ -61,7 +61,7 @@ export function BasketReview({ basket, progress }: BasketReviewProps) {
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <p className="text-xs uppercase tracking-[0.12em] text-muted">{t("basket.reviewEyebrow")}</p>
-            <h2 className="mt-1 font-display text-xl font-semibold">{t("basket.investing", { amount: formatCurrency(basket.totalAmountUsd) })}</h2>
+            <h2 className="mt-1 font-display text-xl font-semibold">{t("basket.investing", { amount: formatCurrency(basket.totalAmountUsd, locale) })}</h2>
             {basket.thesis ? <p className="mt-2 max-w-2xl text-sm leading-6 text-muted">{basket.thesis}</p> : null}
           </div>
           <div className="rounded-full bg-accent-lavender px-3 py-1 text-xs font-semibold capitalize">
@@ -100,14 +100,14 @@ export function BasketReview({ basket, progress }: BasketReviewProps) {
                       <div className="flex items-center gap-2">
                         <h3 className="font-display text-lg font-semibold">{allocation.ticker}</h3>
                         <span className="rounded-full bg-panel-subtle px-2 py-1 font-mono text-[11px] text-muted">
-                          {formatNumber(allocation.weightPercent, 1)}%
+                          {formatNumber(allocation.weightPercent, locale, 1)}%
                         </span>
                       </div>
                       {allocation.name ? <p className="text-xs text-muted">{allocation.name}</p> : null}
                     </div>
                   </div>
                   <div className="text-right">
-                    <p className="font-mono text-sm font-semibold">{formatCurrency(allocation.amountUsd)}</p>
+                    <p className="font-mono text-sm font-semibold">{formatCurrency(allocation.amountUsd, locale)}</p>
                     <div className={cn("mt-2 inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[11px] font-semibold", statusTone[status])}>
                       <HugeiconsIcon className={status === "quoting" || status === "submitted" ? "animate-spin" : undefined} color="currentColor" icon={Icon} size={12} strokeWidth={1.8} />
                       {t(statusCopy[status])}

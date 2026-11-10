@@ -56,10 +56,11 @@ function TraderAvatar({ row }: { row: LeaderboardRow }) {
 }
 
 function PnlText({ row }: { row: LeaderboardRow }) {
+  const { locale } = useI18n();
   const positive = row.pnlPct >= 0;
   return (
     <div className={cn("font-mono font-semibold", positive ? "text-positive" : "text-negative")}>
-      {positive ? "▲" : "▼"} {formatPercent(Math.abs(row.pnlPct), false)}
+      {positive ? "▲" : "▼"} {formatPercent(Math.abs(row.pnlPct), locale, false)}
     </div>
   );
 }
@@ -175,7 +176,7 @@ export function Leaderboard() {
   const isLoading = useSocialStore((state) => state.isLoading);
   const error = useSocialStore((state) => state.error);
   const loadLeaderboard = useSocialStore((state) => state.loadLeaderboard);
-  const t = useT();
+  const { locale, t } = useI18n();
 
   useEffect(() => {
     void loadLeaderboard("30D");
@@ -184,8 +185,8 @@ export function Leaderboard() {
   const rows = leaderboard?.rows ?? [];
   const stats = leaderboard?.stats;
   const topName = stats?.topPerformer?.displayName ?? t("leaderboard.noLeader");
-  const topReturn = stats?.topPerformer ? formatPercent(stats.topPerformer.pnlPct) : "0.00%";
-  const averageReturn = formatPercent(stats?.averagePnlPct ?? 0);
+  const topReturn = stats?.topPerformer ? formatPercent(stats.topPerformer.pnlPct, locale) : "0.00%";
+  const averageReturn = formatPercent(stats?.averagePnlPct ?? 0, locale);
 
   const skeletonRows = useMemo(() => Array.from({ length: 8 }), []);
 
@@ -204,7 +205,7 @@ export function Leaderboard() {
 
       <div className="grid gap-4 md:grid-cols-3">
         <MetricBand className="bg-accent-yellow" detail={topName} label={t("leaderboard.topPerformer")} value={topReturn} />
-        <MetricBand className="bg-accent-pink" detail={t("leaderboard.optedIn")} label={t("leaderboard.publicTraders")} value={formatNumber(stats?.totalPublicTraders ?? 0, 0)} />
+        <MetricBand className="bg-accent-pink" detail={t("leaderboard.optedIn")} label={t("leaderboard.publicTraders")} value={formatNumber(stats?.totalPublicTraders ?? 0, locale, 0)} />
         <MetricBand className="bg-accent-lavender" detail={t("leaderboard.observedReturn", { timeframe })} label={t("leaderboard.averagePnl")} value={averageReturn} />
       </div>
 
@@ -273,7 +274,7 @@ export function Leaderboard() {
 }
 
 function LeaderboardTableRow({ row }: { row: LeaderboardRow }) {
-  const t = useT();
+  const { locale, t } = useI18n();
   return (
     <Link
       className="grid min-w-[940px] grid-cols-[80px_minmax(240px,1.3fr)_130px_130px_150px_150px_120px] items-center border-t border-border px-4 py-4 text-sm transition-colors hover:bg-panel-subtle"
@@ -288,8 +289,8 @@ function LeaderboardTableRow({ row }: { row: LeaderboardRow }) {
         </div>
       </div>
       <PnlText row={row} />
-      <div className={cn("font-mono", row.pnlUsd >= 0 ? "text-positive" : "text-negative")}>{formatCurrency(row.pnlUsd)}</div>
-      <div className="font-mono">{formatCurrency(row.totalValueUsd)}</div>
+      <div className={cn("font-mono", row.pnlUsd >= 0 ? "text-positive" : "text-negative")}>{formatCurrency(row.pnlUsd, locale)}</div>
+      <div className="font-mono">{formatCurrency(row.totalValueUsd, locale)}</div>
       <div className="font-mono">{row.topHolding?.ticker ?? t("leaderboard.none")}</div>
       <div className="capitalize">{row.riskLabel}</div>
     </Link>
@@ -297,7 +298,7 @@ function LeaderboardTableRow({ row }: { row: LeaderboardRow }) {
 }
 
 function LeaderboardMobileRow({ row }: { row: LeaderboardRow }) {
-  const { locale, t } = useI18n();
+  const { locale, timeZone, t } = useI18n();
   return (
     <Link className="block rounded-[20px] border border-border bg-panel p-4 shadow-sm" href={`/app/leaderboard/${row.slug}`}>
       <div className="flex items-start justify-between gap-3">
@@ -311,10 +312,10 @@ function LeaderboardMobileRow({ row }: { row: LeaderboardRow }) {
         <HugeiconsIcon color="currentColor" icon={ArrowUpRight01Icon} size={17} strokeWidth={1.8} />
       </div>
       <div className="mt-4 grid grid-cols-2 gap-3 text-xs">
-        <Metric label={t("leaderboard.pnl")} value={`${formatPercent(row.pnlPct)} · ${formatCurrency(row.pnlUsd)}`} />
-        <Metric label={t("leaderboard.portfolio")} value={formatCurrency(row.totalValueUsd)} />
+        <Metric label={t("leaderboard.pnl")} value={`${formatPercent(row.pnlPct, locale)} · ${formatCurrency(row.pnlUsd, locale)}`} />
+        <Metric label={t("leaderboard.portfolio")} value={formatCurrency(row.totalValueUsd, locale)} />
         <Metric label={t("leaderboard.topHolding")} value={row.topHolding?.ticker ?? t("leaderboard.none")} />
-        <Metric label={t("leaderboard.updated")} value={formatDate(row.updatedAt, locale)} />
+        <Metric label={t("leaderboard.updated")} value={formatDate(row.updatedAt, locale, timeZone, t("common.notUpdated"))} />
       </div>
     </Link>
   );

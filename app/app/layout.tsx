@@ -1,8 +1,12 @@
 import type { Metadata } from "next";
 import localFont from "next/font/local";
+import { NextIntlClientProvider } from "next-intl";
+import { getLocale, getMessages, getTimeZone } from "next-intl/server";
 import "./globals.css";
 import { PreviewBanner } from "@/components/preview-banner";
-import { localeBootScript } from "@/i18n/locales";
+import { IntlErrorProvider } from "@/i18n/intl-error";
+import { LocaleSync } from "@/i18n/locale-sync";
+import { openGraphLocale } from "@/i18n/locales";
 
 const neueFreigeist = localFont({
   variable: "--font-neue-freigeist",
@@ -32,25 +36,35 @@ const neueFreigeist = localFont({
   ],
 });
 
-export const metadata: Metadata = {
-  metadataBase: new URL("https://oren.finance"),
-  title: "Oren",
-  description: "Tokenized equities portfolio and investing copilot.",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const locale = await getLocale();
+  return {
+    metadataBase: new URL("https://oren.finance"),
+    title: "Oren",
+    description: "Tokenized equities portfolio and investing copilot.",
+    openGraph: { locale: openGraphLocale(locale) },
+  };
+}
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default async function RootLayout({ children }: LayoutProps<"/">) {
+  const locale = await getLocale();
+  const messages = await getMessages();
+  const timeZone = await getTimeZone();
   return (
     <html
-      lang="en"
+      lang={locale}
+      dir="ltr"
       className={`${neueFreigeist.variable} h-full antialiased`}
       suppressHydrationWarning
     >
-      <head>
-        <script dangerouslySetInnerHTML={{ __html: localeBootScript }} />
-      </head>
       <body className="min-h-full">
-        <PreviewBanner />
-        {children}
+        <NextIntlClientProvider locale={locale} messages={messages} timeZone={timeZone}>
+          <IntlErrorProvider>
+            <LocaleSync />
+            <PreviewBanner />
+            {children}
+          </IntlErrorProvider>
+        </NextIntlClientProvider>
       </body>
     </html>
   );

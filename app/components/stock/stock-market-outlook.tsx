@@ -9,12 +9,12 @@ import { useI18n, type MessageKey, type MessageValues, type Translate } from "@/
 
 const trendLabels: Record<"uptrend" | "downtrend" | "range", MessageKey> = { uptrend: "stock.uptrend", downtrend: "stock.downtrend", range: "stock.range" };
 
-function percent(t: Translate, value?: number, signed = true) {
-  return typeof value === "number" && Number.isFinite(value) ? formatPercent(value, signed) : t("stock.unavailable");
+function percent(t: Translate, locale: string, value?: number, signed = true) {
+  return typeof value === "number" && Number.isFinite(value) ? formatPercent(value, locale, signed) : t("stock.unavailable");
 }
 
-function metric(t: Translate, value?: number) {
-  return typeof value === "number" && Number.isFinite(value) ? formatNumber(value, 2) : t("stock.unavailable");
+function metric(t: Translate, locale: string, value?: number) {
+  return typeof value === "number" && Number.isFinite(value) ? formatNumber(value, locale, 2) : t("stock.unavailable");
 }
 
 const trendKeys = {
@@ -33,14 +33,14 @@ export function StockMarketOutlook({ stock, analysis, news }: {
   const trend = brief ? t(trendLabels[brief.regime]) : t("stock.unavailable");
   const momentum = analysis?.signals.momentum7d;
   const hasMomentum = typeof momentum === "number" && Number.isFinite(momentum);
-  const momentumValues: MessageValues = hasMomentum ? { ticker: stock.ticker, percent: formatPercent(Math.abs(momentum), false) } : { ticker: stock.ticker };
+  const momentumValues: MessageValues = hasMomentum ? { ticker: stock.ticker, percent: formatPercent(Math.abs(momentum), locale, false) } : { ticker: stock.ticker };
   const takeaway = brief
     ? t(trendKeys[brief.regime][hasMomentum ? (momentum >= 0 ? "up" : "down") : "none"], momentumValues)
     : hasMomentum
       ? t(momentum >= 0 ? "stock.momentumUp" : "stock.momentumDown", momentumValues)
       : t("stock.noOutlook");
   const risk = brief?.risks[0] ?? (typeof analysis?.signals.volatility30d === "number"
-    ? t("stock.volatilityRisk", { percent: percent(t, analysis.signals.volatility30d, false) })
+    ? t("stock.volatilityRisk", { percent: percent(t, locale, analysis.signals.volatility30d, false) })
     : undefined);
   const score = analysis?.opportunityScore;
 
@@ -65,8 +65,8 @@ export function StockMarketOutlook({ stock, analysis, news }: {
             <dl className="mt-5 grid grid-cols-3 gap-3 sm:max-w-xl sm:gap-8">
               {[
                 [t("stock.trend"), trend],
-                [t("stock.momentum7d"), percent(t, momentum)],
-                [t("stock.volatility30d"), percent(t, analysis.signals.volatility30d, false)],
+                [t("stock.momentum7d"), percent(t, locale, momentum)],
+                [t("stock.volatility30d"), percent(t, locale, analysis.signals.volatility30d, false)],
               ].map(([label, value]) => (
                 <div key={label}>
                   <dt className="text-xs text-muted">{label}</dt>
@@ -90,19 +90,19 @@ export function StockMarketOutlook({ stock, analysis, news }: {
             {brief ? <TechnicalBriefPanel brief={brief} /> : null}
             <dl className="grid grid-cols-2 gap-x-6 gap-y-4 text-xs sm:grid-cols-3">
               {[
-                [t("stock.momentum30d"), percent(t, analysis.signals.momentum30d)],
-                ...(!brief ? [[t("stock.rsi14"), metric(t, analysis.signals.rsi14)]] : []),
-                [t("stock.volumeTrend"), percent(t, analysis.signals.volumeTrend)],
-                [t("stock.liquidity"), typeof stock.liquidityUsd === "number" ? formatCurrency(stock.liquidityUsd, 0) : t("stock.unavailable")],
-                [t("stock.liquidityScore"), typeof analysis.signals.liquidityScore === "number" ? `${metric(t, analysis.signals.liquidityScore)} / 100` : t("stock.unavailable")],
-                [t("stock.sma20"), typeof analysis.signals.sma20 === "number" ? formatCurrency(analysis.signals.sma20) : t("stock.unavailable")],
-                [t("stock.sma50"), typeof analysis.signals.sma50 === "number" ? formatCurrency(analysis.signals.sma50) : t("stock.unavailable")],
+                [t("stock.momentum30d"), percent(t, locale, analysis.signals.momentum30d)],
+                ...(!brief ? [[t("stock.rsi14"), metric(t, locale, analysis.signals.rsi14)]] : []),
+                [t("stock.volumeTrend"), percent(t, locale, analysis.signals.volumeTrend)],
+                [t("stock.liquidity"), typeof stock.liquidityUsd === "number" ? formatCurrency(stock.liquidityUsd, locale, 0) : t("stock.unavailable")],
+                [t("stock.liquidityScore"), typeof analysis.signals.liquidityScore === "number" ? `${metric(t, locale, analysis.signals.liquidityScore)} / 100` : t("stock.unavailable")],
+                [t("stock.sma20"), typeof analysis.signals.sma20 === "number" ? formatCurrency(analysis.signals.sma20, locale) : t("stock.unavailable")],
+                [t("stock.sma50"), typeof analysis.signals.sma50 === "number" ? formatCurrency(analysis.signals.sma50, locale) : t("stock.unavailable")],
               ].map(([label, value]) => (
                 <div key={label}><dt className="text-muted">{label}</dt><dd className="mt-1 font-mono">{value}</dd></div>
               ))}
             </dl>
             {analysis.highlights.length ? <ul className="list-inside list-disc space-y-1 text-xs leading-5 text-muted">{analysis.highlights.map((highlight) => <li key={highlight}>{highlight}</li>)}</ul> : null}
-            <p className="text-xs leading-5 text-muted">{t("stock.basedOn", { time: formatRelativeTime(analysis.analyzedAt, locale) })}</p>
+            <p className="text-xs leading-5 text-muted">{t("stock.basedOn", { time: formatRelativeTime(analysis.analyzedAt, locale, { justNow: t("common.justNow"), unknown: t("common.unknown") }) })}</p>
           </div>
         </details>
       ) : null}
@@ -116,7 +116,7 @@ export function StockMarketOutlook({ stock, analysis, news }: {
           <div className="mt-3 divide-y divide-border">
             {news.slice(0, 3).map((item) => (
               <article className="py-3 first:pt-0 last:pb-0" key={item.id}>
-                <p className="mb-1 text-xs text-muted">{item.source ?? t("stock.marketNews")} · {formatRelativeTime(item.publishedAt, locale)}</p>
+                <p className="mb-1 text-xs text-muted">{item.source ?? t("stock.marketNews")} · {formatRelativeTime(item.publishedAt, locale, { justNow: t("common.justNow"), unknown: t("common.unknown") })}</p>
                 <h4 className="text-sm font-medium leading-5">{item.url ? <a className="hover:underline focus-visible:underline" href={item.url} rel="noreferrer" target="_blank">{item.headline}</a> : item.headline}</h4>
               </article>
             ))}

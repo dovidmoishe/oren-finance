@@ -48,7 +48,7 @@ export function VaultReviewModal({
   error,
   onClose,
 }: VaultReviewModalProps) {
-  const { locale, t } = useI18n();
+  const { locale, timeZone, t } = useI18n();
   const isLock = details?.mode === "lock";
   const title = isLock ? t("vaultReview.reviewLock") : t("vaultReview.reviewUnlock");
 
@@ -65,9 +65,9 @@ export function VaultReviewModal({
             <h3 className="mt-1 font-display text-2xl font-semibold">{details.ticker}</h3>
             {details.name ? <p className="mt-1 text-sm text-muted">{details.name}</p> : null}
             <div className="mt-5 space-y-3">
-              <Row label={t("vaultReview.quantity")} value={formatNumber(details.quantity)} />
-              <Row label={t("vaultReview.estValue")} value={formatCurrency(details.valueUsd)} />
-              <Row label={t("vaultReview.unlockDate")} value={formatDate(details.unlockAt, locale)} />
+              <Row label={t("vaultReview.quantity")} value={formatNumber(details.quantity, locale)} />
+              <Row label={t("vaultReview.estValue")} value={formatCurrency(details.valueUsd, locale)} />
+              <Row label={t("vaultReview.unlockDate")} value={formatDate(details.unlockAt, locale, timeZone, t("common.notUpdated"))} />
               {typeof details.daysRemaining === "number" ? (
                 <Row
                   label={t("vaultReview.timeRemaining")}

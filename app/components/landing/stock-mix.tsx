@@ -10,6 +10,7 @@ import { BasketReview } from "@/components/trading/basket-review";
 import { Button, ButtonLink, formatCurrency } from "@/components/ui";
 import type { BasketResponse } from "@/types";
 import { applyMixRequest, initialMix, mixAmounts } from "./stock-mix-model";
+import { useI18n } from "@/i18n/i18n";
 import styles from "./stock-mix.module.css";
 import { useLandingReveal } from "./use-landing-reveal";
 import motion from "./landing-motion.module.css";
@@ -20,6 +21,7 @@ const initialResponse = "Here’s a sample mix: 40% NVIDIA, 35% Apple and 25% Mi
 const prompts = ["Make it equal", "Add Tesla", "Use $500", "Less NVIDIA"];
 
 export function StockMix() {
+  const { locale } = useI18n();
   const root = useRef<HTMLElement>(null);
   useLandingReveal(root);
   const [holdings, setHoldings] = useState(initialMix);
@@ -53,7 +55,7 @@ export function StockMix() {
     const result = applyMixRequest(holdings, budget, text);
     setQuestion(text); setHoldings(result.holdings); setBudget(result.budget);
     setAnswer(result.recognized
-      ? `Updated. ${formatCurrency(result.budget)} across ${result.holdings.filter((holding) => holding.weight > 0).length} stocks. Your proposal is ready to review.`
+      ? `Updated. ${formatCurrency(result.budget, locale)} across ${result.holdings.filter((holding) => holding.weight > 0).length} stocks. Your proposal is ready to review.`
       : "This demo supports a few requests. Try “Make it equal”, “Add Tesla”, “Less NVIDIA”, or an amount from $10 to $10,000.");
     setComposer(""); setReview(false);
   }

@@ -81,7 +81,7 @@ function MetricTile({
 
 export function VaultDashboard() {
   const auth = useOrenAuth();
-  const { locale, t } = useI18n();
+  const { locale, timeZone, t } = useI18n();
   const wallet = useWalletStore((state) => state.address);
   const connected = useWalletStore((state) => state.connected);
 
@@ -137,7 +137,7 @@ export function VaultDashboard() {
       return t("vault.amountPositive");
     }
     if (parsedAmount > selected.availableQuantity) {
-      return t("vault.amountExceeds", { available: formatNumber(selected.availableQuantity) });
+      return t("vault.amountExceeds", { available: formatNumber(selected.availableQuantity, locale) });
     }
     if (!unlockDate) return t("vault.chooseDate");
     const unlockAt = new Date(`${unlockDate}T00:00:00.000Z`);
@@ -269,7 +269,7 @@ export function VaultDashboard() {
           className="bg-accent-pink"
           detail={programLive ? t("vault.indexedLocks") : t("vault.previewOnly")}
           label={t("vault.totalLocked")}
-          value={isLoading && !summary ? "—" : formatCurrency(summary?.totalLockedValueUsd)}
+          value={isLoading && !summary ? "—" : formatCurrency(summary?.totalLockedValueUsd, locale)}
         />
         <MetricTile
           className="bg-accent-lavender"
@@ -281,7 +281,7 @@ export function VaultDashboard() {
           className="bg-accent-yellow"
           detail={
             upcoming[0]
-              ? `${upcoming[0].ticker ?? t("vault.asset")} · ${formatDate(upcoming[0].unlockAt, locale)}`
+              ? `${upcoming[0].ticker ?? t("vault.asset")} · ${formatDate(upcoming[0].unlockAt, locale, timeZone, t("common.notUpdated"))}`
               : t("vault.noUpcoming")
           }
           label={t("vault.nextUnlock")}
@@ -310,11 +310,11 @@ export function VaultDashboard() {
                   </span>
                 </div>
                 <p className="mt-2 font-mono text-sm">
-                  {formatNumber(position.quantity)} · {formatCurrency(position.valueUsd)}
+                  {formatNumber(position.quantity, locale)} · {formatCurrency(position.valueUsd, locale)}
                 </p>
                 <p className="mt-1 flex items-center gap-1.5 text-xs text-muted">
                   <HugeiconsIcon color="currentColor" icon={Calendar03Icon} size={12} strokeWidth={1.8} />
-                  {formatDate(position.unlockAt, locale)}
+                  {formatDate(position.unlockAt, locale, timeZone, t("common.notUpdated"))}
                 </p>
               </div>
             ))}
@@ -346,7 +346,7 @@ export function VaultDashboard() {
                   >
                     {lockable.map((position) => (
                       <option key={position.assetId} value={position.assetId}>
-                        {t("vault.availableOption", { ticker: position.ticker, available: formatNumber(position.availableQuantity) })}
+                        {t("vault.availableOption", { ticker: position.ticker, available: formatNumber(position.availableQuantity, locale) })}
                       </option>
                     ))}
                   </select>
@@ -360,7 +360,7 @@ export function VaultDashboard() {
                       onClick={() => selected && setAmount(String(selected.availableQuantity))}
                       type="button"
                     >
-                      {t("vault.max", { amount: formatNumber(selected?.availableQuantity) })}
+                      {t("vault.max", { amount: formatNumber(selected?.availableQuantity, locale) })}
                     </button>
                   </div>
                   <input
@@ -388,7 +388,7 @@ export function VaultDashboard() {
                 <div className="rounded-[16px] border border-border bg-panel-subtle p-3 text-sm">
                   <div className="flex items-center justify-between gap-3">
                     <span className="text-muted">{t("vault.estimatedValue")}</span>
-                    <span className="font-mono font-medium">{formatCurrency(estimatedValue)}</span>
+                    <span className="font-mono font-medium">{formatCurrency(estimatedValue, locale)}</span>
                   </div>
                   <p className="mt-2 text-xs leading-5 text-muted">
                     {t("vault.noEarlyWithdraw")}
@@ -464,11 +464,11 @@ export function VaultDashboard() {
                             </p>
                           </div>
                         </TableCell>
-                        <TableCell className="font-mono">{formatNumber(position.quantity)}</TableCell>
-                        <TableCell className="font-mono">{formatCurrency(position.valueUsd)}</TableCell>
+                        <TableCell className="font-mono">{formatNumber(position.quantity, locale)}</TableCell>
+                        <TableCell className="font-mono">{formatCurrency(position.valueUsd, locale)}</TableCell>
                         <TableCell>
                           <div>
-                            <p>{formatDate(position.unlockAt, locale)}</p>
+                            <p>{formatDate(position.unlockAt, locale, timeZone, t("common.notUpdated"))}</p>
                             <p className="text-xs text-muted">
                               {eligible
                                 ? t("vault.eligibleNow")

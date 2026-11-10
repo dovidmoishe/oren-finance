@@ -30,7 +30,7 @@ import { usePortfolioRefresh } from "@/hooks/use-portfolio-refresh";
 import { useOrenAuth } from "@/components/auth/auth-context";
 import { usePortfolioStore, useWalletStore } from "@/store";
 import type { PortfolioPosition, PortfolioRange } from "@/types";
-import { useT } from "@/i18n/i18n";
+import { useI18n, useT } from "@/i18n/i18n";
 
 const chartRangeToPortfolioRange: Record<MarketChartRange, PortfolioRange> = {
   "24H": "1D",
@@ -41,6 +41,7 @@ const chartRangeToPortfolioRange: Record<MarketChartRange, PortfolioRange> = {
 };
 
 function ChangePill({ value }: { value?: number }) {
+  const { locale } = useI18n();
   const positive = (value ?? 0) >= 0;
 
   return (
@@ -50,7 +51,7 @@ function ChangePill({ value }: { value?: number }) {
         positive ? "text-foreground" : "text-negative",
       )}
     >
-      {positive ? "▲" : "▼"} {formatPercent(Math.abs(value ?? 0), false)}
+      {positive ? "▲" : "▼"} {formatPercent(Math.abs(value ?? 0), locale, false)}
     </span>
   );
 }
@@ -142,7 +143,7 @@ function ReturnPanel({
   rangeLabel: string;
   bars: number[];
 }) {
-  const t = useT();
+  const { locale, t } = useI18n();
   const maxBar = Math.max(...bars.map((bar) => Math.abs(bar)), 1);
 
   return (
@@ -156,7 +157,7 @@ function ReturnPanel({
       </CardHeader>
       <CardContent>
         <p className="font-display text-4xl font-semibold tracking-normal">
-          {formatCurrency(Math.abs(value ?? 0))}
+          {formatCurrency(Math.abs(value ?? 0), locale)}
         </p>
         <p className="mt-2 text-sm text-muted">{t("portfolio.roiBasis")}</p>
         {bars.length ? (
@@ -191,7 +192,7 @@ function ReturnPanel({
 
 export function PortfolioDashboard() {
   const auth = useOrenAuth();
-  const t = useT();
+  const { locale, timeZone, t } = useI18n();
   const wallet = useWalletStore((state) => state.address);
   const connected = useWalletStore((state) => state.connected);
   const portfolio = usePortfolioStore((state) => state.portfolio);
@@ -287,7 +288,7 @@ export function PortfolioDashboard() {
           activeRange={range}
           changePct={portfolio?.changePct}
           className="min-w-0 rounded-[24px]"
-          dateLabel={portfolio ? formatDate(portfolio.updatedAt) : undefined}
+          dateLabel={portfolio ? formatDate(portfolio.updatedAt, locale, timeZone, t("common.notUpdated")) : undefined}
           lineData={chartData}
           loading={isLoading && history.length === 0}
           mode={chartMode}
@@ -312,21 +313,21 @@ export function PortfolioDashboard() {
           className="bg-accent-yellow"
           detail={t("portfolio.availableDetail")}
           label={t("portfolio.availableLabel")}
-          value={formatCurrency(portfolio?.availableValueUsd)}
+          value={formatCurrency(portfolio?.availableValueUsd, locale)}
         />
         <DetailMetric
           change={portfolio?.changePct}
           className="bg-accent-pink"
           detail={t("portfolio.lockedDetail")}
           label={t("portfolio.lockedLabel")}
-          value={formatCurrency(portfolio?.lockedValueUsd)}
+          value={formatCurrency(portfolio?.lockedValueUsd, locale)}
         />
         <DetailMetric
           change={0}
           className="bg-accent-lavender"
           detail={t("portfolio.cashDetail")}
           label={t("portfolio.cashLabel")}
-          value={formatCurrency(portfolio?.cashValueUsd)}
+          value={formatCurrency(portfolio?.cashValueUsd, locale)}
         />
       </div>
 
@@ -371,13 +372,13 @@ export function PortfolioDashboard() {
                       </TableCell>
                       <TableCell>
                         <span className={cn((position.change24hPct ?? 0) < 0 ? "text-negative" : "text-positive")}>
-                          {formatPercent(position.change24hPct)}
+                          {formatPercent(position.change24hPct, locale)}
                         </span>
                       </TableCell>
-                      <TableCell className="font-mono">{formatNumber(position.availableQuantity)}</TableCell>
-                      <TableCell className="font-mono">{formatNumber(position.lockedQuantity)}</TableCell>
-                      <TableCell>{formatCurrency(position.priceUsd)}</TableCell>
-                      <TableCell className="text-right font-semibold">{formatCurrency(position.valueUsd)}</TableCell>
+                      <TableCell className="font-mono">{formatNumber(position.availableQuantity, locale)}</TableCell>
+                      <TableCell className="font-mono">{formatNumber(position.lockedQuantity, locale)}</TableCell>
+                      <TableCell>{formatCurrency(position.priceUsd, locale)}</TableCell>
+                      <TableCell className="text-right font-semibold">{formatCurrency(position.valueUsd, locale)}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>

@@ -9,7 +9,8 @@ import styles from "./trade-grant.module.css";
 import { useOrenAuth } from "@/components/auth/auth-context";
 import { mcpApiOrigin } from "@/services/mcp-api-origin";
 import { validateGrantPermission, validateTrustedTradeSigner, type GrantSettings } from "@/services/mcp-grant-authorization";
-import { useI18n } from "@/i18n/i18n";
+import { MessageKeyError, useI18n, useShownMessage, shownFromUnknown, shownKey, type ShownMessage } from "@/i18n/i18n";
+import { formatDateTime } from "@/components/ui";
 
 type PendingGrant = {
   delegationId: string;
@@ -42,7 +43,7 @@ export function TradeGrant({ connectionUid }: { connectionUid?: string }) {
   const auth = useOrenAuth();
   const { authenticated, ready, getAccessToken } = auth;
   const apiOrigin = mcpApiOrigin();
-  const { locale, t } = useI18n();
+  const { locale, timeZone, t } = useI18n();
   const trustedSigner = {
     signerId: process.env.NEXT_PUBLIC_MCP_SIGNER_QUORUM_ID ?? "",
     policyId: process.env.NEXT_PUBLIC_MCP_SIGNER_POLICY_ID ?? "",
@@ -52,24 +53,24 @@ export function TradeGrant({ connectionUid }: { connectionUid?: string }) {
   const [revokeAcknowledged, setRevokeAcknowledged] = useState(false);
   const [cleanupWallet, setCleanupWallet] = useState<string>();
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string>();
-  const [notice, setNotice] = useState<string>();
+  const [error, setError] = useState<ShownMessage>();
+  const [notice, setNotice] = useState<ShownMessage>();
+  const errorText = useShownMessage(error);
+  const noticeText = useShownMessage(notice);
 
   const refresh = useCallback(async () => {
     if (!apiOrigin || !authenticated) return;
     const token = await getAccessToken();
-    if (!token) throw new Error(t("grant.signInAgain"));
+    if (!token) throw new MessageKeyError("grant.signInAgain");
     const response = await fetch(`${apiOrigin}/mcp/delegation`, {
       headers: { Authorization: `Bearer ${token}` },
       cache: "no-store",
     });
     if (!response.ok)
-      throw new Error(t("grant.loadFailed"));
+      throw new MessageKeyError("grant.loadFailed");
     const value = (await response.json()) as GrantState;
     setGrant(value);
     setPending(value.pendingGrant);
-    // `t` only labels errors; a language change must not refetch the grant.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [apiOrigin, authenticated, getAccessToken]);
 
   useEffect(() => {
@@ -78,19 +79,18 @@ export function TradeGrant({ connectionUid }: { connectionUid?: string }) {
       try {
         await refresh();
       } catch {
-        setError(t("grant.loadFailed"));
+        setError(shownKey("grant.loadFailed"));
       }
     })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, authenticated, refresh]);
 
   async function post<T>(
     path: string,
     body: Record<string, unknown>,
   ): Promise<T> {
-    if (!apiOrigin) throw new Error(t("grant.unavailable"));
+    if (!apiOrigin) throw new MessageKeyError("grant.unavailable");
     const token = await auth.getAccessToken();
-    if (!token) throw new Error(t("grant.signInAgain"));
+    if (!token) throw new MessageKeyError("grant.signInAgain");
     const response = await fetch(`${apiOrigin}/mcp/delegation/${path}`, {
       method: "POST",
       headers: {
@@ -107,7 +107,7 @@ export function TradeGrant({ connectionUid }: { connectionUid?: string }) {
         typeof body?.error === "string" && /^[a-z_]{1,40}$/.test(body.error)
           ? `, ${body.error}`
           : "";
-      throw new Error(t("grant.verifyFailed", { status: response.status, code }));
+      throw new MessageKeyError("grant.verifyFailed", { status: response.status, code });
     }
     return response.json() as Promise<T>;
   }
@@ -121,15 +121,11 @@ export function TradeGrant({ connectionUid }: { connectionUid?: string }) {
       const authorization = await ownerAuthorization("prepare", settings);
       const saved = await post<PendingGrant>("prepare", { settings, authorization });
       if (saved.wallet !== auth.address)
-        throw new Error(t("grant.walletChanged"));
+        throw new MessageKeyError("grant.walletChanged");
       validateTrustedTradeSigner(saved, trustedSigner);
       setPending(saved);
     } catch (cause) {
-      setError(
-        cause instanceof Error
-          ? cause.message
-          : t("grant.prepareFailed"),
-      );
+      setError(shownFromUnknown(cause, "grant.prepareFailed"));
     } finally {
       setBusy(false);
     }
@@ -137,7 +133,7 @@ export function TradeGrant({ connectionUid }: { connectionUid?: string }) {
 
   async function ownerAuthorization(action: "prepare" | "activate" | "revoke",
     review: GrantSettings | PendingGrant | { delegationId: string }) {
-    if (!auth.address) throw new Error(t("grant.selectWallet"));
+    if (!auth.address) throw new MessageKeyError("grant.selectWallet");
     if (action !== "revoke") validateTrustedTradeSigner(trustedSigner, trustedSigner);
     const request = action === "prepare" ? { action, settings: review, ...trustedSigner }
       : { action, delegationId: (review as { delegationId: string }).delegationId };
@@ -163,13 +159,9 @@ export function TradeGrant({ connectionUid }: { connectionUid?: string }) {
       await post("activate", { delegationId: pending.delegationId, authorization });
       setPending(undefined);
       await refresh();
-      setNotice(t("grant.active"));
+      setNotice(shownKey("grant.active"));
     } catch (cause) {
-      setError(
-        cause instanceof Error
-          ? cause.message
-          : t("grant.activateFailed"),
-      );
+      setError(shownFromUnknown(cause, "grant.activateFailed"));
     } finally {
       setBusy(false);
     }
@@ -184,13 +176,9 @@ export function TradeGrant({ connectionUid }: { connectionUid?: string }) {
       await post("activate", { delegationId: pending.delegationId, authorization });
       setPending(undefined);
       await refresh();
-      setNotice(t("grant.verified"));
+      setNotice(shownKey("grant.verified"));
     } catch (cause) {
-      setError(
-        cause instanceof Error
-          ? cause.message
-          : t("grant.signerVerifyFailed"),
-      );
+      setError(shownFromUnknown(cause, "grant.signerVerifyFailed"));
     } finally {
       setBusy(false);
     }
@@ -210,11 +198,7 @@ export function TradeGrant({ connectionUid }: { connectionUid?: string }) {
       setGrant({ enabled: false, canEnroll: false });
       setPending(undefined);
     } catch (cause) {
-      setError(
-        cause instanceof Error
-          ? cause.message
-          : t("grant.revokeGateFailed"),
-      );
+      setError(shownFromUnknown(cause, "grant.revokeGateFailed"));
       setBusy(false);
       return;
     }
@@ -222,14 +206,10 @@ export function TradeGrant({ connectionUid }: { connectionUid?: string }) {
       await auth.removeTradeSigners(targetWallet);
       setCleanupWallet(undefined);
       await refresh();
-      setNotice(t("grant.revokedAll"));
+      setNotice(shownKey("grant.revokedAll"));
     } catch (cause) {
-      setError(
-        cause instanceof Error
-          ? cause.message
-          : t("grant.removalRetry"),
-      );
-      setNotice(t("grant.gateDisabled"));
+      setError(shownFromUnknown(cause, "grant.removalRetry"));
+      setNotice(shownKey("grant.gateDisabled"));
     } finally {
       setBusy(false);
       setRevokeAcknowledged(false);
@@ -244,11 +224,9 @@ export function TradeGrant({ connectionUid }: { connectionUid?: string }) {
       await auth.removeTradeSigners(cleanupWallet);
       setCleanupWallet(undefined);
       await refresh();
-      setNotice(t("grant.signersRemoved"));
+      setNotice(shownKey("grant.signersRemoved"));
     } catch (cause) {
-      setError(
-        cause instanceof Error ? cause.message : t("grant.removalFailed"),
-      );
+      setError(shownFromUnknown(cause, "grant.removalFailed"));
     } finally {
       setBusy(false);
     }
@@ -274,7 +252,7 @@ export function TradeGrant({ connectionUid }: { connectionUid?: string }) {
           <p>
             {t("grant.expires", {
               date: grant.expiresAt
-                ? new Date(grant.expiresAt).toLocaleString(locale)
+                ? formatDateTime(grant.expiresAt, locale, timeZone, t("common.unknown"))
                 : t("grant.unknown"),
             })}
           </p>
@@ -329,7 +307,7 @@ export function TradeGrant({ connectionUid }: { connectionUid?: string }) {
               perTrade: pending.perTradeUsd,
               daily: pending.dailyUsd,
               slippage: pending.maxSlippageBps / 100,
-              date: new Date(pending.expiresAt).toLocaleString(locale),
+              date: formatDateTime(pending.expiresAt, locale, timeZone, t("common.unknown")),
             })}
           </p>
           <p className="mt-2 text-muted">
@@ -384,14 +362,14 @@ export function TradeGrant({ connectionUid }: { connectionUid?: string }) {
       {!apiOrigin && <p className="mt-4 text-sm text-muted" role="status">{t("grant.settingsUnavailable")}</p>}
       {apiOrigin && !grant && !error && <p className="mt-4 text-sm text-muted" role="status">{t("grant.loading")}</p>}
       {grant?.enabled && <ConnectionNextStep uid={connectionUid} />}
-      {error && (
+      {errorText && (
         <p className="mt-4 text-sm text-red-700" role="alert">
-          {error}
+          {errorText}
         </p>
       )}
-      {notice && (
+      {noticeText && (
         <p className="mt-4 text-sm" role="status">
-          {notice}
+          {noticeText}
         </p>
       )}
     </section>

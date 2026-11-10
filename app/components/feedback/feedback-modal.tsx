@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation';
 import { Cancel01Icon } from '@hugeicons/core-free-icons';
 import { HugeiconsIcon } from '@hugeicons/react';
 import { useOrenAuth } from '@/components/auth/auth-context';
-import { Button } from '@/components/ui';
+import { Button, formatDate } from '@/components/ui';
 import { listFeedback, submitFeedback } from '@/services/feedback-service';
 import type { FeedbackKind, FeedbackTicket } from '@/types';
 import { FEEDBACK_KIND_LABELS, FEEDBACK_MESSAGE_MAX, FEEDBACK_SUBJECT_MAX, feedbackError, ticketReference } from './feedback-rules';
@@ -55,7 +55,7 @@ export function FeedbackModal({ onClose }: { onClose: () => void }) {
 function FeedbackForm({ wallet }: { wallet: string }) {
   const { getAccessToken } = useOrenAuth();
   const pathname = usePathname();
-  const { locale, t } = useI18n();
+  const { locale, timeZone, t } = useI18n();
   const [kind, setKind] = useState<FeedbackKind>('feedback');
   const [subject, setSubject] = useState('');
   const [message, setMessage] = useState('');
@@ -116,7 +116,7 @@ function FeedbackForm({ wallet }: { wallet: string }) {
         : tickets.length === 0 ? <p className="mt-2 text-sm text-muted">{t("feedback.nothingSent")}</p>
         : <ul className="mt-2 divide-y divide-border">
           {tickets.map(ticket => <li key={ticket.id} className="flex items-center justify-between gap-3 py-2.5 text-sm">
-            <div className="min-w-0"><p className="truncate font-medium">{ticket.subject}</p><p className="text-xs text-muted">{ticketReference(ticket.id)} · {new Date(ticket.createdAt).toLocaleDateString(locale)}</p></div>
+            <div className="min-w-0"><p className="truncate font-medium">{ticket.subject}</p><p className="text-xs text-muted">{ticketReference(ticket.id)} · {formatDate(ticket.createdAt, locale, timeZone, t("common.notUpdated"))}</p></div>
             <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-medium ${ticket.status === 'resolved' ? 'bg-green-50 text-green-800' : 'bg-background text-muted'}`}>{ticket.status === 'resolved' ? t("feedback.resolved") : t("feedback.open")}</span>
           </li>)}
         </ul>}

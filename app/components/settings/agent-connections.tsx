@@ -5,7 +5,7 @@ import { ArrowLeft01Icon, ArrowUpRight01Icon, Link01Icon, Shield01Icon } from "@
 import { HugeiconsIcon } from "@hugeicons/react";
 import Link from "next/link";
 import { useOrenAuth } from "@/components/auth/auth-context";
-import { Button } from "@/components/ui";
+import { Button, formatDate } from "@/components/ui";
 import { mcpApiOrigin } from "@/services/mcp-api-origin";
 import { AgentClientLogo, agentClient } from "@/components/brand/agent-client";
 import { TradeGrant } from "@/app/settings/mcp/trade-grant";
@@ -38,7 +38,7 @@ function ConnectionsContent({ connectionUid }: { connectionUid?: string }) {
   const [notice, setNotice] = useState<string>();
   const [attempt, setAttempt] = useState(0);
   const apiOrigin = mcpApiOrigin();
-  const { locale, t } = useI18n();
+  const { locale, timeZone, t } = useI18n();
 
   useEffect(() => {
     if (!ready || !authenticated || !apiOrigin) return;
@@ -122,7 +122,7 @@ function ConnectionsContent({ connectionUid }: { connectionUid?: string }) {
                 {result.connections.map((connection, index) => (
                   <li key={connection.grantId} className="p-5 sm:p-6">
                     <div className="flex flex-wrap items-start justify-between gap-4">
-                      <div className="flex min-w-0 items-center gap-3"><span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-border bg-white"><AgentClientLogo kind={connection.clientKind} size={24} /></span><div className="min-w-0"><h3 className="font-semibold">{agentClient(connection.clientKind)?.name ?? t("connections.connectionN", { n: index + 1 })}</h3><p className="mt-1 text-xs text-muted">{t("connections.connectedOn", { date: new Date(connection.createdAt).toLocaleDateString(locale) })}</p></div></div>
+                      <div className="flex min-w-0 items-center gap-3"><span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-border bg-white"><AgentClientLogo kind={connection.clientKind} size={24} /></span><div className="min-w-0"><h3 className="font-semibold">{agentClient(connection.clientKind)?.name ?? t("connections.connectionN", { n: index + 1 })}</h3><p className="mt-1 text-xs text-muted">{t("connections.connectedOn", { date: formatDate(connection.createdAt, locale, timeZone, t("common.notUpdated")) })}</p></div></div>
                       <span className="rounded-full border border-border bg-background px-3 py-1 text-xs font-medium">{t(ACCESS_LABEL[accessLevel(connection.scopes)])}</span>
                     </div>
                     {connection.nativeClient && <p className="mt-3 text-xs text-muted">{t("connections.localNote")}</p>}

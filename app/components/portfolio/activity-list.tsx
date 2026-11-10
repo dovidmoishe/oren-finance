@@ -34,10 +34,10 @@ export function ActivityList({ items }: { items: PortfolioActivityItem[] }) {
               {item.ticker ? <span className="text-muted"> · {item.ticker}</span> : null}
               {item.route ? <span className="text-muted"> · {item.route}</span> : null}
             </p>
-            <p className="text-xs text-muted">{formatRelativeTime(item.occurredAt, locale)}</p>
+            <p className="text-xs text-muted">{formatRelativeTime(item.occurredAt, locale, { justNow: t("common.justNow"), unknown: t("common.unknown") })}</p>
           </div>
           <div className="text-right">
-            <p className="font-mono text-sm">{item.valueUsd ? formatCurrency(item.valueUsd) : item.status ?? t("common.activitySeen")}</p>
+            <p className="font-mono text-sm">{item.valueUsd ? formatCurrency(item.valueUsd, locale) : item.status ?? t("common.activitySeen")}</p>
             {item.signature ? <p className="text-xs text-muted">{item.signature.slice(0, 8)}...</p> : null}
           </div>
         </div>

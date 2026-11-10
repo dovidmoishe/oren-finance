@@ -6,7 +6,7 @@ import { Button, Toast, formatNumber } from "@/components/ui";
 import { priceMovedChangePercent } from "@/services/price-moved";
 import { routeVenueLabel } from "@/services/route-label";
 import type { PriceMovedDetails, PriceMovedTerms, QuoteResponse } from "@/types";
-import { useT } from "@/i18n/i18n";
+import { useI18n } from "@/i18n/i18n";
 
 interface PriceMovedReviewProps {
   details: PriceMovedDetails;
@@ -30,13 +30,13 @@ function Row({ label, value }: { label: string; value: string }) {
 }
 
 function Terms({ title, terms }: { title: string; terms: PriceMovedTerms }) {
-  const t = useT();
+  const { locale, t } = useI18n();
   return (
     <div className="space-y-3 rounded-[24px] border border-border p-4" data-terms={title}>
       <p className="text-xs uppercase tracking-[0.12em] text-muted">{title}</p>
-      <Row label={t("review.expected")} value={`${formatNumber(terms.outputAmount, 6)} ${terms.outputSymbol}`} />
-      <Row label={t("review.minimumReceived")} value={`${formatNumber(terms.minimumOutputAmount, 6)} ${terms.outputSymbol}`} />
-      <Row label={t("review.slippage")} value={`${formatNumber(terms.slippageBps / 100, 2)}%`} />
+      <Row label={t("review.expected")} value={`${formatNumber(terms.outputAmount, locale, 6)} ${terms.outputSymbol}`} />
+      <Row label={t("review.minimumReceived")} value={`${formatNumber(terms.minimumOutputAmount, locale, 6)} ${terms.outputSymbol}`} />
+      <Row label={t("review.slippage")} value={`${formatNumber(terms.slippageBps / 100, locale, 2)}%`} />
       <Row label={t("review.route")} value={venueLabel(terms.provider)} />
     </div>
   );
@@ -49,7 +49,7 @@ function Terms({ title, terms }: { title: string; terms: PriceMovedTerms }) {
  * only starts a new review/approval for that quote.
  */
 export function PriceMovedReview({ details, onAccept, onCancel, disabled }: PriceMovedReviewProps) {
-  const t = useT();
+  const { locale, t } = useI18n();
   const alternative = details.alternative;
   const change = priceMovedChangePercent(details);
   return (
@@ -76,7 +76,7 @@ export function PriceMovedReview({ details, onAccept, onCancel, disabled }: Pric
           />
           {change !== undefined ? (
             <p className="text-sm text-muted">
-              {t(change < 0 ? "review.receiveLess" : "review.receiveMore", { percent: formatNumber(Math.abs(change), 2) })}
+              {t(change < 0 ? "review.receiveLess" : "review.receiveMore", { percent: formatNumber(Math.abs(change), locale, 2) })}
             </p>
           ) : null}
           <div className="grid grid-cols-2 gap-3">

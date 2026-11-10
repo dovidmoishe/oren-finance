@@ -1,70 +1,124 @@
-// Checks every language file against English: same keys (TypeScript also
-// enforces this), the same {placeholders}, and plural forms with `other`.
+// Checks every language file against English: the same keys, the same ICU
+// arguments, a plural `other` branch, and messages that format without error.
 import { readdirSync, readFileSync } from "node:fs";
-import ts from "typescript";
+import { createTranslator } from "next-intl";
 
 const dir = new URL("../i18n/messages/", import.meta.url);
 
-function loadModule(file) {
-  const source = readFileSync(new URL(file, dir), "utf8");
-  const output = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText;
-  const loaded = { exports: {} };
-  const require = (id) => {
-    if (id === "./en") return loadModule("en.ts");
-    throw new Error(`Unexpected import ${id} in ${file}`);
-  };
-  new Function("module", "exports", "require", output)(loaded, loaded.exports, require);
-  return loaded.exports;
+function collectArguments(message) {
+  const args = new Set();
+  let i = 0;
+  function read(untilClose) {
+    while (i < message.length) {
+      if (message.startsWith("''", i)) {
+        i += 2;
+        continue;
+      }
+      if (message[i] === "}") {
+        if (untilClose) i += 1;
+        else i += 1;
+        if (untilClose) return;
+        continue;
+      }
+      if (message[i] !== "{") {
+        i += 1;
+        continue;
+      }
+      i += 1;
+      const start = i;
+      while (i < message.length && /\w/.test(message[i])) i += 1;
+      const name = message.slice(start, i);
+      let look = i;
+      while (message[look] === " ") look += 1;
+      if (name && (message[look] === "}" || message[look] === ",")) {
+        args.add(name);
+        i = look;
+        if (message[i] === "}") {
+          i += 1;
+          continue;
+        }
+        i += 1;
+        while (message[i] === " ") i += 1;
+        while (i < message.length && /[A-Za-z]/.test(message[i])) i += 1;
+        read(true);
+        continue;
+      }
+      i = start;
+      read(true);
+    }
+  }
+  read(false);
+  return [...args].sort();
 }
-
-const load = (file) => loadModule(file).default;
 
 function leaves(value, prefix = "") {
   if (typeof value === "string") return [[prefix, value]];
-  if (value && typeof value === "object" && "other" in value) {
-    return Object.entries(value).map(([form, text]) => [`${prefix}#${form}`, text]);
-  }
+  if (!value || typeof value !== "object") return [[prefix, ""]];
   return Object.entries(value).flatMap(([key, child]) => leaves(child, prefix ? `${prefix}.${key}` : key));
 }
 
-const placeholders = (text) => [...text.matchAll(/\{(\w+)\}/g)].map((match) => match[1]).sort().join(",");
-const base = (key) => key.split("#")[0];
+function sampleValues(names) {
+  return Object.fromEntries(names.map((name) => [name, name === "count" ? 1 : "x"]));
+}
 
-const en = load("en.ts");
-const englishLeaves = leaves(en);
-const englishByKey = new Map(englishLeaves.map(([key, text]) => [base(key), placeholders(text)]));
-const englishPluralKeys = new Set(englishLeaves.filter(([key]) => key.includes("#")).map(([key]) => base(key)));
+const files = readdirSync(dir).filter((name) => name.endsWith(".json")).sort();
+const catalogs = new Map(files.map((file) => [file, JSON.parse(readFileSync(new URL(file, dir), "utf8"))]));
+const english = catalogs.get("en.json");
+const englishLeaves = leaves(english);
+const englishByKey = new Map(englishLeaves);
 let problems = 0;
 
-for (const file of readdirSync(dir).filter((name) => name.endsWith(".ts") && name !== "en.ts")) {
-  const messages = load(file);
+function problem(text) {
+  console.error(text);
+  problems += 1;
+}
+
+for (const [key, text] of englishLeaves) {
+  if (!text.trim()) problem(`en.json: empty text for ${key}`);
+  if (text.includes(", plural,") && !/\bother\s*\{/.test(text)) problem(`en.json: ${key} plural is missing other`);
+}
+
+for (const [file, messages] of catalogs) {
+  if (file === "en.json") continue;
   const seen = new Set();
+  const translator = createTranslator({
+    locale: file.replace(/\.json$/, ""),
+    messages,
+    onError(error) {
+      throw error;
+    },
+  });
   for (const [key, text] of leaves(messages)) {
-    const name = base(key);
-    seen.add(name);
-    if (!englishByKey.has(name)) {
-      console.error(`${file}: unknown key ${name}`);
-      problems++;
+    seen.add(key);
+    const expected = englishByKey.get(key);
+    if (expected === undefined) {
+      problem(`${file}: unknown key ${key}`);
       continue;
     }
-    if (!text.trim()) {
-      console.error(`${file}: empty text for ${key}`);
-      problems++;
+    if (typeof text !== "string" || !text.trim()) {
+      problem(`${file}: empty text for ${key}`);
+      continue;
     }
-    const expected = englishByKey.get(name);
-    const actual = placeholders(text);
-    // Plural forms may drop {count} where the language says "one" in words.
-    const pluralOk = englishPluralKeys.has(name) && actual === expected.split(",").filter((p) => p !== "count").join(",");
-    if (actual !== expected && !pluralOk) {
-      console.error(`${file}: ${key} has {${actual}} but English has {${expected}}`);
-      problems++;
+    const actualArgs = collectArguments(text).join(",");
+    const expectedArgs = collectArguments(expected).join(",");
+    if (actualArgs !== expectedArgs) problem(`${file}: ${key} has {${actualArgs}} but English has {${expectedArgs}}`);
+    const englishPlural = expected.includes(", plural,");
+    const translatedPlural = text.includes(", plural,");
+    if (englishPlural !== translatedPlural) problem(`${file}: ${key} ${englishPlural ? "must be a plural" : "must not be a plural"}`);
+    if (translatedPlural && !/\bother\s*\{/.test(text)) problem(`${file}: ${key} plural is missing other`);
+    const names = collectArguments(expected);
+    for (const count of [0, 1, 2, 5]) {
+      try {
+        const formatted = translator(key, { ...sampleValues(names), ...(names.includes("count") ? { count } : {}) });
+        if (typeof formatted !== "string" || !formatted.trim()) problem(`${file}: ${key} formatted empty`);
+      } catch (error) {
+        problem(`${file}: ${key} failed to format (${error instanceof Error ? error.message.split("\n")[0] : error})`);
+        break;
+      }
     }
   }
-  for (const name of englishByKey.keys()) {
-    if (!seen.has(name)) {
-      console.error(`${file}: missing ${name}`);
-      problems++;
-    }
+  for (const key of englishByKey.keys()) {
+    if (!seen.has(key)) problem(`${file}: missing ${key}`);
   }
 }
 

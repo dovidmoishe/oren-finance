@@ -3,7 +3,7 @@
 import type { ReactNode } from "react";
 import { cn, formatNumber } from "@/components/ui";
 import type { TechnicalBrief } from "@/types";
-import { useT, type MessageKey } from "@/i18n/i18n";
+import { useI18n, type MessageKey } from "@/i18n/i18n";
 
 const REGIME_LABEL: Record<TechnicalBrief["regime"], MessageKey> = {
   uptrend: "stock.uptrend",
@@ -29,7 +29,7 @@ export function TechnicalBriefPanel({
   compact = false,
   className,
 }: TechnicalBriefPanelProps) {
-  const t = useT();
+  const { locale, t } = useI18n();
   const daily = brief.primaryTimeframe;
   const support = brief.levels.find((level) => level.label === "support");
   const resistance = brief.levels.find((level) => level.label === "resistance");
@@ -47,10 +47,10 @@ export function TechnicalBriefPanel({
       </div>
 
       <div className={cn("grid gap-2", compact ? "grid-cols-2" : "grid-cols-2 sm:grid-cols-4")}>
-        <Metric label={t("stock.rsiDaily")} value={formatNumber(daily.rsi14, 1)} />
-        <Metric label={t("stock.macdHist")} value={formatSigned(daily.macd.histogram)} />
-        <Metric label={t("stock.atr14")} value={formatNumber(daily.atr14, 2)} />
-        <Metric label={t("stock.bandWidth")} value={`${formatNumber(daily.bollinger.bandwidth, 1)}%`} />
+        <Metric label={t("stock.rsiDaily")} value={formatNumber(daily.rsi14, locale, 1)} />
+        <Metric label={t("stock.macdHist")} value={formatSigned(daily.macd.histogram, locale)} />
+        <Metric label={t("stock.atr14")} value={formatNumber(daily.atr14, locale, 2)} />
+        <Metric label={t("stock.bandWidth")} value={`${formatNumber(daily.bollinger.bandwidth, locale, 1)}%`} />
       </div>
 
       {(support || resistance) && (
@@ -90,7 +90,7 @@ export function TechnicalBriefPanel({
                 type="button"
               >
                 {zone.side === "buy" ? t("stock.buyAt") : t("stock.sellAt")}{" "}
-                {formatNumber(zone.preferredUsd, 2)}
+                {formatNumber(zone.preferredUsd, locale, 2)}
                 <span className="ml-1 font-normal opacity-70">
                   ({zone.basis.replaceAll("_", " ")})
                 </span>
@@ -174,17 +174,17 @@ function LevelCard({
   price: number;
   distancePct: number;
 }) {
-  const t = useT();
+  const { locale, t } = useI18n();
   return (
     <div className="rounded-[14px] border border-border bg-white px-3 py-2">
       <p className="text-[10px] uppercase tracking-[0.12em] text-muted">{label}</p>
-      <p className="mt-1 font-mono text-sm font-semibold">{formatNumber(price, 2)}</p>
-      <p className="mt-0.5 text-xs text-muted">{t("stock.fromPrice", { distance: formatSigned(distancePct) })}</p>
+      <p className="mt-1 font-mono text-sm font-semibold">{formatNumber(price, locale, 2)}</p>
+      <p className="mt-0.5 text-xs text-muted">{t("stock.fromPrice", { distance: formatSigned(distancePct, locale) })}</p>
     </div>
   );
 }
 
-function formatSigned(value: number) {
+function formatSigned(value: number, locale: string) {
   const sign = value > 0 ? "+" : "";
-  return `${sign}${formatNumber(value, 2)}%`;
+  return `${sign}${formatNumber(value, locale, 2)}%`;
 }

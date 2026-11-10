@@ -18,7 +18,7 @@ import type {
   LimitOrderProposal,
   QuoteResponse,
 } from '@/types';
-import { Button, cn } from '@/components/ui';
+import { Button, cn, formatDate } from '@/components/ui';
 import { useOrenAuth } from '@/components/auth/auth-context';
 import { AgentArtifacts } from './agent-artifacts';
 import { AgentMessageBody } from './agent-message-body';
@@ -193,7 +193,7 @@ export function ConversationHistory({
   disabled: boolean;
   onSelect: (id: string) => void;
 }) {
-  const { locale, t } = useI18n();
+  const { locale, timeZone, t } = useI18n();
   return (
     <div className="absolute inset-x-3 top-[70px] z-10 max-h-[55%] overflow-y-auto rounded-[22px] border border-border bg-panel p-2 shadow-[0_22px_60px_rgba(23,23,23,0.16)]">
       <p className="px-3 pb-2 pt-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">
@@ -212,7 +212,7 @@ export function ConversationHistory({
             type="button"
           >
             <p className="truncate text-sm font-medium">{thread.title}</p>
-            <p className="mt-0.5 text-[10px] text-muted">{new Date(thread.updatedAt).toLocaleDateString(locale)}</p>
+            <p className="mt-0.5 text-[10px] text-muted">{formatDate(thread.updatedAt, locale, timeZone, t("common.notUpdated"))}</p>
           </button>
         ))
       ) : (

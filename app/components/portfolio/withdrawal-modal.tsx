@@ -13,7 +13,7 @@ import { approveServerTrade, forgetApproval, getServerApproval, type TradeApprov
 import { financialExecutionEnabled } from '@/services/environment';
 import { getWithdrawalStocks, prepareWithdrawal, recoverWithdrawal, solCost, type WithdrawalStock } from '@/services/withdrawal-service';
 import { walletSessionIsCurrent } from '@/services/wallet-session';
-import { useT } from "@/i18n/i18n";
+import { MessageKeyError, useShownMessage, useT, shownFromUnknown, shownKey, type ShownMessage } from "@/i18n/i18n";
 
 // Read in event handlers only; kept outside the component for the purity lint.
 const currentTime = () => Date.now();
@@ -68,7 +68,7 @@ function WithdrawalForm({ wallet }: { wallet: string }) {
   const [approval, setApproval] = useState<TradeApproval>();
   const [stage, setStage] = useState<'loading' | 'recovery-error' | 'edit' | 'review' | 'pending' | 'confirmed' | 'failed'>('loading');
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string>();
+  const [error, setError] = useState<ShownMessage>();
   const [checked, setChecked] = useState(false);
   const [now, setNow] = useState(() => Date.now());
   const lock = useRef(false);
@@ -76,9 +76,11 @@ function WithdrawalForm({ wallet }: { wallet: string }) {
   const requestId = useRef<string | undefined>(undefined);
   const [stocks, setStocks] = useState<WithdrawalStock[]>([]);
   const [stocksLoading, setStocksLoading] = useState(true);
-  const [stocksError, setStocksError] = useState<string>();
+  const [stocksError, setStocksError] = useState<ShownMessage>();
   const [stocksRevision, setStocksRevision] = useState(0);
   const [recoveryRevision, setRecoveryRevision] = useState(0);
+  const errorText = useShownMessage(error);
+  const stocksErrorText = useShownMessage(stocksError);
   const stock = stocks.find(item => item.mint === asset);
   const symbol = stock?.symbol ?? asset;
   const logo = stock ? stockLogos[stock.ticker.toUpperCase() as keyof typeof stockLogos] ?? stock.logoUrl : asset === 'USDC' ? '/usdc.svg' : '/integrations/solana.svg';
@@ -88,13 +90,11 @@ function WithdrawalForm({ wallet }: { wallet: string }) {
     void getAccessToken().then(token => getWithdrawalStocks(wallet, token)).then(result => {
       if (!active || !current()) return;
       setStocks(result.stocks); setStocksLoading(false);
-      setStocksError(result.incomplete ? t("transfer.stocksIncomplete") : undefined);
+      setStocksError(result.incomplete ? shownKey("transfer.stocksIncomplete") : undefined);
     }).catch(() => {
-      if (active && current()) { setStocksLoading(false); setStocksError(t("transfer.stocksFailed")); }
+      if (active && current()) { setStocksLoading(false); setStocksError(shownKey("transfer.stocksFailed")); }
     });
     return () => { active = false; };
-    // `t` only labels the message; a language change must not reload holdings.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [wallet, getAccessToken, stocksRevision]);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   useEffect(() => {
@@ -105,10 +105,9 @@ function WithdrawalForm({ wallet }: { wallet: string }) {
       if (pending) { setApproval(pending); setStage('pending'); }
       else setStage('edit');
     }).catch(() => {
-      if (active && current()) { setStage('recovery-error'); setError(t("transfer.recoveryFailed")); }
+      if (active && current()) { setStage('recovery-error'); setError(shownKey("transfer.recoveryFailed")); }
     });
     return () => { active = false; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [wallet, getAccessToken, recoveryRevision]);
   useEffect(() => {
     if (stage !== 'review') return;
@@ -117,7 +116,7 @@ function WithdrawalForm({ wallet }: { wallet: string }) {
   }, [stage]);
 
   async function acceptStatus(result: TradeApproval) {
-    if (result.kind !== 'withdrawal' || result.wallet !== wallet) throw new Error(t("transfer.walletMismatch"));
+    if (result.kind !== 'withdrawal' || result.wallet !== wallet) throw new MessageKeyError("transfer.walletMismatch");
     setApproval(result);
     if (result.status === 'confirmed' || result.status === 'failed') {
       forgetApproval(result.id);
@@ -166,15 +165,15 @@ function WithdrawalForm({ wallet }: { wallet: string }) {
       requestId.current ??= crypto.randomUUID();
       const token = await getAccessToken();
       if (!current()) return;
-      if (asset !== 'USDC' && asset !== 'SOL' && !stock) throw new Error(t("transfer.chooseStock"));
+      if (asset !== 'USDC' && asset !== 'SOL' && !stock) throw new MessageKeyError("transfer.chooseStock");
       const kind = stock ? 'STOCK' : asset as 'USDC' | 'SOL';
       const result = await prepareWithdrawal({ wallet, recipient: recipient.trim(), amount: amount.trim(), asset: kind, ...(stock ? { mint: stock.mint } : {}), requestId: requestId.current }, token);
       if (!current()) return;
-      if (result.wallet !== wallet || result.kind !== 'withdrawal' || result.details.asset !== kind || result.details.mint !== stock?.mint || result.details.recipient !== recipient.trim()) throw new Error(t("transfer.reviewMismatch"));
+      if (result.wallet !== wallet || result.kind !== 'withdrawal' || result.details.asset !== kind || result.details.mint !== stock?.mint || result.details.recipient !== recipient.trim()) throw new MessageKeyError("transfer.reviewMismatch");
       setApproval(result); setChecked(false); setNow(currentTime());
       if (result.status === 'prepared') setStage('review');
       else await acceptStatus(result);
-    } catch (cause) { if (current()) setError(cause instanceof Error ? cause.message : t("transfer.prepareFailed")); }
+    } catch (cause) { if (current()) setError(shownFromUnknown(cause, "transfer.prepareFailed")); }
     finally { lock.current = false; if (current()) setBusy(false); }
   }
 
@@ -197,7 +196,7 @@ function WithdrawalForm({ wallet }: { wallet: string }) {
         if (current()) await acceptStatus(result);
         return;
       }
-      if (!checked || Date.parse(approval.expiresAt) <= Date.now()) throw new Error(t("transfer.reviewFresh"));
+      if (!checked || Date.parse(approval.expiresAt) <= Date.now()) throw new MessageKeyError("transfer.reviewFresh");
       const signature = await authorizeTrade(approval.id, token);
       if (!current()) return;
       submissionStarted = true;
@@ -207,10 +206,10 @@ function WithdrawalForm({ wallet }: { wallet: string }) {
       if (!current()) return;
       const rejected = !submissionStarted || cause instanceof ApiError && ([400, 401, 403, 404].includes(cause.status) || (cause.details as { code?: string })?.code === 'PRIVY_SIGNING_FAILED');
       if (submissionStarted && !rejected) {
-        setStage('pending'); setError(t("transfer.uncertain"));
+        setStage('pending'); setError(shownKey("transfer.uncertain"));
       } else {
         if (submissionStarted) forgetApproval(approval.id);
-        setError(cause instanceof Error ? cause.message : t("transfer.approveFailed"));
+        setError(shownFromUnknown(cause, "transfer.approveFailed"));
       }
     } finally { lock.current = false; if (current()) setBusy(false); }
   }
@@ -221,7 +220,7 @@ function WithdrawalForm({ wallet }: { wallet: string }) {
     {stage === 'loading' ? <p className="text-sm text-muted" role="status">{t("transfer.checkingPending")}</p> : stage === 'recovery-error' ? <Button className="w-full" onClick={() => { setStage('loading'); setError(undefined); setRecoveryRevision(value => value + 1); }}>{t("transfer.checkPending")}</Button> : stage === 'edit' ? <form onSubmit={event => void prepare(event)} className="space-y-5">
       <label className="block text-sm font-medium">{t("transfer.asset")}<span className="relative mt-2 block"><span className="pointer-events-none absolute inset-y-0 left-3 flex items-center"><AssetLogo key={asset} symbol={symbol} src={logo} /></span><select className={`${inputClass} mt-0 pl-12`} disabled={busy} value={asset} onChange={event => { edited(); setAsset(event.target.value); setAmount(''); }}><optgroup label={t("transfer.usdcSol")}><option value="USDC">USDC</option><option value="SOL">SOL</option></optgroup>{stocks.length > 0 ? <optgroup label={t("transfer.yourStocks")}>{stocks.map(item => <option key={item.mint} value={item.mint}>{item.symbol}</option>)}</optgroup> : null}</select></span></label>
       <p className="text-xs text-muted" role="status">{stock ? t("transfer.available", { amount: stock.balance, symbol: stock.symbol }) : snapshot ? t("transfer.available", { amount: asset === 'USDC' ? snapshot.usdc : snapshot.sol, symbol: asset }) : balanceError || t("transfer.loadingBalance")}</p>
-      {stocksLoading ? <p className="text-xs text-muted" role="status">{t("transfer.loadingStocks")}</p> : stocksError ? <div className="text-xs text-muted" role="status"><p>{stocksError}</p><button type="button" className="mt-1 underline" disabled={busy} onClick={() => { setStocksLoading(true); setStocksRevision(value => value + 1); }}>{t("transfer.retryStocks")}</button></div> : stocks.length === 0 ? <p className="text-xs text-muted">{t("transfer.noStocks")}</p> : null}
+      {stocksLoading ? <p className="text-xs text-muted" role="status">{t("transfer.loadingStocks")}</p> : stocksErrorText ? <div className="text-xs text-muted" role="status"><p>{stocksErrorText}</p><button type="button" className="mt-1 underline" disabled={busy} onClick={() => { setStocksLoading(true); setStocksRevision(value => value + 1); }}>{t("transfer.retryStocks")}</button></div> : stocks.length === 0 ? <p className="text-xs text-muted">{t("transfer.noStocks")}</p> : null}
       <label className="block text-sm font-medium">{t("transfer.receivingWallet")}<input className={`${inputClass} mt-2`} disabled={busy} required autoComplete="off" autoCapitalize="none" spellCheck={false} minLength={32} maxLength={44} placeholder={t("transfer.walletPlaceholder")} value={recipient} onChange={event => { edited(); setRecipient(event.target.value); }} /></label>
       <label className="block text-sm font-medium">{t("transfer.amount")}<span className="relative mt-2 block"><span className="pointer-events-none absolute inset-y-0 left-3 flex items-center"><AssetLogo key={asset} symbol={symbol} src={logo} /></span><input className={`${inputClass} mt-0 pl-12 pr-20`} disabled={busy} required inputMode="decimal" autoComplete="off" maxLength={30} placeholder="0.00" value={amount} onChange={event => { edited(); setAmount(event.target.value); }} /><span aria-hidden="true" className="pointer-events-none absolute inset-y-0 right-3 flex max-w-16 items-center truncate text-xs text-muted">{symbol}</span></span></label>
       {stock ? <p className="text-xs leading-5 text-muted">{t("transfer.stockNote", { symbol: stock.symbol })}</p> : null}
@@ -254,6 +253,6 @@ function WithdrawalForm({ wallet }: { wallet: string }) {
         </> : <Button className="w-full" onClick={() => { requestId.current = undefined; setApproval(undefined); setAmount(''); setChecked(false); setError(undefined); setStage('edit'); }}>{t("transfer.newTransfer")}</Button>}
       </>}
     </div> : null}
-    {error ? <p role="alert" className="mt-4 text-sm leading-6 text-red-700">{error}</p> : null}
+    {errorText ? <p role="alert" className="mt-4 text-sm leading-6 text-red-700">{errorText}</p> : null}
   </div>;
 }

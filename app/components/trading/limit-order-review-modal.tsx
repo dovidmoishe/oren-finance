@@ -10,7 +10,7 @@ import {
   Wallet02Icon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { Button, Modal, Toast, formatCurrency, formatNumber } from "@/components/ui";
+import { Button, Modal, Toast, formatCurrency, formatDateTime, formatNumber } from "@/components/ui";
 import type { LimitOrderProposal } from "@/types";
 import type { TradeFlowStatus } from "@/hooks/use-quote-execution";
 import { useApprovalReview } from "@/hooks/use-approval-review";
@@ -45,14 +45,14 @@ export function LimitOrderReviewModal({
   onClose,
   onSign,
 }: LimitOrderReviewModalProps) {
-  const { locale, t } = useI18n();
+  const { locale, timeZone, t } = useI18n();
   const review = useApprovalReview('limit', requestedProposal?.id, open);
   const proposal = review.approval?.details.proposal ?? requestedProposal;
   const isBusy = status === "preparing" || status === "signing" || status === "confirming";
   const confirmed = status === "confirmed";
   const signDisabled = !proposal || !review.approval || review.approval.status !== 'prepared' || review.expired || isBusy || confirmed || status === 'submitted';
   const expiresLabel = proposal
-    ? new Date(proposal.expiredAt * 1000).toLocaleDateString(locale)
+    ? formatDateTime(new Date(proposal.expiredAt * 1000).toISOString(), locale, timeZone, t("common.unknown"))
     : "—";
   const route = routeVenueLabel(proposal?.provider);
 
@@ -63,12 +63,12 @@ export function LimitOrderReviewModal({
       ) : (
         <div className="space-y-5">
           <div className="space-y-3 rounded-[24px] border border-border p-4">
-            <Row label={t("review.limitPrice")} value={formatCurrency(proposal.limitPriceUsd)} />
-            <Row label={t("review.youLock")} value={`${formatNumber(proposal.makingAmount, 6)} ${proposal.inputSymbol}`} />
-            <Row label={t("review.receiveIfFilled")} value={`${formatNumber(proposal.takingAmount, 6)} ${proposal.outputSymbol}`} />
-            <Row label={t("review.notional")} value={formatCurrency(proposal.amountUsd)} />
+            <Row label={t("review.limitPrice")} value={formatCurrency(proposal.limitPriceUsd, locale)} />
+            <Row label={t("review.youLock")} value={`${formatNumber(proposal.makingAmount, locale, 6)} ${proposal.inputSymbol}`} />
+            <Row label={t("review.receiveIfFilled")} value={`${formatNumber(proposal.takingAmount, locale, 6)} ${proposal.outputSymbol}`} />
+            <Row label={t("review.notional")} value={formatCurrency(proposal.amountUsd, locale)} />
             {proposal.marketPriceUsd !== undefined ? (
-              <Row label={t("review.marketPrice")} value={formatCurrency(proposal.marketPriceUsd)} />
+              <Row label={t("review.marketPrice")} value={formatCurrency(proposal.marketPriceUsd, locale)} />
             ) : null}
             <Row label={t("review.expires")} value={expiresLabel} />
             {route ? <Row label={t("review.route")} value={route} /> : null}
