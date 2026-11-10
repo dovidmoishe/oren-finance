@@ -125,6 +125,32 @@ describe('VariantSelector.selectAndQuote routing', () => {
     });
   });
 
+  it('skips Titan on every variant when the trade must be signed in chat', async () => {
+    const tokens = { getStock: jest.fn().mockResolvedValue(equity) };
+    const router = {
+      quote: jest.fn().mockResolvedValue({
+        id: 'q',
+        outputAmount: 1,
+        priceImpactPercent: 0,
+        provider: 'jupiter',
+      }),
+    };
+    const selector = new VariantSelector(tokens as never, router as never);
+    await selector.selectAndQuote({
+      side: 'buy',
+      assetId: 'tsla',
+      ticker: 'TSLA',
+      amountUsd: 50,
+      wallet: 'wallet-1',
+      jupiterOnly: true,
+    });
+    const calls = router.quote.mock.calls.map(
+      ([c]) => c as { titanEligible?: boolean; slippageBps?: number },
+    );
+    expect(calls.length).toBeGreaterThan(0);
+    expect(calls.every((call) => call.titanEligible === false)).toBe(true);
+  });
+
   it('sends auto-refresh quotes on the background rate lane', async () => {
     const tokens = { getStock: jest.fn().mockResolvedValue(equity) };
     const router = {
