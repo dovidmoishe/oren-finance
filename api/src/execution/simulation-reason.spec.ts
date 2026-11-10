@@ -65,7 +65,7 @@ describe('simulation failure reasons', () => {
     const message = slippageExceededMessage(50);
     expect(message).toContain('more than 0.5%');
     expect(message).toContain('Try again or allow higher slippage');
-    expect(message).toContain('not a missing signing permission');
+    expect(message).not.toMatch(/signing grant|signing permission/i);
     expect(message).not.toMatch(/obtain fresh approval/i);
     const body = delegatedFailureBody('intent-1', 'slippage_exceeded', 50);
     expect(body).toMatchObject({
@@ -73,7 +73,7 @@ describe('simulation failure reasons', () => {
       signingGrant: 'active',
       slippageBps: 50,
       broadcast: false,
-      message,
+      message: expect.stringContaining('The signing grant is still active'),
     });
   });
 
@@ -86,7 +86,6 @@ describe('simulation failure reasons', () => {
     expect(toolFailurePayload(error)).toEqual({
       error: slippageExceededMessage(),
       code: 'slippage_exceeded',
-      signingGrant: 'active',
     });
     expect(
       toolFailurePayload(

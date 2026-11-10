@@ -323,8 +323,9 @@ describe('ApprovalRpc.inspect with an expectation', () => {
         ).toMatchObject({
           code: 'QUOTE_SLIPPAGE_EXCEEDED',
         });
-        expect((error as Error).message).toContain(
-          'not a missing signing permission',
+        expect((error as Error).message).toContain('slippage limit');
+        expect((error as Error).message).not.toMatch(
+          /signing grant|signing permission/i,
         );
       }
     }

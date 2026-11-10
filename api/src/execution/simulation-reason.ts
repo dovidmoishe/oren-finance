@@ -19,10 +19,10 @@ export type SimulationReason =
   | 'simulation_failed';
 
 export const INSUFFICIENT_BALANCE_MESSAGE =
-  'The wallet does not have enough balance for this swap. Check the input token and SOL for fees. The signing grant is still active; this is not a missing signing permission. No transaction was broadcast.';
+  'The wallet does not have enough balance for this swap. Check the input token and SOL for fees.';
 
 export const SIMULATION_FAILED_MESSAGE =
-  'This transaction could not be simulated. Check your USDC and SOL balances and request a fresh quote. The signing grant is still active; this is not a missing signing permission. No transaction was broadcast.';
+  'This transaction could not be simulated. Check your USDC and SOL balances and request a fresh quote.';
 
 export function formatSlippagePercent(slippageBps: number): string {
   const percent = slippageBps / 100;
@@ -41,7 +41,7 @@ export function slippageExceededMessage(slippageBps?: number): string {
     slippageBps <= 10_000
       ? `more than ${formatSlippagePercent(slippageBps)}`
       : 'past the approved slippage limit';
-  return `The price moved ${moved} between the quote and signing. Try again or allow higher slippage. The signing grant is still active; this is not a missing signing permission. No transaction was broadcast.`;
+  return `The price moved ${moved} after the quote. Try again or allow higher slippage.`;
 }
 
 export function simulationReason(
@@ -146,27 +146,24 @@ export async function retryOnceOnSlippage<T>(
 export function toolFailurePayload(error: unknown): {
   error: string;
   code?: string;
-  signingGrant?: 'active';
 } {
   const code = simulationGateCode(error);
   if (code === 'slippage_exceeded')
     return {
       error: slippageExceededMessage(),
       code,
-      signingGrant: 'active',
     };
   if (code === 'insufficient_balance')
     return {
       error: INSUFFICIENT_BALANCE_MESSAGE,
       code,
-      signingGrant: 'active',
     };
   if (code === 'insufficient_sol_for_rent')
-    return { error: SOL_RENT_MESSAGE, code, signingGrant: 'active' };
+    return { error: SOL_RENT_MESSAGE, code };
   if (code === 'insufficient_sol_for_fees')
-    return { error: SOL_FEE_MESSAGE, code, signingGrant: 'active' };
+    return { error: SOL_FEE_MESSAGE, code };
   if (code === 'simulation_failed')
-    return { error: SIMULATION_FAILED_MESSAGE, code, signingGrant: 'active' };
+    return { error: SIMULATION_FAILED_MESSAGE, code };
   return { error: error instanceof Error ? error.message : String(error) };
 }
 
@@ -190,7 +187,7 @@ export function delegatedFailureBody(
     reason: code,
     signingGrant: 'active',
     broadcast: false,
-    message,
+    message: `${message} The signing grant is still active; this is not a missing signing permission. No transaction was broadcast.`,
     ...(code === 'slippage_exceeded' && slippageBps !== undefined
       ? { slippageBps }
       : {}),
