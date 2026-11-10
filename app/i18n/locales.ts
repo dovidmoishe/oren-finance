@@ -29,6 +29,21 @@ export const LOCALE_MAX_AGE = 60 * 60 * 24 * 365;
 
 const CODES = new Set<string>(LOCALES.map((locale) => locale.code));
 
+/** Reads one cookie from a `document.cookie` string, including `;` without a space. */
+export function cookieValue(cookie: string, name: string): string | undefined {
+  const prefix = `${name}=`;
+  for (const part of cookie.split(";")) {
+    const item = part.trim();
+    if (!item.startsWith(prefix)) continue;
+    try {
+      return decodeURIComponent(item.slice(prefix.length));
+    } catch {
+      return undefined;
+    }
+  }
+  return undefined;
+}
+
 export function isLocale(value: unknown): value is Locale {
   return typeof value === "string" && CODES.has(value);
 }

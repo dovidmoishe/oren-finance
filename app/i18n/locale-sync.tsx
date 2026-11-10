@@ -9,6 +9,7 @@ import {
   LOCALE_COOKIE,
   LOCALE_MAX_AGE,
   TIME_ZONE_COOKIE,
+  cookieValue,
   hasOtherOrenStorage,
   isLocale,
   isPersonalizedPath,
@@ -27,14 +28,7 @@ function writeCookie(name: string, value: string) {
 }
 
 function readCookie(name: string) {
-  const prefix = `${name}=`;
-  const found = document.cookie.split("; ").find((part) => part.startsWith(prefix));
-  if (!found) return undefined;
-  try {
-    return decodeURIComponent(found.slice(prefix.length));
-  } catch {
-    return undefined;
-  }
+  return cookieValue(document.cookie, name);
 }
 
 /** Saves an explicit choice, including English, so Accept-Language cannot override it. */
@@ -96,10 +90,11 @@ export function LocaleSync({ force = false }: { force?: boolean }) {
     try {
       const saved = localStorage.getItem(LEGACY_LOCALE_STORAGE_KEY);
       const cookie = readCookie(LOCALE_COOKIE);
-      if (isLocale(saved) && !isLocale(cookie)) {
+      // A tap already chose a language. Do not pin English over that cookie.
+      if (!pendingLocale && isLocale(saved) && !isLocale(cookie)) {
         writeCookie(LOCALE_COOKIE, saved);
         if (locale !== saved) refresh = true;
-      } else if (!isLocale(cookie) && !isLocale(saved) && hasOtherOrenStorage(storageKeys())) {
+      } else if (!pendingLocale && !isLocale(cookie) && !isLocale(saved) && hasOtherOrenStorage(storageKeys())) {
         // The previous switcher removed oren-locale for an explicit English choice.
         writeCookie(LOCALE_COOKIE, DEFAULT_LOCALE);
         try {
