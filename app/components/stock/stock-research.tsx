@@ -6,7 +6,13 @@ import {
   getStockResearch,
   recordResearchSourceOpen,
 } from "@/services/research-service";
-import type { StockResearch } from "@/types";
+import type {
+  CompanyCitationView,
+  CompanyMetricView,
+  CompanyPeriodView,
+  CompanyResearchData,
+  StockResearch,
+} from "@/types";
 import { useT, type MessageKey, type Translate } from "@/i18n/i18n";
 
 export function StockResearchPanel({ assetId }: { assetId: string }) {
@@ -233,65 +239,10 @@ export function StockResearchPanel({ assetId }: { assetId: string }) {
             ) : null}
           </article>
           {report.company ? (
-            <article className="rounded-2xl border border-border bg-panel-subtle p-4 lg:col-span-2">
-              <h3 className="text-sm font-semibold">{t("research.filings")}</h3>
-              <p className="mt-2 text-xs text-muted">
-                {t("research.filingsNote")}
-              </p>
-              {report.company.reason ? (
-                <p className="mt-2 text-sm text-muted">
-                  {t(companyReason(report.company.reason))}
-                </p>
-              ) : null}
-              {report.company.data?.briefing.map((line, index) => (
-                <p className="mt-2 text-sm leading-6" key={`${index}-${line}`}>
-                  {line}
-                </p>
-              ))}
-              {report.company.data?.latestQuarter?.revenue?.display ? (
-                <p className="mt-2 text-xs text-muted">
-                  {t("research.quarterRevenue", { value: report.company.data.latestQuarter.revenue.display })}
-                  {report.company.data.latestQuarter.derived
-                    ? t("research.derived")
-                    : ""}
-                  {report.company.data.latestQuarter.netIncome?.display
-                    ? t("research.netIncome", { value: report.company.data.latestQuarter.netIncome.display })
-                    : ""}
-                  {report.company.data.latestQuarter.operatingMargin?.display
-                    ? t("research.operatingMargin", { value: report.company.data.latestQuarter.operatingMargin.display })
-                    : ""}
-                </p>
-              ) : null}
-              {report.company.data?.links?.length ? (
-                <ul className="mt-3 space-y-2 text-xs">
-                  {report.company.data.links.slice(0, 6).map((link) =>
-                    link.url.startsWith(
-                      "https://www.sec.gov/Archives/edgar/data/",
-                    ) ? (
-                      <li key={link.url}>
-                        <a
-                          className="underline-offset-2 hover:underline"
-                          href={link.url}
-                          onClick={recordSource}
-                          rel="noopener noreferrer"
-                          target="_blank"
-                        >
-                          {link.label}
-                        </a>
-                      </li>
-                    ) : null,
-                  )}
-                </ul>
-              ) : null}
-              {report.company.fetchedAt ? (
-                <p className="mt-2 text-xs text-muted">
-                  {t("research.fetched", { date: dateLabel(t, report.company.fetchedAt) })}
-                  {report.company.publishedAt
-                    ? t("research.filed", { date: dateLabel(t, report.company.publishedAt) })
-                    : ""}
-                </p>
-              ) : null}
-            </article>
+            <CompanyFilings
+              company={report.company}
+              onOpenSource={recordSource}
+            />
           ) : null}
           <article className="rounded-2xl border border-border bg-panel-subtle p-4 lg:col-span-2">
             <h3 className="text-sm font-semibold">{t("research.disagreeTitle")}</h3>
@@ -362,6 +313,357 @@ function dateLabel(t: Translate, value?: string) {
         day: "numeric",
       })
     : t("research.timeUnavailable");
+}
+
+const FILING_LINK_CLASS =
+  "font-medium text-foreground underline decoration-foreground/40 underline-offset-2 hover:decoration-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2";
+const SEC_ARCHIVE = "https://www.sec.gov/Archives/edgar/data/";
+// The API appends this English line to every briefing; the panel shows the
+// translated disclaimer once instead.
+const COMPANY_DISCLAIMER =
+  "Filing facts, not the Oren Score, not a recommendation.";
+
+function CompanyFilings({
+  company,
+  onOpenSource,
+}: {
+  company: NonNullable<StockResearch["company"]>;
+  onOpenSource: () => void;
+}) {
+  const t = useT();
+  const data = company.data;
+  const cards = data ? companyCards(t, data) : [];
+  const filings = sourceFilings(t, data);
+  return (
+    <article className="rounded-2xl border border-border bg-panel-subtle p-4 lg:col-span-2">
+      <h3 className="text-sm font-semibold">{t("research.filings")}</h3>
+      <p className="mt-2 text-xs text-muted">{t("research.filingsNote")}</p>
+      {company.reason ? (
+        <p className="mt-2 text-sm text-muted">
+          {t(companyReason(company.reason))}
+        </p>
+      ) : null}
+      {cards.length ? (
+        <div className="mt-3 grid gap-3 md:grid-cols-3">
+          {cards.map((card) => (
+            <section
+              className="rounded-xl border border-border bg-panel p-3"
+              key={card.key}
+            >
+              <h4 className="text-[11px] font-semibold uppercase tracking-wide text-muted">
+                {card.title}
+              </h4>
+              <p className="mt-1 text-sm font-semibold">{card.period}</p>
+              <p className="text-[11px] text-muted">{card.range}</p>
+              <dl className="mt-3 space-y-2">
+                <MetricFact
+                  label={t("research.metricRevenue")}
+                  metric={card.revenue}
+                  onOpenSource={onOpenSource}
+                />
+                <MetricFact
+                  label={t("research.metricNetIncome")}
+                  metric={card.netIncome}
+                  onOpenSource={onOpenSource}
+                />
+                <MetricFact
+                  label={t("research.metricMargin")}
+                  metric={card.margin}
+                  onOpenSource={onOpenSource}
+                />
+                <MetricFact
+                  label={t("research.metricYoy")}
+                  metric={card.yoy}
+                  note={card.yoyNote}
+                  onOpenSource={onOpenSource}
+                />
+              </dl>
+            </section>
+          ))}
+        </div>
+      ) : data?.briefing.length ? (
+        <div className="mt-3 space-y-2">
+          {data.briefing
+            .filter((line) => line !== COMPANY_DISCLAIMER)
+            .map((line) => (
+              <p className="text-sm leading-6 text-muted" key={line}>
+                <BriefingText line={line} onOpenSource={onOpenSource} />
+              </p>
+            ))}
+        </div>
+      ) : null}
+      {filings.length ? (
+        <div className="mt-4 border-t border-border pt-3">
+          <h4 className="text-xs font-semibold">
+            {t("research.sourceFilings")}
+          </h4>
+          <ul className="mt-2 divide-y divide-border">
+            {filings.map((filing) => (
+              <li
+                className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2"
+                key={filing.key}
+              >
+                <span className="inline-flex rounded-md border border-border bg-background px-1.5 py-0.5 font-mono text-[10px] font-semibold text-foreground">
+                  {filing.form}
+                </span>
+                <span className="text-xs text-muted">{filing.period}</span>
+                <span className="text-xs text-muted">
+                  {t("research.filedOn", { date: filing.filed })}
+                </span>
+                <a
+                  className={`ml-auto text-xs ${FILING_LINK_CLASS}`}
+                  href={filing.url}
+                  onClick={onOpenSource}
+                  rel="noopener noreferrer"
+                  target="_blank"
+                >
+                  {t("research.viewOnSec")}
+                </a>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+      {company.fetchedAt ? (
+        <p className="mt-2 text-xs text-muted">
+          {t("research.fetched", { date: dateLabel(t, company.fetchedAt) })}
+        </p>
+      ) : null}
+    </article>
+  );
+}
+
+function BriefingText({
+  line,
+  onOpenSource,
+}: {
+  line: string;
+  onOpenSource: () => void;
+}) {
+  return briefingParts(line).map((part, index) =>
+    part.kind === "link" ? (
+      <a
+        className={FILING_LINK_CLASS}
+        href={part.url}
+        key={`${part.url}-${index}`}
+        onClick={onOpenSource}
+        rel="noopener noreferrer"
+        target="_blank"
+      >
+        {part.label}
+      </a>
+    ) : (
+      <span key={`${index}-${part.text}`}>{part.text}</span>
+    ),
+  );
+}
+
+function briefingParts(
+  line: string,
+): Array<
+  | { kind: "text"; text: string }
+  | { kind: "link"; label: string; url: string }
+> {
+  const pattern = /\[([^\]]+)\]\(([^)\s]+)\)/g;
+  const parts: Array<
+    | { kind: "text"; text: string }
+    | { kind: "link"; label: string; url: string }
+  > = [];
+  let cursor = 0;
+  for (const match of line.matchAll(pattern)) {
+    const index = match.index ?? 0;
+    if (index > cursor) {
+      parts.push({ kind: "text", text: line.slice(cursor, index) });
+    }
+    const label = match[1] ?? "";
+    const url = match[2] ?? "";
+    if (url.startsWith(SEC_ARCHIVE)) {
+      parts.push({ kind: "link", label, url });
+    } else if (label) {
+      parts.push({ kind: "text", text: label });
+    }
+    cursor = index + match[0].length;
+  }
+  if (cursor < line.length) {
+    parts.push({ kind: "text", text: line.slice(cursor) });
+  }
+  return parts;
+}
+
+function MetricFact({
+  label,
+  metric,
+  note,
+  onOpenSource,
+}: {
+  label: string;
+  metric?: CompanyMetricView;
+  note?: string;
+  onOpenSource: () => void;
+}) {
+  const t = useT();
+  const sources = metricSources(metric);
+  return (
+    <div className="flex items-start justify-between gap-3">
+      <dt className="text-[11px] text-muted">{label}</dt>
+      <dd className="text-right">
+        <p className="text-xs font-medium tabular-nums">
+          {metric?.available && metric.display
+            ? metric.display
+            : t("research.metricUnavailable")}
+          {metric?.derived && metric.available ? (
+            <span className="ml-1 font-normal text-muted">
+              {t("research.metricDerived")}
+            </span>
+          ) : null}
+        </p>
+        {note ? <p className="text-[11px] text-muted">{note}</p> : null}
+        {sources.map((source) => (
+          <a
+            className={`mt-0.5 block text-[11px] ${FILING_LINK_CLASS}`}
+            href={source.sourceUrl}
+            key={source.sourceUrl}
+            onClick={onOpenSource}
+            rel="noopener noreferrer"
+            target="_blank"
+          >
+            {t("research.citationFiled", {
+              form: source.form,
+              date: dateLabel(t, source.filed),
+            })}
+          </a>
+        ))}
+      </dd>
+    </div>
+  );
+}
+
+function companyCards(
+  t: Translate,
+  data: CompanyResearchData,
+): Array<{
+  key: string;
+  title: string;
+  period: string;
+  range: string;
+  revenue?: CompanyMetricView;
+  netIncome?: CompanyMetricView;
+  margin?: CompanyMetricView;
+  yoy?: CompanyMetricView;
+  yoyNote?: string;
+}> {
+  const cards = [];
+  if (data.latestQuarter) {
+    const period = data.latestQuarter;
+    cards.push({
+      key: "quarter",
+      title: t("research.latestQuarter"),
+      period: fiscalLabel(period),
+      range: rangeLabel(t, period.start, period.end),
+      revenue: period.revenue,
+      netIncome: period.netIncome,
+      margin: period.operatingMargin,
+      yoy: period.revenueGrowth,
+      yoyNote: period.fiscalQuarter
+        ? t("research.vsQuarter", {
+            year: period.fiscalYear - 1,
+            quarter: period.fiscalQuarter,
+          })
+        : undefined,
+    });
+  }
+  if (data.ttm) {
+    cards.push({
+      key: "ttm",
+      title: t("research.ttm"),
+      period: t("research.ttmPeriod"),
+      range:
+        data.ttm.start && data.ttm.end
+          ? rangeLabel(t, data.ttm.start, data.ttm.end)
+          : t("research.periodNotStated"),
+      revenue: data.ttm.revenue,
+      netIncome: data.ttm.netIncome,
+      margin: data.ttm.operatingMargin,
+      yoy: data.ttm.revenueGrowth,
+      yoyNote: t("research.vsTtm"),
+    });
+  }
+  if (data.latestAnnual) {
+    const period = data.latestAnnual;
+    cards.push({
+      key: "year",
+      title: t("research.fullYear"),
+      period: fiscalLabel(period),
+      range: rangeLabel(t, period.start, period.end),
+      revenue: period.revenue,
+      netIncome: period.netIncome,
+      margin: period.operatingMargin,
+      yoy: period.revenueGrowth,
+      yoyNote: t("research.vsYear", { year: period.fiscalYear - 1 }),
+    });
+  }
+  return cards;
+}
+
+function sourceFilings(t: Translate, data: CompanyResearchData | undefined) {
+  const rows = (data?.filings ?? [])
+    .filter((filing) => filing.sourceUrl.startsWith(SEC_ARCHIVE))
+    .map((filing) => ({
+      key: filing.accession,
+      form: filing.form,
+      period: filing.reportDate
+        ? t("research.periodEnded", { date: dateLabel(t, filing.reportDate) })
+        : t("research.periodNotStated"),
+      filed: dateLabel(t, filing.filed),
+      filedSort: filing.filed,
+      url: filing.sourceUrl,
+    }));
+  if (rows.length) {
+    return rows.sort(
+      (a, b) =>
+        b.filedSort.localeCompare(a.filedSort) || b.key.localeCompare(a.key),
+    );
+  }
+  return (data?.links ?? [])
+    .filter((link) => link.url.startsWith(SEC_ARCHIVE))
+    .map((link) => ({
+      key: link.url,
+      form: link.label.split(" ")[0] || t("research.filingForm"),
+      period: t("research.periodNotStated"),
+      filed: t("research.dateUnavailable"),
+      filedSort: "",
+      url: link.url,
+    }));
+}
+
+function metricSources(metric?: CompanyMetricView): CompanyCitationView[] {
+  const items = [metric?.citation, ...(metric?.inputCitations ?? [])].filter(
+    (item): item is CompanyCitationView =>
+      Boolean(item?.sourceUrl?.startsWith(SEC_ARCHIVE)),
+  );
+  const byUrl = new Map<string, CompanyCitationView>();
+  for (const item of items) {
+    const existing = byUrl.get(item.sourceUrl);
+    if (!existing || item.filed > existing.filed)
+      byUrl.set(item.sourceUrl, item);
+  }
+  return [...byUrl.values()].sort(
+    (a, b) => b.filed.localeCompare(a.filed) || a.form.localeCompare(b.form),
+  );
+}
+
+function fiscalLabel(period: CompanyPeriodView) {
+  return period.fiscalQuarter
+    ? `FY${period.fiscalYear} Q${period.fiscalQuarter}`
+    : `FY${period.fiscalYear}`;
+}
+
+function rangeLabel(t: Translate, start?: string, end?: string) {
+  if (!start || !end) return t("research.periodNotStated");
+  return t("research.range", {
+    from: dateLabel(t, start),
+    to: dateLabel(t, end),
+  });
 }
 
 const companyReasonKeys: Record<string, MessageKey> = {
