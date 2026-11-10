@@ -156,10 +156,11 @@ describe('AgentService', () => {
     expect(tools.dispatch).toHaveBeenCalledWith(
       'analyzeStock',
       { assetIdOrTicker: 'NVDA' },
-      { walletAddress: 'wallet-1' },
+      { walletAddress: 'wallet-1', turnFocus: 'technical' },
     );
     expect(tools.dripEnabledFor).toHaveBeenCalledWith({
       walletAddress: 'wallet-1',
+      turnFocus: 'technical',
     });
     expect(streamed.map((event) => event.type)).toEqual([
       'turn_started',
@@ -694,5 +695,111 @@ describe('AgentService', () => {
       'Dilution is the real risk.',
     );
     expect(creates[0]?.[0].instructions).not.toContain('not financial advice');
+  });
+
+  it('steers the company-report correction away from the previous price read', async () => {
+    repository.listMessages.mockResolvedValue([
+      {
+        id: 'user-1',
+        threadId: 'thread-1',
+        role: 'user',
+        content: 'whats the report on nvidia',
+        createdAt: new Date('2026-11-09T00:00:00Z'),
+      },
+      {
+        id: 'assistant-1',
+        threadId: 'thread-1',
+        role: 'assistant',
+        content:
+          'NVIDIA has been falling and is close to a level where buyers have stepped in before (~$175).',
+        createdAt: new Date('2026-11-09T00:00:01Z'),
+      },
+      {
+        id: 'user-2',
+        threadId: 'thread-1',
+        role: 'user',
+        content: 'i mean company repott',
+        createdAt: new Date('2026-11-09T00:00:02Z'),
+      },
+    ]);
+    openai.responses.create.mockResolvedValue(
+      responseStream({
+        output_text:
+          'SEC company facts are not loaded until the server contact is configured.',
+        output: [],
+      }),
+    );
+
+    for await (const event of service.streamMessage({
+      walletAddress: 'wallet-1',
+      threadId: 'thread-1',
+      message: 'i mean company repott',
+    })) {
+      void event;
+    }
+
+    const instructions = (
+      openai.responses.create.mock.calls as unknown as Array<
+        [{ instructions: string }]
+      >
+    )[0]?.[0].instructions;
+    expect(instructions).toContain('Turn: company');
+    expect(instructions).toContain('getStockResearch');
+    expect(instructions).toContain('Do not repeat');
+    expect(instructions).not.toMatch(/before any Oren read/);
+    expect(tools.dispatch).not.toHaveBeenCalled();
+  });
+
+  it('tells a sentiment mix not to relabel opportunity scores', async () => {
+    openai.responses.create.mockResolvedValue(
+      responseStream({
+        output_text:
+          'Writer opinions are not available on this turn, so this cannot be ranked by sentiment.',
+        output: [],
+      }),
+    );
+
+    for await (const event of service.streamMessage({
+      walletAddress: 'wallet-1',
+      message:
+        'i want a stock mix for 100 on tech and ai companies that have the best sentiment in the market',
+    })) {
+      void event;
+    }
+
+    const instructions = (
+      openai.responses.create.mock.calls as unknown as Array<
+        [{ instructions: string }]
+      >
+    )[0]?.[0].instructions;
+    expect(instructions).toContain('Turn: sentiment');
+    expect(instructions).toContain('does not mean opportunityScore');
+    expect(instructions).toContain('findOpportunities');
+    expect(instructions).toContain('Do not offer a buy quote');
+  });
+
+  it('drops an unsolicited limit-order offer from the saved answer', async () => {
+    const offered =
+      'Mastercard has been climbing, with selling interest near ~$668. Recent trend up.\nWant me to propose a Jupiter Trigger limit buy around ~$605.84?';
+    openai.responses.create.mockResolvedValue(
+      responseStream({ output_text: offered, output: [] }, [offered]),
+    );
+
+    const events: AgentStreamEvent[] = [];
+    for await (const event of service.streamMessage({
+      walletAddress: 'wallet-1',
+      message: 'can we go over the mastercard bro ?',
+    })) {
+      events.push(event);
+    }
+
+    expect(events.some((event) => event.type === 'assistant_reset')).toBe(true);
+    expect(events.at(-1)).toMatchObject({
+      type: 'turn_completed',
+      message: {
+        content:
+          'Mastercard has been climbing, with selling interest near ~$668. Recent trend up.',
+      },
+    });
   });
 });

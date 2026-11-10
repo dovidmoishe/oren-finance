@@ -22,6 +22,7 @@ import { AgentUnavailableError } from '../common/errors/provider.errors';
 import { APP_ENV } from '../config/constants';
 import type { AppEnv } from '../config/env.schema';
 import { isSameReply, previousAssistantContent } from './agent-followup';
+import { planAgentTurn, stripUnsolicitedTradeOffer } from './agent-turn';
 import { buildInstructions, portfolioToContext } from './agent-context';
 import { priorDripToolNote, stripEmptyDetailsFences } from './agent-reply';
 import { AgentRepository } from './agent.repository';
@@ -135,12 +136,23 @@ export class AgentService {
       const portfolioContext = await this.loadPortfolioContext(walletAddress);
       const caller = await this.callerFor(walletAddress, authorization);
       const schemas = this.tools.getSchemas(caller);
+      const plan = planAgentTurn({
+        message: content,
+        history: history.map((message) => ({
+          role: message.role,
+          content: message.content,
+          toolName: message.toolName,
+        })),
+        writerOpinionsEnabled: this.tools.dripEnabledFor(caller),
+      });
+      caller.turnFocus = plan.focus;
       let instructions = buildInstructions(
         walletAddress,
         body.context,
         portfolioContext,
         { includeDrip: this.tools.dripEnabledFor(caller) },
       );
+      instructions += `\n\n${plan.instruction}`;
       const priorDrip = priorDripToolNote(history);
       if (priorDrip) instructions += `\n\n${priorDrip}`;
       let echoRetries = 0;
@@ -272,6 +284,26 @@ export class AgentService {
               sequence: sequence++,
               timestamp: timestamp(),
               delta: assistantContent,
+            };
+          }
+          const withoutOffer = stripUnsolicitedTradeOffer(
+            assistantContent,
+            plan.userAskedToTrade,
+          );
+          if (withoutOffer !== assistantContent) {
+            assistantContent = withoutOffer;
+            yield {
+              type: 'assistant_reset',
+              turnId,
+              sequence: sequence++,
+              timestamp: timestamp(),
+            };
+            yield {
+              type: 'assistant_delta',
+              turnId,
+              sequence: sequence++,
+              timestamp: timestamp(),
+              delta: withoutOffer,
             };
           }
           const finalText =
