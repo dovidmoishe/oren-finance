@@ -47,6 +47,8 @@ See **Active phase** at the top of [`docs/api-build-board.md`](docs/api-build-bo
 
 ## App-specific notes
 
+- Use Tailwind CSS v4 utilities in JSX for first-party web and docs styling. Reuse Tailwind theme tokens and use responsive, state, and accessibility variants for conditional styles. Do not add CSS Modules, standalone vanilla CSS, or static inline styles. Keep custom CSS in the Tailwind entry points or their imports only when necessary, such as keyframes, browser-specific behavior, and third-party integration overrides. Use inline styles for values computed at runtime when classes cannot represent them.
+
 - Use Hugeicons for interface icons across the website: named icons from `@hugeicons/core-free-icons` rendered with `HugeiconsIcon` from `@hugeicons/react`. Use these for arrows, controls, status indicators and social-link icons instead of Unicode glyphs or custom interface SVGs. Preserve original brand logos, product illustrations and data charts as their own visuals.
 
 - For release notes and changelog publishing, use [the Oren changelog skill](.agents/skills/oren-changelog/SKILL.md). Entries live in `app/content/changelog/`; films follow the existing separately deployed media workflow.

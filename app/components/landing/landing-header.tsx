@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef, type ReactNode } from "react";
-import styles from "./landing-hero.module.css";
 
 export function LandingHeader({ children }: { children: ReactNode }) {
   const top = useRef<HTMLSpanElement>(null);
@@ -18,7 +17,7 @@ export function LandingHeader({ children }: { children: ReactNode }) {
   }, []);
 
   return <>
-    <span ref={top} aria-hidden className={styles.scrollSentinel} />
-    <header ref={header} className={styles.navigation} data-scrolled="false">{children}</header>
+    <span ref={top} aria-hidden className="absolute top-0 left-0 w-[1px] h-[8px] pointer-events-none" />
+    <header ref={header} className="landing-navigation" data-scrolled="false">{children}</header>
   </>;
 }

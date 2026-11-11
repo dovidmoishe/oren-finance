@@ -53,7 +53,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       className={`${neueFreigeist.variable} h-full antialiased`}
       suppressHydrationWarning
     >
-      <body className="min-h-full">
+      <body className="min-h-full bg-background text-foreground [font-family:var(--font-neue-freigeist),system-ui,sans-serif] selection:bg-[#111111] selection:text-white">
         <NextIntlClientProvider locale={DEFAULT_LOCALE} messages={en} timeZone="UTC">
           <IntlErrorProvider>
             <LocaleSync />

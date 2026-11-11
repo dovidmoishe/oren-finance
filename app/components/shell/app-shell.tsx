@@ -50,7 +50,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <OrenLogo className="h-7 w-7" size={28} />
             <span className="font-display text-lg font-semibold">Oren</span>
           </Link>
-          <nav className="oren-app-nav flex items-stretch justify-start gap-3 overflow-x-auto md:justify-center sm:gap-8">
+          <nav className="flex items-stretch justify-start gap-3 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:justify-center sm:gap-8">
             {navItems.map((item) => {
               const active =
                 item.href === "/app"
@@ -81,7 +81,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </div>
         </div>
       </header>
-      <main className={cn("agent-shell-main min-w-0 px-4 py-5 sm:px-6", reserveSidecarGutter && "2xl:pr-[416px]")}>
+      <main className={cn("min-w-0 px-4 py-5 [transition:padding-right_var(--panel-open-dur)_var(--panel-ease)] motion-reduce:transition-none sm:px-6", reserveSidecarGutter && "2xl:pr-[416px]")}>
         <PendingApprovalNotice />
         {children}
       </main>
