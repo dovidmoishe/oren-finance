@@ -38,7 +38,7 @@ export function buildInstructions(
   if (options?.includeDrip) sections.push(DRIP_AGENT_GUIDANCE);
   else
     sections.push(
-      'Writer opinions are not available on this turn. If the user asks what people or writers are saying, say that plainly. Do not answer from the news feed or from Oren technical analysis and present it as those opinions, Drip, or Drip Stack.',
+      'Writer opinions are not available on this turn. If the user asks what people or writers are saying, or for sentiment, say that plainly. Do not answer from the news feed, from Oren technical analysis, or from an opportunity score and present it as those opinions, Drip, Drip Stack, or sentiment.',
     );
   sections.push(walletSection(walletAddress));
 

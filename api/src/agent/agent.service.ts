@@ -16,7 +16,6 @@ import type {
   AgentThreadMessagesResponse,
   AgentToolActivity,
 } from '../../types/agent';
-import type { AgentToolContext } from './tools/agent-tool.registry';
 import { PrivyWalletAuth } from '../auth/privy-wallet-auth';
 import { AgentUnavailableError } from '../common/errors/provider.errors';
 import { toolFailurePayload } from '../execution/simulation-reason';
@@ -24,11 +23,20 @@ import { APP_ENV } from '../config/constants';
 import type { AppEnv } from '../config/env.schema';
 import { isSameReply, previousAssistantContent } from './agent-followup';
 import { buildInstructions, portfolioToContext } from './agent-context';
-import { priorDripToolNote, stripEmptyDetailsFences } from './agent-reply';
+import {
+  linkCompanyCitations,
+  priorDripToolNote,
+  stripEmptyDetailsFences,
+  stripUnsolicitedTradeOffer,
+} from './agent-reply';
 import { AgentRepository } from './agent.repository';
 import { OPENAI_CLIENT, type OpenAIClient } from './openai.provider';
 import { PortfolioService } from '../portfolio/portfolio.service';
-import { AgentToolRegistry } from './tools/agent-tool.registry';
+import {
+  AgentToolRegistry,
+  type AgentToolContext,
+  type AgentToolResult,
+} from './tools/agent-tool.registry';
 
 const MAX_TOOL_ROUNDS = 5;
 const HISTORY_LIMIT = 100;
@@ -132,9 +140,11 @@ export class AgentService {
       let input: ResponseInput = messagesToInput(history);
       const artifacts: AgentArtifact[] = [];
       const activities: AgentToolActivity[] = [];
+      const companySources: NonNullable<AgentToolResult['companySources']> = [];
       let assistantContent = '';
       const portfolioContext = await this.loadPortfolioContext(walletAddress);
       const caller = await this.callerFor(walletAddress, authorization);
+      if (signal) caller.signal = signal;
       const schemas = this.tools.getSchemas(caller);
       let instructions = buildInstructions(
         walletAddress,
@@ -275,6 +285,30 @@ export class AgentService {
               delta: assistantContent,
             };
           }
+          const withoutOffer = stripUnsolicitedTradeOffer(
+            assistantContent,
+            activities,
+          );
+          const withCitations = linkCompanyCitations(
+            withoutOffer,
+            companySources,
+          );
+          if (withCitations !== assistantContent) {
+            assistantContent = withCitations;
+            yield {
+              type: 'assistant_reset',
+              turnId,
+              sequence: sequence++,
+              timestamp: timestamp(),
+            };
+            yield {
+              type: 'assistant_delta',
+              turnId,
+              sequence: sequence++,
+              timestamp: timestamp(),
+              delta: withCitations,
+            };
+          }
           const finalText =
             stripEmptyDetailsFences(assistantContent) ||
             'I could not produce a response.';
@@ -319,6 +353,8 @@ export class AgentService {
               toolPayload: args,
             });
             if (result.artifact) artifacts.push(result.artifact);
+            if (result.companySources)
+              companySources.push(...result.companySources);
             const activity = activities.find((item) => item.callId === callId);
             if (activity) activity.status = 'completed';
             yield {
