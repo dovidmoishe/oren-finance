@@ -71,12 +71,29 @@ export function gatePolicyRulesValid(
   const rules = policy.rules;
   if (!rules || rules.some((rule) => rule.method !== 'signTransaction'))
     return false;
-  if (!sellsEnabled) return rules.length === 2 || rules.length === 3;
+  const buys = 'allow bounded jupiter buy';
+  const sells = 'allow bounded jupiter sell';
+  const compute = 'allow compute budget';
+  const compactNames = sellsEnabled ? [compute, buys, sells] : [compute, buys];
+  if (rules.length === compactNames.length)
+    return (
+      compactNames.every((name) => rules.some((rule) => rule.name === name)) &&
+      rules.every(
+        (rule) =>
+          rule.action === 'ALLOW' &&
+          !rule.conditions?.some(
+            (condition) =>
+              condition.field_source === 'system' &&
+              condition.field === 'current_unix_timestamp',
+          ),
+      )
+    );
+  if (!sellsEnabled) return rules.length === 3;
   return (
-    rules.length >= 3 &&
+    rules.length >= 4 &&
     rules.length <= 46 &&
-    rules.some((rule) => rule.name === 'allow bounded jupiter buy') &&
-    rules.some((rule) => rule.name === 'allow bounded jupiter sell')
+    rules.some((rule) => rule.name === buys) &&
+    rules.some((rule) => rule.name === sells)
   );
 }
 
