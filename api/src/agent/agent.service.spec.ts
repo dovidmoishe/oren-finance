@@ -5,6 +5,8 @@ import type {
 } from '../../types/agent';
 import { tooManyRequests } from '../common/rate-limit';
 import { AgentService } from './agent.service';
+import { CompanyBriefService } from './company-brief.service';
+import { AgentToolRegistry } from './tools/agent-tool.registry';
 
 jest.mock('@privy-io/node', () => ({ PrivyClient: jest.fn() }));
 
@@ -156,11 +158,10 @@ describe('AgentService', () => {
     expect(tools.dispatch).toHaveBeenCalledWith(
       'analyzeStock',
       { assetIdOrTicker: 'NVDA' },
-      { walletAddress: 'wallet-1', turnFocus: 'technical' },
+      { walletAddress: 'wallet-1' },
     );
     expect(tools.dripEnabledFor).toHaveBeenCalledWith({
       walletAddress: 'wallet-1',
-      turnFocus: 'technical',
     });
     expect(streamed.map((event) => event.type)).toEqual([
       'turn_started',
@@ -697,57 +698,139 @@ describe('AgentService', () => {
     expect(creates[0]?.[0].instructions).not.toContain('not financial advice');
   });
 
-  it('steers the company-report correction away from the previous price read', async () => {
+  it('streams sourced company research for "research NVIDIA"', async () => {
+    const message = 'research NVIDIA';
+    const stock = { id: 'nvda', ticker: 'NVDA', name: 'NVIDIA' };
+    const env = { OPENAI_MODEL: 'gpt-5-mini' } as never;
+    const market = { getStock: jest.fn().mockResolvedValue(stock) };
+    const research = { getStock: jest.fn() };
+    const companyBrief = new CompanyBriefService(openai as never, env);
+    const registry = new AgentToolRegistry(
+      {} as never,
+      {} as never,
+      market as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      undefined,
+      research as never,
+      undefined,
+      companyBrief,
+    );
+    service = new AgentService(
+      repository as never,
+      registry,
+      portfolioService as never,
+      env,
+      openai as never,
+    );
     repository.listMessages.mockResolvedValue([
       {
-        id: 'user-1',
+        id: 'user-research',
         threadId: 'thread-1',
         role: 'user',
-        content: 'whats the report on nvidia',
-        createdAt: new Date('2026-11-09T00:00:00Z'),
-      },
-      {
-        id: 'assistant-1',
-        threadId: 'thread-1',
-        role: 'assistant',
-        content:
-          'NVIDIA has been falling and is close to a level where buyers have stepped in before (~$175).',
-        createdAt: new Date('2026-11-09T00:00:01Z'),
-      },
-      {
-        id: 'user-2',
-        threadId: 'thread-1',
-        role: 'user',
-        content: 'i mean company repott',
-        createdAt: new Date('2026-11-09T00:00:02Z'),
+        content: message,
+        createdAt: thread.createdAt,
       },
     ]);
-    openai.responses.create.mockResolvedValue(
-      responseStream({
-        output_text:
-          'SEC company facts are not loaded until the server contact is configured.',
-        output: [],
-      }),
-    );
 
+    const sections = [
+      {
+        title: 'NVIDIA Form 10-Q',
+        url: 'https://investor.nvidia.com/files/doc_financials/2027/NVDA-2027-Q2-10Q-Final-including-exhibits.pdf',
+        text: 'NVIDIA sells GPUs, networking and software to cloud providers and other buyers.',
+      },
+      {
+        title: 'NVIDIA Q2 FY2027 results',
+        url: 'https://investor.nvidia.com/news/press-release-details/2026/NVIDIA-Announces-Financial-Results-for-Second-Quarter-Fiscal-2027/',
+        text: 'In Q2 FY2027, reported August 26, revenue was $96.2 billion, up 106% year over year.',
+      },
+      {
+        title: 'NVIDIA Q3 earnings date',
+        url: 'https://investor.nvidia.com/news/press-release-details/2026/NVIDIA-Sets-Conference-Call-for-Third-Quarter-Financial-Results/',
+        text: 'The November 17 results are the next checkpoint for demand after rapid data-center growth.',
+      },
+    ];
+    const modelAnswer = sections
+      .map(({ text, title }) => `${text} [${title}]`)
+      .join('\n\n');
+    const answer = sections
+      .map(({ text, title, url }) => `${text} [${title}](<${url}>)`)
+      .join('\n\n');
+    openai.responses.create
+      .mockResolvedValueOnce(
+        responseStream({
+          output: [
+            {
+              type: 'function_call',
+              name: 'getCompanyBrief',
+              call_id: 'public-research',
+              arguments: '{"assetIdOrTicker":"NVDA"}',
+            },
+          ],
+        }),
+      )
+      .mockResolvedValueOnce({
+        status: 'completed',
+        output: [
+          {
+            type: 'message',
+            content: sections.map(({ text, title, url }) => ({
+              type: 'output_text',
+              text,
+              annotations: [{ type: 'url_citation', title, url }],
+            })),
+          },
+        ],
+      })
+      .mockResolvedValueOnce(
+        responseStream({ output_text: modelAnswer, output: [] }, [modelAnswer]),
+      );
+
+    const events: AgentStreamEvent[] = [];
     for await (const event of service.streamMessage({
       walletAddress: 'wallet-1',
-      threadId: 'thread-1',
-      message: 'i mean company repott',
+      message,
     })) {
-      void event;
+      events.push(event);
     }
 
-    const instructions = (
-      openai.responses.create.mock.calls as unknown as Array<
-        [{ instructions: string }]
-      >
-    )[0]?.[0].instructions;
-    expect(instructions).toContain('Turn: company');
-    expect(instructions).toContain('getStockResearch');
-    expect(instructions).toContain('Do not repeat');
-    expect(instructions).not.toMatch(/before any Oren read/);
-    expect(tools.dispatch).not.toHaveBeenCalled();
+    const [initial, publicLookup, synthesis] =
+      openai.responses.create.mock.calls;
+    expect(initial?.[0]).toMatchObject({
+      input: [{ role: 'user', content: message }],
+      tools: expect.arrayContaining([
+        expect.objectContaining({ name: 'getCompanyBrief' }),
+      ]),
+    });
+    expect(publicLookup?.[0]).toMatchObject({
+      tool_choice: 'required',
+      tools: [expect.objectContaining({ type: 'web_search' })],
+    });
+    expect(JSON.parse(publicLookup?.[0].input)).toEqual({
+      company: 'NVIDIA',
+      ticker: 'NVDA',
+      asOf: expect.any(String),
+    });
+    const evidence = JSON.parse(
+      synthesis?.[0].input.find(
+        (item: { type?: string }) => item.type === 'function_call_output',
+      ).output,
+    );
+    expect(evidence.evidence).toEqual(
+      sections.map(({ text, title, url }) => ({
+        text,
+        sources: [{ title, url }],
+      })),
+    );
+    expect(research.getStock).not.toHaveBeenCalled();
+    expect(events.at(-1)).toMatchObject({
+      type: 'turn_completed',
+      message: { content: answer },
+    });
   });
 
   it('tells a sentiment mix not to relabel opportunity scores', async () => {
@@ -772,10 +855,9 @@ describe('AgentService', () => {
         [{ instructions: string }]
       >
     )[0]?.[0].instructions;
-    expect(instructions).toContain('Turn: sentiment');
-    expect(instructions).toContain('does not mean opportunityScore');
-    expect(instructions).toContain('findOpportunities');
-    expect(instructions).toContain('Do not offer a buy quote');
+    expect(instructions).toMatch(/an opportunity score is momentum/i);
+    expect(instructions).toContain('do not substitute a ranked list');
+    expect(instructions).toContain('Do not offer to prepare a buy quote');
   });
 
   it('drops an unsolicited limit-order offer from the saved answer', async () => {

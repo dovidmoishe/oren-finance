@@ -269,33 +269,7 @@ describe('AgentToolRegistry', () => {
     });
   });
 
-  it('withholds the price read when the turn is a company report', async () => {
-    market.getStock.mockResolvedValue({
-      id: 'nvda',
-      ticker: 'NVDA',
-      name: 'NVIDIA',
-    });
-    intelligence.getAnalysis.mockResolvedValue({
-      assetId: 'nvda',
-      ticker: 'NVDA',
-      name: 'NVIDIA',
-      opportunityScore: 53,
-    });
-
-    const result = await registry.dispatch(
-      'analyzeStock',
-      { assetIdOrTicker: 'NVDA' },
-      { walletAddress: 'wallet-1', turnFocus: 'company' },
-    );
-
-    expect(result.artifact).toMatchObject({ type: 'analysis' });
-    expect(JSON.stringify(result.modelOutput)).toMatch(/getStockResearch/);
-    expect(JSON.stringify(result.modelOutput)).not.toMatch(/falling|\$175/);
-    const spoken = result.modelOutput as { speak?: { lead?: string } };
-    expect(spoken.speak?.lead).toMatch(/does not answer a company report/);
-  });
-
-  it('does not hand sentiment questions the opportunity names', async () => {
+  it('labels rankings as momentum, trend, and trading activity', async () => {
     intelligence.getOpportunities.mockResolvedValue([
       {
         assetId: 'ttwo',
@@ -314,19 +288,6 @@ describe('AgentToolRegistry', () => {
     );
     expect(JSON.stringify(ranked.modelOutput)).toContain('TTWO');
     expect(JSON.stringify(ranked.modelOutput)).toMatch(/not market sentiment/);
-
-    const sentiment = await registry.dispatch(
-      'findOpportunities',
-      { minScore: null, limit: null },
-      { walletAddress: 'wallet-1', turnFocus: 'sentiment' },
-    );
-    expect(sentiment.output).toEqual(
-      expect.arrayContaining([expect.objectContaining({ ticker: 'TTWO' })]),
-    );
-    expect(JSON.stringify(sentiment.modelOutput)).not.toContain('TTWO');
-    expect(JSON.stringify(sentiment.modelOutput)).toMatch(
-      /Writer opinions are not available/,
-    );
   });
 
   it('dispatches vault tools and extracts artifacts', async () => {
@@ -803,43 +764,5 @@ describe('AgentToolRegistry research identity', () => {
       artifact: { type: 'research', data: { assetId: 'nvda' } },
     });
     expect(research.getStock).toHaveBeenCalledWith('nvda', caller);
-  });
-
-  it('answers a company-report turn with the SEC gap instead of a price read', async () => {
-    research.getStock.mockResolvedValueOnce({
-      assetId: 'nvda',
-      ticker: 'NVDA',
-      name: 'NVIDIA',
-      opinions: { available: false, reason: 'not_enabled' },
-      company: {
-        available: false,
-        reason: 'sec_not_configured',
-        data: {
-          briefing: [
-            'SEC company facts are not loaded until the server contact is configured. No company figures are shown.',
-          ],
-        },
-      },
-    });
-
-    const result = await registry.dispatch(
-      'getStockResearch',
-      { assetId: 'nvda' },
-      {
-        userId: 'did:privy:user',
-        walletAddress: 'owned',
-        turnFocus: 'company',
-      },
-    );
-    const spoken = result.modelOutput as {
-      speak: { lead: string; bullets: string[] };
-    };
-
-    expect(spoken.speak.lead).toContain(
-      'SEC company facts are not loaded until the server contact is configured',
-    );
-    expect(
-      `${spoken.speak.lead} ${spoken.speak.bullets.join(' ')}`,
-    ).not.toMatch(/falling|buyers have stepped/);
   });
 });

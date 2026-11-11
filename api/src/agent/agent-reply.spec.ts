@@ -469,19 +469,6 @@ describe('opportunity ranking is not sentiment', () => {
     },
   ];
 
-  it('hides the ranked names when the question was sentiment', () => {
-    const shaped = opportunitiesModelOutput(picks, {
-      askedForSentiment: true,
-      writerOpinionsEnabled: false,
-    });
-
-    expect(shaped.notSentiment).toBe(true);
-    expect(shaped.instruction).toMatch(/not market sentiment/);
-    expect(shaped.instruction).toMatch(/Writer opinions are not available/);
-    expect(JSON.stringify(shaped)).not.toContain('TTWO');
-    expect(JSON.stringify(shaped)).not.toContain('77.22');
-  });
-
   it('keeps highlights for a real opportunity question and still forbids the sentiment label', () => {
     const shaped = opportunitiesModelOutput(picks);
 

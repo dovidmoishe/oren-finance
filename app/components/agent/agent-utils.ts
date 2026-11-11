@@ -82,6 +82,7 @@ export function contextLabel(context: AgentPageContext, ticker?: string): string
 
 export function toolLabel(toolName: string) {
   const labels: Record<string, string> = {
+    getCompanyBrief: 'Checking company filings and recent developments',
     getStockResearch: 'Building cited stock research',
     getPortfolio: 'Checking your portfolio',
     getPortfolioActivity: 'Reading portfolio activity',
