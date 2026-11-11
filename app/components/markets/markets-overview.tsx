@@ -4,10 +4,11 @@ import { ArrowDown01Icon, ArrowUp01Icon, Search01Icon } from "@hugeicons/core-fr
 import { HugeiconsIcon } from "@hugeicons/react";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Button, Skeleton, cn, formatCurrency, formatPercent } from "@/components/ui";
+import { Button, Skeleton, cn, formatCompactCurrency, formatCurrency, formatPercent } from "@/components/ui";
 import { getStockChart } from "@/services";
 import { useMarketStore } from "@/store";
 import type { MarketCandle, StockSummary } from "@/types";
+import { useI18n, useT } from "@/i18n/i18n";
 
 const sparklineCache = new Map<string, MarketCandle[]>();
 
@@ -21,13 +22,14 @@ function SortIcon() {
 }
 
 function StockLogo({ stock }: { stock: StockSummary }) {
+  const t = useT();
   const [failed, setFailed] = useState(false);
 
   if (stock.logoUrl && !failed) {
     return (
       // eslint-disable-next-line @next/next/no-img-element
       <img
-        alt={`${stock.name} logo`}
+        alt={t("markets.logoAlt", { name: stock.name })}
         className="h-7 w-7 rounded-full object-contain"
         loading="lazy"
         onError={() => setFailed(true)}
@@ -64,6 +66,7 @@ function buildSparklinePoints(candles: MarketCandle[]) {
 }
 
 function Sparkline({ stock }: { stock: StockSummary }) {
+  const t = useT();
   const cacheKey = `${stock.assetId}:1D`;
   const [candles, setCandles] = useState<MarketCandle[] | undefined>(() => sparklineCache.get(cacheKey));
 
@@ -98,7 +101,7 @@ function Sparkline({ stock }: { stock: StockSummary }) {
 
   const points = buildSparklinePoints(candles);
   if (!points) {
-    return <span className="text-xs text-muted">No 24h data</span>;
+    return <span className="text-xs text-muted">{t("markets.noData24h")}</span>;
   }
 
   const first = candles.find((candle) => Number.isFinite(candle.close))?.close ?? 0;
@@ -109,7 +112,7 @@ function Sparkline({ stock }: { stock: StockSummary }) {
 
   return (
     <svg
-      aria-label={`${stock.ticker} last 24 hours`}
+      aria-label={t("markets.sparklineLabel", { ticker: stock.ticker })}
       className={cn("h-8 w-32", positive ? "text-positive" : "text-negative")}
       preserveAspectRatio="none"
       viewBox="0 0 128 32"
@@ -138,20 +141,8 @@ function normalizeLogoUrl(url: string) {
   return url;
 }
 
-function formatCompactCurrency(value?: number) {
-  if (typeof value !== "number" || Number.isNaN(value)) {
-    return "$0";
-  }
-
-  return new Intl.NumberFormat("en-US", {
-    currency: "USD",
-    maximumFractionDigits: 2,
-    notation: "compact",
-    style: "currency",
-  }).format(value);
-}
-
 function StockRow({ stock }: { stock: StockSummary }) {
+  const { locale } = useI18n();
   const positive = (stock.change24hPct ?? 0) >= 0;
 
   return (
@@ -167,12 +158,12 @@ function StockRow({ stock }: { stock: StockSummary }) {
           <span className="ml-2 font-mono text-muted">${stock.ticker}</span>
         </div>
       </div>
-      <div className="font-mono">{formatCurrency(stock.priceUsd)}</div>
+      <div className="font-mono">{formatCurrency(stock.priceUsd, locale)}</div>
       <div className={cn("font-mono", positive ? "text-positive" : "text-negative")}>
-        {positive ? "▲" : "▼"} {formatPercent(Math.abs(stock.change24hPct ?? 0), false)}
+        {positive ? "▲" : "▼"} {formatPercent(Math.abs(stock.change24hPct ?? 0), locale, false)}
       </div>
       <Sparkline stock={stock} />
-      <div className="font-mono">{formatCompactCurrency(stock.liquidityUsd)}</div>
+      <div className="font-mono">{formatCompactCurrency(stock.liquidityUsd, locale)}</div>
     </Link>
   );
 }
@@ -215,6 +206,7 @@ export function MarketsOverview() {
   const search = useMarketStore((state) => state.search);
   const loadMoreRef = useRef<HTMLDivElement>(null);
   const [query, setQuery] = useState("");
+  const { locale, t } = useI18n();
 
   useEffect(() => {
     void loadMarkets();
@@ -254,20 +246,23 @@ export function MarketsOverview() {
   );
   const featured = [
     {
-      title: "Trending",
-      detail: "High activity equities",
+      key: "trending",
+      title: t("markets.trending"),
+      detail: t("markets.trendingDetail"),
       stock: trending[0] ?? stocks[0],
       className: "bg-accent-yellow",
     },
     {
-      title: "Oren Opportunity",
-      detail: "Highest deterministic score",
+      key: "opportunity",
+      title: t("markets.opportunity"),
+      detail: t("markets.opportunityDetail"),
       stock: opportunities[0] ?? stocks[1],
       className: "bg-accent-pink",
     },
     {
-      title: "Market Coverage",
-      detail: `${stocks.length} canonical equities loaded`,
+      key: "coverage",
+      title: t("markets.coverage"),
+      detail: t("markets.coverageDetail", { count: stocks.length }),
       stock: stocks[2],
       className: "bg-accent-lavender",
     },
@@ -277,27 +272,27 @@ export function MarketsOverview() {
     <div className="mx-auto max-w-[1540px] space-y-5 pb-20">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="text-sm text-muted">Explore</p>
-          <h1 className="font-display text-4xl font-semibold tracking-normal">Market</h1>
-          <p className="mt-1 text-sm text-muted">Browse and research canonical tokenized equities without issuer clutter.</p>
+          <p className="text-sm text-muted">{t("markets.explore")}</p>
+          <h1 className="font-display text-4xl font-semibold tracking-normal">{t("markets.title")}</h1>
+          <p className="mt-1 text-sm text-muted">{t("markets.subtitle")}</p>
         </div>
         <label className="flex h-11 w-full items-center gap-2 rounded-[14px] border border-border bg-panel px-4 shadow-sm focus-within:border-border-strong sm:w-[360px]">
           <HugeiconsIcon className="text-muted" color="currentColor" icon={Search01Icon} size={17} strokeWidth={1.8} />
-          <span className="sr-only">Search stocks</span>
+          <span className="sr-only">{t("markets.searchLabel")}</span>
           <input
             className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-2"
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search company or ticker"
+            placeholder={t("markets.searchPlaceholder")}
             type="search"
             value={query}
           />
-          {isSearching ? <span className="text-xs text-muted">Searching…</span> : null}
+          {isSearching ? <span className="text-xs text-muted">{t("markets.searching")}</span> : null}
         </label>
       </div>
 
       <div className="grid gap-4 md:grid-cols-3">
         {featured.map((item) => (
-          <section className={cn("rounded-[24px] p-4 text-foreground shadow-[0_18px_60px_rgba(23,23,23,0.05)]", item.className)} key={item.title}>
+          <section className={cn("rounded-[24px] p-4 text-foreground shadow-[0_18px_60px_rgba(23,23,23,0.05)]", item.className)} key={item.key}>
             <p className="text-base font-semibold">{item.title}</p>
             <p className="mt-1 text-xs text-foreground/65">{item.detail}</p>
             {item.stock ? (
@@ -307,12 +302,12 @@ export function MarketsOverview() {
                   <p className="mt-1 line-clamp-1 text-sm text-foreground/70">{item.stock.name}</p>
                 </div>
                 <div className="text-right">
-                  <p className="font-mono text-sm">{formatCurrency(item.stock.priceUsd)}</p>
+                  <p className="font-mono text-sm">{formatCurrency(item.stock.priceUsd, locale)}</p>
                   <ChangePill positive={(item.stock.change24hPct ?? 0) >= 0} value={item.stock.change24hPct} />
                 </div>
               </Link>
             ) : (
-              <div className="mt-6 text-sm text-foreground/60">Loading market data</div>
+              <div className="mt-6 text-sm text-foreground/60">{t("markets.loadingData")}</div>
             )}
           </section>
         ))}
@@ -320,11 +315,11 @@ export function MarketsOverview() {
 
       <div className="overflow-x-auto rounded-[24px] border border-border bg-panel shadow-[0_18px_60px_rgba(23,23,23,0.04)]">
         <div className="grid min-w-[700px] grid-cols-[minmax(240px,1.5fr)_140px_120px_220px_150px] bg-panel-subtle/70 px-4 py-3 text-xs font-semibold text-foreground">
-          <div className="flex items-center gap-1">Token Name <SortIcon /></div>
-          <div className="flex items-center gap-1">Price <SortIcon /></div>
-          <div className="flex items-center gap-1">1D <SortIcon /></div>
-          <div>Last 24h</div>
-          <div className="flex items-center gap-1">Liquidity <SortIcon /></div>
+          <div className="flex items-center gap-1">{t("markets.colName")} <SortIcon /></div>
+          <div className="flex items-center gap-1">{t("markets.colPrice")} <SortIcon /></div>
+          <div className="flex items-center gap-1">{t("markets.col1d")} <SortIcon /></div>
+          <div>{t("markets.colLast24h")}</div>
+          <div className="flex items-center gap-1">{t("markets.colLiquidity")} <SortIcon /></div>
         </div>
         {(isLoading || isSearching) && rows.length === 0 ? <TableSkeleton /> : null}
         {rows.length && !(isSearching && searchResults.length === 0)
@@ -336,14 +331,14 @@ export function MarketsOverview() {
               <>
                 {isLoadingMore ? <TableSkeleton count={4} /> : (
                   <div className="border-t border-border px-4 py-5 text-center">
-                    {loadMoreError && <p className="mb-3 text-sm text-muted" role="alert">Couldn’t load more stocks. Please try again.</p>}
-                    <Button disabled={isLoading} onClick={() => void loadNextStocks()} size="sm" variant="secondary">{loadMoreError ? "Retry loading stocks" : "Load more stocks"}</Button>
+                    {loadMoreError && <p className="mb-3 text-sm text-muted" role="alert">{t("markets.loadMoreError")}</p>}
+                    <Button disabled={isLoading} onClick={() => void loadNextStocks()} size="sm" variant="secondary">{loadMoreError ? t("markets.retryLoad") : t("markets.loadMore")}</Button>
                   </div>
                 )}
               </>
             ) : (
               <div className="border-t border-border px-4 py-4 text-center text-xs text-muted">
-                All {rows.length} stocks loaded
+                {t("markets.allLoaded", { count: rows.length })}
               </div>
             )}
           </div>
@@ -351,10 +346,10 @@ export function MarketsOverview() {
         {!isLoading && !isSearching && rows.length === 0 ? (
           <div className="border-t border-border px-4 py-12 text-center text-sm text-muted">
             {error
-              ? "Market data is unavailable right now."
+              ? t("markets.unavailable")
               : searching
-                ? `No stocks found for “${query.trim()}”.`
-                : "No stocks yet."}
+                ? t("markets.noResults", { query: query.trim() })
+                : t("markets.empty")}
           </div>
         ) : null}
       </div>
@@ -363,9 +358,10 @@ export function MarketsOverview() {
 }
 
 function ChangePill({ positive, value }: { positive: boolean; value?: number }) {
+  const { locale } = useI18n();
   return (
     <span className={cn("mt-2 inline-flex rounded-full bg-panel px-2 py-1 text-xs font-semibold", positive ? "text-foreground" : "text-negative")}>
-      {positive ? "▲" : "▼"} {formatPercent(Math.abs(value ?? 0), false)}
+      {positive ? "▲" : "▼"} {formatPercent(Math.abs(value ?? 0), locale, false)}
     </span>
   );
 }

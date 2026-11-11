@@ -1,4 +1,5 @@
 import { createHash, createPublicKey, randomUUID, verify } from 'node:crypto';
+import { BadRequestException } from '@nestjs/common';
 import {
   policyAllowsStock,
   policyAllowsDestinationAccount,
@@ -25,10 +26,15 @@ import {
 } from '../database/schema';
 import { PrivyWalletAuth } from '../auth/privy-wallet-auth';
 import {
+  reservationNotionalUsd,
   reserveTradeBudget,
   settleTradeBudget,
   usdMicros,
 } from '../mcp-auth/trade-budget';
+import {
+  retryOnceOnSlippage,
+  slippageExceededMessage,
+} from '../execution/simulation-reason';
 import type { JupiterClient } from '../execution/jupiter/jupiter.client';
 import type { TokensService } from '../tokens/tokens.service';
 import type { ApprovalRpc } from '../execution/approval-rpc.service';
@@ -499,6 +505,9 @@ export class SignerGateService {
         : {}),
       chainSignature: execution.chainSignature ?? undefined,
       ...signingOutcome(execution.errorCode, execution.chainSignature),
+      ...(execution.errorCode === 'slippage_requote'
+        ? { slippageRequoted: true }
+        : {}),
     };
   }
 
@@ -520,7 +529,11 @@ export class SignerGateService {
         throw new Error('Intent was already claimed with another key');
       return this.reconcile(existing.id);
     }
-    const fresh = await buildGateJupiterRoute(intent, this.deps);
+    // One fresh quote at the intent's original slippage. Never a wider limit.
+    const built = await retryOnceOnSlippage(() =>
+      buildGateJupiterRoute(intent, this.deps),
+    );
+    const fresh = built.value;
     if (
       fresh.createsDestinationAccount &&
       !policyAllowsDestinationAccount(
@@ -559,6 +572,7 @@ export class SignerGateService {
         privyRequest: request,
         requestExpiresAt,
         lastValidBlockHeight: fresh.lastValidBlockHeight,
+        ...(built.retried ? { errorCode: 'slippage_requote' } : {}),
       },
     });
     if (reserved.status !== 'reserved') {
@@ -583,6 +597,135 @@ export class SignerGateService {
       .where(eq(mcpDelegatedExecutions.id, executionId));
     if (!execution) throw new Error('Execution storage unavailable');
     return this.response(execution);
+  }
+
+  /**
+   * Replace one unsigned challenge with a fresh quote at the same slippage.
+   * Refuses a second replacement. The caller supplies only an execution id.
+   */
+  async slippageRetry(executionId: string) {
+    this.assertEnabled();
+    if (!/^[a-f\d-]{36}$/i.test(executionId))
+      throw new Error('Invalid execution');
+    const [execution] = await this.deps.db
+      .select()
+      .from(mcpDelegatedExecutions)
+      .where(eq(mcpDelegatedExecutions.id, executionId))
+      .limit(1);
+    if (
+      !execution ||
+      execution.state !== 'challenged' ||
+      execution.signedTransaction ||
+      execution.chainSignature ||
+      execution.requestExpiresAt <= new Date()
+    )
+      throw new Error('Unsigned challenge unavailable');
+    if (execution.errorCode === 'slippage_requote')
+      throw new BadRequestException({
+        message: slippageExceededMessage(),
+        code: 'QUOTE_SLIPPAGE_EXCEEDED',
+      });
+    const { intent, delegation, policy } = await this.ownedState(
+      execution.intentId,
+    );
+    if (intent.status !== 'executing')
+      throw new Error('Prepared intent is unavailable for delegation');
+    const fresh = await buildGateJupiterRoute(intent, this.deps, {
+      allowExecuting: true,
+    });
+    if (
+      fresh.createsDestinationAccount &&
+      !policyAllowsDestinationAccount(
+        policy,
+        intent.side === 'buy' ? intent.stockMint! : USDC_MINT,
+      )
+    )
+      throw new Error(
+        'Destination account creation is outside the delegated policy',
+      );
+    const charge = reservationNotionalUsd(intent, fresh);
+    const [reservation] = await this.deps.db
+      .select()
+      .from(mcpBudgetReservations)
+      .where(eq(mcpBudgetReservations.intentId, intent.id))
+      .limit(1);
+    if (
+      !charge ||
+      !reservation ||
+      reservation.status !== 'reserved' ||
+      usdMicros(charge) > usdMicros(reservation.amountUsd)
+    )
+      throw new Error('Delegated trade over_budget');
+    const requestExpiresAt = new Date(Date.now() + 30_000);
+    const request = this.deps.auth.signingRequest(
+      delegation.walletId,
+      fresh.transaction,
+      execution.id,
+      requestExpiresAt,
+    );
+    const [updated] = await this.deps.db
+      .update(mcpDelegatedExecutions)
+      .set({
+        unsignedTransaction: fresh.transaction,
+        privyRequest: request,
+        requestExpiresAt,
+        lastValidBlockHeight: fresh.lastValidBlockHeight ?? null,
+        errorCode: 'slippage_requote',
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(mcpDelegatedExecutions.id, execution.id),
+          eq(mcpDelegatedExecutions.state, 'challenged'),
+          isNull(mcpDelegatedExecutions.signedTransaction),
+          isNull(mcpDelegatedExecutions.chainSignature),
+          isNull(mcpDelegatedExecutions.errorCode),
+        ),
+      )
+      .returning();
+    if (!updated) throw new Error('Unsigned challenge unavailable');
+    return this.response(updated);
+  }
+
+  /** Release an unsigned challenge after slippage still fails. Never touches signed bytes. */
+  async abortUnsigned(executionId: string) {
+    this.assertEnabled();
+    if (!/^[a-f\d-]{36}$/i.test(executionId))
+      throw new Error('Invalid execution');
+    const aborted = await this.deps.db.transaction(async (tx) => {
+      const [claimed] = await tx
+        .update(mcpDelegatedExecutions)
+        .set({
+          state: 'failed',
+          errorCode: 'slippage_exceeded',
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(mcpDelegatedExecutions.id, executionId),
+            eq(mcpDelegatedExecutions.state, 'challenged'),
+            isNull(mcpDelegatedExecutions.signedTransaction),
+            isNull(mcpDelegatedExecutions.chainSignature),
+          ),
+        )
+        .returning({ intentId: mcpDelegatedExecutions.intentId });
+      if (!claimed) return false;
+      await tx
+        .update(mcpBudgetReservations)
+        .set({ status: 'released', settledAt: new Date() })
+        .where(
+          and(
+            eq(mcpBudgetReservations.intentId, claimed.intentId),
+            eq(mcpBudgetReservations.status, 'reserved'),
+          ),
+        );
+      await tx
+        .update(mcpTradeIntents)
+        .set({ status: 'failed', executionError: 'slippage_exceeded' })
+        .where(eq(mcpTradeIntents.id, claimed.intentId));
+      return true;
+    });
+    return { aborted, executionId, reason: 'slippage_exceeded' as const };
   }
 
   async complete(executionId: string, apiSignatureBase64: string) {

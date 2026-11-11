@@ -18,6 +18,7 @@ import type {
 } from '../../types/agent';
 import { PrivyWalletAuth } from '../auth/privy-wallet-auth';
 import { AgentUnavailableError } from '../common/errors/provider.errors';
+import { toolFailurePayload } from '../execution/simulation-reason';
 import { APP_ENV } from '../config/constants';
 import type { AppEnv } from '../config/env.schema';
 import { isSameReply, previousAssistantContent } from './agent-followup';
@@ -369,19 +370,18 @@ export class AgentService {
               functionOutput(call, result.modelOutput ?? result.output),
             );
           } catch (error) {
-            const message =
-              error instanceof Error ? error.message : String(error);
+            const payload = toolFailurePayload(error);
             await this.repository.insertMessage({
               threadId: thread.id,
               role: 'tool',
-              content: JSON.stringify({ error: message }),
+              content: JSON.stringify(payload),
               toolName,
               toolPayload: { failed: true },
             });
             const activity = activities.find((item) => item.callId === callId);
             if (activity) {
               activity.status = 'failed';
-              activity.error = message;
+              activity.error = payload.error;
             }
             yield {
               type: 'tool_failed',
@@ -390,9 +390,9 @@ export class AgentService {
               timestamp: timestamp(),
               callId,
               toolName,
-              error: message,
+              error: payload.error,
             };
-            input.push(functionOutput(call, { error: message }));
+            input.push(functionOutput(call, payload));
           }
         }
       }

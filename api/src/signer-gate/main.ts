@@ -154,6 +154,16 @@ function main() {
         )
           result = await gate.challenge(body.intentId, body.idempotencyKey);
         else if (
+          request.url === '/slippage-retry' &&
+          typeof body.executionId === 'string'
+        )
+          result = await gate.slippageRetry(body.executionId);
+        else if (
+          request.url === '/abort-unsigned' &&
+          typeof body.executionId === 'string'
+        )
+          result = await gate.abortUnsigned(body.executionId);
+        else if (
           request.url === '/complete' &&
           typeof body.executionId === 'string' &&
           typeof body.apiSignatureBase64 === 'string'
@@ -202,10 +212,7 @@ function main() {
         response.statusCode = 409;
         const code = gateFailureCode(error);
         response.end(JSON.stringify({ error: code }));
-        console.error(
-          'Signer gate request rejected',
-          code,
-        );
+        console.error('Signer gate request rejected', code);
       }
     })();
   }).listen(port, '0.0.0.0');

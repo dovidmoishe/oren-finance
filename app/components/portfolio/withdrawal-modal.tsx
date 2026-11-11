@@ -13,6 +13,10 @@ import { approveServerTrade, forgetApproval, getServerApproval, type TradeApprov
 import { financialExecutionEnabled } from '@/services/environment';
 import { getWithdrawalStocks, prepareWithdrawal, recoverWithdrawal, solCost, type WithdrawalStock } from '@/services/withdrawal-service';
 import { walletSessionIsCurrent } from '@/services/wallet-session';
+import { MessageKeyError, useShownMessage, useT, shownFromUnknown, shownKey, type ShownMessage } from "@/i18n/i18n";
+
+// Read in event handlers only; kept outside the component for the purity lint.
+const currentTime = () => Date.now();
 
 function AssetLogo({ symbol, src }: { symbol: string; src?: string }) {
   const [failed, setFailed] = useState(false);
@@ -25,6 +29,7 @@ function AssetLogo({ symbol, src }: { symbol: string; src?: string }) {
 
 export function WithdrawalModal({ onClose }: { onClose: () => void }) {
   const auth = useOrenAuth();
+  const t = useT();
   const dialog = useRef<HTMLDialogElement>(null);
   useEffect(() => {
     const element = dialog.current;
@@ -42,18 +47,19 @@ export function WithdrawalModal({ onClose }: { onClose: () => void }) {
     const rect = event.currentTarget.getBoundingClientRect();
     if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) onClose();
   }}>
-      <div className="flex items-center justify-between gap-4"><h2 id="transfer-title" className="font-display text-xl font-semibold">Transfer</h2><button aria-label="Close transfer" className="grid h-8 w-8 place-items-center rounded-full text-muted hover:bg-background" type="button" onClick={onClose}><HugeiconsIcon icon={Cancel01Icon} size={16} aria-hidden="true" /></button></div>
-      <p className="mt-2 text-sm leading-6 text-muted">Send USDC, SOL, and stock tokens to another Solana wallet.</p>
-      {!financialExecutionEnabled ? <p className="mt-6 text-sm" role="status">Transfers are disabled in previews.</p>
-        : !auth.ready ? <p className="mt-6 text-sm" role="status">Loading your account…</p>
-        : !auth.authenticated ? <Button className="mt-6" onClick={auth.open}>Sign in to transfer</Button>
-        : !auth.address ? <p className="mt-6 text-sm" role="status">Your wallet is being prepared. Try again shortly.</p>
+      <div className="flex items-center justify-between gap-4"><h2 id="transfer-title" className="font-display text-xl font-semibold">{t("transfer.title")}</h2><button aria-label={t("transfer.close")} className="grid h-8 w-8 place-items-center rounded-full text-muted hover:bg-background" type="button" onClick={onClose}><HugeiconsIcon icon={Cancel01Icon} size={16} aria-hidden="true" /></button></div>
+      <p className="mt-2 text-sm leading-6 text-muted">{t("transfer.intro")}</p>
+      {!financialExecutionEnabled ? <p className="mt-6 text-sm" role="status">{t("transfer.disabledPreview")}</p>
+        : !auth.ready ? <p className="mt-6 text-sm" role="status">{t("transfer.loadingAccount")}</p>
+        : !auth.authenticated ? <Button className="mt-6" onClick={auth.open}>{t("transfer.signIn")}</Button>
+        : !auth.address ? <p className="mt-6 text-sm" role="status">{t("transfer.walletPreparing")}</p>
         : <WithdrawalForm key={auth.address} wallet={auth.address} />}
   </dialog>;
 }
 
 function WithdrawalForm({ wallet }: { wallet: string }) {
   const { getAccessToken, authorizeTrade } = useOrenAuth();
+  const t = useT();
   const { snapshot, error: balanceError } = useFunding(wallet, getAccessToken);
   const refresh = usePortfolioRefresh();
   const [asset, setAsset] = useState<string>('USDC');
@@ -62,7 +68,7 @@ function WithdrawalForm({ wallet }: { wallet: string }) {
   const [approval, setApproval] = useState<TradeApproval>();
   const [stage, setStage] = useState<'loading' | 'recovery-error' | 'edit' | 'review' | 'pending' | 'confirmed' | 'failed'>('loading');
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string>();
+  const [error, setError] = useState<ShownMessage>();
   const [checked, setChecked] = useState(false);
   const [now, setNow] = useState(() => Date.now());
   const lock = useRef(false);
@@ -70,9 +76,11 @@ function WithdrawalForm({ wallet }: { wallet: string }) {
   const requestId = useRef<string | undefined>(undefined);
   const [stocks, setStocks] = useState<WithdrawalStock[]>([]);
   const [stocksLoading, setStocksLoading] = useState(true);
-  const [stocksError, setStocksError] = useState<string>();
+  const [stocksError, setStocksError] = useState<ShownMessage>();
   const [stocksRevision, setStocksRevision] = useState(0);
   const [recoveryRevision, setRecoveryRevision] = useState(0);
+  const errorText = useShownMessage(error);
+  const stocksErrorText = useShownMessage(stocksError);
   const stock = stocks.find(item => item.mint === asset);
   const symbol = stock?.symbol ?? asset;
   const logo = stock ? stockLogos[stock.ticker.toUpperCase() as keyof typeof stockLogos] ?? stock.logoUrl : asset === 'USDC' ? '/usdc.svg' : '/integrations/solana.svg';
@@ -82,9 +90,9 @@ function WithdrawalForm({ wallet }: { wallet: string }) {
     void getAccessToken().then(token => getWithdrawalStocks(wallet, token)).then(result => {
       if (!active || !current()) return;
       setStocks(result.stocks); setStocksLoading(false);
-      setStocksError(result.incomplete ? 'Some stock holdings could not be loaded. Retry to refresh the list.' : undefined);
+      setStocksError(result.incomplete ? shownKey("transfer.stocksIncomplete") : undefined);
     }).catch(() => {
-      if (active && current()) { setStocksLoading(false); setStocksError('Unable to load your stock holdings. Try again.'); }
+      if (active && current()) { setStocksLoading(false); setStocksError(shownKey("transfer.stocksFailed")); }
     });
     return () => { active = false; };
   }, [wallet, getAccessToken, stocksRevision]);
@@ -97,7 +105,7 @@ function WithdrawalForm({ wallet }: { wallet: string }) {
       if (pending) { setApproval(pending); setStage('pending'); }
       else setStage('edit');
     }).catch(() => {
-      if (active && current()) { setStage('recovery-error'); setError('Unable to check previous transfers. Check again before sending another one.'); }
+      if (active && current()) { setStage('recovery-error'); setError(shownKey("transfer.recoveryFailed")); }
     });
     return () => { active = false; };
   }, [wallet, getAccessToken, recoveryRevision]);
@@ -108,7 +116,7 @@ function WithdrawalForm({ wallet }: { wallet: string }) {
   }, [stage]);
 
   async function acceptStatus(result: TradeApproval) {
-    if (result.kind !== 'withdrawal' || result.wallet !== wallet) throw new Error('Transfer does not match your wallet.');
+    if (result.kind !== 'withdrawal' || result.wallet !== wallet) throw new MessageKeyError("transfer.walletMismatch");
     setApproval(result);
     if (result.status === 'confirmed' || result.status === 'failed') {
       forgetApproval(result.id);
@@ -157,15 +165,15 @@ function WithdrawalForm({ wallet }: { wallet: string }) {
       requestId.current ??= crypto.randomUUID();
       const token = await getAccessToken();
       if (!current()) return;
-      if (asset !== 'USDC' && asset !== 'SOL' && !stock) throw new Error('Choose a stock from your holdings.');
+      if (asset !== 'USDC' && asset !== 'SOL' && !stock) throw new MessageKeyError("transfer.chooseStock");
       const kind = stock ? 'STOCK' : asset as 'USDC' | 'SOL';
       const result = await prepareWithdrawal({ wallet, recipient: recipient.trim(), amount: amount.trim(), asset: kind, ...(stock ? { mint: stock.mint } : {}), requestId: requestId.current }, token);
       if (!current()) return;
-      if (result.wallet !== wallet || result.kind !== 'withdrawal' || result.details.asset !== kind || result.details.mint !== stock?.mint || result.details.recipient !== recipient.trim()) throw new Error('Transfer review does not match your request.');
-      setApproval(result); setChecked(false); setNow(Date.now());
+      if (result.wallet !== wallet || result.kind !== 'withdrawal' || result.details.asset !== kind || result.details.mint !== stock?.mint || result.details.recipient !== recipient.trim()) throw new MessageKeyError("transfer.reviewMismatch");
+      setApproval(result); setChecked(false); setNow(currentTime());
       if (result.status === 'prepared') setStage('review');
       else await acceptStatus(result);
-    } catch (cause) { if (current()) setError(cause instanceof Error ? cause.message : 'Unable to prepare transfer.'); }
+    } catch (cause) { if (current()) setError(shownFromUnknown(cause, "transfer.prepareFailed")); }
     finally { lock.current = false; if (current()) setBusy(false); }
   }
 
@@ -188,7 +196,7 @@ function WithdrawalForm({ wallet }: { wallet: string }) {
         if (current()) await acceptStatus(result);
         return;
       }
-      if (!checked || Date.parse(approval.expiresAt) <= Date.now()) throw new Error('Review a fresh transfer before confirming.');
+      if (!checked || Date.parse(approval.expiresAt) <= Date.now()) throw new MessageKeyError("transfer.reviewFresh");
       const signature = await authorizeTrade(approval.id, token);
       if (!current()) return;
       submissionStarted = true;
@@ -198,10 +206,10 @@ function WithdrawalForm({ wallet }: { wallet: string }) {
       if (!current()) return;
       const rejected = !submissionStarted || cause instanceof ApiError && ([400, 401, 403, 404].includes(cause.status) || (cause.details as { code?: string })?.code === 'PRIVY_SIGNING_FAILED');
       if (submissionStarted && !rejected) {
-        setStage('pending'); setError('Submission status is uncertain. Check this transfer before sending again.');
+        setStage('pending'); setError(shownKey("transfer.uncertain"));
       } else {
         if (submissionStarted) forgetApproval(approval.id);
-        setError(cause instanceof Error ? cause.message : 'Unable to approve transfer.');
+        setError(shownFromUnknown(cause, "transfer.approveFailed"));
       }
     } finally { lock.current = false; if (current()) setBusy(false); }
   }
@@ -209,42 +217,42 @@ function WithdrawalForm({ wallet }: { wallet: string }) {
   const expired = approval ? Date.parse(approval.expiresAt) <= now : false;
   const inputClass = 'w-full rounded-xl border border-border bg-background px-3 py-3 text-sm outline-offset-2';
   return <div className="mt-6">
-    {stage === 'loading' ? <p className="text-sm text-muted" role="status">Checking pending transfers…</p> : stage === 'recovery-error' ? <Button className="w-full" onClick={() => { setStage('loading'); setError(undefined); setRecoveryRevision(value => value + 1); }}>Check pending transfers</Button> : stage === 'edit' ? <form onSubmit={event => void prepare(event)} className="space-y-5">
-      <label className="block text-sm font-medium">Asset<span className="relative mt-2 block"><span className="pointer-events-none absolute inset-y-0 left-3 flex items-center"><AssetLogo key={asset} symbol={symbol} src={logo} /></span><select className={`${inputClass} mt-0 pl-12`} disabled={busy} value={asset} onChange={event => { edited(); setAsset(event.target.value); setAmount(''); }}><optgroup label="USDC and SOL"><option value="USDC">USDC</option><option value="SOL">SOL</option></optgroup>{stocks.length > 0 ? <optgroup label="Your stocks">{stocks.map(item => <option key={item.mint} value={item.mint}>{item.symbol}</option>)}</optgroup> : null}</select></span></label>
-      <p className="text-xs text-muted" role="status">{stock ? `Available: ${stock.balance} ${stock.symbol}` : snapshot ? `Available: ${asset === 'USDC' ? snapshot.usdc : snapshot.sol} ${asset}` : balanceError || 'Loading balance…'}</p>
-      {stocksLoading ? <p className="text-xs text-muted" role="status">Loading your stocks…</p> : stocksError ? <div className="text-xs text-muted" role="status"><p>{stocksError}</p><button type="button" className="mt-1 underline" disabled={busy} onClick={() => { setStocksLoading(true); setStocksRevision(value => value + 1); }}>Retry stock balances</button></div> : stocks.length === 0 ? <p className="text-xs text-muted">No unlocked stock tokens found in this wallet.</p> : null}
-      <label className="block text-sm font-medium">Receiving wallet<input className={`${inputClass} mt-2`} disabled={busy} required autoComplete="off" autoCapitalize="none" spellCheck={false} minLength={32} maxLength={44} placeholder="Solana wallet address" value={recipient} onChange={event => { edited(); setRecipient(event.target.value); }} /></label>
-      <label className="block text-sm font-medium">Amount<span className="relative mt-2 block"><span className="pointer-events-none absolute inset-y-0 left-3 flex items-center"><AssetLogo key={asset} symbol={symbol} src={logo} /></span><input className={`${inputClass} mt-0 pl-12 pr-20`} disabled={busy} required inputMode="decimal" autoComplete="off" maxLength={30} placeholder="0.00" value={amount} onChange={event => { edited(); setAmount(event.target.value); }} /><span aria-hidden="true" className="pointer-events-none absolute inset-y-0 right-3 flex max-w-16 items-center truncate text-xs text-muted">{symbol}</span></span></label>
-      {stock ? <p className="text-xs leading-5 text-muted">Only unlocked shares in your wallet can be sent. The receiving wallet must support this exact {stock.symbol} token.</p> : null}
-      <p className="text-xs leading-5 text-muted">Use a wallet that supports {symbol} on Solana. A small SOL balance covers network fees{asset !== 'SOL' ? ' and the receiving token account if needed' : ''}.</p>
-      <Button className="w-full" variant="primary" disabled={busy} type="submit">{busy ? 'Preparing transfer…' : 'Review transfer'}</Button>
+    {stage === 'loading' ? <p className="text-sm text-muted" role="status">{t("transfer.checkingPending")}</p> : stage === 'recovery-error' ? <Button className="w-full" onClick={() => { setStage('loading'); setError(undefined); setRecoveryRevision(value => value + 1); }}>{t("transfer.checkPending")}</Button> : stage === 'edit' ? <form onSubmit={event => void prepare(event)} className="space-y-5">
+      <label className="block text-sm font-medium">{t("transfer.asset")}<span className="relative mt-2 block"><span className="pointer-events-none absolute inset-y-0 left-3 flex items-center"><AssetLogo key={asset} symbol={symbol} src={logo} /></span><select className={`${inputClass} mt-0 pl-12`} disabled={busy} value={asset} onChange={event => { edited(); setAsset(event.target.value); setAmount(''); }}><optgroup label={t("transfer.usdcSol")}><option value="USDC">USDC</option><option value="SOL">SOL</option></optgroup>{stocks.length > 0 ? <optgroup label={t("transfer.yourStocks")}>{stocks.map(item => <option key={item.mint} value={item.mint}>{item.symbol}</option>)}</optgroup> : null}</select></span></label>
+      <p className="text-xs text-muted" role="status">{stock ? t("transfer.available", { amount: stock.balance, symbol: stock.symbol }) : snapshot ? t("transfer.available", { amount: asset === 'USDC' ? snapshot.usdc : snapshot.sol, symbol: asset }) : balanceError || t("transfer.loadingBalance")}</p>
+      {stocksLoading ? <p className="text-xs text-muted" role="status">{t("transfer.loadingStocks")}</p> : stocksErrorText ? <div className="text-xs text-muted" role="status"><p>{stocksErrorText}</p><button type="button" className="mt-1 underline" disabled={busy} onClick={() => { setStocksLoading(true); setStocksRevision(value => value + 1); }}>{t("transfer.retryStocks")}</button></div> : stocks.length === 0 ? <p className="text-xs text-muted">{t("transfer.noStocks")}</p> : null}
+      <label className="block text-sm font-medium">{t("transfer.receivingWallet")}<input className={`${inputClass} mt-2`} disabled={busy} required autoComplete="off" autoCapitalize="none" spellCheck={false} minLength={32} maxLength={44} placeholder={t("transfer.walletPlaceholder")} value={recipient} onChange={event => { edited(); setRecipient(event.target.value); }} /></label>
+      <label className="block text-sm font-medium">{t("transfer.amount")}<span className="relative mt-2 block"><span className="pointer-events-none absolute inset-y-0 left-3 flex items-center"><AssetLogo key={asset} symbol={symbol} src={logo} /></span><input className={`${inputClass} mt-0 pl-12 pr-20`} disabled={busy} required inputMode="decimal" autoComplete="off" maxLength={30} placeholder="0.00" value={amount} onChange={event => { edited(); setAmount(event.target.value); }} /><span aria-hidden="true" className="pointer-events-none absolute inset-y-0 right-3 flex max-w-16 items-center truncate text-xs text-muted">{symbol}</span></span></label>
+      {stock ? <p className="text-xs leading-5 text-muted">{t("transfer.stockNote", { symbol: stock.symbol })}</p> : null}
+      <p className="text-xs leading-5 text-muted">{t(asset !== 'SOL' ? "transfer.feeNoteAccount" : "transfer.feeNote", { symbol })}</p>
+      <Button className="w-full" variant="primary" disabled={busy} type="submit">{busy ? t("transfer.preparing") : t("transfer.review")}</Button>
     </form> : approval ? <div className="space-y-5">
       <div className="rounded-2xl border border-border bg-background p-4">
-        <p className="text-xs text-muted">{stage === 'confirmed' ? 'Sent' : 'You send'}</p><p className="mt-1 text-2xl font-semibold">{approval.details.amount} {approval.details.symbol ?? approval.details.asset}</p>
-        {approval.details.requestedAmount && approval.details.requestedAmount !== approval.details.amount ? <p className="mt-2 text-xs leading-5 text-muted">Rounded down from {approval.details.requestedAmount} to the stock token’s available precision.</p> : null}
+        <p className="text-xs text-muted">{stage === 'confirmed' ? t("transfer.sent") : t("transfer.youSend")}</p><p className="mt-1 text-2xl font-semibold">{approval.details.amount} {approval.details.symbol ?? approval.details.asset}</p>
+        {approval.details.requestedAmount && approval.details.requestedAmount !== approval.details.amount ? <p className="mt-2 text-xs leading-5 text-muted">{t("transfer.rounded", { requested: approval.details.requestedAmount })}</p> : null}
         <dl className="mt-4 space-y-3 text-sm">
-          {approval.details.mint ? <><div><dt className="text-muted">Stock token{approval.details.issuer ? ` · ${approval.details.issuer}` : ''}</dt><dd className="mt-1 text-sm">{approval.details.name}</dd><dd className="mt-1 select-all break-all font-mono text-xs leading-5">{approval.details.mint}</dd></div></> : null}
-          <div><dt className="text-muted">To</dt><dd className="mt-1 select-all break-all font-mono text-xs leading-5">{approval.details.recipient}</dd></div>
-          <div><dt className="text-muted">From</dt><dd className="mt-1 break-all font-mono text-xs leading-5">{wallet}</dd></div>
-          <div className="flex justify-between gap-3"><dt className="text-muted">Network</dt><dd>Solana</dd></div>
-          <div className="flex justify-between gap-3"><dt className="text-muted">Network fee</dt><dd>{solCost(approval.feeLamports)} SOL</dd></div>
-          {approval.details.rentLamports !== '0' && approval.details.rentLamports ? <div className="flex justify-between gap-3"><dt className="text-muted">Receiving account cost</dt><dd>{solCost(approval.details.rentLamports)} SOL</dd></div> : null}
+          {approval.details.mint ? <><div><dt className="text-muted">{t("transfer.stockToken")}{approval.details.issuer ? ` · ${approval.details.issuer}` : ''}</dt><dd className="mt-1 text-sm">{approval.details.name}</dd><dd className="mt-1 select-all break-all font-mono text-xs leading-5">{approval.details.mint}</dd></div></> : null}
+          <div><dt className="text-muted">{t("transfer.to")}</dt><dd className="mt-1 select-all break-all font-mono text-xs leading-5">{approval.details.recipient}</dd></div>
+          <div><dt className="text-muted">{t("transfer.from")}</dt><dd className="mt-1 break-all font-mono text-xs leading-5">{wallet}</dd></div>
+          <div className="flex justify-between gap-3"><dt className="text-muted">{t("transfer.network")}</dt><dd>Solana</dd></div>
+          <div className="flex justify-between gap-3"><dt className="text-muted">{t("transfer.networkFee")}</dt><dd>{solCost(approval.feeLamports)} SOL</dd></div>
+          {approval.details.rentLamports !== '0' && approval.details.rentLamports ? <div className="flex justify-between gap-3"><dt className="text-muted">{t("transfer.accountCost")}</dt><dd>{solCost(approval.details.rentLamports)} SOL</dd></div> : null}
         </dl>
       </div>
       {stage === 'review' ? <>
-        <label className="flex items-start gap-3 text-sm leading-6"><input className="mt-1" type="checkbox" checked={checked} disabled={busy} onChange={event => setChecked(event.target.checked)} />I checked the address and Solana network. Transfers cannot be reversed.</label>
-        {expired ? <p role="status" className="text-sm text-muted">This review expired. Prepare a fresh transfer.</p> : null}
-        <Button className="w-full" variant="primary" disabled={busy || !checked || expired} onClick={() => void submit()}>{busy ? 'Approving transfer…' : 'Confirm transfer'}</Button>
-        <Button className="w-full" disabled={busy} onClick={() => { requestId.current = undefined; setApproval(undefined); setStage('edit'); setError(undefined); }}>Edit transfer</Button>
+        <label className="flex items-start gap-3 text-sm leading-6"><input className="mt-1" type="checkbox" checked={checked} disabled={busy} onChange={event => setChecked(event.target.checked)} />{t("transfer.confirmCheck")}</label>
+        {expired ? <p role="status" className="text-sm text-muted">{t("transfer.expired")}</p> : null}
+        <Button className="w-full" variant="primary" disabled={busy || !checked || expired} onClick={() => void submit()}>{busy ? t("transfer.approving") : t("transfer.confirm")}</Button>
+        <Button className="w-full" disabled={busy} onClick={() => { requestId.current = undefined; setApproval(undefined); setStage('edit'); setError(undefined); }}>{t("transfer.edit")}</Button>
       </> : <>
-        <p role="status" className="text-sm leading-6">{stage === 'confirmed' ? 'Transfer confirmed.' : stage === 'failed' ? 'This transfer failed or expired. No transfer completed. A network fee may still apply.' : approval.status === 'prepared' ? 'Your approval may still be processing. Keep checking until it completes or expires before sending again.' : 'Your transfer is awaiting confirmation. Check its status before sending again.'}</p>
-        {approval.signature ? <a className="block text-sm underline" target="_blank" rel="noopener noreferrer" href={`https://solscan.io/tx/${encodeURIComponent(approval.signature)}`}>View transaction</a> : null}
+        <p role="status" className="text-sm leading-6">{stage === 'confirmed' ? t("transfer.confirmed") : stage === 'failed' ? t("transfer.failed") : approval.status === 'prepared' ? t("transfer.processing") : t("transfer.awaiting")}</p>
+        {approval.signature ? <a className="block text-sm underline" target="_blank" rel="noopener noreferrer" href={`https://solscan.io/tx/${encodeURIComponent(approval.signature)}`}>{t("transfer.viewTx")}</a> : null}
         {stage === 'pending' ? <>
-          <Button className="w-full" disabled={busy} onClick={() => void submit(true)}>{busy ? 'Checking…' : 'Check transfer status'}</Button>
-          {approval.status === 'signed' ? <Button className="w-full" disabled={busy} onClick={() => void submit(true, true)}>Retry same submission</Button> : null}
-        </> : <Button className="w-full" onClick={() => { requestId.current = undefined; setApproval(undefined); setAmount(''); setChecked(false); setError(undefined); setStage('edit'); }}>New transfer</Button>}
+          <Button className="w-full" disabled={busy} onClick={() => void submit(true)}>{busy ? t("transfer.checking") : t("transfer.checkStatus")}</Button>
+          {approval.status === 'signed' ? <Button className="w-full" disabled={busy} onClick={() => void submit(true, true)}>{t("transfer.retrySame")}</Button> : null}
+        </> : <Button className="w-full" onClick={() => { requestId.current = undefined; setApproval(undefined); setAmount(''); setChecked(false); setError(undefined); setStage('edit'); }}>{t("transfer.newTransfer")}</Button>}
       </>}
     </div> : null}
-    {error ? <p role="alert" className="mt-4 text-sm leading-6 text-red-700">{error}</p> : null}
+    {errorText ? <p role="alert" className="mt-4 text-sm leading-6 text-red-700">{errorText}</p> : null}
   </div>;
 }

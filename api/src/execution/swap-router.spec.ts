@@ -646,6 +646,37 @@ describe('best mode is net of the live network fee', () => {
     expect(quote.provider).toBe('titan:Titan-DART');
   });
 
+  it('keeps that Titan win for browser quotes and selects Jupiter for in-chat signing', async () => {
+    const { router, jupiter, titan, fees } = setup('best');
+    fees.snapshot.mockResolvedValue({ ...LIVE_FEES, solUsd: 100 });
+    jupiter.getQuoteWithContext.mockResolvedValue(jupiterQuote('400000000'));
+    titan.getQuoteWithContext.mockResolvedValue(heavyTitan('400200000'));
+    const browser = await router.quote({ ...ctx, amountUsd: 5 });
+    expect(browser.provider).toBe('titan:Titan-DART');
+    expect(titan.getQuoteWithContext).toHaveBeenCalled();
+
+    titan.getQuoteWithContext.mockClear();
+    const chat = await router.quote({
+      ...ctx,
+      amountUsd: 5,
+      titanEligible: false,
+    });
+    expect(chat.provider).toBe('jupiter');
+    expect(titan.getQuoteWithContext).not.toHaveBeenCalled();
+
+    const retry = await router.quote({
+      ...ctx,
+      amountUsd: 5,
+      slippageBps: 50,
+      titanEligible: false,
+    });
+    expect(retry.provider).toBe('jupiter');
+    expect(titan.getQuoteWithContext).not.toHaveBeenCalled();
+    expect(jupiter.getQuoteWithContext).toHaveBeenLastCalledWith(
+      expect.objectContaining({ slippageBps: 50, titanEligible: false }),
+    );
+  });
+
   it('fails safe to Jupiter when live fee inputs are unavailable', async () => {
     const { router, jupiter, titan, fees, logs } = setup('best');
     fees.snapshot.mockResolvedValue(undefined);

@@ -4,7 +4,11 @@ import {
   SOL_RENT_MESSAGE,
   SOL_FEE_MESSAGE,
 } from './simulation-failure';
-import { isJupiterSlippageFailure } from './jupiter-slippage';
+import {
+  INSUFFICIENT_BALANCE_MESSAGE,
+  simulationReason,
+  slippageExceededMessage,
+} from './simulation-reason';
 import { VersionedTransaction } from '@solana/web3.js';
 import { createPublicKey, verify } from 'node:crypto';
 import bs58 from 'bs58';
@@ -79,26 +83,36 @@ export class ApprovalRpc {
         ? tx.message.staticAccountKeys[instruction.programIdIndex]?.toBase58()
         : undefined;
       const failureCode = simulationFailureCode(simulated.value.err);
+      const reason = simulationReason(simulated.value.err, program);
       this.logger.warn(`Transaction simulation rejected: ${failureCode}`);
-      if (failureCode.startsWith('insufficient_rent_account_'))
+      if (
+        reason === 'insufficient_sol_for_rent' ||
+        failureCode.startsWith('insufficient_rent_account_')
+      )
         throw new BadRequestException({
           message: SOL_RENT_MESSAGE,
           code: 'INSUFFICIENT_SOL_FOR_RENT',
         });
-      if (failureCode === 'InsufficientFundsForFee')
+      if (reason === 'insufficient_sol_for_fees')
         throw new BadRequestException({
           message: SOL_FEE_MESSAGE,
           code: 'INSUFFICIENT_SOL_FOR_FEES',
         });
-      if (isJupiterSlippageFailure(simulated.value.err, program))
+      if (reason === 'slippage_exceeded')
         throw new BadRequestException({
-          message:
-            'The price moved outside the approved tolerance. Request a fresh quote and review its minimum proceeds.',
+          message: slippageExceededMessage(),
           code: 'QUOTE_SLIPPAGE_EXCEEDED',
         });
-      throw new BadRequestException(
-        'This transaction could not be simulated. Check your USDC and SOL balances and request a fresh quote.',
-      );
+      if (reason === 'insufficient_balance')
+        throw new BadRequestException({
+          message: INSUFFICIENT_BALANCE_MESSAGE,
+          code: 'INSUFFICIENT_BALANCE',
+        });
+      throw new BadRequestException({
+        message:
+          'This transaction could not be simulated. Check your USDC and SOL balances and request a fresh quote.',
+        code: 'SIMULATION_FAILED',
+      });
     }
     if (fee.value === null)
       throw new BadRequestException(

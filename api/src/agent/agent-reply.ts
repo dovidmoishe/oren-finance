@@ -283,7 +283,7 @@ export function opportunitiesModelOutput(
 }
 
 function companyFacts(report: StockResearch): string[] {
-  // Briefing lines are built from our templates. This filter is hygiene, not a boundary.
+  // Briefing lines are templates plus one SEC index link. This filter is hygiene, not a boundary.
   return (report.company?.data?.briefing ?? []).filter(
     (line) => safeCompanyLine(line) && !isReportGap(line),
   );
@@ -298,7 +298,7 @@ function companyGapSay(report: StockResearch): string {
 
 function safeCompanyLine(line: string): boolean {
   return (
-    /^[\x20-\x7E]{1,360}$/.test(line) &&
+    /^[\x20-\x7E]{1,500}$/.test(line) &&
     !/\b(ignore|instruction|system prompt|tool)\b/i.test(line)
   );
 }
