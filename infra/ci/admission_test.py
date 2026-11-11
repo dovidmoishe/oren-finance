@@ -14,6 +14,86 @@ from admission import (
 
 
 class AdmissionTests(unittest.TestCase):
+    def test_verified_waiters_do_not_mistake_each_other_for_untracked_work(self):
+        usage = {1001: 0, 1003: 0}
+        gate = Admission(list(usage), lambda *args: None, lambda pid, uid: str(pid),
+                         usage=lambda uid: usage[uid], worker_running=lambda uid: True,
+                         available=lambda: 1 << 62, light_running=lambda: False,
+                         light_configured=lambda: False, heavy_slots=2)
+        usage.update({1001: 500 * 1024 ** 2, 1003: 500 * 1024 ** 2})
+        errors = []
+        def acquire(uid, pid):
+            try:
+                gate.acquire(uid, pid, timeout=2)
+            except Exception as error:
+                errors.append(error)
+        threads = [threading.Thread(target=acquire, args=(uid, pid))
+                   for uid, pid in [(1001, 42), (1003, 43)]]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join(3)
+        self.assertEqual(errors, [])
+        self.assertEqual(set(gate.leases), {1001, 1003})
+        self.assertEqual(gate.waiters, set())
+
+    def test_same_uid_reuses_draining_slot_without_waiting_for_reclaim(self):
+        usage = {1001: 0, 1003: 0, 1004: 0}
+        limits = []
+        gate = Admission(list(usage), lambda *args: limits.append(args),
+                         lambda pid, uid: str(pid), usage=lambda uid: usage[uid],
+                         available=lambda: 1 << 62, light_running=lambda: False,
+                         light_configured=lambda: False, heavy_slots=2,
+                         reclaimer=lambda *args: None, protector=lambda *args: None)
+        stamp = gate.acquire(1001, 42)
+        usage[1001] = 600 * 1024 ** 2
+        gate.release(1001, 42, stamp)
+        gate.acquire(1003, 43)
+        # Both slots are accounted for; only the draining UID can reuse one.
+        with self.assertRaises(TimeoutError):
+            gate.acquire(1004, 44, timeout=.02)
+        successor = gate.acquire(1001, 45, timeout=.02)
+        self.assertEqual(successor, '45')
+        self.assertEqual(len(gate._occupied()), 2)
+        self.assertFalse(gate._finish_idle(1001))
+        self.assertFalse(gate.drain(1001))
+        self.assertEqual(limits[-1], (1001, True))
+        with self.assertRaises(TimeoutError):
+            gate.acquire(1001, 46, timeout=.02)
+
+    def test_reusing_draining_slot_still_requires_memory_headroom(self):
+        gate = Admission([1001], lambda *args: None, lambda pid, uid: str(pid),
+                         usage=lambda uid: 600 * 1024 ** 2, available=lambda: 0,
+                         light_running=lambda: False, light_configured=lambda: False)
+        with self.assertRaises(TimeoutError):
+            gate.acquire(1001, 42, timeout=.02)
+        self.assertEqual(gate.leases, {})
+
+    def test_draining_slice_growth_is_counted_at_active_cap(self):
+        gate = Admission([1001], lambda *args: None, lambda pid, uid: str(pid),
+                         usage=lambda uid: 600 * 1024 ** 2,
+                         light_running=lambda: False, light_configured=lambda: False,
+                         control_usage=lambda: CONTROL_MAX_MIB * 1024 ** 2)
+        self.assertEqual(gate._growth(1001), (ACTIVE_MAX_MIB - 600) * 1024 ** 2)
+        self.assertEqual(gate._growth(), gate._growth(1001))
+
+    def test_reclaim_completion_cannot_downshift_a_successor(self):
+        usage = {1001: 600 * 1024 ** 2}
+        limits = []
+        protected = []
+        gate = Admission([1001], lambda *args: limits.append(args),
+                         lambda pid, uid: str(pid), usage=lambda uid: usage[uid],
+                         available=lambda: 1 << 62, light_running=lambda: False,
+                         light_configured=lambda: False,
+                         protector=lambda *args: protected.append(args))
+        def reclaim(uid, nbytes):
+            gate.acquire(uid, 42, timeout=.02)
+        gate.reclaimer = reclaim
+        self.assertFalse(gate.drain(1001))
+        self.assertEqual(gate.leases[1001], (42, '42'))
+        self.assertEqual(limits[-1], (1001, True))
+        self.assertEqual(protected, [])
+
     def test_budget_order_and_worker_lifetime(self):
         budgets = {}
         calls = []
