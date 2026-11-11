@@ -2,11 +2,14 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import vm from "node:vm";
 import { readFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import ts from "typescript";
 import { createRequire } from "node:module";
 import { createElement } from "react";
 import { jsx as realJsx, jsxs as realJsxs, Fragment } from "react/jsx-runtime";
 import { renderToStaticMarkup } from "react-dom/server";
+import { compile } from "tailwindcss";
 
 const require = createRequire(import.meta.url);
 
@@ -105,12 +108,22 @@ test("a language row commits on pointerdown when the click never arrives", async
   assert.deepEqual(remembered, ["de", "fr"]);
 });
 
-test("the language popover itself is not transformed, so iOS hit targets stay put", () => {
-  const css = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
-  const popover = css.match(/\.oren-account-menu \{[^}]*\}/)?.[0] ?? "";
-  const surface = css.match(/\.oren-account-menu-surface \{[^}]*\}/)?.[0] ?? "";
-  assert.doesNotMatch(popover, /transform/);
-  assert.match(surface, /transform:\s*scale/);
+test("the language popover itself is not transformed, so iOS hit targets stay put", async () => {
+  const entry = fileURLToPath(new URL("../app/globals.css", import.meta.url));
+  const stylesheet = await compile(readFileSync(entry, "utf8"), {
+    base: dirname(entry),
+    async loadStylesheet(id, base) {
+      const path = id === "tailwindcss" ? require.resolve("tailwindcss/index.css") : resolve(base, id);
+      return { path, base: dirname(path), content: readFileSync(path, "utf8") };
+    },
+  });
+  const css = stylesheet.build([]);
+  const popover = css.match(/\.oren-account-menu\s*\{[^}]*\}/g);
+  const surface = css.match(/\.oren-account-menu-surface\s*\{[^}]*\}/)?.[0];
+  assert.ok(popover?.length, "the compiled stylesheet contains the popover rules");
+  assert.doesNotMatch(popover.join("\n"), /\b(?:transform|scale|rotate|translate)\s*:/);
+  assert.doesNotMatch(css, /\.oren-account-menu:popover-open\s*\{[^}]*\b(?:transform|scale|rotate|translate)\s*:/);
+  assert.match(surface ?? "", /transform:\s*scale\(/);
   const menu = readFileSync(new URL("../components/language/language-menu.tsx", import.meta.url), "utf8");
   assert.match(menu, /onPointerDown/);
   assert.match(menu, /oren-account-menu-surface/);
