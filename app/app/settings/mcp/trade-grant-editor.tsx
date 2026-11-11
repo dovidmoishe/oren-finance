@@ -4,18 +4,22 @@ import { useId, useState } from "react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { ArrowRight01Icon, InformationCircleIcon, Shield01Icon } from "@hugeicons/core-free-icons";
 import type { GrantSettings } from "@/services/mcp-grant-authorization";
-import { parseGrantSettings, type GrantDraft } from "@/services/mcp-grant-settings";
-import { useT } from "@/i18n/i18n";
+import { grantDurationOptions, parseGrantSettings, type GrantDraft } from "@/services/mcp-grant-settings";
+import { useI18n } from "@/i18n/i18n";
 
-export function TradeGrantEditor({ sellAvailable, busy, signerConfigured, onReview }: {
+export function TradeGrantEditor({ sellAvailable, maxDurationHours, untilRevoked, busy, signerConfigured, onReview }: {
   sellAvailable: boolean;
+  maxDurationHours: number;
+  untilRevoked: boolean;
   busy: boolean;
   signerConfigured: boolean;
   onReview: (settings: GrantSettings) => Promise<void>;
 }) {
   const id = useId();
-  const t = useT();
-  const [draft, setDraft] = useState<GrantDraft>({ perTradeUsd: "25", dailyUsd: "50", slippagePercent: "0.5", durationHours: "24" });
+  const { locale, t } = useI18n();
+  const durations = grantDurationOptions(maxDurationHours);
+  const defaultDuration = durations.filter(hours => hours <= 24).at(-1) ?? 1;
+  const [draft, setDraft] = useState<GrantDraft>({ perTradeUsd: "25", dailyUsd: "50", slippagePercent: "0.5", durationHours: String(defaultDuration) });
   const [acknowledged, setAcknowledged] = useState(false);
   const [error, setError] = useState<string>();
   function update(field: keyof GrantDraft, value: string) {
@@ -27,7 +31,7 @@ export function TradeGrantEditor({ sellAvailable, busy, signerConfigured, onRevi
     <form className="[margin-top:28px]" onSubmit={event => {
       event.preventDefault();
       if (busy || !acknowledged || !signerConfigured) return;
-      try { void onReview(parseGrantSettings(draft, sellAvailable)); }
+      try { void onReview(parseGrantSettings(draft, sellAvailable, maxDurationHours, untilRevoked)); }
       catch (cause) { setError(cause instanceof Error ? cause.message : t("grant.checkLimits")); }
     }}>
       <fieldset disabled={busy} className="trade-grant-fields">
@@ -56,13 +60,17 @@ export function TradeGrantEditor({ sellAvailable, busy, signerConfigured, onRevi
             <span className="trade-grant-input-wrap"><input aria-label={t("grant.toleranceAria")} aria-describedby={`${id}-slippage`} type="number" inputMode="decimal" min="0.01" max="0.5" step="0.01" required value={draft.slippagePercent} onChange={event => update("slippagePercent", event.target.value)} /><span>%</span></span>
             <small id={`${id}-slippage`}>{t("grant.toleranceHint")}</small>
           </label>
-          <label className="trade-grant-field">
+          {untilRevoked ? <p className="trade-grant-caption">{t("grant.untilRevoked")}</p> : <label className="trade-grant-field">
             <span>{t("grant.expiresAfter")}</span>
             <select value={draft.durationHours} onChange={event => update("durationHours", event.target.value)}>
-              {[1, 6, 12, 24].map((hours) => <option key={hours} value={String(hours)}>{t("grant.hours", { count: hours })}</option>)}
+              {durations.map(hours => (
+                <option key={hours} value={String(hours)}>
+                  {hours <= 24 ? t("grant.hours", { count: hours }) : new Intl.NumberFormat(locale, { style: "unit", unit: "day", unitDisplay: "long" }).format(hours / 24)}
+                </option>
+              ))}
             </select>
             <small>{t("grant.stopsAutomatically")}</small>
-          </label>
+          </label>}
         </div>
         <div className="trade-grant-summary">
           <HugeiconsIcon icon={Shield01Icon} size={20} strokeWidth={1.6} aria-hidden="true" />
