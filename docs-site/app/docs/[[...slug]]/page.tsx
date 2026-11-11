@@ -30,7 +30,7 @@ export default async function Page(props: PageProps<'/docs/[[...slug]]'>) {
     >
       <DocsTitle>{page.data.title}</DocsTitle>
       <DocsDescription className="mb-0">{page.data.description}</DocsDescription>
-      {page.slugs.length > 0 && <a className="oren-markdown-link" href={markdownUrl}>Read as Markdown</a>}
+      {page.slugs.length > 0 && <a className="mb-[24px] mt-[12px] inline-block text-[12px] text-fd-muted-foreground underline underline-offset-[4px]" href={markdownUrl}>Read as Markdown</a>}
       <DocsBody>
         <MDX
           components={getMDXComponents({

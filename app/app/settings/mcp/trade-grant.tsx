@@ -5,7 +5,6 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { Shield01Icon } from "@hugeicons/core-free-icons";
 import { TradeGrantEditor } from "./trade-grant-editor";
 import { ConnectionNextStep } from "./connection-next-step";
-import styles from "./trade-grant.module.css";
 import { useOrenAuth } from "@/components/auth/auth-context";
 import { mcpApiOrigin } from "@/services/mcp-api-origin";
 import { validateGrantPermission, validateTrustedTradeSigner, type GrantSettings } from "@/services/mcp-grant-authorization";
@@ -234,9 +233,9 @@ export function TradeGrant({ connectionUid }: { connectionUid?: string }) {
 
   if (!auth.authenticated) return null;
   return (
-    <section id="chat-trading" aria-labelledby="chat-trading-title" className={styles.card}>
-      <div className={styles.heading}>
-        <span className={styles.headingIcon}><HugeiconsIcon icon={Shield01Icon} size={22} strokeWidth={1.5} aria-hidden="true" /></span>
+    <section id="chat-trading" aria-labelledby="chat-trading-title" className="trade-grant-card">
+      <div className="trade-grant-heading">
+        <span className="trade-grant-heading-icon"><HugeiconsIcon icon={Shield01Icon} size={22} strokeWidth={1.5} aria-hidden="true" /></span>
         <div><h2 id="chat-trading-title">{t("grant.title")}</h2><p>{t("grant.intro")}</p></div>
       </div>
       {grant?.reenrollmentRequired && <p className="mt-4 text-sm">

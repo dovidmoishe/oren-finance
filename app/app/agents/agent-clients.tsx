@@ -1,7 +1,6 @@
 'use client';
 
 import { useCallback, useState } from 'react';
-import styles from './agents.module.css';
 
 import { AGENT_CLIENTS, type AgentClient } from './agent-client-data';
 export { AGENT_CLIENTS, type AgentClient } from './agent-client-data';
@@ -20,14 +19,14 @@ export function AgentLogo({ src }: { src: string }) {
   if (failed) return null;
   return (
     // eslint-disable-next-line @next/next/no-img-element
-    <img alt="" aria-hidden="true" className={styles.clientLogo} height={18} onError={() => setFailed(true)} ref={check} src={src} width={18} />
+    <img alt="" aria-hidden="true" className="agents-client-logo" height={18} onError={() => setFailed(true)} ref={check} src={src} width={18} />
   );
 }
 
 /** Each link opens that app's setup tab on this page. */
 export function AgentClientLinks() {
   return (
-    <ul aria-label="Set up Oren in your agent app" className={styles.navClients}>
+    <ul aria-label="Set up Oren in your agent app" className="agents-nav-clients">
       {AGENT_CLIENTS.map((item) => (
         <li key={item.id}>
           <a aria-label={`Set up Oren in ${item.label}`} href={`/agents#${item.id}`} title={item.label}>
