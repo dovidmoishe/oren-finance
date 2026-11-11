@@ -12,7 +12,10 @@ function fixture(pages) {
   return {queries, sleeps, args: {repo, sha, attempts: pages.length,
     sleep: async ms => sleeps.push(ms),
     github: {rest: {actions: {listWorkflowRuns: async query => {
-      queries.push(query); return {data: {workflow_runs: pages.shift()}};
+      queries.push(query);
+      const page = pages.shift();
+      if (page instanceof Error) throw page;
+      return {data: {workflow_runs: page}};
     }}}}}};
 }
 test('waits for exact master CI while images build independently', async () => {
@@ -35,6 +38,30 @@ test('all unsuccessful conclusions block deployment', async () => {
 test('newest run controls authorization, including a pending or failed rerun', async () => {
   await assert.rejects(requireProductionCi(fixture([[good, {...good, id: 11, conclusion: 'failure'}]]).args), /Master CI 11/);
   await assert.rejects(requireProductionCi(fixture([[good, {...good, id: 11, status: 'queued', conclusion: null}]]).args), /Timed out/);
+});
+test('retries transient GitHub API failures and still requires successful exact CI', async () => {
+  const networkFailure = Object.assign(new Error('fetch failed'), {status: 500});
+  const f = fixture([networkFailure, [], networkFailure, [good]]);
+  assert.equal(await requireProductionCi(f.args), good.id);
+  assert.deepEqual(f.sleeps, [15000, 15000, 15000]);
+
+  const failedCi = fixture([networkFailure, [{...good, conclusion: 'failure'}], [good]]);
+  await assert.rejects(requireProductionCi(failedCi.args), /Master CI 10: failure/);
+  assert.equal(failedCi.queries.length, 2);
+});
+test('persistent API failures and permission errors block deployment', async () => {
+  const unavailable = Object.assign(new Error('Service unavailable'), {status: 503});
+  const forbidden = Object.assign(new Error('Forbidden'), {status: 403});
+  for (const [pages, expected, queries] of [
+    [[unavailable, unavailable, unavailable, unavailable, [good]], unavailable, 4],
+    [[unavailable, unavailable], unavailable, 2],
+    [[forbidden, [good]], forbidden, 1],
+  ]) {
+    const f = fixture(pages);
+    await assert.rejects(requireProductionCi(f.args), error => error === expected);
+    assert.equal(f.queries.length, queries);
+    assert.equal(f.sleeps.length, queries - 1);
+  }
 });
 test('invalid SHA and API errors fail closed', async () => {
   const f = fixture([[good]]);
