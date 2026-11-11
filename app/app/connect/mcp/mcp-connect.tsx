@@ -29,7 +29,7 @@ type Delegation = {
   usedTodayUsd?: string;
   maxSlippageBps?: number;
   sides?: string[];
-  expiresAt?: string;
+  expiresAt?: string | null;
 };
 
 /** OAuth consent uses Oren's existing Privy email OTP sign-in dialog. */
@@ -174,7 +174,7 @@ function McpConnection({ uid }: { uid: string }) {
               <div><dt>Used in this window</dt><dd>${delegation.usedTodayUsd}</dd></div>
               <div><dt>Allowed trades</dt><dd>{delegation.sides?.join(' and ')}</dd></div>
               <div><dt>Price tolerance</dt><dd>{delegation.maxSlippageBps == null ? 'Unavailable' : `${formatNumber(delegation.maxSlippageBps / 100, locale, 2)}%`}</dd></div>
-              <div><dt>Expires</dt><dd>{delegation.expiresAt ? formatDateTime(delegation.expiresAt, locale, timeZone, t("common.unknown")) : 'soon'}</dd></div>
+              <div><dt>Permission</dt><dd>{delegation.expiresAt === null ? t("grant.untilRevoked") : delegation.expiresAt ? formatDateTime(delegation.expiresAt, locale, timeZone, t("common.unknown")) : t("common.unknown")}</dd></div>
             </dl>
             <label className="mcp-connect-checkbox">
             <input checked={allowExecute} className="mt-1" onChange={(event) => setAllowExecute(event.target.checked)} type="checkbox" />

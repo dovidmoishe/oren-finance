@@ -163,7 +163,7 @@ export const mcpTradeDelegations = pgTable(
     }).notNull(),
     maxSlippageBps: integer('max_slippage_bps').notNull(),
     allowSell: boolean('allow_sell').notNull().default(false),
-    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -204,7 +204,7 @@ export const mcpApiTradeGrants = pgTable('mcp_api_trade_grants', {
   createdAt: timestamp('created_at', { withTimezone: true })
     .notNull()
     .defaultNow(),
-  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  expiresAt: timestamp('expires_at', { withTimezone: true }),
   activatedAt: timestamp('activated_at', { withTimezone: true }),
 });
 

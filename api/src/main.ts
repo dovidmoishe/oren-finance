@@ -47,6 +47,11 @@ import { TokensService } from './tokens/tokens.service';
 import { ApprovalRpc } from './execution/approval-rpc.service';
 import { ownerProofSchema } from './mcp-auth/grant-owner-proof';
 import {
+  DAY_MS,
+  MAX_GRANT_HOURS,
+  grantExpired,
+} from './mcp-auth/grant-duration';
+import {
   describeMcpConsentClient,
   nativeMcpConsentGranted,
 } from './mcp-auth/client-consent';
@@ -86,6 +91,7 @@ async function bootstrap() {
       buysEnabled: env.MCP_DELEGATED_BUYS_ENABLED,
       sellsEnabled: env.MCP_DELEGATED_SELLS_ENABLED,
       signerQuorumId: env.PRIVY_MCP_SIGNER_QUORUM_ID ?? '',
+      signerPolicyId: env.PRIVY_MCP_SIGNER_POLICY_ID,
       tokens: app.get(TokensService, { strict: false }),
       rpc: app.get(ApprovalRpc, { strict: false }),
       connection: new Connection(
@@ -110,6 +116,7 @@ async function bootstrap() {
       research: app.get(ResearchService, { strict: false }),
       execution: app.get(ExecutionService, { strict: false }),
       gate: env.MCP_DELEGATED_TRADES_ENABLED ? grantGate : undefined,
+      signerPolicyId: env.PRIVY_MCP_SIGNER_POLICY_ID,
       delegatedSides: {
         buy: env.MCP_DELEGATED_BUYS_ENABLED,
         sell: env.MCP_DELEGATED_SELLS_ENABLED,
@@ -192,15 +199,22 @@ async function bootstrap() {
             ),
           )
           .limit(1);
-        if (!delegation)
+        if (!delegation) {
+          const limits =
+            mcpDeps.gate &&
+            env.MCP_DELEGATED_BUYS_ENABLED &&
+            delegatedUserAllowed(delegatedAccess, owner.userId)
+              ? await mcpDeps.gate.grantLimits().catch(() => undefined)
+              : undefined;
+          const maxDurationHours = limits?.maxDurationHours ?? 0;
           return res.json({
             enabled: false,
-            canEnroll:
-              env.MCP_DELEGATED_TRADES_ENABLED &&
-              env.MCP_DELEGATED_BUYS_ENABLED &&
-              delegatedUserAllowed(delegatedAccess, owner.userId),
+            canEnroll: limits?.untilRevoked === true || maxDurationHours >= 1,
+            untilRevoked: limits?.untilRevoked === true,
+            maxDurationHours,
             sellAvailable: env.MCP_DELEGATED_SELLS_ENABLED,
           });
+        }
         const [independent] = await db
           .select()
           .from(mcpApiTradeGrants)
@@ -214,9 +228,10 @@ async function bootstrap() {
           );
         if (
           !independent ||
+          independent.policyId !== delegation.policyId ||
           (env.PRIVY_MCP_SIGNER_POLICY_ID &&
             delegation.policyId !== env.PRIVY_MCP_SIGNER_POLICY_ID) ||
-          independent.expiresAt <= new Date() ||
+          grantExpired(independent.expiresAt) ||
           independent.status === 'revoked' ||
           (delegation.status === 'active' && independent.status !== 'active')
         )
@@ -242,9 +257,10 @@ async function bootstrap() {
               dailyUsd: independent.dailyLimitUsd,
               maxSlippageBps: independent.maxSlippageBps,
               allowSell: independent.allowSell,
-              expiresAt: independent.expiresAt.toISOString(),
+              expiresAt: independent.expiresAt?.toISOString() ?? null,
             },
           });
+        const budgetStart = new Date(Date.now() - DAY_MS);
         const [usage] = await db
           .select({
             total: sql<string>`COALESCE(SUM(${mcpBudgetReservations.amountUsd}), 0)`,
@@ -257,10 +273,7 @@ async function bootstrap() {
                 eq(mcpBudgetReservations.status, 'reserved'),
                 and(
                   eq(mcpBudgetReservations.status, 'consumed'),
-                  gt(
-                    mcpBudgetReservations.createdAt,
-                    new Date(Date.now() - 24 * 60 * 60_000),
-                  ),
+                  gt(mcpBudgetReservations.createdAt, budgetStart),
                 ),
               ),
             ),
@@ -270,7 +283,12 @@ async function bootstrap() {
             total: sql<string>`COALESCE(SUM(${mcpApiTradeAuthorizations.amountUsd}), 0)`,
           })
           .from(mcpApiTradeAuthorizations)
-          .where(eq(mcpApiTradeAuthorizations.delegationId, independent.id));
+          .where(
+            and(
+              eq(mcpApiTradeAuthorizations.delegationId, independent.id),
+              gt(mcpApiTradeAuthorizations.createdAt, budgetStart),
+            ),
+          );
         return res.json({
           enabled: true,
           sellAvailable: env.MCP_DELEGATED_SELLS_ENABLED,
@@ -284,7 +302,7 @@ async function bootstrap() {
               : usage.total,
           maxSlippageBps: independent.maxSlippageBps,
           sides: independent.allowSell ? ['buy', 'sell'] : ['buy'],
-          expiresAt: independent.expiresAt.toISOString(),
+          expiresAt: independent.expiresAt?.toISOString() ?? null,
         });
       } catch {
         return res.sendStatus(401);
@@ -298,7 +316,7 @@ async function bootstrap() {
         perTradeUsd: z.number().finite().min(0.01).max(25),
         dailyUsd: z.number().finite().min(0.01).max(50),
         maxSlippageBps: z.number().int().min(1).max(50),
-        durationHours: z.number().int().min(1).max(24),
+        durationHours: z.number().int().min(1).max(MAX_GRANT_HOURS).nullable(),
       })
       .refine((value) => value.dailyUsd >= value.perTradeUsd);
     expressApp.post(
@@ -708,7 +726,10 @@ async function bootstrap() {
           )
             return res.sendStatus(403);
           const [delegation] = await db
-            .select({ id: mcpTradeDelegations.id })
+            .select({
+              id: mcpTradeDelegations.id,
+              policyId: mcpTradeDelegations.policyId,
+            })
             .from(mcpTradeDelegations)
             .where(
               and(
@@ -716,12 +737,17 @@ async function bootstrap() {
                 eq(mcpTradeDelegations.walletId, owner.walletId),
                 eq(mcpTradeDelegations.wallet, owner.wallet),
                 eq(mcpTradeDelegations.status, 'active'),
-                gt(mcpTradeDelegations.expiresAt, new Date()),
+                or(
+                  isNull(mcpTradeDelegations.expiresAt),
+                  gt(mcpTradeDelegations.expiresAt, new Date()),
+                ),
               ),
             )
             .limit(1);
           if (
             !delegation ||
+            (env.PRIVY_MCP_SIGNER_POLICY_ID &&
+              delegation.policyId !== env.PRIVY_MCP_SIGNER_POLICY_ID) ||
             req.headers['x-oren-delegation-id'] !== delegation.id
           )
             return res.sendStatus(403);
@@ -731,11 +757,15 @@ async function bootstrap() {
             .where(
               and(
                 eq(mcpApiTradeGrants.id, delegation.id),
+                eq(mcpApiTradeGrants.policyId, delegation.policyId),
                 eq(mcpApiTradeGrants.userId, owner.userId),
                 eq(mcpApiTradeGrants.walletId, owner.walletId),
                 eq(mcpApiTradeGrants.wallet, owner.wallet),
                 eq(mcpApiTradeGrants.status, 'active'),
-                gt(mcpApiTradeGrants.expiresAt, new Date()),
+                or(
+                  isNull(mcpApiTradeGrants.expiresAt),
+                  gt(mcpApiTradeGrants.expiresAt, new Date()),
+                ),
               ),
             );
           if (!independent) return res.sendStatus(403);

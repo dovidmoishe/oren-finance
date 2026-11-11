@@ -56,6 +56,18 @@ describe('public sell policy compatibility', () => {
     p.rules.push(...Array.from({ length: 40 }, () => p.rules[0]));
     expect(gatePolicyRulesValid(p as never, true)).toBe(false);
   });
+  it('accepts the compact until-revoked policy with the required allow rules', () => {
+    const p = policy();
+    p.rules = p.rules.slice(0, 3).map((rule) => ({
+      ...rule,
+      action: 'ALLOW',
+      conditions: [],
+    }));
+    p.rules[2].name = 'allow compute budget';
+    expect(gatePolicyRulesValid(p as never, true)).toBe(true);
+    p.rules[2].action = 'DENY';
+    expect(gatePolicyRulesValid(p as never, true)).toBe(false);
+  });
   it('still rejects any changed rule through the independently pinned fingerprint', async () => {
     const p = policy();
     const config = {
@@ -72,8 +84,10 @@ describe('public sell policy compatibility', () => {
       } as never,
     );
     const verify = () =>
-      (service as unknown as { verifyPolicy(): Promise<void> }).verifyPolicy();
-    await expect(verify()).resolves.toBeUndefined();
+      (
+        service as unknown as { verifyPolicy(): Promise<typeof p> }
+      ).verifyPolicy();
+    await expect(verify()).resolves.toBe(p);
     p.rules[2].conditions[0].value = '3000000000';
     await expect(verify()).rejects.toThrow('owner-reviewed');
   });

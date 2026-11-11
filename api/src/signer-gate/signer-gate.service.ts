@@ -3,6 +3,7 @@ import { BadRequestException } from '@nestjs/common';
 import {
   policyAllowsStock,
   policyAllowsDestinationAccount,
+  signingPolicyExpiresAt,
 } from './policy-stock-coverage';
 import {
   signingFailureDetails,
@@ -43,6 +44,13 @@ import { buildGateJupiterRoute } from './gate-jupiter';
 import { USDC_MINT } from '../config/constants';
 import { delegatedUserAllowed } from '../mcp-auth/delegated-access';
 import {
+  HOUR_MS,
+  grantDurationMatches,
+  grantExpired,
+  MAX_GRANT_HOURS,
+  MAX_GRANT_MS,
+} from '../mcp-auth/grant-duration';
+import {
   verifyOwnerProof,
   sameGrantTerms,
   type OwnerProof,
@@ -63,12 +71,29 @@ export function gatePolicyRulesValid(
   const rules = policy.rules;
   if (!rules || rules.some((rule) => rule.method !== 'signTransaction'))
     return false;
+  const buys = 'allow bounded jupiter buy';
+  const sells = 'allow bounded jupiter sell';
+  const compute = 'allow compute budget';
+  const compactNames = sellsEnabled ? [compute, buys, sells] : [compute, buys];
+  if (rules.length === compactNames.length)
+    return (
+      compactNames.every((name) => rules.some((rule) => rule.name === name)) &&
+      rules.every(
+        (rule) =>
+          rule.action === 'ALLOW' &&
+          !rule.conditions?.some(
+            (condition) =>
+              condition.field_source === 'system' &&
+              condition.field === 'current_unix_timestamp',
+          ),
+      )
+    );
   if (!sellsEnabled) return rules.length === 3;
   return (
     rules.length >= 4 &&
     rules.length <= 46 &&
-    rules.some((rule) => rule.name === 'allow bounded jupiter buy') &&
-    rules.some((rule) => rule.name === 'allow bounded jupiter sell')
+    rules.some((rule) => rule.name === buys) &&
+    rules.some((rule) => rule.name === sells)
   );
 }
 
@@ -164,6 +189,23 @@ export class SignerGateService {
       gatePolicyFingerprint(policy) !== this.config.policyHash
     )
       throw new Error('Privy policy differs from owner-reviewed terms');
+    return policy;
+  }
+
+  async grantLimits() {
+    this.assertEnabled();
+    const expiresAt = signingPolicyExpiresAt(await this.verifyPolicy());
+    return expiresAt === null
+      ? { untilRevoked: true }
+      : {
+          maxDurationHours: Math.max(
+            0,
+            Math.min(
+              MAX_GRANT_HOURS,
+              Math.floor((expiresAt - Date.now()) / HOUR_MS),
+            ),
+          ),
+        };
   }
 
   async prepareGrant(
@@ -173,7 +215,7 @@ export class SignerGateService {
       perTradeUsd: number;
       dailyUsd: number;
       maxSlippageBps: number;
-      durationHours: number;
+      durationHours: number | null;
     },
   ) {
     this.assertEnabled();
@@ -186,8 +228,11 @@ export class SignerGateService {
       owner.terms.dailyUsd !== settings.dailyUsd.toFixed(6) ||
       owner.terms.maxSlippageBps !== settings.maxSlippageBps ||
       owner.terms.allowSell !== settings.allowSell ||
-      new Date(owner.terms.expiresAt).getTime() >
-        owner.issuedAt + settings.durationHours * 3_600_000
+      !grantDurationMatches(
+        owner.terms.expiresAt,
+        settings.durationHours,
+        owner.issuedAt,
+      )
     )
       throw new Error('Grant differs from wallet-authorized terms');
     if (
@@ -201,12 +246,17 @@ export class SignerGateService {
       settings.dailyUsd > 50 ||
       !Number.isInteger(settings.maxSlippageBps) ||
       settings.maxSlippageBps < 1 ||
-      settings.maxSlippageBps > 50 ||
-      !Number.isInteger(settings.durationHours) ||
-      settings.durationHours < 1 ||
-      settings.durationHours > 24
+      settings.maxSlippageBps > 50
     )
       throw new Error('Grant terms exceed the owner-only limits');
+    const expiresAt =
+      owner.terms.expiresAt === null ? null : new Date(owner.terms.expiresAt);
+    const policyExpiry = signingPolicyExpiresAt(await this.verifyPolicy());
+    if (
+      policyExpiry !== null &&
+      (expiresAt === null || expiresAt.getTime() > policyExpiry)
+    )
+      throw new Error('Grant duration exceeds the signing policy expiry');
     const [open] = await this.deps.db
       .select()
       .from(mcpTradeDelegations)
@@ -219,16 +269,16 @@ export class SignerGateService {
         ),
       )
       .limit(1);
-    if (open?.status === 'active' && open.expiresAt > new Date())
+    if (open?.status === 'active' && !grantExpired(open.expiresAt))
       throw new Error('Wallet already has an active delegation');
-    if (open?.status === 'pending_signer' && open.expiresAt > new Date()) {
+    if (open?.status === 'pending_signer' && !grantExpired(open.expiresAt)) {
       if (
         open.id !== owner.delegationId ||
         open.perTradeLimitUsd !== owner.terms.perTradeUsd ||
         open.dailyLimitUsd !== owner.terms.dailyUsd ||
         open.maxSlippageBps !== owner.terms.maxSlippageBps ||
         open.allowSell !== owner.terms.allowSell ||
-        open.expiresAt.toISOString() !== owner.terms.expiresAt
+        (open.expiresAt?.toISOString() ?? null) !== owner.terms.expiresAt
       )
         throw new Error('Pending grant has different signed terms');
       return {
@@ -240,10 +290,10 @@ export class SignerGateService {
         dailyUsd: open.dailyLimitUsd,
         maxSlippageBps: open.maxSlippageBps,
         allowSell: open.allowSell,
-        expiresAt: open.expiresAt.toISOString(),
+        expiresAt: open.expiresAt?.toISOString() ?? null,
       };
     }
-    if (open && open.expiresAt <= new Date())
+    if (open && grantExpired(open.expiresAt))
       await this.deps.db
         .update(mcpTradeDelegations)
         .set({ status: 'expired' })
@@ -256,8 +306,6 @@ export class SignerGateService {
       wallet.additional_signers.length !== 0
     )
       throw new Error('Wallet has other signers; enrollment is unavailable');
-    await this.verifyPolicy();
-    const expiresAt = new Date(owner.terms.expiresAt);
     const delegation = await this.deps.db.transaction(async (tx) => {
       const [saved] = await tx
         .insert(mcpTradeDelegations)
@@ -295,7 +343,7 @@ export class SignerGateService {
       dailyUsd: delegation.dailyLimitUsd,
       maxSlippageBps: delegation.maxSlippageBps,
       allowSell: delegation.allowSell,
-      expiresAt: expiresAt.toISOString(),
+      expiresAt: expiresAt?.toISOString() ?? null,
     };
   }
 
@@ -316,20 +364,20 @@ export class SignerGateService {
       .limit(1);
     if (
       delegation?.status === 'active' &&
-      delegation.expiresAt > new Date() &&
+      !grantExpired(delegation.expiresAt) &&
       sameGrantTerms(owner, delegation)
     ) {
       await this.verifyPrivySigner(delegation);
       return {
         active: true,
         delegationId,
-        expiresAt: delegation.expiresAt.toISOString(),
+        expiresAt: delegation.expiresAt?.toISOString() ?? null,
       };
     }
     if (
       !delegation ||
       delegation.status !== 'pending_signer' ||
-      delegation.expiresAt <= new Date() ||
+      grantExpired(delegation.expiresAt) ||
       !sameGrantTerms(owner, delegation)
     )
       throw new Error('Pending delegation unavailable');
@@ -358,7 +406,7 @@ export class SignerGateService {
     return {
       active: true,
       delegationId,
-      expiresAt: updated.expiresAt.toISOString(),
+      expiresAt: updated.expiresAt?.toISOString() ?? null,
     };
   }
 
@@ -418,15 +466,16 @@ export class SignerGateService {
     if (
       !delegation ||
       delegation.status !== 'active' ||
-      delegation.expiresAt <= new Date() ||
+      grantExpired(delegation.expiresAt) ||
       !delegatedUserAllowed(this.config, intent.userId) ||
       (intent.side === 'buy' && !this.config.buysEnabled) ||
       (intent.side === 'sell' &&
         (!this.config.sellsEnabled || !delegation.allowSell)) ||
       usdMicros(delegation.perTradeLimitUsd) > 25_000_000n ||
       usdMicros(delegation.dailyLimitUsd) > 50_000_000n ||
-      delegation.expiresAt.getTime() - delegation.createdAt.getTime() >
-        86_400_000
+      (delegation.expiresAt !== null &&
+        delegation.expiresAt.getTime() - delegation.createdAt.getTime() >
+          MAX_GRANT_MS)
     )
       throw new Error('Delegation is inactive or exceeds owner-only limits');
     const [connection] = await this.deps.db

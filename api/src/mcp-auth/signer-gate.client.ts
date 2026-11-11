@@ -139,6 +139,13 @@ export class SignerGateClient {
     }
   }
 
+  grantLimits() {
+    return this.post<{ maxDurationHours?: number; untilRevoked?: boolean }>(
+      '/grant/limits',
+      {},
+    );
+  }
+
   prepareGrant(
     authorization: OwnerProof,
     settings: {
@@ -146,7 +153,7 @@ export class SignerGateClient {
       perTradeUsd: number;
       dailyUsd: number;
       maxSlippageBps: number;
-      durationHours: number;
+      durationHours: number | null;
     },
   ) {
     return this.post<{
@@ -158,7 +165,7 @@ export class SignerGateClient {
       dailyUsd: string;
       maxSlippageBps: number;
       allowSell: boolean;
-      expiresAt: string;
+      expiresAt: string | null;
     }>('/grant/prepare', { authorization, ...settings });
   }
 
@@ -166,7 +173,7 @@ export class SignerGateClient {
     return this.post<{
       active: boolean;
       delegationId: string;
-      expiresAt: string;
+      expiresAt: string | null;
     }>('/grant/activate', { authorization, delegationId });
   }
 

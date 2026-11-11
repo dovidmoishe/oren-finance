@@ -20,6 +20,14 @@ test('browser accepts only the selected prepare limits', () => {
   f.value.terms.dailyUsd = '50.000000';
   assert.throws(() => validateGrantPermission(f.message(), wallet, 'app', 'prepare', settings), /limits differ/);
 });
+test('browser requires an explicit match between dated and until-revoked permission', () => {
+  const f = fixture();
+  const standing = { ...settings, durationHours: null };
+  assert.throws(() => validateGrantPermission(f.message(), wallet, 'app', 'prepare', standing), /duration differs/);
+  f.value.terms.expiresAt = null;
+  validateGrantPermission(f.message(), wallet, 'app', 'prepare', standing);
+  assert.throws(() => validateGrantPermission(f.message(), wallet, 'app', 'prepare', settings), /duration differs/);
+});
 for (const field of ['wallet', 'appId', 'action', 'expiry', 'duration', 'slippage', 'sell']) {
   test(`browser refuses changed ${field} before requesting a wallet signature`, () => {
     const f = fixture();

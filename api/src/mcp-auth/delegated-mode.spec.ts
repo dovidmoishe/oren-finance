@@ -2,12 +2,33 @@ import { canSignInChat, delegatedModeDecision } from './delegated-mode';
 
 const grant = {
   activatedAt: new Date('2026-11-10T00:00:00Z'),
+  expiresAt: new Date(Date.now() + 60_000),
+  status: 'active',
+  policyId: 'current-policy',
   maxSlippageBps: 50,
   allowSell: true,
 };
 const connectedAfter = new Date('2026-11-10T01:00:00Z');
 
 describe('delegated mode reasons', () => {
+  it('requires fresh execution consent after the owner renews a grant', () => {
+    const input = {
+      executeEnabled: true,
+      provider: 'jupiter',
+      slippageBps: 50,
+      side: 'buy' as const,
+      delegation: grant,
+      connectionCreatedAt: grant.activatedAt,
+      sellPriced: false,
+    };
+    expect(canSignInChat(input)).toBe(false);
+    expect(delegatedModeDecision(input)).toMatchObject({
+      delegated: false,
+      signingGrant: 'active',
+      browserReason: 'execute_consent_outdated',
+    });
+  });
+
   it('keeps an active grant when the quote venue cannot be signed in chat', () => {
     const decision = delegatedModeDecision({
       executeEnabled: true,

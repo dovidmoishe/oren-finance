@@ -7,6 +7,14 @@ const usdc = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
 const jupiter = 'JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4';
 const idl = { address: jupiter, metadata: { name: 'jupiter', version: '0.1.0', spec: '0.1.0' }, instructions: [{ name: 'shared_accounts_route', discriminator: [193,32,155,51,65,214,156,129], accounts: ['user_transfer_authority','source_mint','destination_mint','source_token_account','destination_token_account'].map(name => ({ name })), args: ['in_amount','quoted_out_amount','slippage_bps','platform_fee_bps'].map(name => ({name,type:'u64'})) }], types: [] };
 const input = { idl, stockMints: [stock], ownerId: 'separate-policy-owner', nowUnix: 100000, expiresAtUnix: 200000 };
+
+test('until-revoked candidates omit only the time cutoff and require explicit opt-in', () => {
+  const timed = buildTradingPolicy(input);
+  const durable = buildTradingPolicy({ ...input, expiresAtUnix: null, untilRevoked: true });
+  assert.deepEqual(durable.rules, timed.rules.slice(1));
+  assert.throws(() => buildTradingPolicy({ ...input, expiresAtUnix: null }));
+  assert.throws(() => buildTradingPolicy({ ...input, untilRevoked: true }));
+});
 const policy = buildTradingPolicy(input);
 // Privy's documented semantics: all conditions in a rule, deny precedence,
 // and an allow for every top-level instruction. This exercises the boundary.

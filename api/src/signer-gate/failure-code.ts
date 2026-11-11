@@ -10,6 +10,8 @@ export function gateFailureCode(error: unknown): string {
   if (structured) return structured;
   const reason = error instanceof Error ? error.message : '';
   switch (reason) {
+    case 'Grant duration exceeds the signing policy expiry':
+      return 'grant_duration_unavailable';
     case SOL_RENT_MESSAGE:
       return 'insufficient_sol_for_rent';
     case SOL_FEE_MESSAGE:

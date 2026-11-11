@@ -177,6 +177,8 @@ function main() {
           typeof body.executionId === 'string'
         )
           result = await gate.reconcile(body.executionId);
+        else if (request.url === '/grant/limits')
+          result = await gate.grantLimits();
         else if (
           request.url === '/grant/prepare' &&
           ownerProof.success &&
@@ -184,7 +186,8 @@ function main() {
           typeof body.perTradeUsd === 'number' &&
           typeof body.dailyUsd === 'number' &&
           typeof body.maxSlippageBps === 'number' &&
-          typeof body.durationHours === 'number'
+          (typeof body.durationHours === 'number' ||
+            body.durationHours === null)
         )
           result = await gate.prepareGrant(ownerProof.data, {
             allowSell: body.allowSell,

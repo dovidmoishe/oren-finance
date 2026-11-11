@@ -1,5 +1,5 @@
 import type { Request, Response } from 'express';
-import { and, eq, gt, isNull } from 'drizzle-orm';
+import { and, desc, eq, gt, isNull } from 'drizzle-orm';
 import { McpServer } from '@modelcontextprotocol/server';
 import { NodeStreamableHTTPServerTransport } from '@modelcontextprotocol/node';
 import { z } from 'zod';
@@ -50,6 +50,7 @@ export interface McpResourceDeps {
   };
   oauth: McpOAuthRuntime;
   gate?: SignerGateClient;
+  signerPolicyId?: string;
   delegatedSides?: { buy: boolean; sell: boolean };
 }
 
@@ -227,7 +228,7 @@ export async function handleMcpRequest(
       {
         title: 'Prepare stock trade',
         description:
-          'Prepare a USDC stock buy or stock sell. In-chat signing quotes Jupiter so execute_trade can sign it; browser review may use another venue. When mode is delegated and signingGrant is active, call execute_trade. When mode is browser, read browserReason. unsupported_venue means Jupiter had no route. Do not say signing permission is missing unless browserReason is inactive_delegation.',
+          'Prepare a USDC stock buy or stock sell. In-chat signing quotes Jupiter. When mode is delegated, call execute_trade. When mode is browser, relay the returned message and browserReason. Share signingSettingsUrl when present to restore in-chat execution. approvalUrl is for signing only this trade in the browser.',
         inputSchema: z.object({
           assetId: z.string().trim().min(1).max(80),
           side: z.enum(['buy', 'sell']),
@@ -272,10 +273,9 @@ export async function handleMcpRequest(
                   eq(mcpTradeDelegations.userId, connection.userId),
                   eq(mcpTradeDelegations.walletId, connection.walletId),
                   eq(mcpTradeDelegations.wallet, connection.wallet),
-                  eq(mcpTradeDelegations.status, 'active'),
-                  gt(mcpTradeDelegations.expiresAt, new Date()),
                 ),
               )
+              .orderBy(desc(mcpTradeDelegations.createdAt))
               .limit(1)
           : [];
         const quoteRequest = {
@@ -292,6 +292,7 @@ export async function handleMcpRequest(
         // best-of so the user can still review in the browser.
         const chatSigning = canSignInChat({
           executeEnabled,
+          signerPolicyId: deps.signerPolicyId,
           slippageBps,
           side,
           delegation,
@@ -361,6 +362,7 @@ export async function handleMcpRequest(
             : null;
         const decision = delegatedModeDecision({
           executeEnabled,
+          signerPolicyId: deps.signerPolicyId,
           provider: quote.provider,
           slippageBps,
           side,
@@ -426,6 +428,19 @@ export async function handleMcpRequest(
                   : {
                       browserReason: decision.browserReason,
                       message: decision.message,
+                      ...(decision.browserReason === 'delegation_expired'
+                        ? {
+                            signingGrantExpiresAt:
+                              delegation.expiresAt?.toISOString(),
+                          }
+                        : {}),
+                      ...(decision.browserReason === 'delegation_expired' ||
+                      decision.browserReason === 'delegation_policy_changed' ||
+                      decision.browserReason === 'execute_consent_outdated'
+                        ? {
+                            signingSettingsUrl: `${deps.oauth.appOrigin}/settings/mcp#chat-trading`,
+                          }
+                        : {}),
                       approvalUrl: `${deps.oauth.appOrigin}/app/trades/review/${intent.id}`,
                     }),
               }),

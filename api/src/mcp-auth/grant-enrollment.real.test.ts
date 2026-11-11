@@ -7,9 +7,11 @@ import { ApiTradeAuthorization } from './api-trade-authorization';
 import { ownerPermissionMessage, type OwnerMessage } from './grant-owner-proof';
 import { SignerGateClient } from './signer-gate.client';
 import {
+  gatePolicyFingerprint,
   SignerGateService,
   type SignerGateConfig,
 } from '../signer-gate/signer-gate.service';
+import { HOUR_MS, MAX_GRANT_HOURS } from './grant-duration';
 
 jest.mock('@privy-io/node', () =>
   jest.requireActual<typeof import('../test/privy-authorization.mock')>(
@@ -79,7 +81,7 @@ function fixture(
     dailyUsd: 0.2,
     allowSell: false,
     maxSlippageBps: 50,
-    durationHours: 1,
+    durationHours: 1 as number | null,
   };
   const signed = (message: string) => ({
     message,
@@ -112,6 +114,120 @@ function fixture(
 
 describe('owner-bound grant enrollment', () => {
   afterEach(() => jest.restoreAllMocks());
+  it('records and activates an explicit until-revoked grant, and rejects a timed proof in its place', async () => {
+    const f = fixture();
+    const timedProof = await f.getProof('prepare');
+    f.settings.durationHours = null;
+    await expect(
+      f.service.verifyPreparation('owner-token', timedProof, f.settings),
+    ).rejects.toThrow('Browser did not approve');
+    const proof = await f.getProof('prepare');
+    const value = await f.service.verifyPreparation(
+      'owner-token',
+      proof,
+      f.settings,
+    );
+    expect(value.terms?.expiresAt).toBeNull();
+    await f.service.recordPending('owner-token', proof, f.settings, {
+      delegationId: value.delegationId,
+      wallet: value.wallet,
+      signerId: 'quorum',
+      policyId: 'policy',
+      ...value.terms!,
+    });
+    const activation = await f.getProof('activate', value.delegationId);
+    await f.service.activate(
+      'owner-token',
+      activation,
+      value.delegationId,
+      () => Promise.resolve({ active: true }),
+    );
+    expect(f.saved()).toMatchObject({ expiresAt: null, status: 'active' });
+    const revoke = await f.getProof('revoke', value.delegationId);
+    await f.service.revoke('owner-token', revoke, value.delegationId);
+    expect(f.saved()?.status).toBe('revoked');
+  });
+  it('binds the selected three-day duration to the owner proof', async () => {
+    const f = fixture();
+    f.settings.durationHours = MAX_GRANT_HOURS;
+    const proof = await f.getProof('prepare');
+    const value = await f.service.verifyPreparation(
+      'owner-token',
+      proof,
+      f.settings,
+    );
+    expect(Date.parse(value.terms?.expiresAt ?? '') - value.issuedAt).toBe(
+      72 * HOUR_MS,
+    );
+    await expect(
+      f.service.verifyPreparation('owner-token', proof, {
+        ...f.settings,
+        durationHours: 48,
+      }),
+    ).rejects.toThrow('Browser did not approve');
+    f.settings.durationHours = 73;
+    await expect(f.getProof('prepare')).rejects.toThrow(
+      'Enrollment unavailable',
+    );
+  });
+
+  it('limits enrollment to the remaining time of the pinned Privy policy', async () => {
+    const f = fixture();
+    f.settings.durationHours = 72;
+    const expiry = Math.floor(Date.now() / 1000) + 60 * 3600 + 10;
+    const policy = {
+      owner_id: 'policy-owner',
+      chain_type: 'solana',
+      version: '1.0',
+      rules: [
+        {
+          method: 'signTransaction',
+          action: 'DENY',
+          name: 'deny after policy expiry',
+          conditions: [
+            {
+              field_source: 'system',
+              field: 'current_unix_timestamp',
+              operator: 'gte',
+              value: String(expiry),
+            },
+          ],
+        },
+        ...['allow compute', 'allow bounded jupiter buy'].map((name) => ({
+          method: 'signTransaction',
+          action: 'ALLOW',
+          name,
+          conditions: [],
+        })),
+      ],
+    } as Parameters<typeof gatePolicyFingerprint>[0];
+    const gate = new SignerGateService(
+      {
+        enabled: true,
+        appId: 'app',
+        signerQuorumId: 'quorum',
+        policyId: 'policy',
+        policyOwnerId: 'policy-owner',
+        policyHash: gatePolicyFingerprint(policy),
+        allowedUsers: new Set(['owner']),
+        buysEnabled: true,
+        sellsEnabled: false,
+      } as SignerGateConfig,
+      {
+        auth: f.auth,
+        privy: { policies: () => ({ get: () => Promise.resolve(policy) }) },
+      } as never,
+    );
+    await expect(gate.grantLimits()).resolves.toEqual({ maxDurationHours: 60 });
+    await expect(
+      gate.prepareGrant(await f.getProof('prepare'), f.settings),
+    ).rejects.toThrow('Grant duration exceeds the signing policy expiry');
+    f.settings.durationHours = null;
+    await expect(
+      gate.prepareGrant(await f.getProof('prepare'), f.settings),
+    ).rejects.toThrow('Grant duration exceeds the signing policy expiry');
+  });
+
   it('lets a non-allowlisted user enroll only when public access is on, within the same limits', async () => {
     const closed = fixture({ allowedUsers: new Set(['someone-else']) });
     await expect(closed.getProof('prepare')).rejects.toThrow(

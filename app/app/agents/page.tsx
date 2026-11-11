@@ -32,7 +32,7 @@ const STEPS = [
 
 const SAFEGUARDS = [
   { title: 'Your limits are signed', body: 'Per-trade and daily limits are approved with your wallet, and Oren checks them again before every trade.' },
-  { title: 'Capped by design', body: 'Even at the maximum, chat trading stops at $25 per trade and $50 per day. Grants expire within 24 hours.' },
+  { title: 'Capped by design', body: 'Even at the maximum, chat trading stops at $25 per trade and $50 per rolling 24 hours. Revoke your trading permission anytime.' },
   { title: 'Two keys to sign', body: 'Every chat trade needs two independent approvals before it reaches your wallet.' },
   { title: 'Off in one click', body: 'Revoke an app or your limits anytime in Agent connections. It stops immediately.' },
 ];

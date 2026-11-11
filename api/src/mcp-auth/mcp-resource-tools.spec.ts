@@ -34,6 +34,8 @@ async function registeredTools(
     };
     converted?: boolean;
     gateError?: Error;
+    delegationExpiresAt?: Date;
+    delegationPolicyId?: string;
   },
 ) {
   const connection = {
@@ -67,8 +69,8 @@ async function registeredTools(
       update: () => ({ set }),
       select: () => ({
         from: (table: unknown) => ({
-          where: () => ({
-            limit: jest.fn().mockResolvedValue(
+          where: () => {
+            const limit = jest.fn().mockResolvedValue(
               table === mcpConnections
                 ? [connection]
                 : table === mcpTradeIntents
@@ -79,12 +81,19 @@ async function registeredTools(
                       {
                         id: 'delegation-test',
                         activatedAt: new Date(Date.now() - 60_000),
+                        expiresAt:
+                          review?.delegationExpiresAt ??
+                          new Date(Date.now() + 60_000),
+                        status: 'active',
+                        policyId:
+                          review?.delegationPolicyId ?? 'current-policy',
                         maxSlippageBps: 50,
                         allowSell: true,
                       },
                     ],
-            ),
-          }),
+            );
+            return { limit, orderBy: () => ({ limit }) };
+          },
         }),
       }),
       insert: () => ({ values }),
@@ -109,6 +118,7 @@ async function registeredTools(
     },
     gate: { execute: jest.fn().mockRejectedValue(review?.gateError) },
     delegatedSides: { buy: true, sell: true },
+    signerPolicyId: 'current-policy',
     execution: { getQuote },
     market: { getStock: jest.fn().mockResolvedValue({ price: 100 }) },
   } as unknown as McpResourceDeps;
@@ -146,8 +156,9 @@ async function registeredTools(
       ([name]) => name === 'prepare_trade',
     )?.[2] as (input: {
       assetId: string;
-      side: 'sell';
-      amountShares: number;
+      side: 'buy' | 'sell';
+      amountShares?: number;
+      amountUsd?: number;
       slippageBps: number;
     }) => Promise<{ content: { text: string }[]; isError?: boolean }>,
     getQuote,
@@ -156,6 +167,60 @@ async function registeredTools(
 
 describe('MCP trade tool exposure', () => {
   beforeEach(() => jest.clearAllMocks());
+  it.each(['delegation_expired', 'delegation_policy_changed'])(
+    'returns the renewal link for %s',
+    async (browserReason) => {
+      const quote = {
+        assetId: 'spacex',
+        ticker: 'SPCX',
+        side: 'buy',
+        variant: { mint: 'stock-mint', decimals: 6 },
+        inputMint: USDC_MINT,
+        outputMint: 'stock-mint',
+        inputAmount: 5,
+        outputAmount: 0.036,
+        provider: 'jupiter',
+        slippageBps: 50,
+        routePayload: {
+          inAmount: '5000000',
+          outAmount: '36000',
+          otherAmountThreshold: '35820',
+          swapMode: 'ExactIn',
+        },
+      } as Quote;
+      const delegationExpiresAt = new Date(Date.now() - 1_000);
+      const expired = browserReason === 'delegation_expired';
+      const tools = await registeredTools(
+        ['oren.trade.prepare', 'oren.trade.execute'],
+        quote,
+        expired
+          ? { delegationExpiresAt }
+          : { delegationPolicyId: 'retired-policy' },
+      );
+      const result = await tools.prepare({
+        assetId: 'spacex',
+        side: 'buy',
+        amountUsd: 5,
+        slippageBps: 50,
+      });
+      expect(tools.getQuote).toHaveBeenCalledWith(
+        expect.not.objectContaining({ jupiterOnly: true }),
+      );
+      expect(tools.values).toHaveBeenCalledWith(
+        expect.objectContaining({ mode: 'browser', delegationId: null }),
+      );
+      expect(JSON.parse(result.content[0].text)).toMatchObject({
+        mode: 'browser',
+        signingGrant: 'inactive',
+        browserReason,
+        ...(expired
+          ? { signingGrantExpiresAt: delegationExpiresAt.toISOString() }
+          : {}),
+        signingSettingsUrl: 'https://oren.finance/settings/mcp#chat-trading',
+      });
+    },
+  );
+
   it.each(['insufficient_sol_for_rent', 'insufficient_sol_for_fees'])(
     'reports %s without pending status or browser fallback',
     async (reason) => {
@@ -435,13 +500,7 @@ describe('MCP trade tool exposure', () => {
       ['oren.read', 'oren.trade.prepare', 'oren.trade.execute'],
       quote,
     );
-    const prepare = tools.prepare as unknown as (input: {
-      assetId: string;
-      side: 'buy';
-      amountUsd: number;
-      slippageBps: number;
-    }) => Promise<{ content: { text: string }[] }>;
-    const result = await prepare({
+    const result = await tools.prepare({
       assetId: 'nvda',
       side: 'buy',
       amountUsd: 5,
@@ -494,13 +553,7 @@ describe('MCP trade tool exposure', () => {
     tools.getQuote
       .mockRejectedValueOnce(new Error('No swap routes for NVDA'))
       .mockResolvedValueOnce(titan);
-    const prepare = tools.prepare as unknown as (input: {
-      assetId: string;
-      side: 'buy';
-      amountUsd: number;
-      slippageBps: number;
-    }) => Promise<{ content: { text: string }[] }>;
-    const result = await prepare({
+    const result = await tools.prepare({
       assetId: 'nvda',
       side: 'buy',
       amountUsd: 5,

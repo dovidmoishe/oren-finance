@@ -23,7 +23,7 @@ export function samePolicySemantics(a, b) {
 }
 
 /** A new policy; never expands an enrolled wallet's policy in place. */
-export function buildTradingPolicy({ idl, stockMints, ownerId, expiresAtUnix, nowUnix = Math.floor(Date.now() / 1000), allowDestinationAccountCreation = false }) {
+export function buildTradingPolicy({ idl, stockMints, ownerId, expiresAtUnix, nowUnix = Math.floor(Date.now() / 1000), allowDestinationAccountCreation = false, untilRevoked = false }) {
   const route = idl?.instructions?.[0];
   if (!ownerId || idl?.address !== JUPITER || idl.instructions.length !== 1 ||
       route?.name !== 'shared_accounts_route' ||
@@ -31,14 +31,15 @@ export function buildTradingPolicy({ idl, stockMints, ownerId, expiresAtUnix, no
       !requiredArgs.every(name => route.args?.some(arg => arg.name === name)) ||
       !['source_mint', 'destination_mint', 'user_transfer_authority', 'source_token_account', 'destination_token_account'].every(name => route.accounts?.some(account => account.name === name)))
     throw new Error('Expected the reviewed Jupiter shared-route IDL and separate policy owner');
-  if (!Number.isSafeInteger(expiresAtUnix) || expiresAtUnix <= nowUnix + 3600 || expiresAtUnix > nowUnix + 7 * 86400)
+  if (untilRevoked ? expiresAtUnix !== null :
+      !Number.isSafeInteger(expiresAtUnix) || expiresAtUnix <= nowUnix + 3600 || expiresAtUnix > nowUnix + 7 * 86400)
     throw new Error('Policy expiry must be between one hour and seven days');
   const mints = [...new Set(stockMints)].sort();
   if (!mints.length || mints.length > 100 || mints.some(mint => !mintPattern.test(mint) || mint === USDC))
     throw new Error('Expected an explicit stock mint allowlist of at most 100 mints');
   return buildLaunchPolicy({ name:'oren bounded stock trading',version:'1.0',chain_type:'solana',owner_id:ownerId,rules:[
-    {name:'deny after policy expiry',method:'signTransaction',action:'DENY',conditions:[{field_source:'system',field:'current_unix_timestamp',operator:'gte',value:String(expiresAtUnix)}]},
+    ...(untilRevoked ? [] : [{name:'deny after policy expiry',method:'signTransaction',action:'DENY',conditions:[{field_source:'system',field:'current_unix_timestamp',operator:'gte',value:String(expiresAtUnix)}]}]),
     {name:'allow compute budget',method:'signTransaction',action:'ALLOW',conditions:[{field_source:'solana_program_instruction',field:'programId',operator:'eq',value:COMPUTE}]},
     {name:'reviewed argument decoder',conditions:[{idl}]},
-  ]},mints,{allowDestinationAccountCreation});
+  ]},mints,{allowDestinationAccountCreation, untilRevoked});
 }
