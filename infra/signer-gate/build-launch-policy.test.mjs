@@ -47,4 +47,8 @@ test('verifies an omitted reviewed mint by exact address without substituting an
   await assert.rejects(verifyLaunchMints([listed], [listed, omitted], tokens), /nontradable/);
   await assert.rejects(verifyLaunchMints([], ['invalid-mint'], tokens), /explicitly reviewed/);
   assert.deepEqual(calls, [omitted, omitted]);
+  await assert.rejects(verifyLaunchMints([listed], [listed, omitted], {
+    resolveMint: async () => null,
+    getVariants: async () => assert.fail('An unresolved mint must never supply variants'),
+  }), /nontradable/);
 });
