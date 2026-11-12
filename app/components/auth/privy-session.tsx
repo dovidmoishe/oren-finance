@@ -2,7 +2,7 @@
 
 import {
   useAuthorizationSignature,
-  useLogin,
+  useLoginWithEmail,
   usePrivy,
   useSigners,
 } from "@privy-io/react-auth";
@@ -114,15 +114,15 @@ export function PrivySession({ children }: { children: React.ReactNode }) {
   const [signingOut, setSigningOut] = useState(false);
   const dialog = useRef<HTMLDialogElement>(null);
   const lastPersonalizedSignup = useRef<string>(undefined);
-  useLogin({
+  const { sendCode, loginWithCode } = useLoginWithEmail({
     onComplete: ({ user: signedInUser, isNewUser, wasAlreadyAuthenticated, loginMethod }) => {
+      dialog.current?.close();
+      setVisible(false);
       if (!isNewUser || wasAlreadyAuthenticated) return;
       if (inApp && onboardingEnabled && loginMethod === "email") {
         if (lastPersonalizedSignup.current === signedInUser.id) return;
         lastPersonalizedSignup.current = signedInUser.id;
         setOnboardingUserId(signedInUser.id);
-        dialog.current?.close();
-        setVisible(false);
       }
       setDepositOpen(true);
     },
@@ -464,7 +464,7 @@ export function PrivySession({ children }: { children: React.ReactNode }) {
             >
               {t("auth.close")}
             </button>
-            {visible && <EmailLogin onComplete={() => setVisible(false)} />}
+            {visible && <EmailLogin sendCode={sendCode} loginWithCode={loginWithCode} />}
           </dialog>
           {onboardingUserId && authenticated && !signingOut && !visible && inApp &&
             user?.id === onboardingUserId && (

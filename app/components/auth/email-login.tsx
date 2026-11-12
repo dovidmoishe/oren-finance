@@ -1,14 +1,13 @@
 "use client";
 
-import { Captcha, useLoginWithEmail } from "@privy-io/react-auth";
+import { Captcha, type UseLoginWithEmail } from "@privy-io/react-auth";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useT } from "@/i18n/i18n";
 import { signInErrorKey, type SignInErrorKey } from "./sign-in-error";
 
 /** The enclosing dialog owns visibility; Privy owns OTP delivery and verification. */
-export function EmailLogin({ onComplete }: { onComplete: () => void }) {
+export function EmailLogin({ sendCode, loginWithCode }: Pick<UseLoginWithEmail, "sendCode" | "loginWithCode">) {
   const t = useT();
-  const { sendCode, loginWithCode } = useLoginWithEmail();
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
   const [step, setStep] = useState<"email" | "code">("email");
@@ -49,7 +48,6 @@ export function EmailLogin({ onComplete }: { onComplete: () => void }) {
     setError(undefined);
     try {
       await loginWithCode({ code: code.trim() });
-      if (mounted.current) onComplete();
     } catch (cause) {
       if (!mounted.current) return;
       setError(signInErrorKey(cause, "verify"));

@@ -67,7 +67,7 @@ test("the email step renders catalog copy and never the raw SDK string", () => {
   vm.runInNewContext(code, {
     exports,
     require(id) {
-      if (id === "@privy-io/react-auth") return { Captcha: () => null, useLoginWithEmail: () => ({ sendCode() {}, loginWithCode() {} }) };
+      if (id === "@privy-io/react-auth") return { Captcha: () => null };
       if (id === "@/i18n/i18n") return require("@/i18n/i18n");
       if (id === "./sign-in-error") return errors;
       if (id === "react") return require("react");
@@ -75,7 +75,7 @@ test("the email step renders catalog copy and never the raw SDK string", () => {
       throw new Error(id);
     },
   });
-  const html = renderToStaticMarkup(createElement(exports.EmailLogin, { onComplete() {} }));
+  const html = renderToStaticMarkup(createElement(exports.EmailLogin, { sendCode() {}, loginWithCode() {} }));
   assert.match(html, /Sign in to Oren/);
   assert.match(html, /one-time code/);
   assert.match(html, /Email address/);

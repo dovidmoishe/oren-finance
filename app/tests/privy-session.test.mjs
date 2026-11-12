@@ -17,7 +17,7 @@ function deferred() {
 // Execute the real session component with a minimal hook scheduler and controllable SDK.
 function session(createWallet, { deployment = "production", pathname = "/app" } = {}) {
   const slots = [], effects = [];
-  let cursor = 0, loginComplete, modal, walletContext, onboarding;
+  let cursor = 0, otpResult, emailLogin, modal, walletContext, onboarding;
   const sdk = { ready: true, authenticated: true, user: { id: 'alice', linkedAccounts: [] }, logout: async () => {}, linkWallet() {}, getAccessToken: async () => 'token' };
   const walletSdk = { ready: true, wallets: [] };
   class SigningImplementation {
@@ -72,7 +72,18 @@ function session(createWallet, { deployment = "production", pathname = "/app" } 
     exports, URL, TextEncoder, btoa, process: { env: { NEXT_PUBLIC_DEPLOYMENT_ENV: deployment } }, window: { location: { href: 'https://oren.finance/app' }, localStorage: { getItem: () => null } },
     require(id) {
       if (id === 'react') return react;
-      if (id === '@privy-io/react-auth') return { useAuthorizationSignature: () => ({ generateAuthorizationSignature: async () => ({ signature: 'request-signature' }) }), useSigners: () => ({ addSigners: async () => {}, removeSigners: async () => {} }), usePrivy: () => sdk, useLogin: ({ onComplete }) => { loginComplete = onComplete; return { login() {} }; } };
+      if (id === '@privy-io/react-auth') return {
+        useAuthorizationSignature: () => ({ generateAuthorizationSignature: async () => ({ signature: 'request-signature' }) }),
+        useSigners: () => ({ addSigners: async () => {}, removeSigners: async () => {} }),
+        usePrivy: () => sdk,
+        useLoginWithEmail: ({ onComplete }) => ({
+          sendCode: async () => {},
+          loginWithCode: async () => {
+            if (!otpResult) throw new Error('Invalid code');
+            onComplete(otpResult);
+          },
+        }),
+      };
       if (id === '@privy-io/react-auth/solana') return { useStandardWallets: () => standardSdk, useWallets: () => walletSdk, useCreateWallet: () => ({ createWallet }), useSignMessage: () => ({ signMessage: (...args) => messageSigner(...args) }), useSignTransaction: () => ({}) };
       if (id === 'next/navigation') return { usePathname: () => pathname };
       if (id === '@/store') return Object.fromEntries(['useAgentStore','useExecutionStore','usePortfolioStore','useSocialStore','useVaultStore','useWalletStore'].map(k => [k, store]));
@@ -94,11 +105,17 @@ function session(createWallet, { deployment = "production", pathname = "/app" } 
     const tree = exports.PrivySession({ children: null });
     walletContext = tree.props.children.props.value;
     modal = tree.props.children.props.children.props.value;
-    onboarding = tree.props.children.props.children.props.children.find(child => child?.type === 'onboarding');
+    const children = tree.props.children.props.children.props.children;
+    onboarding = children.find(child => child?.type === 'onboarding');
+    emailLogin = children.find(child => child?.type === 'dialog').props.children.find(child => child?.type === 'email-login');
     while (effects.length) effects.shift()();
     return tree.props.value;
   }
-  return { sdk, walletSdk, standardSdk, setMessageSigner: signer => { messageSigner = signer; }, embeddedSigner: signer => new PrivyStandardWallet(signer), render, wallet: () => walletContext, resetCount: () => resets, requestConnection: () => modal.setVisible(true), isLoginOpen: () => modal.visible, completeLogin: data => loginComplete(data), onboarding: () => onboarding };
+  function submitOtp(result) {
+    otpResult = result;
+    return emailLogin.props.loginWithCode({ code: '123456' });
+  }
+  return { sdk, walletSdk, standardSdk, setMessageSigner: signer => { messageSigner = signer; }, embeddedSigner: signer => new PrivyStandardWallet(signer), render, wallet: () => walletContext, resetCount: () => resets, requestConnection: () => modal.setVisible(true), isLoginOpen: () => modal.visible, submitOtp, onboarding: () => onboarding };
 }
 const settle = () => new Promise(resolve => setImmediate(resolve));
 
@@ -109,7 +126,7 @@ const verifiedSignup = {
   loginMethod: 'email',
 };
 
-test('fresh preview OTP opens personalization before deposit even while the wallet is preparing', () => {
+test('fresh preview OTP opens personalization before deposit even while the wallet is preparing', async () => {
   const wallet = deferred();
   const app = session(() => wallet.promise, { deployment: 'preview' });
   app.sdk.authenticated = false;
@@ -118,7 +135,12 @@ test('fresh preview OTP opens personalization before deposit even while the wall
   assert.equal(app.isLoginOpen(), true);
   assert.equal(app.onboarding(), undefined);
 
-  app.completeLogin(verifiedSignup);
+  await assert.rejects(app.submitOtp(), /Invalid code/);
+  assert.equal(app.render().depositOpen, false);
+  assert.equal(app.isLoginOpen(), true);
+  assert.equal(app.onboarding(), undefined);
+
+  await app.submitOtp(verifiedSignup);
   app.sdk.authenticated = true;
   assert.equal(app.render().depositOpen, false);
   assert.equal(app.isLoginOpen(), false);
@@ -129,12 +151,11 @@ test('fresh preview OTP opens personalization before deposit even while the wall
   assert.equal(app.render().depositOpen, true);
   assert.equal(app.onboarding(), undefined);
   app.render().closeDeposit();
-  app.completeLogin(verifiedSignup);
   assert.equal(app.render().depositOpen, false);
   assert.equal(app.onboarding(), undefined);
 });
 
-test('restored and returning sessions, and MCP signup, never show personalization', () => {
+test('restored and returning sessions, and MCP signup, never show personalization', async () => {
   const preview = { deployment: 'preview' };
   for (const [options, event] of [
     [preview, { ...verifiedSignup, wasAlreadyAuthenticated: true }],
@@ -142,17 +163,23 @@ test('restored and returning sessions, and MCP signup, never show personalizatio
     [{ ...preview, pathname: '/connect/mcp' }, verifiedSignup],
   ]) {
     const app = session(async () => {}, options);
+    app.sdk.authenticated = false;
+    app.render().open();
     app.render();
-    app.completeLogin(event);
+    await app.submitOtp(event);
+    app.sdk.authenticated = true;
     app.render();
     assert.equal(app.onboarding(), undefined);
   }
 });
 
-test('changing accounts clears personalization and its queued deposit', () => {
+test('changing accounts clears personalization and its queued deposit', async () => {
   const app = session(async () => {}, { deployment: 'preview' });
+  app.sdk.authenticated = false;
+  app.render().open();
   app.render();
-  app.completeLogin(verifiedSignup);
+  await app.submitOtp(verifiedSignup);
+  app.sdk.authenticated = true;
   app.render();
   assert.ok(app.onboarding());
   app.sdk.user = { id: 'bob', linkedAccounts: [] };
@@ -400,9 +427,13 @@ test('late setup failure from a previous user cannot overwrite the next account'
   next.resolve({}); await settle(); assert.equal(app.render().busy, false);
 });
 
-test('new signup opens deposit in place and closing it preserves the app route', () => {
+test('new signup opens deposit in place and closing it preserves the app route', async () => {
   const app = session(async () => {});
-  app.render(); app.completeLogin({ isNewUser: true, wasAlreadyAuthenticated: false });
+  app.sdk.authenticated = false;
+  app.render().open();
+  app.render();
+  await app.submitOtp(verifiedSignup);
+  app.sdk.authenticated = true;
   assert.equal(app.render().depositOpen, true);
   app.render().closeDeposit(); assert.equal(app.render().depositOpen, false);
   app.render().openDeposit(); assert.equal(app.render().depositOpen, true);
