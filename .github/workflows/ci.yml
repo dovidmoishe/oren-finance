@@ -27,6 +27,7 @@ jobs:
           echo "PREVIEW_PROVIDER_ENV=$RUNNER_TEMP/ci-preview-provider.env" >> "$GITHUB_ENV"
           echo "PREVIEW_OAUTH_ENV=$RUNNER_TEMP/ci-preview-oauth.env" >> "$GITHUB_ENV"
           echo "PREVIEW_ACCESS_ENV=$RUNNER_TEMP/ci-preview-access.env" >> "$GITHUB_ENV"
+          echo "PREVIEW_NOTIFICATION_ENV=$RUNNER_TEMP/ci-preview-notification.env" >> "$GITHUB_ENV"
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -49,8 +50,9 @@ jobs:
           PREVIEW_HOST: pr-42.preview.example.com
           DB_PASSWORD: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
         run: |
-          touch "$PREVIEW_PROVIDER_ENV" "$PREVIEW_ACCESS_ENV" "$PREVIEW_OAUTH_ENV"
+          touch "$PREVIEW_PROVIDER_ENV" "$PREVIEW_ACCESS_ENV" "$PREVIEW_OAUTH_ENV" "$PREVIEW_NOTIFICATION_ENV"
           docker compose -f infra/preview/compose.yml config --quiet
+          docker compose --profile notifications -f infra/preview/compose.yml config --quiet
           docker compose -f infra/preview/access.compose.yml config --quiet
       - name: Validate production signer-gate Compose profile
         env:
