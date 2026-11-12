@@ -8,11 +8,12 @@ import {
   Inject,
   Put,
 } from '@nestjs/common';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { PrivyWalletAuth } from '../auth/privy-wallet-auth';
 import { DRIZZLE } from '../config/constants';
 import type { Database } from '../database/database.provider';
 import { userPreferences } from '../database/schema';
+import { nextBrief } from '../notifications/schedule';
 import { parsePreferences } from './preferences';
 
 const fields = {
@@ -54,10 +55,22 @@ export class PreferencesController {
     if (!email && (preferences.morningBrief || preferences.breakingNews)) {
       throw new BadRequestException('A verified email is required for updates');
     }
+    const due = preferences.morningBrief
+      ? nextBrief(new Date(), preferences.briefTime, preferences.timeZone)
+      : null;
     const [saved] = await this.db
       .insert(userPreferences)
-      .values({ userId, ...preferences })
-      .onConflictDoUpdate({ target: userPreferences.userId, set: preferences })
+      .values({ userId, ...preferences, briefDueAt: due })
+      .onConflictDoUpdate({
+        target: userPreferences.userId,
+        set: {
+          ...preferences,
+          briefDueAt: sql`case when ${userPreferences.morningBrief} is distinct from excluded.morning_brief
+            or ${userPreferences.briefTime} is distinct from excluded.brief_time
+            or ${userPreferences.timeZone} is distinct from excluded.time_zone
+            then excluded.brief_due_at else ${userPreferences.briefDueAt} end`,
+        },
+      })
       .returning(fields);
     return { preferences: saved, emailEligible: Boolean(email) };
   }

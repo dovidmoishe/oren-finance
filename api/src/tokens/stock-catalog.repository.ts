@@ -127,6 +127,7 @@ export class StockCatalogRepository {
           ticker: stock.ticker,
           name: stock.name,
           category: stock.category,
+          alertVariants: stock.variants.filter((variant) => variant.tradable).map(({ mint, symbol }) => ({ mint, symbol })),
           sectorId:
             stock.category === 'equity'
               ? resolveStockSector(stock.id, stock.sector)

@@ -162,6 +162,9 @@ export interface TokensTrendingRaw {
 
 export interface TokensMarketSnapshotRaw {
   mint?: string;
+  priceUpdatedAt?: string;
+  providerFetchedAt?: number;
+  lastTradeAt?: number;
   price?: number;
   priceChange24hPercent?: number;
   volume24hUSD?: number;

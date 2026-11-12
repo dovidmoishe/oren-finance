@@ -127,6 +127,13 @@
       "breakpoints": true,
       "tag": "0017_cached_stock_sectors",
       "idx": 17
+    },
+    {
+      "version": "7",
+      "when": 1794441600003,
+      "breakpoints": true,
+      "tag": "0018_notifications",
+      "idx": 18
     }
   ]
 }

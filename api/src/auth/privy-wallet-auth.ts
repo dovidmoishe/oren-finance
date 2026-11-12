@@ -82,7 +82,34 @@ export class PrivyWalletAuth {
 
   async requireAccountIdentity(authorization: string | undefined) {
     const { userId, user } = await this.verifiedUser(authorization);
-    return { userId, email: emailFromPrivyUser(user) };
+    const email = emailFromPrivyUser(user);
+    const emailVerified = Boolean(email && user.linked_accounts.some((account) =>
+      account.type === 'email' && account.verified_at > 0 &&
+      account.address.toLowerCase() === email.toLowerCase(),
+    ));
+    return { userId, email, emailVerified };
+  }
+
+  async getNotificationIdentity(userId: string, preferredWallet?: string | null, includeWallet = true) {
+    if (!this.client) throw new ServiceUnavailableException('Authentication is not configured');
+    const user = await this.client.users()._get(userId);
+    const email = user.linked_accounts.find((account) =>
+      account.type === 'email' && account.verified_at > 0 && account.address.includes('@'),
+    );
+    const wallets = user.linked_accounts.flatMap((account) => {
+      if (account.type !== 'wallet' || account.chain_type !== 'solana' ||
+          account.wallet_client_type !== 'privy' || !('id' in account) || !account.id) return [];
+      return [{ id: account.id, address: account.address, verified: account.first_verified_at ?? account.verified_at }];
+    }).sort((a, b) => a.verified - b.verified || a.id.localeCompare(b.id));
+    const linked = wallets.find((wallet) => wallet.address === preferredWallet) ?? wallets[0];
+    let wallet: string | undefined;
+    if (linked && includeWallet) {
+      const owned = await this.client.wallets().get(linked.id);
+      if (owned.chain_type !== 'solana' || owned.address !== linked.address)
+        throw new ServiceUnavailableException('Unable to verify brief wallet');
+      wallet = owned.address;
+    }
+    return { email: email?.type === 'email' ? email.address.trim() : undefined, wallet };
   }
 
   async requireMcpUser(authorization: string | undefined): Promise<string> {
