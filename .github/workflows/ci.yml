@@ -107,16 +107,28 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
+      notification-redis:
+        image: redis:7.4-alpine
+        ports:
+          - '127.0.0.1::6379'
+        options: >-
+          --memory 128m
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     defaults:
       run:
         working-directory: api
     steps:
       - uses: actions/checkout@v4
-      - name: Configure disposable Postgres connection
+      - name: Configure disposable Postgres and Redis connections
         env:
+          TEST_REDIS_PORT: ${{ job.services.notification-redis.ports['6379'] }}
           TEST_DB_PORT: ${{ job.services.postgres.ports['5432'] }}
         run: |
-          [[ "$TEST_DB_PORT" =~ ^[0-9]+$ ]]
+          [[ "$TEST_DB_PORT" =~ ^[0-9]+$ && "$TEST_REDIS_PORT" =~ ^[0-9]+$ ]]
+          echo "NOTIFICATION_TEST_REDIS_URL=redis://127.0.0.1:$TEST_REDIS_PORT" >> "$GITHUB_ENV"
           echo "MCP_TEST_POSTGRES_URL=postgres://oren_test:oren_test@127.0.0.1:$TEST_DB_PORT/oren_mcp_test" >> "$GITHUB_ENV"
       - uses: pnpm/action-setup@v4
         with:

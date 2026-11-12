@@ -1,0 +1,50 @@
+# Notification worker rollout
+
+The API stores schedules and notification jobs in Postgres. The worker process
+runs BullMQ lanes for generation, alert polling, and email. Each Redis
+environment has a dedicated persistent volume with AOF and no eviction. Queue
+payloads are empty. The job ID points to Postgres, which is the authority on
+whether work may run or an email may be submitted.
+
+## Preview
+
+The trusted preview controller must install the updated default-branch Compose
+bundle before the new worker profile is available on the VPS. A PR image alone
+cannot change the trusted controller's Compose configuration. Start the profile
+only in an isolated preview project using the controller's env file and
+project name. Run the normal migration first.
+
+Create the optional `notifications.env` in the preview stack directory with
+permissions limited to the deploy user. Set `MORNING_BRIEF_ENABLED=true`,
+`NOTIFICATION_FIXTURE_RECIPIENT` to the exact verified test address,
+`NOTIFICATION_PILOT_USERS` to its Privy user ID, a unique unsubscribe secret,
+and both provider budgets. Set a time shortly ahead in Preferences. Run
+`docker compose --profile notifications up -d notification-redis notification-worker`
+with the preview stack's normal flags and env. Refresh the preview API service
+if its environment file changed. Preview is always fixture mode and records
+a fixture acceptance in Postgres without sending email.
+
+## Production pilot
+
+Apply the release migration first. Place notification settings in
+`.env.notifications` and use the same immutable API image for the API and
+worker. Explicitly enable the profile with the release environment and start
+`notification-redis` and `notification-worker`. Configure a verified Senviok
+sender, a unique unsubscribe secret, both HTTPS origins, provider budgets,
+and the allowlisted Privy IDs. Budget the snapshot requests below the Tokens
+quota so existing API traffic has headroom. Begin with Morning Brief only.
+
+Price alerts require both `PRICE_ALERTS_ENABLED` and
+`TOKENS_ALERT_TIMESTAMPS_VERIFIED`. Set them only after the feed contract,
+price timestamps, coverage, and rate/load checks pass on the pilot mints.
+Missing, stale, or out-of-order quotes never fire an alert.
+
+## Operations
+
+The worker reports due queue depth, lag, and newly uncertain deliveries. Use
+`notification_jobs` for state counts and inspect the Senviok dashboard when
+the provider ID or outcome is uncertain. An accepted email has a provider
+message ID. An uncertain send is held for reconciliation and is never
+automatically retried. Stop the worker or disable the relevant feature and
+restart the API and worker to pause dispatch. Redis loss is recoverable from
+the Postgres ledger. Treat the ledger and unsubscribe secret as private.
