@@ -37,6 +37,8 @@ quota so existing API traffic has headroom. Begin with Morning Brief only.
 Price alerts require both `PRICE_ALERTS_ENABLED` and
 `TOKENS_ALERT_TIMESTAMPS_VERIFIED`. Set them only after the feed contract,
 price timestamps, coverage, and rate/load checks pass on the pilot mints.
+List only those confirmed mints in `NOTIFICATION_ALERT_MINTS`. An empty
+allowlist keeps the alert pilot disabled.
 Missing, stale, or out-of-order quotes never fire an alert.
 
 ## Operations

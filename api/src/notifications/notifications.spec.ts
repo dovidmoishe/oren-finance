@@ -133,6 +133,7 @@ describe('notification rules', () => {
       NOTIFICATION_UNSUBSCRIBE_SECRET: 'a'.repeat(32),
       NOTIFICATION_TOKENS_PER_MINUTE: '10',
       NOTIFICATION_EMAIL_PER_MINUTE: '10',
+      NOTIFICATION_ALERT_MINTS: 'NVDAVuiB7hwd3m5Wa1JuHNovPaPG6BH1QNztbKFxNjv',
     };
     expect(notificationSettings(env).briefs).toBe(false);
     const fixture = {

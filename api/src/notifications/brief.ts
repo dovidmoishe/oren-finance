@@ -187,6 +187,7 @@ export class MorningBrief {
     }
     const facts = {
       value: holdings?.value,
+      valueVerified: holdings?.reliable ?? false,
       pnl,
       moves,
       stories,
@@ -327,7 +328,7 @@ export class MorningBrief {
           quote.price <= 0
         )
           continue;
-        if (!providerQuote(quote, new Date())) {
+        if (!providerQuote(quote, new Date(), 30 * 60_000)) {
           // Timestamp-less data can describe an indicative holding value,
           // never a verified boundary for calculating performance.
           reliable = false;

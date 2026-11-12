@@ -82,7 +82,9 @@ export class PriceAlerts {
         : [];
     return {
       enabled,
-      variants: variants.map(({ mint }) => mint),
+      variants: variants
+        .map(({ mint }) => mint)
+        .filter((mint) => config.alertMints.has(mint)),
       alerts: rows.map(toResponse),
     };
   }
@@ -96,6 +98,8 @@ export class PriceAlerts {
     if (!(await this.jobs.budget(`create-alert-${userId}`, 10)))
       throw new HttpException('Too many alert requests', 429);
     const alert = parseAlert(body);
+    if (!config.alertMints.has(alert.mint))
+      throw new BadRequestException('This variant is not available for alerts');
     return this.db.transaction(async (tx) => {
       await tx.execute(
         sql`select pg_advisory_xact_lock(hashtext(${`alerts-${userId}`}))`,
@@ -177,6 +181,10 @@ export class PricePolling {
       [...config.pilotUsers].map((id) => sql`${id}`),
       sql`, `,
     );
+    const eligibleMints = sql.join(
+      [...config.alertMints].map((mint) => sql`${mint}`),
+      sql`, `,
+    );
     const startedAt = new Date();
     const deadline = startedAt.getTime() + 25_000;
     await this.jobs.db.transaction(async (tx) => {
@@ -191,7 +199,7 @@ export class PricePolling {
       while (Date.now() < deadline) {
         const batch = await tx.execute<{ mint: string }>(sql`
           select a.mint from price_alerts a left join price_poll_cursor p on p.mint = a.mint
-          where a.state = 'active' and a.user_id in (${users})
+          where a.state = 'active' and a.user_id in (${users}) and a.mint in (${eligibleMints})
             and (p.polled_at is null or p.polled_at < ${startedAt.toISOString()})
           group by a.mint, p.polled_at order by p.polled_at nulls first, a.mint limit 250`);
         if (

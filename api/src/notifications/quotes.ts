@@ -12,6 +12,7 @@ export interface Quote {
 export function providerQuote(
   raw: TokensMarketSnapshotRaw,
   now: Date,
+  maxTradeAgeMs = QUOTE_MAX_AGE_MS,
 ): Quote | null {
   if (
     !raw.mint ||
@@ -37,8 +38,7 @@ export function providerQuote(
       return null;
     const trade = raw.lastTradeAt!;
     const fetched = raw.providerFetchedAt!;
-    if (trade > fetched || now.getTime() - trade > QUOTE_MAX_AGE_MS)
-      return null;
+    if (trade > fetched || now.getTime() - trade > maxTradeAgeMs) return null;
     at = new Date(fetched);
   }
   const age = now.getTime() - at.getTime();

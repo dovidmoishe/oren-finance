@@ -34,6 +34,7 @@ const options = {
   NOTIFICATION_TOKENS_PER_MINUTE: '20',
   PRICE_ALERTS_ENABLED: 'true',
   TOKENS_ALERT_TIMESTAMPS_VERIFIED: 'true',
+  NOTIFICATION_ALERT_MINTS: mint,
 };
 
 run('notification jobs with disposable Postgres and Redis', () => {

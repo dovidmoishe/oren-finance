@@ -15,8 +15,15 @@ export function notificationSettings(env = process.env) {
       validOrigin && (env.NOTIFICATION_UNSUBSCRIBE_SECRET?.length ?? 0) >= 32,
     ) &&
     (!fixture || Boolean(fixtureRecipient));
+  const alertMints = new Set(
+    (env.NOTIFICATION_ALERT_MINTS ?? '')
+      .split(',')
+      .map((mint) => mint.trim())
+      .filter((mint) => /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(mint)),
+  );
   const alerts =
     enabled &&
+    alertMints.size > 0 &&
     positive(env.NOTIFICATION_TOKENS_PER_MINUTE) > 0 &&
     positive(env.NOTIFICATION_EMAIL_PER_MINUTE) > 0 &&
     env.PRICE_ALERTS_ENABLED === 'true' &&
@@ -25,6 +32,7 @@ export function notificationSettings(env = process.env) {
     enabled,
     briefs: enabled && env.MORNING_BRIEF_ENABLED === 'true',
     alerts,
+    alertMints,
     fixture,
     fixtureRecipient,
     origin,

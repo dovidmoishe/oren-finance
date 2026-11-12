@@ -43,6 +43,7 @@ function render(job: Job, app: string, api: string, secret: string) {
     const facts = job.payload as {
       date: string;
       value?: number;
+      valueVerified?: boolean;
       pnl?: number | null;
       narrative?: string;
       moves: Array<{ ticker: string; usd: number }>;
@@ -54,7 +55,7 @@ function render(job: Job, app: string, api: string, secret: string) {
         : undefined,
       facts.value === undefined
         ? undefined
-        : `Oren wallet value (tracked stocks and USDC): ${usd(facts.value)}`,
+        : `Oren wallet value (tracked stocks and USDC${facts.valueVerified ? '' : ', indicative'}): ${usd(facts.value)}`,
       facts.pnl == null
         ? 'Daily P&L unavailable for this reporting window.'
         : `Daily P&L after external transfers: ${usd(facts.pnl)}`,
@@ -109,6 +110,7 @@ export class NotificationDelivery {
     if (
       !(brief ? config.briefs : config.alerts) ||
       !config.pilotUsers.has(job.user_id) ||
+      (!brief && !config.alertMints.has(job.payload.mint as string)) ||
       !config.origin ||
       !config.apiOrigin ||
       !config.secret ||
