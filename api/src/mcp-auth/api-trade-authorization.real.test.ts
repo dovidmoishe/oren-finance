@@ -45,7 +45,7 @@ function fixture() {
     status: 'active',
     activatedAt: new Date(now - 30_000),
     createdAt: new Date(now - 60_000),
-    expiresAt: new Date(now + 3_600_000),
+    expiresAt: new Date(now + 3_600_000) as Date | null,
   };
   const intent = {
     id: randomUUID(),
@@ -136,6 +136,7 @@ function fixture() {
     buysEnabled: true,
     sellsEnabled: false,
     signerQuorumId: 'quorum',
+    signerPolicyId: 'policy',
   };
   const service = new ApiTradeAuthorization(deps);
   const executionId = randomUUID();
@@ -163,6 +164,45 @@ describe('independent API signing authorization', () => {
     inspect.mockResolvedValue('1.000000');
   });
   afterEach(() => jest.restoreAllMocks());
+
+  it('independently authorizes an active multi-day grant within the maximum', async () => {
+    const f = fixture();
+    f.state.grant.createdAt = new Date(Date.now() - 48 * 3_600_000);
+    await expect(f.authorize()).resolves.toBeInstanceOf(Buffer);
+    expect(f.state.authorizations).toHaveLength(1);
+  });
+
+  it('accepts an older until-revoked grant and enforces explicit revocation', async () => {
+    const active = fixture();
+    active.state.grant.createdAt = new Date(Date.now() - 90 * 86_400_000);
+    active.state.grant.expiresAt = null;
+    await expect(active.authorize()).resolves.toBeInstanceOf(Buffer);
+
+    const revoked = fixture();
+    revoked.state.grant.expiresAt = null;
+    revoked.state.grant.status = 'revoked';
+    await expect(revoked.authorize()).rejects.toThrow(
+      'Independent trade authorization is inactive',
+    );
+  });
+
+  it('rejects an active grant pinned to a retired signing policy', async () => {
+    const f = fixture();
+    f.state.grant.policyId = 'retired-policy';
+    await expect(f.authorize()).rejects.toThrow(
+      'Independent trade authorization is inactive',
+    );
+    expect(f.state.authorizations).toHaveLength(0);
+  });
+
+  it('independently denies a grant beyond the maximum duration', async () => {
+    const f = fixture();
+    f.state.grant.createdAt = new Date(Date.now() - 72 * 3_600_000);
+    await expect(f.authorize()).rejects.toThrow(
+      'Independent trade authorization is inactive',
+    );
+    expect(f.state.authorizations).toHaveLength(0);
+  });
 
   it('authorizes a sell only with explicit sell permission and independently charges its dollar value', async () => {
     const f = fixture();

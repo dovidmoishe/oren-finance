@@ -16,6 +16,7 @@ import {
 } from '../database/schema';
 import { ApiTradeAuthorization } from './api-trade-authorization';
 import { inspectApiTradeTransaction } from './api-trade-transaction';
+import { HOUR_MS } from './grant-duration';
 
 jest.mock('./api-trade-transaction', () => ({
   inspectApiTradeTransaction: jest.fn(),
@@ -226,4 +227,35 @@ describeDatabase('independent API spend reservations in real Postgres', () => {
       }),
     ).rejects.toThrow('different bytes');
   }, 90000);
+
+  it.each([20, null])(
+    'allows an older grant to spend again after the rolling window (hours left: %s)',
+    async (hoursLeft) => {
+      const f = await connectedFixture();
+      const now = Date.now();
+      await db
+        .update(mcpApiTradeGrants)
+        .set({
+          createdAt: new Date(now - 48 * HOUR_MS),
+          activatedAt: new Date(now - 47 * HOUR_MS),
+          expiresAt:
+            hoursLeft === null ? null : new Date(now + hoursLeft * HOUR_MS),
+        })
+        .where(eq(mcpApiTradeGrants.id, f.id));
+
+      const older = await f.request();
+      await older.run();
+      await db
+        .update(mcpApiTradeAuthorizations)
+        .set({ createdAt: new Date(now - 25 * HOUR_MS) })
+        .where(eq(mcpApiTradeAuthorizations.intentId, older.intentId));
+
+      await (await f.request()).run();
+      await (await f.request()).run();
+      await expect((await f.request()).run()).rejects.toThrow(
+        'Independent trade budget exceeded',
+      );
+    },
+    90000,
+  );
 });

@@ -7,7 +7,6 @@ import Image from 'next/image';
 import { HugeiconsIcon } from '@hugeicons/react';
 import { ArrowRight01Icon, ChartLineData01Icon, Shield01Icon, Wallet01Icon, ComputerIcon } from '@hugeicons/core-free-icons';
 import { OrenLogo } from '@/components/brand/oren-logo';
-import styles from './mcp-connect.module.css';
 import { mcpApiOrigin } from '@/services/mcp-api-origin';
 import { mcpConnector } from '@/services/mcp-connector';
 import { mcpEnrollmentLinks } from '@/services/mcp-enrollment-flow';
@@ -30,7 +29,7 @@ type Delegation = {
   usedTodayUsd?: string;
   maxSlippageBps?: number;
   sides?: string[];
-  expiresAt?: string;
+  expiresAt?: string | null;
 };
 
 /** OAuth consent uses Oren's existing Privy email OTP sign-in dialog. */
@@ -128,89 +127,89 @@ function McpConnection({ uid }: { uid: string }) {
   }
 
   return (
-    <main className={styles.page}>
-      <section aria-labelledby="connection-title" className={styles.card}>
-        <div aria-hidden="true" className={styles.brands}>
-          <div className={styles.logoTile}><OrenLogo size={52} /></div>
-          <div className={styles.connector}><span /><span /><span /></div>
-          <div className={`${styles.logoTile} ${connector?.name === 'Claude' ? styles.claudeTile : ''}`}>
+    <main className="mcp-connect-page">
+      <section aria-labelledby="connection-title" className="mcp-connect-card">
+        <div aria-hidden="true" className="flex items-center justify-center [gap:16px] [margin:0_0_28px]">
+          <div className="mcp-connect-logo-tile"><OrenLogo size={52} /></div>
+          <div className="mcp-connect-connector"><span /><span /><span /></div>
+          <div className={`mcp-connect-logo-tile ${connector?.name === 'Claude' ? "mcp-connect-claude-tile" : ''}`}>
             {connector ? <Image alt="" src={connector.logo} width={37} height={37} /> : <HugeiconsIcon icon={ComputerIcon} size={32} />}
           </div>
         </div>
-        <header className={styles.heading}>
+        <header className="mcp-connect-heading">
           <h1 id="connection-title">{details ? `Connect Oren to ${appName}` : 'Connect to Oren'}</h1>
           {!auth.authenticated && <p>Sign in to continue.</p>}
         </header>
-        {!details && !error && !unavailable && <p className={styles.loading} role="status">Loading your connection request…</p>}
+        {!details && !error && !unavailable && <p className="mcp-connect-loading" role="status">Loading your connection request…</p>}
         {details && <>
-          <div className={styles.permissions}>
-            {scopes.includes('oren.read') && <div className={styles.permission}>
+          <div className="[margin-top:26px] [padding-top:4px] [border-top:1px_solid_var(--border)]">
+            {scopes.includes('oren.read') && <div className="mcp-connect-permission">
               <HugeiconsIcon icon={ChartLineData01Icon} size={20} />
               <div><h3>View your portfolio and market data</h3></div>
             </div>}
-            {scopes.includes('oren.trade.prepare') && <div className={styles.permission}>
+            {scopes.includes('oren.trade.prepare') && <div className="mcp-connect-permission">
               <HugeiconsIcon icon={Wallet01Icon} size={20} />
               <div><h3>Prepare trades for your review</h3></div>
             </div>}
-            {requestsExecute && <div className={styles.permission}>
+            {requestsExecute && <div className="mcp-connect-permission">
               <HugeiconsIcon icon={Shield01Icon} size={20} />
               <div><h3>Place trades within your limits</h3></div>
             </div>}
-            {!requestsExecute && <p className={styles.reviewNote}>Trades need your review and signature in Oren.</p>}
+            {!requestsExecute && <p className="mcp-connect-review-note">Trades need your review and signature in Oren.</p>}
           </div>
-          {needsNativeConsent ? <div className={styles.notice}>
+          {needsNativeConsent ? <div className="mcp-connect-notice">
             <h2>Confirm your app</h2>
             <p>Oren cannot verify which local app receives access. Another app on your device could use this address.</p>
-            <p className={styles.callback}>{details.callbackUrl}</p>
-            <label className={styles.checkbox}>
+            <p className="[overflow-wrap:anywhere]">{details.callbackUrl}</p>
+            <label className="mcp-connect-checkbox">
             <input checked={allowNativeClient} className="mt-1" onChange={(event) => setAllowNativeClient(event.target.checked)} type="checkbox" />
             <span>I started this connection from an app I trust on this device.</span>
             </label>
-          </div> : <p className={styles.destination}>Connecting to <strong>{details.callbackDestination}</strong></p>}
-          {requestsExecute && delegation?.enabled && <div className={styles.notice}>
+          </div> : <p className="mcp-connect-destination">Connecting to <strong>{details.callbackDestination}</strong></p>}
+          {requestsExecute && delegation?.enabled && <div className="mcp-connect-notice">
             <h2>Your trading limits</h2>
-            <dl className={styles.limits}>
+            <dl className="mcp-connect-limits">
               <div><dt>Per trade</dt><dd>${delegation.perTradeUsd}</dd></div>
               <div><dt>Rolling 24 hours</dt><dd>${delegation.dailyUsd}</dd></div>
               <div><dt>Used in this window</dt><dd>${delegation.usedTodayUsd}</dd></div>
               <div><dt>Allowed trades</dt><dd>{delegation.sides?.join(' and ')}</dd></div>
               <div><dt>Price tolerance</dt><dd>{delegation.maxSlippageBps == null ? 'Unavailable' : `${formatNumber(delegation.maxSlippageBps / 100, locale, 2)}%`}</dd></div>
-              <div><dt>Expires</dt><dd>{delegation.expiresAt ? formatDateTime(delegation.expiresAt, locale, timeZone, t("common.unknown")) : 'soon'}</dd></div>
+              <div><dt>Permission</dt><dd>{delegation.expiresAt === null ? t("grant.untilRevoked") : delegation.expiresAt ? formatDateTime(delegation.expiresAt, locale, timeZone, t("common.unknown")) : t("common.unknown")}</dd></div>
             </dl>
-            <label className={styles.checkbox}>
+            <label className="mcp-connect-checkbox">
             <input checked={allowExecute} className="mt-1" onChange={(event) => setAllowExecute(event.target.checked)} type="checkbox" />
             <span>I allow {appName} to trade within these limits while this connection and trading permission are active.</span>
             </label>
           </div>}
-          {requestsExecute && delegation && !delegation.enabled && <div className={styles.notice}>
+          {requestsExecute && delegation && !delegation.enabled && <div className="mcp-connect-notice">
             <h2>Chat trading is off</h2>
             <p>Set your trading limits, then return here to finish connecting.</p>
-            <Link className={styles.primary} href={`${mcpEnrollmentLinks(uid).settings}#chat-trading`}>Set up chat trading</Link>
+            <Link className="mcp-connect-primary" href={`${mcpEnrollmentLinks(uid).settings}#chat-trading`}>Set up chat trading</Link>
           </div>}
-          {requestsExecute && authenticated && !delegation && !delegationError && <p className={styles.loading} role="status">Checking your trading limits…</p>}
-          <details className={styles.details}>
+          {requestsExecute && authenticated && !delegation && !delegationError && <p className="mcp-connect-loading" role="status">Checking your trading limits…</p>}
+          <details className="mcp-connect-details">
             <summary>Connection details</summary>
             <dl><dt>Connection ID</dt><dd>{details.clientId}</dd><dt>Return address</dt><dd>{details.callbackUrl}</dd></dl>
           </details>
         </>}
-      {unavailable && <p className={styles.error} role="alert">{!uid ? 'Open a new connection from your app to get started.' : 'Connections are temporarily unavailable. Please try again later.'}</p>}
-      {error && <p className={styles.error} role="alert">{error}</p>}
-      {delegationError && <p className={styles.error} role="alert">{delegationError}</p>}
-      {!auth.configured && <p className={styles.error} role="alert">Email sign-in is temporarily unavailable.</p>}
+      {unavailable && <p className="mcp-connect-error" role="alert">{!uid ? 'Open a new connection from your app to get started.' : 'Connections are temporarily unavailable. Please try again later.'}</p>}
+      {error && <p className="mcp-connect-error" role="alert">{error}</p>}
+      {delegationError && <p className="mcp-connect-error" role="alert">{delegationError}</p>}
+      {!auth.configured && <p className="mcp-connect-error" role="alert">Email sign-in is temporarily unavailable.</p>}
       {!auth.authenticated ? (
-        <button className={styles.primary} disabled={unavailable || !details || !auth.configured || !auth.ready} onClick={auth.open} type="button">
+        <button className="mcp-connect-primary" disabled={unavailable || !details || !auth.configured || !auth.ready} onClick={auth.open} type="button">
           {auth.ready ? 'Sign in to Oren' : 'Loading sign-in…'}
           <HugeiconsIcon icon={ArrowRight01Icon} size={18} />
         </button>
       ) : (
-        <button className={styles.primary} disabled={unavailable || !details || !auth.address || busy || (needsNativeConsent && !allowNativeClient) || (requestsExecute && (!allowExecute || !delegation?.enabled || !delegation.delegationId))} onClick={() => void authorize()} type="button">
+        <button className="mcp-connect-primary" disabled={unavailable || !details || !auth.address || busy || (needsNativeConsent && !allowNativeClient) || (requestsExecute && (!allowExecute || !delegation?.enabled || !delegation.delegationId))} onClick={() => void authorize()} type="button">
           {busy ? 'Connecting…' : auth.address ? (connector ? `Connect to ${appName}` : 'Allow connection') : 'Getting your account ready…'}
           {!busy && <HugeiconsIcon icon={ArrowRight01Icon} size={18} />}
         </button>
       )}
-      {!auth.authenticated && <p className={styles.signInNote}>We’ll email you a sign-in code.</p>}
+      {!auth.authenticated && <p className="mcp-connect-sign-in-note">We’ll email you a sign-in code.</p>}
       </section>
-      <p className={styles.footer}>
+      <p className="mcp-connect-footer">
         You can disconnect anytime in <Link href={mcpEnrollmentLinks(uid).settings}>Agent connections</Link>.
       </p>
     </main>

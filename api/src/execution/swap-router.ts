@@ -155,6 +155,9 @@ export class SwapRouter {
 
   async quote(ctx: RouterQuoteContext): Promise<Quote> {
     const mode = this.mode;
+    // In-chat signing can only sign Jupiter. Skip Titan for that path,
+    // including a re-quote of the same trade. Browser review leaves
+    // titanEligible unset and keeps best-of routing.
     if (mode === 'jupiter' || ctx.titanEligible === false) {
       return this.jupiter.getQuoteWithContext(ctx);
     }

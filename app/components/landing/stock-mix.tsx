@@ -11,9 +11,7 @@ import { Button, ButtonLink, formatCurrency } from "@/components/ui";
 import type { BasketResponse } from "@/types";
 import { applyMixRequest, initialMix, mixAmounts } from "./stock-mix-model";
 import { useI18n } from "@/i18n/i18n";
-import styles from "./stock-mix.module.css";
 import { useLandingReveal } from "./use-landing-reveal";
-import motion from "./landing-motion.module.css";
 
 const names = { NVDA: "NVIDIA", AAPL: "Apple", MSFT: "Microsoft", TSLA: "Tesla" };
 const initialPrompt = "Build a $1,000 mix with NVIDIA, Apple and Microsoft.";
@@ -64,35 +62,35 @@ export function StockMix() {
     setHoldings(initialMix); setBudget(1000); setQuestion(initialPrompt); setAnswer(initialResponse); setComposer(""); setReview(false);
   }
 
-  return <section ref={root} className={`${styles.section} ${motion.group}`} id="stock-mix" aria-labelledby="stock-mix-heading">
-    <div className={styles.intro}>
-      <h2 className={motion.focus} data-reveal="ready" id="stock-mix-heading">Build your stock mix.</h2>
+  return <section ref={root} className="stock-mix-section reveal-group" id="stock-mix" aria-labelledby="stock-mix-heading">
+    <div className="stock-mix-intro">
+      <h2 className="reveal-focus" data-reveal="ready" id="stock-mix-heading">Build your stock mix.</h2>
     </div>
-    <div className={`${styles.frame} ${motion.surface}`} data-reveal="ready">
-      <div className={`${styles.terminal} oren-app`}>
-        <header className={styles.header}>
-          <span className={styles.wordmark}><OrenLogo size={26} className="h-[26px] w-[26px]" />Oren</span>
-          <span className={styles.workspaceLabel}>Agent workspace</span>
-          <div className={styles.headerActions}><span className={styles.demo}>Demo</span><Button aria-label="Reset Stock mix demo" onClick={reset} variant="ghost" size="icon"><HugeiconsIcon icon={RefreshIcon} size={16} strokeWidth={1.8} /></Button></div>
+    <div className="stock-mix-frame reveal-surface" data-reveal="ready">
+      <div className="stock-mix-terminal oren-app">
+        <header className="h-[62px] flex items-center justify-between gap-[20px] [padding:0_24px] [border-bottom:1px_solid_var(--border)] at-most-1023:[padding:0_19px] at-most-700:h-[54px] at-most-700:gap-[8px] at-most-700:[padding:0_14px]">
+          <span className="flex items-center gap-[8px] font-semibold text-[15px] at-most-700:text-[14px]"><OrenLogo size={26} className="h-[26px] w-[26px]" />Oren</span>
+          <span className="text-[#8b8981] text-[11px] at-most-700:hidden">Agent workspace</span>
+          <div className="flex items-center gap-[10px] at-most-700:gap-[4px]"><span className="text-[#959087] text-[10px]">Demo</span><Button aria-label="Reset Stock mix demo" onClick={reset} variant="ghost" size="icon"><HugeiconsIcon icon={RefreshIcon} size={16} strokeWidth={1.8} /></Button></div>
         </header>
-        <div className={styles.workspace}>
-          <div className={styles.conversation}>
-            <div className={styles.chat}>
-              <p className={styles.threadTitle}>Building your stock mix</p>
-              <div className={styles.userMessage}>{question}</div>
-              <div className={styles.response}><span className={styles.agentIdentity}><OrenLogo size={25} className="h-[25px] w-[25px]" /><strong>Oren</strong></span><p aria-live="polite"><span key={`${question}:${answer}`} className={motion.reply}>{answer}</span></p><button type="button" className={styles.artifactChip} aria-label="View stock mix proposal" onClick={() => reviewRef.current?.scrollIntoView({ block: "start" })}>Stock mix · {basket.allocations.length} stocks <HugeiconsIcon icon={ArrowUpRight01Icon} size={16} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className="inline-block shrink-0 align-middle" /></button></div>
+        <div className="grid grid-cols-[minmax(0,_1.12fr)_minmax(0,_1fr)] at-most-700:grid-cols-[1fr]">
+          <div className="flex flex-col min-w-0 min-h-[558px] at-most-700:min-h-[460px]">
+            <div className="[flex:1] [padding:27px_28px_24px] at-most-1023:[padding:24px_20px] at-most-700:[padding:22px_18px_20px]">
+              <p className="mb-[32px] text-[#aaa59a] text-[10px] at-most-700:mb-[23px]">Building your stock mix</p>
+              <div className="w-fit max-w-[90%] ml-auto [border-radius:20px_20px_7px_20px] [padding:12px_16px] bg-foreground text-white text-[13px] leading-[1.7] [overflow-wrap:anywhere] at-most-700:max-w-[95%] at-most-700:text-[12px]">{question}</div>
+              <div className="stock-mix-response"><span className="stock-mix-agent-identity"><OrenLogo size={25} className="h-[25px] w-[25px]" /><strong>Oren</strong></span><p aria-live="polite"><span key={`${question}:${answer}`} className="reveal-reply">{answer}</span></p><button type="button" className="inline-block [border:1px_solid_var(--border)] bg-panel-subtle rounded-[20px] [padding:4px_9px] text-[10px]! text-muted cursor-pointer" aria-label="View stock mix proposal" onClick={() => reviewRef.current?.scrollIntoView({ block: "start" })}>Stock mix · {basket.allocations.length} stocks <HugeiconsIcon icon={ArrowUpRight01Icon} size={16} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className="inline-block shrink-0 align-middle" /></button></div>
             </div>
-            <div className={styles.suggestions} aria-label="Try a sample request">{prompts.map((prompt) => <button type="button" key={prompt} onClick={() => submit(prompt)}>{prompt}<span aria-hidden><HugeiconsIcon icon={ArrowUpRight01Icon} size={16} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className="inline-block shrink-0 align-middle" /></span></button>)}</div>
+            <div className="stock-mix-suggestions" aria-label="Try a sample request">{prompts.map((prompt) => <button type="button" key={prompt} onClick={() => submit(prompt)}>{prompt}<span aria-hidden><HugeiconsIcon icon={ArrowUpRight01Icon} size={16} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className="inline-block shrink-0 align-middle" /></span></button>)}</div>
             <AgentComposerView connected isSending={false} composer={composer} composerRef={composerRef} placeholder="Try “Add Tesla” or “Use $500”…" onComposerChange={(value) => setComposer(value.slice(0, 180))} onSubmit={() => submit(composer)} onStop={() => {}} />
           </div>
-          <aside className={styles.workingSet} aria-label="Stock mix working set">
-            <div className={styles.workingHeading}><h3 ref={reviewRef} tabIndex={review ? -1 : undefined}>{review ? "Review your mix" : "Working set"}</h3>{review ? <Button size="sm" variant="ghost" onClick={() => { setReview(false); composerRef.current?.focus(); }}><HugeiconsIcon icon={ArrowLeft01Icon} size={13} />Back</Button> : <span>1 proposal</span>}</div>
-            <div className={`${styles.result} ${motion.result}`} key={`${review}:${budget}:${holdings.map((holding) => `${holding.symbol}-${holding.weight}`).join(",")}`}>
+          <aside className="min-w-0 [border-left:1px_solid_var(--border)] bg-[#fafaf8] [padding:19px_22px_24px] at-most-1023:[padding:18px_16px_22px] at-most-700:[border-left:0] at-most-700:[border-top:1px_solid_var(--border)] at-most-700:[padding:18px_14px_22px]" aria-label="Stock mix working set">
+            <div className="stock-mix-working-heading"><h3 ref={reviewRef} tabIndex={review ? -1 : undefined}>{review ? "Review your mix" : "Working set"}</h3>{review ? <Button size="sm" variant="ghost" onClick={() => { setReview(false); composerRef.current?.focus(); }}><HugeiconsIcon icon={ArrowLeft01Icon} size={13} />Back</Button> : <span>1 proposal</span>}</div>
+            <div className="stock-mix-result reveal-result" key={`${review}:${budget}:${holdings.map((holding) => `${holding.symbol}-${holding.weight}`).join(",")}`}>
               {review ? <><BasketReview basket={basket} /><ButtonLink href="/app" className="mt-4 h-10 w-full rounded-[12px]" variant="primary">Open Oren <HugeiconsIcon icon={ArrowUpRight01Icon} size={16} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className="inline-block shrink-0 align-middle" /></ButtonLink></> : <BasketProposal basket={basket} onReview={() => setReview(true)} />}
             </div>
           </aside>
         </div>
-        <footer className={styles.caption}><span>Interactive demo</span><span>Sample requests and allocations. No funds move.</span></footer>
+        <footer className="flex justify-between gap-[15px] [padding:13px_24px] [border-top:1px_solid_var(--border)] text-[#9b978c] text-[9px] bg-[#fdfdfb] at-most-700:[padding:12px_15px] at-most-700:text-[8px] at-most-700:flex-wrap at-most-700:gap-[5px]"><span>Interactive demo</span><span>Sample requests and allocations. No funds move.</span></footer>
       </div>
     </div>
   </section>;

@@ -116,7 +116,7 @@ export class VariantSelector {
             equity,
             variant,
             intent,
-            index < TITAN_MAX_VARIANT_QUOTES,
+            intent.jupiterOnly ? false : index < TITAN_MAX_VARIANT_QUOTES,
           );
           results.push({ equity, variant, quote });
         } catch (err) {

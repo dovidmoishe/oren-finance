@@ -31,6 +31,7 @@ import {
 } from './swap-balance-guard';
 import type { SwapExpectation } from './swap-terms';
 import { STOCK, USDC, WALLET } from '../test/titan.fixtures';
+import { JUPITER_V6_PROGRAM, TITAN_SWAP_PROGRAM } from './simulation-reason';
 
 const USDC_ACCOUNT = Keypair.generate().publicKey.toBase58();
 
@@ -102,13 +103,13 @@ function fakeRpc(post: {
   };
 }
 
-function walletTx(): string {
+function walletTx(program = STOCK): string {
   const message = new TransactionMessage({
     payerKey: new PublicKey(WALLET),
     recentBlockhash: 'GHtXQBsoZHVnNFa9YevAzFr17DJjgHXk3ycTKD5xD3Zi',
     instructions: [
       new TransactionInstruction({
-        programId: new PublicKey(STOCK),
+        programId: new PublicKey(program),
         keys: [],
         data: Buffer.from([1]),
       }),
@@ -297,6 +298,37 @@ describe('ApprovalRpc.inspect with an expectation', () => {
     await expect(service.inspect(walletTx(), WALLET, buy)).rejects.toThrow(
       'no longer matches the terms you reviewed',
     );
+  });
+
+  it('names Jupiter 6001 and Titan minimum-out as slippage, not a generic failure', async () => {
+    for (const [program, code] of [
+      [JUPITER_V6_PROGRAM, 6001],
+      [TITAN_SWAP_PROGRAM, 6008],
+    ] as const) {
+      const rpc = fakeRpc({
+        usdc: 0n,
+        stock: null,
+        lamports: 0,
+        err: { InstructionError: [0, { Custom: code }] },
+      });
+      const service = new ApprovalRpc(rpc as never);
+      try {
+        await service.inspect(walletTx(program), WALLET);
+        throw new Error('expected rejection');
+      } catch (error) {
+        expect(
+          (
+            error as { getResponse: () => { code?: string; message?: string } }
+          ).getResponse(),
+        ).toMatchObject({
+          code: 'QUOTE_SLIPPAGE_EXCEEDED',
+        });
+        expect((error as Error).message).toContain('slippage limit');
+        expect((error as Error).message).not.toMatch(
+          /signing grant|signing permission/i,
+        );
+      }
+    }
   });
 
   it('keeps the plain simulation for non-swap approvals', async () => {

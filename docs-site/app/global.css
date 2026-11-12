@@ -4,7 +4,9 @@
 @import 'fumadocs-ui/css/preset.css';
 @import '../components/brand/oren-logo.css';
 
-@theme { --font-sans: 'Instrument Sans Variable', 'Segoe UI', sans-serif; }
+@theme {
+  --font-sans: 'Instrument Sans Variable', 'Segoe UI', sans-serif;
+}
 
 :root {
   --color-fd-background: #fff;
@@ -30,16 +32,27 @@
   --color-fd-accent-foreground: #d5e3cf;
 }
 
-.oren-wordmark { display: inline-flex; align-items: center; gap: 10px; font-weight: 600; font-size: 15px; letter-spacing: .16em; }
 [data-search-full] {
-  background-color: var(--color-fd-background);
-  border-color: #d4d9d1;
-  box-shadow: 0 1px 2px rgb(25 35 22 / 5%);
+  @apply bg-[var(--color-fd-background)] [border-color:#d4d9d1] [box-shadow:0_1px_2px_rgb(25_35_22_/_5%)];
 }
-[data-search-full]:hover { background-color: var(--color-fd-accent); }
-.dark [data-search-full] { background-color: #292d27; border-color: #4a5145; }
-.dark [data-search-full]:hover { background-color: #333a2f; }
-.oren-markdown-link { display: inline-block; margin: 12px 0 24px; color: var(--color-fd-muted-foreground); font-size: 12px; text-decoration: underline; text-underline-offset: 4px; }
-html { scrollbar-gutter: stable; }
-a:focus-visible, button:focus-visible { outline: 2px solid var(--color-fd-primary); outline-offset: 4px; }
-html > body[data-scroll-locked] { margin-right: 0 !important; --removed-body-scroll-bar-size: 0 !important; }
+
+[data-search-full]:hover {
+  @apply bg-[var(--color-fd-accent)];
+}
+
+.dark [data-search-full] {
+  @apply bg-[#292d27] [border-color:#4a5145];
+}
+
+.dark [data-search-full]:hover {
+  @apply bg-[#333a2f];
+}
+
+a:focus-visible, button:focus-visible {
+  @apply [outline:2px_solid_var(--color-fd-primary)] outline-offset-[4px];
+}
+
+html > body[data-scroll-locked] {
+  margin-right: 0 !important;
+  --removed-body-scroll-bar-size: 0 !important;
+}

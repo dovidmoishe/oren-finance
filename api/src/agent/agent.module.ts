@@ -13,6 +13,7 @@ import { VaultModule } from '../vault/vault.module';
 import { AgentController } from './agent.controller';
 import { AgentRepository } from './agent.repository';
 import { AgentService } from './agent.service';
+import { CompanyBriefService } from './company-brief.service';
 import { openAiClientProvider } from './openai.provider';
 import { AgentToolRegistry } from './tools/agent-tool.registry';
 import { AgentUsageLimit, PaidProviderToolBudget } from '../common/rate-limit';
@@ -37,6 +38,7 @@ import { AgentUsageLimit, PaidProviderToolBudget } from '../common/rate-limit';
     AgentRepository,
     AgentToolRegistry,
     AgentService,
+    CompanyBriefService,
     AgentUsageLimit,
     PaidProviderToolBudget,
   ],

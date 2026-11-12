@@ -7,7 +7,11 @@ export type GrantDraft = {
   durationHours: string;
 };
 
-export function parseGrantSettings(draft: GrantDraft, sellAvailable: boolean): GrantSettings {
+export function grantDurationOptions(maxDurationHours = 24): number[] {
+  return [1, 6, 12, 24, 48, 72].filter(hours => hours <= maxDurationHours);
+}
+
+export function parseGrantSettings(draft: GrantDraft, sellAvailable: boolean, maxDurationHours = 24, untilRevoked = false): GrantSettings {
   const dollars = (value: string, max: number) => {
     if (!/^\d+(?:\.\d{1,2})?$/.test(value) || Number(value) < 0.01 || Number(value) > max)
       throw new Error(`Enter an amount between $0.01 and $${max}.`);
@@ -19,8 +23,8 @@ export function parseGrantSettings(draft: GrantDraft, sellAvailable: boolean): G
   if (!/^\d+(?:\.\d{1,2})?$/.test(draft.slippagePercent) ||
       Number(draft.slippagePercent) < 0.01 || Number(draft.slippagePercent) > 0.5)
     throw new Error("Choose a price tolerance between 0.01% and 0.5%.");
-  const durationHours = Number(draft.durationHours);
-  if (!draft.durationHours.trim() || !Number.isInteger(durationHours) || durationHours < 1 || durationHours > 24)
-    throw new Error("Choose a duration between 1 and 24 hours.");
+  const durationHours = untilRevoked ? null : Number(draft.durationHours);
+  if (durationHours !== null && !grantDurationOptions(maxDurationHours).includes(durationHours))
+    throw new Error("Choose an available permission duration.");
   return { perTradeUsd, dailyUsd, maxSlippageBps: Math.round(Number(draft.slippagePercent) * 100), durationHours, allowSell: sellAvailable };
 }

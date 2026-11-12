@@ -25,9 +25,17 @@ async function registeredTools(
   scopes: string[],
   quote?: Quote,
   review?: {
-    intent?: { id: string; mode: string };
+    intent?: {
+      id: string;
+      mode: string;
+      status?: string;
+      slippageBps?: number;
+      expiresAt?: Date;
+    };
     converted?: boolean;
     gateError?: Error;
+    delegationExpiresAt?: Date;
+    delegationPolicyId?: string;
   },
 ) {
   const connection = {
@@ -55,13 +63,14 @@ async function registeredTools(
         ),
     }),
   });
+  const getQuote = jest.fn().mockResolvedValue(quote);
   const deps = {
     db: {
       update: () => ({ set }),
       select: () => ({
         from: (table: unknown) => ({
-          where: () => ({
-            limit: jest.fn().mockResolvedValue(
+          where: () => {
+            const limit = jest.fn().mockResolvedValue(
               table === mcpConnections
                 ? [connection]
                 : table === mcpTradeIntents
@@ -72,12 +81,19 @@ async function registeredTools(
                       {
                         id: 'delegation-test',
                         activatedAt: new Date(Date.now() - 60_000),
+                        expiresAt:
+                          review?.delegationExpiresAt ??
+                          new Date(Date.now() + 60_000),
+                        status: 'active',
+                        policyId:
+                          review?.delegationPolicyId ?? 'current-policy',
                         maxSlippageBps: 50,
                         allowSell: true,
                       },
                     ],
-            ),
-          }),
+            );
+            return { limit, orderBy: () => ({ limit }) };
+          },
         }),
       }),
       insert: () => ({ values }),
@@ -102,7 +118,8 @@ async function registeredTools(
     },
     gate: { execute: jest.fn().mockRejectedValue(review?.gateError) },
     delegatedSides: { buy: true, sell: true },
-    execution: { getQuote: jest.fn().mockResolvedValue(quote) },
+    signerPolicyId: 'current-policy',
+    execution: { getQuote },
     market: { getStock: jest.fn().mockResolvedValue({ price: 100 }) },
   } as unknown as McpResourceDeps;
   const req = {
@@ -139,15 +156,71 @@ async function registeredTools(
       ([name]) => name === 'prepare_trade',
     )?.[2] as (input: {
       assetId: string;
-      side: 'sell';
-      amountShares: number;
+      side: 'buy' | 'sell';
+      amountShares?: number;
+      amountUsd?: number;
       slippageBps: number;
     }) => Promise<{ content: { text: string }[]; isError?: boolean }>,
+    getQuote,
   };
 }
 
 describe('MCP trade tool exposure', () => {
   beforeEach(() => jest.clearAllMocks());
+  it.each(['delegation_expired', 'delegation_policy_changed'])(
+    'returns the renewal link for %s',
+    async (browserReason) => {
+      const quote = {
+        assetId: 'spacex',
+        ticker: 'SPCX',
+        side: 'buy',
+        variant: { mint: 'stock-mint', decimals: 6 },
+        inputMint: USDC_MINT,
+        outputMint: 'stock-mint',
+        inputAmount: 5,
+        outputAmount: 0.036,
+        provider: 'jupiter',
+        slippageBps: 50,
+        routePayload: {
+          inAmount: '5000000',
+          outAmount: '36000',
+          otherAmountThreshold: '35820',
+          swapMode: 'ExactIn',
+        },
+      } as Quote;
+      const delegationExpiresAt = new Date(Date.now() - 1_000);
+      const expired = browserReason === 'delegation_expired';
+      const tools = await registeredTools(
+        ['oren.trade.prepare', 'oren.trade.execute'],
+        quote,
+        expired
+          ? { delegationExpiresAt }
+          : { delegationPolicyId: 'retired-policy' },
+      );
+      const result = await tools.prepare({
+        assetId: 'spacex',
+        side: 'buy',
+        amountUsd: 5,
+        slippageBps: 50,
+      });
+      expect(tools.getQuote).toHaveBeenCalledWith(
+        expect.not.objectContaining({ jupiterOnly: true }),
+      );
+      expect(tools.values).toHaveBeenCalledWith(
+        expect.objectContaining({ mode: 'browser', delegationId: null }),
+      );
+      expect(JSON.parse(result.content[0].text)).toMatchObject({
+        mode: 'browser',
+        signingGrant: 'inactive',
+        browserReason,
+        ...(expired
+          ? { signingGrantExpiresAt: delegationExpiresAt.toISOString() }
+          : {}),
+        signingSettingsUrl: 'https://oren.finance/settings/mcp#chat-trading',
+      });
+    },
+  );
+
   it.each(['insufficient_sol_for_rent', 'insufficient_sol_for_fees'])(
     'reports %s without pending status or browser fallback',
     async (reason) => {
@@ -172,7 +245,73 @@ describe('MCP trade tool exposure', () => {
       expect(tools.set).not.toHaveBeenCalled();
     },
   );
-  it('reports quote movement as requiring fresh approval, not a pending submission or forced browser conversion', async () => {
+  it('reports slippage after the automatic re-quote without a browser link or a permission reason', async () => {
+    const tools = await registeredTools(
+      ['oren.read', 'oren.trade.prepare', 'oren.trade.execute'],
+      undefined,
+      {
+        intent: {
+          id: 'intent-test',
+          mode: 'delegated',
+          status: 'prepared',
+          slippageBps: 50,
+          expiresAt: new Date(Date.now() + 60_000),
+        },
+        converted: true,
+        gateError: new SignerGateRejection('slippage_exceeded'),
+      },
+    );
+    const result = await tools.execute({
+      intentId: 'intent-test',
+      idempotencyKey: 'same-key-123456789',
+    });
+    const body = JSON.parse(result.content[0].text) as {
+      message: string;
+      reason: string;
+    };
+    expect(body).toMatchObject({
+      status: 'slippage_exceeded',
+      reason: 'slippage_exceeded',
+      signingGrant: 'active',
+      slippageBps: 50,
+      broadcast: false,
+    });
+    expect(body.message).toContain('more than 0.5%');
+    expect(body.message).toContain('not a missing signing permission');
+    expect(body.reason).not.toBe('inactive_delegation');
+    expect(result.isError).toBe(true);
+    expect(tools.set).not.toHaveBeenCalled();
+  });
+
+  it('sends a genuinely inactive grant to browser review', async () => {
+    const tools = await registeredTools(
+      ['oren.read', 'oren.trade.prepare', 'oren.trade.execute'],
+      undefined,
+      {
+        intent: {
+          id: 'intent-test',
+          mode: 'delegated',
+          status: 'prepared',
+          expiresAt: new Date(Date.now() + 60_000),
+        },
+        converted: true,
+        gateError: new SignerGateRejection('inactive_delegation'),
+      },
+    );
+    const result = await tools.execute({
+      intentId: 'intent-test',
+      idempotencyKey: 'same-key-123456789',
+    });
+    expect(JSON.parse(result.content[0].text)).toMatchObject({
+      status: 'browser_approval_required',
+    });
+    expect(tools.set).toHaveBeenCalledWith({
+      mode: 'browser',
+      delegationId: null,
+    });
+  });
+
+  it('reports quote movement as a price change, not a missing grant or a forced browser conversion', async () => {
     const tools = await registeredTools(
       ['oren.read', 'oren.trade.prepare', 'oren.trade.execute'],
       undefined,
@@ -332,6 +471,103 @@ describe('MCP trade tool exposure', () => {
         amountShares: 0.12345679,
         maxInRaw: raw,
       });
+      const calls = tools.getQuote.mock.calls as [{ jupiterOnly?: boolean }][];
+      expect(calls[0][0].jupiterOnly).toBe(execute ? true : undefined);
     },
   );
+
+  it('signs a chat trade with Jupiter when Titan would otherwise win', async () => {
+    const quote = {
+      id: 'quote-jup',
+      assetId: 'nvda',
+      ticker: 'NVDA',
+      side: 'buy',
+      variant: { mint: 'stock-mint', decimals: 8 },
+      inputMint: USDC_MINT,
+      outputMint: 'stock-mint',
+      inputAmount: 5,
+      outputAmount: 0.02,
+      provider: 'jupiter',
+      slippageBps: 50,
+      routePayload: {
+        inAmount: '5000000',
+        outAmount: '2000000',
+        otherAmountThreshold: '1990000',
+        swapMode: 'ExactIn',
+      },
+    } as Quote;
+    const tools = await registeredTools(
+      ['oren.read', 'oren.trade.prepare', 'oren.trade.execute'],
+      quote,
+    );
+    const result = await tools.prepare({
+      assetId: 'nvda',
+      side: 'buy',
+      amountUsd: 5,
+      slippageBps: 50,
+    });
+    expect(tools.getQuote).toHaveBeenCalledTimes(1);
+    expect(tools.getQuote).toHaveBeenCalledWith(
+      expect.objectContaining({
+        assetId: 'nvda',
+        slippageBps: 50,
+        jupiterOnly: true,
+      }),
+    );
+    expect(JSON.parse(result.content[0].text)).toMatchObject({
+      mode: 'delegated',
+      signingGrant: 'active',
+      ticker: 'NVDA',
+    });
+    expect(
+      (
+        tools.values.mock.calls as [{ mode: string; delegationId: string }][]
+      )[0][0],
+    ).toMatchObject({ mode: 'delegated', delegationId: 'delegation-test' });
+  });
+
+  it('uses browser review only when Jupiter has no route', async () => {
+    const titan = {
+      id: 'quote-titan',
+      assetId: 'nvda',
+      ticker: 'NVDA',
+      side: 'buy',
+      variant: { mint: 'stock-mint', decimals: 8 },
+      inputMint: USDC_MINT,
+      outputMint: 'stock-mint',
+      inputAmount: 5,
+      outputAmount: 0.02,
+      provider: 'titan:Titan-DART',
+      slippageBps: 50,
+      routePayload: {
+        inAmount: '5000000',
+        outAmount: '2100000',
+        otherAmountThreshold: '2089500',
+        swapMode: 'ExactIn',
+      },
+    } as Quote;
+    const tools = await registeredTools(
+      ['oren.read', 'oren.trade.prepare', 'oren.trade.execute'],
+      titan,
+    );
+    tools.getQuote
+      .mockRejectedValueOnce(new Error('No swap routes for NVDA'))
+      .mockResolvedValueOnce(titan);
+    const result = await tools.prepare({
+      assetId: 'nvda',
+      side: 'buy',
+      amountUsd: 5,
+      slippageBps: 50,
+    });
+    const calls = tools.getQuote.mock.calls as [{ jupiterOnly?: boolean }][];
+    expect(calls[0][0].jupiterOnly).toBe(true);
+    expect(calls[1][0].jupiterOnly).toBeUndefined();
+    const body = JSON.parse(result.content[0].text) as { message: string };
+    expect(body).toMatchObject({
+      mode: 'browser',
+      signingGrant: 'active',
+      browserReason: 'unsupported_venue',
+    });
+    expect(body.message).toContain('not a missing signing permission');
+  });
 });

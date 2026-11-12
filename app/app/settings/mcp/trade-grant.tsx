@@ -5,7 +5,6 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { Shield01Icon } from "@hugeicons/core-free-icons";
 import { TradeGrantEditor } from "./trade-grant-editor";
 import { ConnectionNextStep } from "./connection-next-step";
-import styles from "./trade-grant.module.css";
 import { useOrenAuth } from "@/components/auth/auth-context";
 import { mcpApiOrigin } from "@/services/mcp-api-origin";
 import { validateGrantPermission, validateTrustedTradeSigner, type GrantSettings } from "@/services/mcp-grant-authorization";
@@ -21,12 +20,14 @@ type PendingGrant = {
   dailyUsd: string;
   maxSlippageBps: number;
   allowSell: boolean;
-  expiresAt: string;
+  expiresAt: string | null;
 };
 type GrantState = {
   enabled: boolean;
   reenrollmentRequired?: boolean;
   canEnroll?: boolean;
+  maxDurationHours?: number;
+  untilRevoked?: boolean;
   sellAvailable?: boolean;
   pendingGrant?: PendingGrant;
   delegationId?: string;
@@ -36,7 +37,7 @@ type GrantState = {
   usedTodayUsd?: string;
   maxSlippageBps?: number;
   sides?: string[];
-  expiresAt?: string;
+  expiresAt?: string | null;
 };
 
 export function TradeGrant({ connectionUid }: { connectionUid?: string }) {
@@ -107,6 +108,10 @@ export function TradeGrant({ connectionUid }: { connectionUid?: string }) {
         typeof body?.error === "string" && /^[a-z_]{1,40}$/.test(body.error)
           ? `, ${body.error}`
           : "";
+      if (body?.error === "grant_duration_unavailable") {
+        await refresh().catch(() => undefined);
+        throw new MessageKeyError("grant.checkLimits");
+      }
       throw new MessageKeyError("grant.verifyFailed", { status: response.status, code });
     }
     return response.json() as Promise<T>;
@@ -234,9 +239,9 @@ export function TradeGrant({ connectionUid }: { connectionUid?: string }) {
 
   if (!auth.authenticated) return null;
   return (
-    <section id="chat-trading" aria-labelledby="chat-trading-title" className={styles.card}>
-      <div className={styles.heading}>
-        <span className={styles.headingIcon}><HugeiconsIcon icon={Shield01Icon} size={22} strokeWidth={1.5} aria-hidden="true" /></span>
+    <section id="chat-trading" aria-labelledby="chat-trading-title" className="trade-grant-card">
+      <div className="trade-grant-heading">
+        <span className="trade-grant-heading-icon"><HugeiconsIcon icon={Shield01Icon} size={22} strokeWidth={1.5} aria-hidden="true" /></span>
         <div><h2 id="chat-trading-title">{t("grant.title")}</h2><p>{t("grant.intro")}</p></div>
       </div>
       {grant?.reenrollmentRequired && <p className="mt-4 text-sm">
@@ -250,7 +255,7 @@ export function TradeGrant({ connectionUid }: { connectionUid?: string }) {
           </p>
           <p>{t("grant.maxSlippage", { percent: (grant.maxSlippageBps ?? 0) / 100 })}</p>
           <p>
-            {t("grant.expires", {
+            {grant.expiresAt === null ? t("grant.untilRevoked") : t("grant.expires", {
               date: grant.expiresAt
                 ? formatDateTime(grant.expiresAt, locale, timeZone, t("common.unknown"))
                 : t("grant.unknown"),
@@ -307,9 +312,11 @@ export function TradeGrant({ connectionUid }: { connectionUid?: string }) {
               perTrade: pending.perTradeUsd,
               daily: pending.dailyUsd,
               slippage: pending.maxSlippageBps / 100,
-              date: formatDateTime(pending.expiresAt, locale, timeZone, t("common.unknown")),
             })}
           </p>
+          <p>{pending.expiresAt === null ? t("grant.untilRevoked") : t("grant.expires", {
+            date: formatDateTime(pending.expiresAt, locale, timeZone, t("common.unknown")),
+          })}</p>
           <p className="mt-2 text-muted">
             {t("grant.signerNote", { signer: pending.signerId, policy: pending.policyId })}
           </p>
@@ -351,7 +358,7 @@ export function TradeGrant({ connectionUid }: { connectionUid?: string }) {
         </div>
       )}
       {!grant?.enabled && !grant?.reenrollmentRequired && !pending && grant?.canEnroll && (
-        <TradeGrantEditor key={String(grant.sellAvailable)} sellAvailable={grant.sellAvailable === true} busy={busy}
+        <TradeGrantEditor key={`${grant.sellAvailable}:${grant.maxDurationHours}:${grant.untilRevoked}`} sellAvailable={grant.sellAvailable === true} maxDurationHours={grant.maxDurationHours ?? 24} untilRevoked={grant.untilRevoked === true} busy={busy}
           signerConfigured={Boolean(trustedSigner.signerId && trustedSigner.policyId)} onReview={prepare} />
       )}
       {!grant?.enabled && !grant?.reenrollmentRequired && !pending && grant && !grant.canEnroll && (
