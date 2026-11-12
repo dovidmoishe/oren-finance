@@ -1,7 +1,17 @@
+import { simulationGateCode } from '../execution/simulation-reason';
+import {
+  SOL_RENT_MESSAGE,
+  SOL_FEE_MESSAGE,
+} from '../execution/simulation-failure';
+
 /** Never expose provider messages, transactions or credentials in rejection logs. */
 export function gateFailureCode(error: unknown): string {
+  const structured = simulationGateCode(error);
+  if (structured) return structured;
   const reason = error instanceof Error ? error.message : '';
   switch (reason) {
+    case 'Grant duration exceeds the signing policy expiry':
+      return 'grant_duration_unavailable';
     case SOL_RENT_MESSAGE:
       return 'insufficient_sol_for_rent';
     case SOL_FEE_MESSAGE:
@@ -23,8 +33,9 @@ export function gateFailureCode(error: unknown): string {
       return 'transaction_expired';
     case 'This trade no longer matches the terms you reviewed. Review a fresh quote.':
     case 'Fresh Jupiter quote moved outside the reviewed terms':
-    case 'The price moved outside the approved tolerance. Request a fresh quote and review its minimum proceeds.':
       return 'reviewed_terms_changed';
+    case 'The price moved outside the approved tolerance. Request a fresh quote and review its minimum proceeds.':
+      return 'slippage_exceeded';
     case 'Prepared intent is unavailable for delegation':
       return 'intent_unavailable';
     case 'A newly consented execute connection is required':
@@ -33,7 +44,3 @@ export function gateFailureCode(error: unknown): string {
       return 'gate_rejected';
   }
 }
-import {
-  SOL_RENT_MESSAGE,
-  SOL_FEE_MESSAGE,
-} from '../execution/simulation-failure';

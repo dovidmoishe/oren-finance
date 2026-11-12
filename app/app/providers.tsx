@@ -61,7 +61,7 @@ const unconfiguredModal: WalletModalContextState = {
 
 export function AppProviders({ children }: { children: React.ReactNode }) {
   return (
-    <div className="oren-app min-h-screen">
+    <div className="oren-app min-h-screen bg-background text-foreground" data-oren-product="">
       {appId ? (
         <DeferredPrivy appId={appId}>{children}</DeferredPrivy>
       ) : (
@@ -158,7 +158,7 @@ function DeferredPrivy({
     <>
       {restoreTimedOut && !current.auth.ready ? (
         <div
-          className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950"
+          className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 rounded-xl border border-warning-border bg-warning-surface px-4 py-3 text-sm text-warning"
           role="alert"
         >
           <span>Sign-in could not finish loading. Reload this page or ask the team to check this preview&apos;s login setup.</span>

@@ -38,6 +38,7 @@ import {
   invalidateWalletSession,
   walletSessionIsCurrent,
 } from "@/services/wallet-session";
+import { useT } from "@/i18n/i18n";
 import { getApprovalAuthorizationRequest } from "@/services/approval-service";
 import { createPrivySigner } from "@/services/privy-signer";
 import {
@@ -79,6 +80,7 @@ function clearWalletData() {
 }
 
 export function PrivySession({ children }: { children: React.ReactNode }) {
+  const t = useT();
   const { ready, authenticated, user, logout, getAccessToken } = usePrivy();
   useEffect(() => {
     setAgentTokenProvider(authenticated ? getAccessToken : undefined);
@@ -426,18 +428,18 @@ export function PrivySession({ children }: { children: React.ReactNode }) {
           {children}
           <dialog
             ref={dialog}
-            aria-label="Sign in to Oren"
-            className="m-auto w-[calc(100%-2rem)] max-w-md rounded-2xl border border-border bg-panel p-6 text-foreground shadow-xl backdrop:bg-black/30"
+            aria-label={t("auth.title")}
+            className="m-auto w-[calc(100%-2rem)] max-w-md rounded-2xl border border-border bg-panel p-6 text-foreground shadow-xl backdrop:bg-scrim/30"
             onCancel={() => setVisible(false)}
             onClose={() => setVisible(false)}
           >
             <button
-              aria-label="Close sign in"
+              aria-label={t("auth.closeLabel")}
               className="mb-4 ml-auto block text-sm text-muted"
               onClick={() => setVisible(false)}
               type="button"
             >
-              Close
+              {t("auth.close")}
             </button>
             {visible && <EmailLogin onComplete={() => setVisible(false)} />}
           </dialog>

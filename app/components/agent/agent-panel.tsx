@@ -16,8 +16,9 @@ import {
   AgentConversationThread,
   ConversationHistory,
 } from './agent-conversation';
-import { contextLabel, pageContext, promptSuggestions } from './agent-utils';
+import { contextLabelKey, pageContext, promptSuggestions } from './agent-utils';
 import { AgentWorkspace, latestAssistantArtifacts } from './agent-workspace';
+import { useT } from "@/i18n/i18n";
 
 function Icon({ icon, size = 18, className }: { icon: IconSvgElement; size?: number; className?: string }) {
   return <HugeiconsIcon className={className} color="currentColor" icon={icon} size={size} strokeWidth={1.8} />;
@@ -37,6 +38,7 @@ function CollapseIcon({ size = 17 }: { size?: number }) {
 
 export function AgentPanel() {
   const pathname = usePathname();
+  const t = useT();
   const { connected, publicKey } = useWallet();
   const { setVisible } = useWalletModal();
   const selectedStock = useStockStore((state) => state.selected);
@@ -225,7 +227,7 @@ export function AgentPanel() {
       <div
         aria-hidden
         className={cn(
-          'fixed inset-0 top-[var(--app-nav-height,4.5rem)] z-30 bg-black/20 backdrop-blur-[2px] transition-opacity',
+          'fixed inset-0 top-[var(--app-nav-height,4.5rem)] z-30 bg-scrim/20 backdrop-blur-[2px] transition-opacity',
           panelOpen && !expanded ? 'opacity-100 2xl:hidden' : 'pointer-events-none opacity-0',
         )}
         onClick={handleBackdropClick}
@@ -234,14 +236,14 @@ export function AgentPanel() {
       <div
         aria-hidden
         className={cn(
-          'fixed inset-0 top-[var(--app-nav-height,4.5rem)] z-30 hidden bg-black/20 backdrop-blur-[2px] transition-opacity lg:block',
+          'fixed inset-0 top-[var(--app-nav-height,4.5rem)] z-30 hidden bg-scrim/20 backdrop-blur-[2px] transition-opacity lg:block',
           panelOpen && expanded ? 'opacity-100' : 'pointer-events-none opacity-0',
         )}
         onClick={handleBackdropClick}
       />
 
       <aside
-        aria-label="Oren investing copilot"
+        aria-label={t("agent.copilotLabel")}
         aria-busy={isSending}
         aria-hidden={!panelOpen}
         className={cn(
@@ -267,18 +269,18 @@ export function AgentPanel() {
                 {isSending ? <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-positive" /> : null}
                 {expanded ? (
                   <span className="hidden rounded-full bg-panel-subtle px-2.5 py-1 text-[10px] font-semibold text-muted lg:inline">
-                    {contextLabel(context, selectedStock?.ticker)}
+                    {t(...contextLabelKey(context, selectedStock?.ticker))}
                   </span>
                 ) : null}
               </div>
               <p className="truncate text-xs text-muted">
-                {isSending ? 'Working with live market tools' : 'Your investing copilot'}
+                {isSending ? t("agent.working") : t("agent.tagline")}
               </p>
             </div>
           </div>
           <div className="flex items-center gap-1">
             <Button
-              aria-label="Recent conversations"
+              aria-label={t("agent.recent")}
               aria-expanded={showHistory}
               onClick={() => setShowHistory((value) => !value)}
               size="icon"
@@ -287,7 +289,7 @@ export function AgentPanel() {
               <Icon icon={HistoryIcon} size={17} />
             </Button>
             <Button
-              aria-label="New conversation"
+              aria-label={t("agent.newConversation")}
               disabled={isSending}
               onClick={() => {
                 newChat();
@@ -300,7 +302,7 @@ export function AgentPanel() {
             </Button>
             {expanded ? (
               <Button
-                aria-label="Collapse workspace"
+                aria-label={t("agent.collapse")}
                 className="hidden lg:inline-flex"
                 onClick={collapseToSidecar}
                 size="icon"
@@ -310,7 +312,7 @@ export function AgentPanel() {
               </Button>
             ) : (
               <Button
-                aria-label="Expand workspace"
+                aria-label={t("agent.expand")}
                 className="hidden lg:inline-flex"
                 onClick={() => setExpanded(true)}
                 size="icon"
@@ -319,7 +321,7 @@ export function AgentPanel() {
                 <ExpandIcon />
               </Button>
             )}
-            <Button aria-label="Close Oren" onClick={closePanel} size="icon" variant="ghost">
+            <Button aria-label={t("agent.close")} onClick={closePanel} size="icon" variant="ghost">
               <Icon icon={Cancel01Icon} size={18} />
             </Button>
           </div>
@@ -394,7 +396,7 @@ export function AgentPanel() {
       </aside>
 
       <div aria-live="polite" className="sr-only">
-        {!isSending && messages.at(-1)?.role === 'assistant' ? 'Oren response complete' : ''}
+        {!isSending && messages.at(-1)?.role === 'assistant' ? t("agent.complete") : ''}
       </div>
 
       <AgentActionReview

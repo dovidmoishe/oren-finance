@@ -35,7 +35,7 @@ export function selectLaunchMints(catalogMints, reviewedMints) {
   return [...reviewedMints].sort();
 }
 /** Build a bounded launch policy within Privy's 128 KiB aggregate IDL limit. */
-export function buildLaunchPolicy(template, selectedMints, { allowDestinationAccountCreation = false } = {}) {
+export function buildLaunchPolicy(template, selectedMints, { allowDestinationAccountCreation = false, untilRevoked = false } = {}) {
   const mints=[...new Set(selectedMints)];
   const usdc='EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
   if(!mints.length||mints.length>100||mints.includes(usdc)||mints.some(m=>typeof m!=='string'||!/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(m)))throw Error('Invalid launch mint list');
@@ -44,7 +44,7 @@ export function buildLaunchPolicy(template, selectedMints, { allowDestinationAcc
   const idl=compactRouteIdl(full),clean=r=>({name:r.name,method:r.method,action:r.action,conditions:structuredClone(r.conditions)});
   const expiry=template.rules.find(r=>r.action==='DENY'&&r.conditions?.some(c=>c.field_source==='system'&&c.field==='current_unix_timestamp'&&c.operator==='gte'));
   const compute=template.rules.find(r=>r.name==='allow compute budget');
-  if(!expiry||!compute||compute.conditions?.length!==1||compute.conditions[0].value!=='ComputeBudget111111111111111111111111111111')throw Error('Missing expiry or compute guard');
+  if(Boolean(expiry)===untilRevoked||!compute||compute.conditions?.length!==1||compute.conditions[0].value!=='ComputeBudget111111111111111111111111111111')throw Error('Policy expiry or compute guard differs from the requested terms');
   const C=(field,operator,value)=>({field_source:'solana_instruction_data',field:'shared_accounts_route.'+field,operator,value,idl});
   const rule=side=>({name:'allow bounded jupiter '+side,method:'signTransaction',action:'ALLOW',conditions:[
     {field_source:'solana_program_instruction',field:'programId',operator:'eq',value:full.address},
@@ -53,7 +53,7 @@ export function buildLaunchPolicy(template, selectedMints, { allowDestinationAcc
     C('accounts.source_mint',side==='buy'?'eq':'in',side==='buy'?usdc:mints),
     C('accounts.destination_mint',side==='buy'?'in':'eq',side==='buy'?mints:usdc),
   ]});
-  const rules=[clean(expiry),clean(compute),rule('buy'),rule('sell')];
+  const rules=[...(expiry?[clean(expiry)]:[]),clean(compute),rule('buy'),rule('sell')];
   if (allowDestinationAccountCreation) {
     // ATA CreateIdempotent is a one-byte discriminator with no arguments.
     // The two independent transaction validators additionally bind payer,

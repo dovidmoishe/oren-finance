@@ -113,15 +113,15 @@ export function BrowserTradeReview({ intentId }: { intentId: string }) {
   return <main className="mx-auto max-w-xl px-5 py-12">
     <h1 className="text-3xl font-semibold">Review agent {intent?.side ?? 'trade'} request</h1>
     <p className="mt-3 text-muted">Oren will show a fresh quote and ask you to authorize the exact transaction in your wallet.</p>
-    {!authenticated && <button className="mt-6 rounded-xl bg-foreground px-5 py-3 text-background" onClick={open} type="button">Sign in with email code</button>}
+    {!authenticated && <button className="mt-6 rounded-xl bg-primary px-5 py-3 text-primary-foreground" onClick={open} type="button">Sign in with email code</button>}
     {intent && <div className="mt-6 rounded-2xl border border-border bg-panel p-5">
       <p>Stock: {intent.assetId}</p>
       <p>{intent.side === 'buy' ? `Spend: $${intent.amountUsd?.toFixed(2)} USDC` : `Sell: ${intent.amountShares} shares`}</p>
       <p>Maximum slippage: {(intent.slippageBps / 100).toFixed(2)}%</p>
       <p className="mt-3 text-sm text-muted">Expires {new Date(intent.expiresAt).toLocaleTimeString()}</p>
     </div>}
-    {error && <p className="mt-5 text-sm text-red-700" role="alert">{error}</p>}
-    {intent && <button className="mt-6 rounded-xl bg-foreground px-5 py-3 text-background disabled:opacity-50" disabled={loading} onClick={() => void loadQuote()} type="button">{loading ? 'Getting quote…' : quote ? 'Refresh quote' : 'Get quote to review'}</button>}
+    {error && <p className="mt-5 text-sm text-error" role="alert">{error}</p>}
+    {intent && <button className="mt-6 rounded-xl bg-primary px-5 py-3 text-primary-foreground disabled:opacity-50" disabled={loading} onClick={() => void loadQuote()} type="button">{loading ? 'Getting quote…' : quote ? 'Refresh quote' : 'Get quote to review'}</button>}
     <QuoteReviewModal
       open={Boolean(quote)}
       quote={quote}

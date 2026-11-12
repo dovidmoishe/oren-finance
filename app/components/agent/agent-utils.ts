@@ -1,3 +1,4 @@
+import type { MessageKey, MessageValues } from '@/i18n/i18n';
 import type { AgentPageContext } from '@/types';
 
 export function pageContext(pathname: string): AgentPageContext {
@@ -61,27 +62,29 @@ export function promptSuggestions(context: AgentPageContext, ticker?: string): s
   }
 }
 
-export function contextLabel(context: AgentPageContext, ticker?: string): string {
+/** Translation key (and values) naming the page Oren is looking at. */
+export function contextLabelKey(context: AgentPageContext, ticker?: string): [MessageKey, MessageValues?] {
   switch (context.page) {
     case 'stock':
-      return ticker ? `Looking at ${ticker}` : 'Looking at a stock';
+      return ticker ? ['agent.contextStock', { ticker }] : ['agent.contextStockGeneric'];
     case 'markets':
-      return 'Browsing markets';
+      return ['agent.contextMarkets'];
     case 'vault':
-      return 'Vault positions';
+      return ['agent.contextVault'];
     case 'calendar':
-      return 'Trading calendar';
+      return ['agent.contextCalendar'];
     case 'leaderboard':
-      return 'Leaderboard';
+      return ['agent.contextLeaderboard'];
     case 'activity':
-      return 'Portfolio activity';
+      return ['agent.contextActivity'];
     default:
-      return 'Dashboard overview';
+      return ['agent.contextDashboard'];
   }
 }
 
 export function toolLabel(toolName: string) {
   const labels: Record<string, string> = {
+    getCompanyBrief: 'Checking company filings and recent developments',
     getStockResearch: 'Building cited stock research',
     getPortfolio: 'Checking your portfolio',
     getPortfolioActivity: 'Reading portfolio activity',

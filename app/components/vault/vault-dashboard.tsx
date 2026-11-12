@@ -33,6 +33,7 @@ import {
 } from "@/components/ui";
 import { usePortfolioStore, useVaultStore, useWalletStore } from "@/store";
 import type { VaultPosition } from "@/types";
+import { useI18n } from "@/i18n/i18n";
 import { VaultReviewModal, type VaultReviewDetails } from "./vault-review-modal";
 
 function defaultUnlockDate() {
@@ -80,6 +81,7 @@ function MetricTile({
 
 export function VaultDashboard() {
   const auth = useOrenAuth();
+  const { locale, timeZone, t } = useI18n();
   const wallet = useWalletStore((state) => state.address);
   const connected = useWalletStore((state) => state.connected);
 
@@ -129,18 +131,18 @@ export function VaultDashboard() {
     selected && Number.isFinite(parsedAmount) ? parsedAmount * selected.priceUsd : undefined;
 
   function validateLock() {
-    if (!connected || !wallet) return auth.authenticated ? "Your wallet is being prepared." : "Sign in to preview a lock.";
-    if (!selected) return "No available portfolio positions to lock.";
+    if (!connected || !wallet) return auth.authenticated ? t("vault.walletPreparing") : t("vault.signInToPreview");
+    if (!selected) return t("vault.noLockable");
     if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
-      return "Enter an amount greater than zero.";
+      return t("vault.amountPositive");
     }
     if (parsedAmount > selected.availableQuantity) {
-      return `Amount exceeds available quantity (${formatNumber(selected.availableQuantity)}).`;
+      return t("vault.amountExceeds", { available: formatNumber(selected.availableQuantity, locale) });
     }
-    if (!unlockDate) return "Choose an unlock date.";
+    if (!unlockDate) return t("vault.chooseDate");
     const unlockAt = new Date(`${unlockDate}T00:00:00.000Z`);
     if (Number.isNaN(unlockAt.getTime()) || unlockAt.getTime() <= Date.now()) {
-      return "Unlock date must be in the future.";
+      return t("vault.dateFuture");
     }
     return undefined;
   }
@@ -166,16 +168,17 @@ export function VaultDashboard() {
     const eligible = isEligible(position.unlockAt);
     if (!eligible) {
       setFormError(
-        `${position.ticker ?? "Position"} unlocks in ${
-          position.daysRemaining ?? daysUntil(position.unlockAt)
-        } day(s). Early withdraw is not available.`,
+        t("vault.earlyWithdraw", {
+          ticker: position.ticker ?? t("vault.position"),
+          count: position.daysRemaining ?? daysUntil(position.unlockAt),
+        }),
       );
       return;
     }
     setFormError(undefined);
     setReview({
       mode: "unlock",
-      ticker: position.ticker ?? "Asset",
+      ticker: position.ticker ?? t("vault.asset"),
       name: position.name,
       quantity: position.quantity,
       valueUsd: position.valueUsd,
@@ -189,12 +192,12 @@ export function VaultDashboard() {
     return (
       <div className="space-y-4 px-4 py-4 sm:px-6">
         <header>
-          <p className="text-sm font-semibold uppercase tracking-[0.12em] text-muted">Vault</p>
-          <h1 className="mt-1 font-display text-4xl font-semibold tracking-normal">Locked positions</h1>
+          <p className="text-sm font-semibold uppercase tracking-[0.12em] text-muted">{t("vault.eyebrow")}</p>
+          <h1 className="mt-1 font-display text-4xl font-semibold tracking-normal">{t("vault.title")}</h1>
         </header>
         <EmptyState
-          title={!auth.ready ? "Restoring your account…" : auth.authenticated ? "Preparing your wallet…" : "Sign in to view your vault"}
-          description={auth.authenticated ? auth.error || "Your locked positions will appear when your wallet is available." : "Sign in to preview timelocked positions and review a lock."}
+          title={!auth.ready ? t("vault.restoring") : auth.authenticated ? t("vault.preparing") : t("vault.signInTitle")}
+          description={auth.authenticated ? auth.error || t("vault.preparingDescription") : t("vault.signInDescription")}
         />
       </div>
     );
@@ -204,10 +207,10 @@ export function VaultDashboard() {
     <div className="space-y-4 px-4 py-4 sm:px-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <header>
-          <p className="text-sm font-semibold uppercase tracking-[0.12em] text-muted">Vault</p>
-          <h1 className="mt-1 font-display text-4xl font-semibold tracking-normal">Locked positions</h1>
+          <p className="text-sm font-semibold uppercase tracking-[0.12em] text-muted">{t("vault.eyebrow")}</p>
+          <h1 className="mt-1 font-display text-4xl font-semibold tracking-normal">{t("vault.title")}</h1>
           <p className="mt-2 max-w-2xl text-sm text-muted">
-            Timelock tokenized equities until a future date. Locks are enforced onchain once the vault program is live.
+            {t("vault.intro")}
           </p>
         </header>
         <Button
@@ -226,19 +229,18 @@ export function VaultDashboard() {
             size={16}
             strokeWidth={1.8}
           />
-          Refresh
+          {t("vault.refresh")}
         </Button>
       </div>
 
       {!programLive ? (
-        <div className="rounded-[20px] border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
+        <div className="rounded-[20px] border border-warning-border bg-warning-surface p-4 text-sm text-warning">
           <div className="flex gap-3">
             <HugeiconsIcon className="mt-0.5 shrink-0" color="currentColor" icon={SafeIcon} size={18} strokeWidth={1.8} />
             <div>
-              <p className="font-semibold">Vault program is not live yet</p>
-              <p className="mt-1 leading-6 text-amber-900/85">
-                You can explore the full lock and unlock experience here, but signing is disabled. Prepare and confirm
-                routes return unavailable until the onchain program is deployed.
+              <p className="font-semibold">{t("vault.offlineTitle")}</p>
+              <p className="mt-1 leading-6 text-warning/85">
+                {t("vault.offlineBody")}
               </p>
             </div>
           </div>
@@ -249,12 +251,12 @@ export function VaultDashboard() {
         <ErrorState
           description={error}
           onRetry={() => wallet && void loadVaults(wallet)}
-          title="Unable to load vault"
+          title={t("vault.loadFailed")}
         />
       ) : null}
 
       {formError ? (
-        <div className="rounded-[18px] border border-red-200 bg-red-50 p-4 text-sm text-red-900">
+        <div className="rounded-[18px] border border-error-border bg-error-surface p-4 text-sm text-error">
           <div className="flex gap-3">
             <HugeiconsIcon className="mt-0.5 shrink-0" color="currentColor" icon={AlertCircleIcon} size={16} strokeWidth={1.8} />
             <p>{formError}</p>
@@ -265,26 +267,26 @@ export function VaultDashboard() {
       <div className="grid gap-4 md:grid-cols-3">
         <MetricTile
           className="bg-accent-pink"
-          detail={programLive ? "Indexed onchain locks" : "Preview only — program offline"}
-          label="Total locked"
-          value={isLoading && !summary ? "—" : formatCurrency(summary?.totalLockedValueUsd)}
+          detail={programLive ? t("vault.indexedLocks") : t("vault.previewOnly")}
+          label={t("vault.totalLocked")}
+          value={isLoading && !summary ? "—" : formatCurrency(summary?.totalLockedValueUsd, locale)}
         />
         <MetricTile
           className="bg-accent-lavender"
-          detail={`${positions.length} active lock${positions.length === 1 ? "" : "s"}`}
-          label="Active locks"
+          detail={t("vault.activeLockCount", { count: positions.length })}
+          label={t("vault.activeLocks")}
           value={isLoading && !summary ? "—" : String(positions.length)}
         />
         <MetricTile
           className="bg-accent-yellow"
           detail={
             upcoming[0]
-              ? `${upcoming[0].ticker ?? "Asset"} · ${formatDate(upcoming[0].unlockAt)}`
-              : "No upcoming unlocks"
+              ? `${upcoming[0].ticker ?? t("vault.asset")} · ${formatDate(upcoming[0].unlockAt, locale, timeZone, t("common.notUpdated"))}`
+              : t("vault.noUpcoming")
           }
-          label="Next unlock"
+          label={t("vault.nextUnlock")}
           value={
-            upcoming[0] ? `${upcoming[0].daysRemaining ?? daysUntil(upcoming[0].unlockAt)}d` : "—"
+            upcoming[0] ? t("vault.daysShort", { count: upcoming[0].daysRemaining ?? daysUntil(upcoming[0].unlockAt) }) : "—"
           }
         />
       </div>
@@ -292,8 +294,8 @@ export function VaultDashboard() {
       {upcoming.length ? (
         <Card>
           <CardHeader>
-            <h2 className="font-display text-lg font-semibold">Upcoming unlocks</h2>
-            <p className="text-sm text-muted">Soonest unlock dates across your indexed vault positions.</p>
+            <h2 className="font-display text-lg font-semibold">{t("vault.upcomingTitle")}</h2>
+            <p className="text-sm text-muted">{t("vault.upcomingSubtitle")}</p>
           </CardHeader>
           <CardContent className="grid gap-3 md:grid-cols-3">
             {upcoming.map((position) => (
@@ -302,17 +304,17 @@ export function VaultDashboard() {
                 key={position.lockAddress}
               >
                 <div className="flex items-center justify-between gap-3">
-                  <p className="font-semibold">{position.ticker ?? "Asset"}</p>
+                  <p className="font-semibold">{position.ticker ?? t("vault.asset")}</p>
                   <span className="rounded-full bg-panel px-2.5 py-1 text-xs font-semibold">
-                    {position.daysRemaining ?? daysUntil(position.unlockAt)}d
+                    {t("vault.daysShort", { count: position.daysRemaining ?? daysUntil(position.unlockAt) })}
                   </span>
                 </div>
                 <p className="mt-2 font-mono text-sm">
-                  {formatNumber(position.quantity)} · {formatCurrency(position.valueUsd)}
+                  {formatNumber(position.quantity, locale)} · {formatCurrency(position.valueUsd, locale)}
                 </p>
                 <p className="mt-1 flex items-center gap-1.5 text-xs text-muted">
                   <HugeiconsIcon color="currentColor" icon={Calendar03Icon} size={12} strokeWidth={1.8} />
-                  {formatDate(position.unlockAt)}
+                  {formatDate(position.unlockAt, locale, timeZone, t("common.notUpdated"))}
                 </p>
               </div>
             ))}
@@ -323,20 +325,20 @@ export function VaultDashboard() {
       <div className="grid gap-4 xl:grid-cols-[360px_minmax(0,1fr)]">
         <Card>
           <CardHeader>
-            <h2 className="font-display text-lg font-semibold">Lock ticket</h2>
-            <p className="text-sm text-muted">Preview a timelock from your available portfolio balances.</p>
+            <h2 className="font-display text-lg font-semibold">{t("vault.ticketTitle")}</h2>
+            <p className="text-sm text-muted">{t("vault.ticketSubtitle")}</p>
           </CardHeader>
           <CardContent className="space-y-4">
             {isLoading && !portfolio ? <Skeleton className="h-40" /> : null}
             {!isLoading && lockable.length === 0 ? (
               <EmptyState
-                description="Buy supported equities first, then return here to preview a lock."
-                title="No available positions"
+                description={t("vault.noAvailableDescription")}
+                title={t("vault.noAvailableTitle")}
               />
             ) : (
               <>
                 <label className="block space-y-2 text-sm">
-                  <span className="font-semibold">Asset</span>
+                  <span className="font-semibold">{t("vault.asset")}</span>
                   <select
                     className="h-11 w-full rounded-[14px] border border-border bg-panel px-3 font-medium outline-none focus:border-foreground"
                     onChange={(event) => setAssetId(event.target.value)}
@@ -344,7 +346,7 @@ export function VaultDashboard() {
                   >
                     {lockable.map((position) => (
                       <option key={position.assetId} value={position.assetId}>
-                        {position.ticker} · avail {formatNumber(position.availableQuantity)}
+                        {t("vault.availableOption", { ticker: position.ticker, available: formatNumber(position.availableQuantity, locale) })}
                       </option>
                     ))}
                   </select>
@@ -352,13 +354,13 @@ export function VaultDashboard() {
 
                 <label className="block space-y-2 text-sm">
                   <div className="flex items-center justify-between gap-3">
-                    <span className="font-semibold">Amount</span>
+                    <span className="font-semibold">{t("vault.amount")}</span>
                     <button
                       className="text-xs font-semibold text-muted hover:text-foreground"
                       onClick={() => selected && setAmount(String(selected.availableQuantity))}
                       type="button"
                     >
-                      Max {formatNumber(selected?.availableQuantity)}
+                      {t("vault.max", { amount: formatNumber(selected?.availableQuantity, locale) })}
                     </button>
                   </div>
                   <input
@@ -373,7 +375,7 @@ export function VaultDashboard() {
                 </label>
 
                 <label className="block space-y-2 text-sm">
-                  <span className="font-semibold">Unlock date</span>
+                  <span className="font-semibold">{t("vault.unlockDate")}</span>
                   <input
                     className="h-11 w-full rounded-[14px] border border-border bg-panel px-3 outline-none focus:border-foreground"
                     min={minUnlockDate}
@@ -385,17 +387,17 @@ export function VaultDashboard() {
 
                 <div className="rounded-[16px] border border-border bg-panel-subtle p-3 text-sm">
                   <div className="flex items-center justify-between gap-3">
-                    <span className="text-muted">Estimated value</span>
-                    <span className="font-mono font-medium">{formatCurrency(estimatedValue)}</span>
+                    <span className="text-muted">{t("vault.estimatedValue")}</span>
+                    <span className="font-mono font-medium">{formatCurrency(estimatedValue, locale)}</span>
                   </div>
                   <p className="mt-2 text-xs leading-5 text-muted">
-                    Assets cannot be withdrawn before the unlock date once the program is live.
+                    {t("vault.noEarlyWithdraw")}
                   </p>
                 </div>
 
                 <Button className="h-12 w-full rounded-[16px]" disabled={!financialExecutionEnabled} onClick={openLockReview} variant="primary">
                   <HugeiconsIcon color="currentColor" icon={SafeIcon} size={16} strokeWidth={1.8} />
-                  Review lock
+                  {t("vault.reviewLock")}
                 </Button>
 
                 {!programLive ? (
@@ -407,7 +409,7 @@ export function VaultDashboard() {
                       size={14}
                       strokeWidth={1.8}
                     />
-                    Review opens a preview only. Sign stays disabled while the vault program is offline.
+                    {t("vault.previewNote")}
                   </p>
                 ) : null}
               </>
@@ -417,8 +419,8 @@ export function VaultDashboard() {
 
         <Card className="overflow-hidden">
           <CardHeader>
-            <h2 className="font-display text-lg font-semibold">Active locks</h2>
-            <p className="text-sm text-muted">Ticker, quantity, value, unlock date, and eligibility.</p>
+            <h2 className="font-display text-lg font-semibold">{t("vault.activeLocks")}</h2>
+            <p className="text-sm text-muted">{t("vault.activeSubtitle")}</p>
           </CardHeader>
           <div className="overflow-x-auto">
             {isLoading && positions.length === 0 ? (
@@ -430,21 +432,21 @@ export function VaultDashboard() {
                 <EmptyState
                   description={
                     programLive
-                      ? "Locks you create will appear here after confirmation."
-                      : "No indexed locks yet. New locks cannot be created until the vault program is live."
+                      ? t("vault.emptyLive")
+                      : t("vault.emptyOffline")
                   }
-                  title="No active locks"
+                  title={t("vault.emptyTitle")}
                 />
               </div>
             ) : (
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Asset</TableHead>
-                    <TableHead>Quantity</TableHead>
-                    <TableHead>Value</TableHead>
-                    <TableHead>Unlock</TableHead>
-                    <TableHead>Status</TableHead>
+                    <TableHead>{t("vault.asset")}</TableHead>
+                    <TableHead>{t("vault.colQuantity")}</TableHead>
+                    <TableHead>{t("vault.colValue")}</TableHead>
+                    <TableHead>{t("vault.colUnlock")}</TableHead>
+                    <TableHead>{t("vault.colStatus")}</TableHead>
                     <TableHead />
                   </TableRow>
                 </TableHeader>
@@ -456,21 +458,21 @@ export function VaultDashboard() {
                       <TableRow key={position.lockAddress}>
                         <TableCell>
                           <div>
-                            <p className="font-semibold">{position.ticker ?? "Asset"}</p>
+                            <p className="font-semibold">{position.ticker ?? t("vault.asset")}</p>
                             <p className="text-xs text-muted">
                               {position.name ?? position.mint.slice(0, 8)}
                             </p>
                           </div>
                         </TableCell>
-                        <TableCell className="font-mono">{formatNumber(position.quantity)}</TableCell>
-                        <TableCell className="font-mono">{formatCurrency(position.valueUsd)}</TableCell>
+                        <TableCell className="font-mono">{formatNumber(position.quantity, locale)}</TableCell>
+                        <TableCell className="font-mono">{formatCurrency(position.valueUsd, locale)}</TableCell>
                         <TableCell>
                           <div>
-                            <p>{formatDate(position.unlockAt)}</p>
+                            <p>{formatDate(position.unlockAt, locale, timeZone, t("common.notUpdated"))}</p>
                             <p className="text-xs text-muted">
                               {eligible
-                                ? "Eligible now"
-                                : `${remaining} day${remaining === 1 ? "" : "s"} left`}
+                                ? t("vault.eligibleNow")
+                                : t("vault.daysLeft", { count: remaining })}
                             </p>
                           </div>
                         </TableCell>
@@ -478,10 +480,10 @@ export function VaultDashboard() {
                           <span
                             className={cn(
                               "inline-flex rounded-full px-2.5 py-1 text-xs font-semibold",
-                              eligible ? "bg-green-100 text-green-900" : "bg-panel-subtle text-muted",
+                              eligible ? "bg-success-surface text-success" : "bg-panel-subtle text-muted",
                             )}
                           >
-                            {eligible ? "Eligible" : "Locked"}
+                            {eligible ? t("vault.eligible") : t("vault.locked")}
                           </span>
                         </TableCell>
                         <TableCell className="text-right">
@@ -491,7 +493,7 @@ export function VaultDashboard() {
                             size="sm"
                             variant="secondary"
                           >
-                            {eligible ? "Review unlock" : "Locked"}
+                            {eligible ? t("vault.reviewUnlock") : t("vault.locked")}
                           </Button>
                         </TableCell>
                       </TableRow>

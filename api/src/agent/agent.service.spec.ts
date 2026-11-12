@@ -5,6 +5,8 @@ import type {
 } from '../../types/agent';
 import { tooManyRequests } from '../common/rate-limit';
 import { AgentService } from './agent.service';
+import { CompanyBriefService } from './company-brief.service';
+import { AgentToolRegistry } from './tools/agent-tool.registry';
 
 jest.mock('@privy-io/node', () => ({ PrivyClient: jest.fn() }));
 
@@ -694,5 +696,192 @@ describe('AgentService', () => {
       'Dilution is the real risk.',
     );
     expect(creates[0]?.[0].instructions).not.toContain('not financial advice');
+  });
+
+  it('streams sourced company research for "research NVIDIA"', async () => {
+    const message = 'research NVIDIA';
+    const stock = { id: 'nvda', ticker: 'NVDA', name: 'NVIDIA' };
+    const env = { OPENAI_MODEL: 'gpt-5-mini' } as never;
+    const market = { getStock: jest.fn().mockResolvedValue(stock) };
+    const research = { getStock: jest.fn() };
+    const companyBrief = new CompanyBriefService(openai as never, env);
+    const registry = new AgentToolRegistry(
+      {} as never,
+      {} as never,
+      market as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      undefined,
+      research as never,
+      undefined,
+      companyBrief,
+    );
+    service = new AgentService(
+      repository as never,
+      registry,
+      portfolioService as never,
+      env,
+      openai as never,
+    );
+    repository.listMessages.mockResolvedValue([
+      {
+        id: 'user-research',
+        threadId: 'thread-1',
+        role: 'user',
+        content: message,
+        createdAt: thread.createdAt,
+      },
+    ]);
+
+    const sections = [
+      {
+        title: 'NVIDIA Form 10-Q',
+        url: 'https://investor.nvidia.com/files/doc_financials/2027/NVDA-2027-Q2-10Q-Final-including-exhibits.pdf',
+        text: 'NVIDIA sells GPUs, networking and software to cloud providers and other buyers.',
+      },
+      {
+        title: 'NVIDIA Q2 FY2027 results',
+        url: 'https://investor.nvidia.com/news/press-release-details/2026/NVIDIA-Announces-Financial-Results-for-Second-Quarter-Fiscal-2027/',
+        text: 'In Q2 FY2027, reported August 26, revenue was $96.2 billion, up 106% year over year.',
+      },
+      {
+        title: 'NVIDIA Q3 earnings date',
+        url: 'https://investor.nvidia.com/news/press-release-details/2026/NVIDIA-Sets-Conference-Call-for-Third-Quarter-Financial-Results/',
+        text: 'The November 17 results are the next checkpoint for demand after rapid data-center growth.',
+      },
+    ];
+    const modelAnswer = sections
+      .map(({ text, title }) => `${text} [${title}]`)
+      .join('\n\n');
+    const answer = sections
+      .map(({ text, title, url }) => `${text} [${title}](<${url}>)`)
+      .join('\n\n');
+    openai.responses.create
+      .mockResolvedValueOnce(
+        responseStream({
+          output: [
+            {
+              type: 'function_call',
+              name: 'getCompanyBrief',
+              call_id: 'public-research',
+              arguments: '{"assetIdOrTicker":"NVDA"}',
+            },
+          ],
+        }),
+      )
+      .mockResolvedValueOnce({
+        status: 'completed',
+        output: [
+          {
+            type: 'message',
+            content: sections.map(({ text, title, url }) => ({
+              type: 'output_text',
+              text,
+              annotations: [{ type: 'url_citation', title, url }],
+            })),
+          },
+        ],
+      })
+      .mockResolvedValueOnce(
+        responseStream({ output_text: modelAnswer, output: [] }, [modelAnswer]),
+      );
+
+    const events: AgentStreamEvent[] = [];
+    for await (const event of service.streamMessage({
+      walletAddress: 'wallet-1',
+      message,
+    })) {
+      events.push(event);
+    }
+
+    const [initial, publicLookup, synthesis] =
+      openai.responses.create.mock.calls;
+    expect(initial?.[0]).toMatchObject({
+      input: [{ role: 'user', content: message }],
+      tools: expect.arrayContaining([
+        expect.objectContaining({ name: 'getCompanyBrief' }),
+      ]),
+    });
+    expect(publicLookup?.[0]).toMatchObject({
+      tool_choice: 'required',
+      tools: [expect.objectContaining({ type: 'web_search' })],
+    });
+    expect(JSON.parse(publicLookup?.[0].input)).toEqual({
+      company: 'NVIDIA',
+      ticker: 'NVDA',
+      asOf: expect.any(String),
+    });
+    const evidence = JSON.parse(
+      synthesis?.[0].input.find(
+        (item: { type?: string }) => item.type === 'function_call_output',
+      ).output,
+    );
+    expect(evidence.evidence).toEqual(
+      sections.map(({ text, title, url }) => ({
+        text,
+        sources: [{ title, url }],
+      })),
+    );
+    expect(research.getStock).not.toHaveBeenCalled();
+    expect(events.at(-1)).toMatchObject({
+      type: 'turn_completed',
+      message: { content: answer },
+    });
+  });
+
+  it('tells a sentiment mix not to relabel opportunity scores', async () => {
+    openai.responses.create.mockResolvedValue(
+      responseStream({
+        output_text:
+          'Writer opinions are not available on this turn, so this cannot be ranked by sentiment.',
+        output: [],
+      }),
+    );
+
+    for await (const event of service.streamMessage({
+      walletAddress: 'wallet-1',
+      message:
+        'i want a stock mix for 100 on tech and ai companies that have the best sentiment in the market',
+    })) {
+      void event;
+    }
+
+    const instructions = (
+      openai.responses.create.mock.calls as unknown as Array<
+        [{ instructions: string }]
+      >
+    )[0]?.[0].instructions;
+    expect(instructions).toMatch(/an opportunity score is momentum/i);
+    expect(instructions).toContain('do not substitute a ranked list');
+    expect(instructions).toContain('Do not offer to prepare a buy quote');
+  });
+
+  it('drops an unsolicited limit-order offer from the saved answer', async () => {
+    const offered =
+      'Mastercard has been climbing, with selling interest near ~$668. Recent trend up.\nWant me to propose a Jupiter Trigger limit buy around ~$605.84?';
+    openai.responses.create.mockResolvedValue(
+      responseStream({ output_text: offered, output: [] }, [offered]),
+    );
+
+    const events: AgentStreamEvent[] = [];
+    for await (const event of service.streamMessage({
+      walletAddress: 'wallet-1',
+      message: 'can we go over the mastercard bro ?',
+    })) {
+      events.push(event);
+    }
+
+    expect(events.some((event) => event.type === 'assistant_reset')).toBe(true);
+    expect(events.at(-1)).toMatchObject({
+      type: 'turn_completed',
+      message: {
+        content:
+          'Mastercard has been climbing, with selling interest near ~$668. Recent trend up.',
+      },
+    });
   });
 });

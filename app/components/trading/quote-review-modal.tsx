@@ -17,6 +17,7 @@ import type { ExecutionStatus, QuoteResponse } from "@/types";
 import { useApprovalReview } from "@/hooks/use-approval-review";
 import { MarketSessionNotice } from "./market-session-notice";
 import { PriceMovedReview } from "./price-moved-review";
+import { useI18n, type Translate } from "@/i18n/i18n";
 
 type TradeFlowStatus = "idle" | "quoted" | "preparing" | "signing" | "confirming" | "submitted" | "confirmed" | "failed";
 
@@ -41,11 +42,11 @@ interface QuoteReviewModalProps {
   onAcceptAlternative?: (quote: QuoteResponse) => void;
 }
 
-function formatExpiryLabel(secondsLeft: number, refreshing: boolean) {
-  if (refreshing) return "Updating quote…";
-  if (secondsLeft <= 0) return "Refreshing…";
-  if (secondsLeft < 60) return `${secondsLeft}s left`;
-  return `${Math.floor(secondsLeft / 60)}m ${secondsLeft % 60}s left`;
+function formatExpiryLabel(t: Translate, secondsLeft: number, refreshing: boolean) {
+  if (refreshing) return t("review.updatingQuote");
+  if (secondsLeft <= 0) return t("review.refreshing");
+  if (secondsLeft < 60) return t("review.secondsLeft", { seconds: secondsLeft });
+  return t("review.minutesLeft", { minutes: Math.floor(secondsLeft / 60), seconds: secondsLeft % 60 });
 }
 
 function Row({ label, value }: { label: string; value: string }) {
@@ -71,6 +72,7 @@ export function QuoteReviewModal({
   onSign,
   onAcceptAlternative,
 }: QuoteReviewModalProps) {
+  const { locale, t } = useI18n();
   const [accepted, setAccepted] = useState<{ forId: string; quote: QuoteResponse }>();
   // An accepted alternative replaces the requested quote until that changes.
   const reviewQuote =
@@ -94,14 +96,14 @@ export function QuoteReviewModal({
     : 0;
   const route = routeVenueLabel(quote?.provider);
   const warnings = [
-    quote && quote.priceImpactPercent >= 1 ? `Price impact is ${formatNumber(quote.priceImpactPercent, 2)}%. Review before signing.` : null,
-    refreshFailed ? "Could not refresh this quote. Retry to keep signing." : null,
+    quote && quote.priceImpactPercent >= 1 ? t("review.priceImpactWarning", { percent: formatNumber(quote.priceImpactPercent, locale, 2) }) : null,
+    refreshFailed ? t("review.refreshFailedWarning") : null,
   ].filter((warning): warning is string => Boolean(warning));
 
   return (
-    <Modal open={open} onClose={onClose} side="right" title={quote ? `Review ${quote.side} · ${quote.ticker}` : "Review trade"}>
+    <Modal open={open} onClose={onClose} side="right" title={quote ? t(quote.side === "buy" ? "review.titleBuy" : "review.titleSell", { ticker: quote.ticker }) : t("review.titleTrade")}>
       {!quote ? (
-        <Toast title="No quote loaded" description="Request a fresh quote from the trade ticket." tone="error" />
+        <Toast title={t("review.noQuoteTitle")} description={t("review.noQuoteDescription")} tone="error" />
       ) : review.priceMoved ? (
         <PriceMovedReview
           details={review.priceMoved}
@@ -112,15 +114,15 @@ export function QuoteReviewModal({
       ) : (
         <div className="space-y-5">
           <div className="space-y-3 rounded-[24px] border border-border p-4">
-            <Row label="You pay" value={`${formatNumber(quote.inputAmount, 6)} ${quote.inputSymbol}`} />
-            <Row label="You receive" value={`${formatNumber(quote.outputAmount, 6)} ${quote.outputSymbol}`} />
-            <Row label="Minimum received" value={`${formatNumber(minimumReceived, 6)} ${quote.outputSymbol}`} />
-            <Row label="Estimated price" value={formatCurrency(quote.estimatedPriceUsd)} />
-            <Row label="Price impact" value={`${formatNumber(quote.priceImpactPercent, 2)}%`} />
-            <Row label="Slippage" value={`${formatNumber(quote.slippageBps / 100, 2)}%`} />
-            {route ? <Row label="Route" value={route} /> : null}
-            <Row label="Estimated network fee" value={review.approval ? `${Number(review.approval.feeLamports) / 1e9} SOL` : "Preparing…"} />
-            <Row label="Quote expiry" value={formatExpiryLabel(secondsLeft, isRefreshingQuote)} />
+            <Row label={t("review.youPay")} value={`${formatNumber(quote.inputAmount, locale, 6)} ${quote.inputSymbol}`} />
+            <Row label={t("review.youReceive")} value={`${formatNumber(quote.outputAmount, locale, 6)} ${quote.outputSymbol}`} />
+            <Row label={t("review.minimumReceived")} value={`${formatNumber(minimumReceived, locale, 6)} ${quote.outputSymbol}`} />
+            <Row label={t("review.estimatedPrice")} value={formatCurrency(quote.estimatedPriceUsd, locale)} />
+            <Row label={t("review.priceImpact")} value={`${formatNumber(quote.priceImpactPercent, locale, 2)}%`} />
+            <Row label={t("review.slippage")} value={`${formatNumber(quote.slippageBps / 100, locale, 2)}%`} />
+            {route ? <Row label={t("review.route")} value={route} /> : null}
+            <Row label={t("review.estimatedFee")} value={review.approval ? `${Number(review.approval.feeLamports) / 1e9} SOL` : t("review.preparing")} />
+            <Row label={t("review.quoteExpiry")} value={formatExpiryLabel(t, secondsLeft, isRefreshingQuote)} />
           </div>
 
           <MarketSessionNotice session={quote.marketSession} />
@@ -128,24 +130,24 @@ export function QuoteReviewModal({
           {warnings.length ? (
             <div className="space-y-2">
               {warnings.map((warning) => (
-                <Toast key={warning} title="Review warning" description={warning} tone="info" />
+                <Toast key={warning} title={t("review.warningTitle")} description={warning} tone="info" />
               ))}
             </div>
           ) : null}
 
-          {error ? <Toast title="Trade error" description={error} tone="error" /> : null}
-          {review.error ? <Toast title="Unable to prepare trade" description={review.error} tone="error" /> : null}
-          {review.error ? <Button onClick={() => void review.prepare()} disabled={!financialExecutionEnabled || isBusy} variant="secondary">Retry preparation</Button> : null}
-          {review.expired && !signed ? <Toast title="Approval expired" description="Request a fresh quote before confirming." tone="info" /> : null}
+          {error ? <Toast title={t("review.tradeError")} description={error} tone="error" /> : null}
+          {review.error ? <Toast title={t("review.prepareFailed")} description={review.error} tone="error" /> : null}
+          {review.error ? <Button onClick={() => void review.prepare()} disabled={!financialExecutionEnabled || isBusy} variant="secondary">{t("review.retryPreparation")}</Button> : null}
+          {review.expired && !signed ? <Toast title={t("review.approvalExpired")} description={t("review.approvalExpiredDescription")} tone="info" /> : null}
 
           {confirmation ? (
-            <div className="rounded-[18px] border border-green-200 bg-green-50 p-4 text-sm text-green-900">
+            <div className="rounded-[18px] border border-success-border bg-success-surface p-4 text-sm text-success">
               <div className="flex items-start gap-3">
                 <HugeiconsIcon className="mt-0.5 shrink-0" color="currentColor" icon={CheckmarkCircle01Icon} size={16} strokeWidth={1.8} />
                 <div>
-                  <p className="font-semibold">Tracking transaction</p>
-                  <p className="mt-1 text-xs opacity-75">Oren is verifying the fill without holding up your trade.</p>
-                  {route ? <p className="mt-1 text-xs font-medium">Routed through {route}</p> : null}
+                  <p className="font-semibold">{t("review.tracking")}</p>
+                  <p className="mt-1 text-xs opacity-75">{t("review.trackingDescription")}</p>
+                  {route ? <p className="mt-1 text-xs font-medium">{t("review.routedThrough", { route })}</p> : null}
                   <p className="mt-1 break-all text-xs opacity-75">{confirmation.signature}</p>
                 </div>
               </div>
@@ -155,34 +157,34 @@ export function QuoteReviewModal({
           {refreshFailed && onRefreshQuote ? (
             <Button className="h-12 w-full rounded-[16px]" onClick={onRefreshQuote} variant="secondary">
               <HugeiconsIcon color="currentColor" icon={AlertCircleIcon} size={16} strokeWidth={1.8} />
-              Retry quote refresh
+              {t("review.retryRefresh")}
             </Button>
           ) : (
             <Button className="h-12 w-full rounded-[16px]" disabled={!financialExecutionEnabled || signDisabled} onClick={() => review.approval && reviewQuote && void onSign(review.approval.id, reviewQuote)} variant="primary">
               {isBusy ? (
                 <>
                   <HugeiconsIcon className="animate-spin" color="currentColor" icon={Clock01Icon} size={16} strokeWidth={1.8} />
-                  {status === "preparing" ? "Preparing" : status === "signing" ? "Approving trade…" : "Confirming"}
+                  {status === "preparing" ? t("review.preparingShort") : status === "signing" ? t("review.approvingTrade") : t("review.confirming")}
                 </>
               ) : status === "submitted" ? (
                 <>
                   <HugeiconsIcon color="currentColor" icon={CheckmarkCircle01Icon} size={16} strokeWidth={1.8} />
-                  Submitted · syncing
+                  {t("review.submittedSyncing")}
                 </>
               ) : confirmed ? (
                 <>
                   <HugeiconsIcon color="currentColor" icon={CheckmarkCircle01Icon} size={16} strokeWidth={1.8} />
-                  Confirmed
+                  {t("review.confirmed")}
                 </>
               ) : waitingOnRefresh ? (
                 <>
                   <HugeiconsIcon className="animate-spin" color="currentColor" icon={Loading03Icon} size={16} strokeWidth={1.8} />
-                  Updating quote…
+                  {t("review.updatingQuote")}
                 </>
               ) : (
                 <>
                   <HugeiconsIcon color="currentColor" icon={Wallet02Icon} size={16} strokeWidth={1.8} />
-                  {review.loading ? "Preparing trade…" : quote.side === "buy" ? "Confirm buy" : "Confirm sell"}
+                  {review.loading ? t("review.preparingTrade") : quote.side === "buy" ? t("review.confirmBuy") : t("review.confirmSell")}
                 </>
               )}
             </Button>

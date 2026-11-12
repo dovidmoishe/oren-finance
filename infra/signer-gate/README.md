@@ -43,7 +43,7 @@ exact request against its own budget. Gate-side state cannot reset that budget.
 An identical retry may reuse the same authorization; replacement bytes for an
 already claimed intent are rejected.
 
-API authorization charges are retained for the entire grant (at most 24 hours),
+API authorization charges count toward a rolling 24-hour budget,
 including uncertain or failed attempts. They are not released based on a gate
 failure report. This is deliberately conservative; a safe independent refund
 or reconciliation mechanism is separate future work. Browser settings report
@@ -176,7 +176,15 @@ non-allowlisted user can enroll or trade; with either flag off, the named
 allowlists apply as before. A `*` allowlist entry is rejected on both services.
 Public access lifts only the allowlist: every grant still needs the owner's
 wallet-signed terms, the $25 per-trade and $50 daily ceilings, 0.5% slippage,
-24-hour expiry, the tradable-stock check and the two-key quorum all still apply.
+owner-authorized expiry and revocation,
+the tradable-stock check and the two-key quorum all still apply.
+
+A policy candidate generated with `--until-revoked` omits the shared time cutoff
+and retains the trade amount, asset, route and slippage rules. Use a new state
+directory for the candidate. Enrollment requires migration `0015_mcp_grant_expiry`
+and the new policy pins. The wallet owner must approve the exact until-revoked
+grant and attach the new policy. Existing dated grants retain their expiry.
+Connector OAuth expiration is independent of wallet permission.
 Turn the flags off to return to the allowlist without a redeploy of code.
 
 ## Request and retry states

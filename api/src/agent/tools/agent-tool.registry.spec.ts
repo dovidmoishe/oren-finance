@@ -127,6 +127,11 @@ describe('AgentToolRegistry', () => {
         'prepareUnlock',
       ]),
     );
+    expect(
+      registry
+        .getSchemas()
+        .find((schema) => schema.name === 'findOpportunities')?.description,
+    ).toMatch(/not market sentiment/i);
   });
 
   it('combines canonical stock resolution with live Bitget context', async () => {
@@ -262,6 +267,27 @@ describe('AgentToolRegistry', () => {
       ticker: 'NVDA',
       speak: { lead: expect.stringContaining('NVDA') as string },
     });
+  });
+
+  it('labels rankings as momentum, trend, and trading activity', async () => {
+    intelligence.getOpportunities.mockResolvedValue([
+      {
+        assetId: 'ttwo',
+        ticker: 'TTWO',
+        name: 'Take-Two Interactive',
+        opportunityScore: 77.22,
+        highlights: ['Strong 7d momentum'],
+        signals: { momentum7d: 8, momentum30d: 4, volumeTrend: 1.4 },
+      },
+    ]);
+
+    const ranked = await registry.dispatch(
+      'findOpportunities',
+      { minScore: null, limit: null },
+      { walletAddress: 'wallet-1' },
+    );
+    expect(JSON.stringify(ranked.modelOutput)).toContain('TTWO');
+    expect(JSON.stringify(ranked.modelOutput)).toMatch(/not market sentiment/);
   });
 
   it('dispatches vault tools and extracts artifacts', async () => {

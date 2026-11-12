@@ -9,7 +9,7 @@ export const grantTermsSchema = z
     dailyUsd: z.string().regex(/^(?:0|[1-9]\d*)\.\d{6}$/),
     maxSlippageBps: z.number().int().min(1).max(50),
     allowSell: z.boolean(),
-    expiresAt: z.iso.datetime(),
+    expiresAt: z.iso.datetime().nullable(),
   })
   .strict();
 const ownerMessageSchema = z
@@ -84,7 +84,9 @@ export function verifyOwnerProof(
     throw new Error('Wallet did not authorize these permission terms');
   if (
     action !== 'revoke' &&
-    (!value.terms || new Date(value.terms.expiresAt).getTime() <= now)
+    (!value.terms ||
+      (value.terms.expiresAt !== null &&
+        Date.parse(value.terms.expiresAt) <= now))
   )
     throw new Error('Permission terms are unavailable');
   return value;
@@ -103,7 +105,7 @@ export function sameGrantTerms(
     dailyLimitUsd: string;
     maxSlippageBps: number;
     allowSell: boolean;
-    expiresAt: Date;
+    expiresAt: Date | null;
   },
 ) {
   return (
@@ -117,6 +119,6 @@ export function sameGrantTerms(
     value.terms.dailyUsd === grant.dailyLimitUsd &&
     value.terms.maxSlippageBps === grant.maxSlippageBps &&
     value.terms.allowSell === grant.allowSell &&
-    value.terms.expiresAt === grant.expiresAt.toISOString()
+    value.terms.expiresAt === (grant.expiresAt?.toISOString() ?? null)
   );
 }

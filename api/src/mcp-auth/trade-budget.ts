@@ -8,7 +8,7 @@ import {
   mcpTradeIntents,
 } from '../database/schema';
 
-const DAY_MS = 24 * 60 * 60_000;
+import { DAY_MS, grantExpired } from './grant-duration';
 
 /** Numeric(18,6) amounts are compared as exact integer microdollars. */
 export function usdMicros(value: string): bigint {
@@ -137,7 +137,7 @@ export async function reserveTradeBudget(
     if (
       !delegation ||
       delegation.status !== 'active' ||
-      delegation.expiresAt <= new Date()
+      grantExpired(delegation.expiresAt)
     )
       return { status: 'inactive' } as const;
     const [connection] = await tx

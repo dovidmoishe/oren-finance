@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { mcpEnrollmentLinks } from '../services/mcp-enrollment-flow.ts';
-import { parseGrantSettings } from '../services/mcp-grant-settings.ts';
+import { grantDurationOptions, parseGrantSettings } from '../services/mcp-grant-settings.ts';
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import vm from 'node:vm';
@@ -19,7 +19,7 @@ function loadComponent(path, mocks = {}) {
     if (id.endsWith('.module.css')) return { default: {} };
     if (id === 'next/link') return { default: ({ children, ...props }) => createElement('a', props, children) };
     if (id === '@/services/mcp-enrollment-flow') return { mcpEnrollmentLinks };
-    if (id === '@/services/mcp-grant-settings') return { parseGrantSettings };
+    if (id === '@/services/mcp-grant-settings') return { grantDurationOptions, parseGrantSettings };
     if (id === '@hugeicons/react') return { HugeiconsIcon: () => null };
     if (id === '@hugeicons/core-free-icons') return {};
     return require(id);
@@ -55,10 +55,12 @@ test('active permission offers a continuation link, or instructions without a pe
 test('the form discloses both sides without a permission selector and respects server availability', () => {
   const { TradeGrantEditor } = loadComponent('../app/settings/mcp/trade-grant-editor.tsx');
   for (const sellAvailable of [true, false]) {
-    const html = renderToStaticMarkup(createElement(TradeGrantEditor, { sellAvailable, busy: false, signerConfigured: true, onReview() {} }));
+    const html = renderToStaticMarkup(createElement(TradeGrantEditor, { sellAvailable, maxDurationHours: 0, untilRevoked: true, busy: false, signerConfigured: true, onReview() {} }));
     assert.doesNotMatch(html, /Trading permission|Choose which trades/);
     assert.match(html, sellAvailable ? /allow my agent to buy and sell within them/ : /allow my agent to buy within them/);
     assert.match(html, /disabled=""/); // Consent is required before review.
+    assert.match(html, /Until revoked/);
+    assert.doesNotMatch(html, /<select/);
   }
 });
 

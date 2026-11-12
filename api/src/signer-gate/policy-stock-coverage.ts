@@ -32,6 +32,37 @@ export function policyAllowsStock(
   );
 }
 
+/** Earliest unconditional time cutoff in the fingerprint-verified policy. */
+export function signingPolicyExpiresAt(
+  policy: Parameters<typeof policyAllowsStock>[0],
+): number | null {
+  const cutoffs = (policy.rules ?? []).flatMap((rule) => {
+    const [condition] = rule.conditions ?? [];
+    if (
+      !rule.conditions?.some(
+        (c) =>
+          c.field_source === 'system' && c.field === 'current_unix_timestamp',
+      )
+    )
+      return [];
+    if (
+      rule.action !== 'DENY' ||
+      rule.conditions?.length !== 1 ||
+      condition?.field_source !== 'system' ||
+      condition.field !== 'current_unix_timestamp' ||
+      condition.operator !== 'gte' ||
+      (typeof condition.value !== 'number' &&
+        typeof condition.value !== 'string')
+    )
+      throw new Error('Signing policy has an unsupported time condition');
+    const milliseconds = Number(condition.value) * 1000;
+    if (!Number.isSafeInteger(milliseconds) || milliseconds <= 0)
+      throw new Error('Signing policy has an invalid expiry');
+    return [milliseconds];
+  });
+  return cutoffs.length ? Math.min(...cutoffs) : null;
+}
+
 /** Read only the already fingerprint-verified policy, before reserving a trade. */
 export function policyAllowsDestinationAccount(
   policy: Parameters<typeof policyAllowsStock>[0],

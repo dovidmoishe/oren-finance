@@ -9,6 +9,7 @@ import {
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Button, Modal, Toast, formatCurrency, formatDate, formatNumber } from "@/components/ui";
+import { useI18n } from "@/i18n/i18n";
 
 export type VaultReviewMode = "lock" | "unlock";
 
@@ -47,77 +48,78 @@ export function VaultReviewModal({
   error,
   onClose,
 }: VaultReviewModalProps) {
+  const { locale, timeZone, t } = useI18n();
   const isLock = details?.mode === "lock";
-  const title = isLock ? "Review lock" : "Review unlock";
+  const title = isLock ? t("vaultReview.reviewLock") : t("vaultReview.reviewUnlock");
 
   return (
     <Modal open={open} onClose={onClose} side="right" title={title}>
       {!details ? (
-        <Toast title="Nothing to review" description="Choose an asset and unlock date first." tone="error" />
+        <Toast title={t("vaultReview.nothingTitle")} description={t("vaultReview.nothingDescription")} tone="error" />
       ) : (
         <div className="space-y-5">
           <div className="rounded-[24px] border border-border bg-panel-subtle p-4">
             <p className="text-xs uppercase tracking-[0.12em] text-muted">
-              {isLock ? "Lock position" : "Unlock position"}
+              {isLock ? t("vaultReview.lockPosition") : t("vaultReview.unlockPosition")}
             </p>
             <h3 className="mt-1 font-display text-2xl font-semibold">{details.ticker}</h3>
             {details.name ? <p className="mt-1 text-sm text-muted">{details.name}</p> : null}
             <div className="mt-5 space-y-3">
-              <Row label="Quantity" value={formatNumber(details.quantity)} />
-              <Row label="Est. value" value={formatCurrency(details.valueUsd)} />
-              <Row label="Unlock date" value={formatDate(details.unlockAt)} />
+              <Row label={t("vaultReview.quantity")} value={formatNumber(details.quantity, locale)} />
+              <Row label={t("vaultReview.estValue")} value={formatCurrency(details.valueUsd, locale)} />
+              <Row label={t("vaultReview.unlockDate")} value={formatDate(details.unlockAt, locale, timeZone, t("common.notUpdated"))} />
               {typeof details.daysRemaining === "number" ? (
                 <Row
-                  label="Time remaining"
+                  label={t("vaultReview.timeRemaining")}
                   value={
                     details.daysRemaining <= 0
-                      ? "Eligible now"
-                      : `${details.daysRemaining} day${details.daysRemaining === 1 ? "" : "s"}`
+                      ? t("vaultReview.eligibleNow")
+                      : t("vaultReview.days", { count: details.daysRemaining })
                   }
                 />
               ) : null}
               {details.lockAddress ? (
-                <Row label="Lock address" value={`${details.lockAddress.slice(0, 4)}…${details.lockAddress.slice(-4)}`} />
+                <Row label={t("vaultReview.lockAddress")} value={`${details.lockAddress.slice(0, 4)}…${details.lockAddress.slice(-4)}`} />
               ) : null}
             </div>
           </div>
 
           <div className="rounded-[18px] border border-border bg-panel p-4 text-sm leading-6 text-muted">
             {isLock
-              ? "Locked assets cannot be withdrawn before the unlock date. The timelock is enforced onchain once the vault program is live."
-              : "Unlock returns tokens to your wallet only after the unlock date. Premature withdraw is never available."}
+              ? t("vaultReview.lockNote")
+              : t("vaultReview.unlockNote")}
           </div>
 
           {!programLive ? (
-            <div className="rounded-[18px] border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
+            <div className="rounded-[18px] border border-warning-border bg-warning-surface p-4 text-sm text-warning">
               <div className="flex gap-3">
                 <HugeiconsIcon className="mt-0.5 shrink-0" color="currentColor" icon={SafeIcon} size={16} strokeWidth={1.8} />
                 <div>
-                  <p className="font-semibold">Vault program is not live yet</p>
-                  <p className="mt-1 text-amber-900/80">
-                    You can review this flow, but wallet signing is disabled until the onchain program is deployed.
+                  <p className="font-semibold">{t("vaultReview.offlineTitle")}</p>
+                  <p className="mt-1 text-warning/80">
+                    {t("vaultReview.offlineBody")}
                   </p>
                 </div>
               </div>
             </div>
           ) : null}
 
-          {error ? <Toast title="Vault error" description={error} tone="error" /> : null}
+          {error ? <Toast title={t("vaultReview.error")} description={error} tone="error" /> : null}
 
           <Button className="h-12 w-full rounded-[16px]" disabled variant="primary">
             <HugeiconsIcon color="currentColor" icon={programLive ? Wallet02Icon : Clock01Icon} size={16} strokeWidth={1.8} />
-            {programLive ? "Review and sign" : "Signing unavailable"}
+            {programLive ? t("vaultReview.reviewSign") : t("vaultReview.signingUnavailable")}
           </Button>
 
           {!programLive ? (
             <p className="flex items-start gap-2 text-xs leading-5 text-muted">
               <HugeiconsIcon className="mt-0.5 shrink-0" color="currentColor" icon={AlertCircleIcon} size={14} strokeWidth={1.8} />
-              Prepare and confirm endpoints stay blocked while the program is offline. No wallet popup will open.
+              {t("vaultReview.offlineFooter")}
             </p>
           ) : (
             <p className="flex items-start gap-2 text-xs leading-5 text-muted">
               <HugeiconsIcon className="mt-0.5 shrink-0" color="currentColor" icon={CheckmarkCircle01Icon} size={14} strokeWidth={1.8} />
-              When live, Oren prepares an unsigned transaction and you sign it in your wallet.
+              {t("vaultReview.liveFooter")}
             </p>
           )}
         </div>

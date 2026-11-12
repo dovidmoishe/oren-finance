@@ -151,4 +151,29 @@ describe('official Apple companyconcept responses', () => {
     expect(current.data.latestAnnual?.revenue.value).toBe(478834000000);
     expect(current.data.growth?.annualRevenue.value).toBe(0.150598);
   });
+
+  it('keeps FY2026 when the deprecated SalesRevenueNet concept is merged in', () => {
+    const current = loadConcept(
+      'aapl-revenue-concept.json',
+      '472558a2993a429b6a4381ff32cc278f95b3d0807c6efa6cabc508f6baf61c79',
+    );
+    const legacy = loadConcept(
+      'aapl-sales-revenue-net.json',
+      '8b37365a7f187479d40d872ed51551ca40a3981268248b91ba2643cbfb152591',
+    );
+    const merged = report([...legacy.facts, ...current.facts], '2026-11-08');
+    expect(merged.data.latestQuarter).toMatchObject({
+      fiscalYear: 2026,
+      fiscalQuarter: 4,
+      start: '2026-06-28',
+      end: '2026-09-26',
+      revenue: { value: 114477000000, derived: true },
+    });
+    expect(merged.data.latestAnnual?.revenue.value).toBe(478834000000);
+    expect(merged.data.ttm?.revenue.value).toBe(478834000000);
+    expect(merged.data.growth?.annualRevenue.value).toBe(0.150598);
+    expect(merged.data.latestQuarter?.revenue.citation?.concept).not.toBe(
+      'SalesRevenueNet',
+    );
+  });
 });

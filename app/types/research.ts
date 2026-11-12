@@ -15,12 +15,34 @@ export interface CompanyLink {
   url: string;
 }
 
+export interface CompanyCitationView {
+  form: string;
+  filed: string;
+  periodStart?: string;
+  periodEnd: string;
+  sourceUrl: string;
+}
+
 export interface CompanyMetricView {
   available: boolean;
   reason?: string;
   display?: string;
   value?: number;
   derived?: boolean;
+  citation?: CompanyCitationView;
+  inputCitations?: CompanyCitationView[];
+}
+
+export interface CompanyPeriodView {
+  fiscalYear: number;
+  fiscalQuarter?: number;
+  start: string;
+  end: string;
+  derived?: boolean;
+  revenue?: CompanyMetricView;
+  netIncome?: CompanyMetricView;
+  operatingMargin?: CompanyMetricView;
+  revenueGrowth?: CompanyMetricView;
 }
 
 export interface CompanyResearchData {
@@ -29,22 +51,16 @@ export interface CompanyResearchData {
   briefing: string[];
   links: CompanyLink[];
   filingCadence?: "current" | "stale";
-  latestQuarter?: {
-    fiscalYear: number;
-    fiscalQuarter?: number;
-    start: string;
-    end: string;
-    derived?: boolean;
+  latestQuarter?: CompanyPeriodView;
+  latestAnnual?: CompanyPeriodView;
+  ttm?: {
     revenue?: CompanyMetricView;
     netIncome?: CompanyMetricView;
     operatingMargin?: CompanyMetricView;
-  };
-  latestAnnual?: {
-    fiscalYear: number;
-    revenue?: CompanyMetricView;
     revenueGrowth?: CompanyMetricView;
+    start?: string;
+    end?: string;
   };
-  ttm?: { revenue?: CompanyMetricView };
   filings: Array<{
     form: string;
     filed: string;

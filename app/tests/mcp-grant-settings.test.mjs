@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { parseGrantSettings } from '../services/mcp-grant-settings.ts';
+import { grantDurationOptions, parseGrantSettings } from '../services/mcp-grant-settings.ts';
 import { validateMcpSignerConfig } from '../scripts/validate-mcp-signer-config.mjs';
 
 const draft = { perTradeUsd: '25', dailyUsd: '50', slippagePercent: '0.5', durationHours: '24' };
@@ -17,6 +17,17 @@ test('rejects empty, nonfinite, out-of-range and overprecise limits', () => {
 test('new grants include buys and sells when available, without a side selection', () => {
   assert.equal(parseGrantSettings(draft, true).allowSell, true);
   assert.equal(parseGrantSettings(draft, false).allowSell, false);
+});
+test('multi-day durations are available only within the policy limit', () => {
+  assert.deepEqual(grantDurationOptions(72), [1, 6, 12, 24, 48, 72]);
+  assert.deepEqual(grantDurationOptions(23), [1, 6, 12]);
+  assert.equal(parseGrantSettings({ ...draft, durationHours: '72' }, false, 72).durationHours, 72);
+  assert.throws(() => parseGrantSettings({ ...draft, durationHours: '72' }, false, 71));
+  assert.throws(() => parseGrantSettings({ ...draft, durationHours: '73' }, false, 100));
+});
+test('until-revoked mode sends an explicit null duration', () => {
+  assert.equal(parseGrantSettings(draft, false, 0, true).durationHours, null);
+  assert.throws(() => parseGrantSettings(draft, false, 0));
 });
 test('production image builds require both trusted signer pins; previews remain read/review only', () => {
   const env = { NEXT_PUBLIC_DEPLOYMENT_ENV: 'production', NEXT_PUBLIC_MCP_SIGNER_QUORUM_ID: 'quorum', NEXT_PUBLIC_MCP_SIGNER_POLICY_ID: 'policy' };
