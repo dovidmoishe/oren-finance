@@ -32,13 +32,16 @@ test('CI aggregate runs on the light lane, so a polling control gate cannot dead
 
 test('production publishers cannot share PR identities, daemons or remote caches', () => {
   const production=workflow('deploy-production');
-  for (const name of ['build-api','build-app']) {
-    assert.match(job(production,name), /oren-release/);
-    assert.doesNotMatch(job(production,name), /oren-build\]|type=gha/);
-    assert.match(job(production,name), /from=type=local,src=\/home\/oren-ci-release/);
-    assert.match(job(production,name), /cache-from: \$\{\{ steps.cache.outputs.from \}\}/);
-    assert.match(job(production,name), /digest: \$\{\{ steps.publish.outputs.digest \}\}/);
-  }
+  const build=job(production,'build-images');
+  assert.match(build, /oren-release/);
+  assert.doesNotMatch(build, /oren-build\]|type=gha|cache-to:/);
+  assert.match(build, /keep-state: true/);
+  assert.match(build, /name: oren-api-release/);
+  assert.match(build, /name: oren-app-release/);
+  assert.match(build, /from=type=local,src=\/home\/oren-ci-release\/cache\/api/);
+  assert.match(build, /from=type=local,src=\/home\/oren-ci-release\/cache\/app/);
+  assert.match(build, /api_digest: \$\{\{ steps\.api\.outputs\.digest \}\}/);
+  assert.match(build, /app_digest: \$\{\{ steps\.app\.outputs\.digest \}\}/);
   assert.match(job(workflow('deploy-docs'),'build'), /oren-release/);
   assert.match(job(production,'deploy'), /Select immutable production images/);
   assert.match(job(production,'deploy'), /\/opt\/oren\/releases\/\$IMAGE_TAG.env/);
@@ -51,10 +54,18 @@ test('production publishers cannot share PR identities, daemons or remote caches
   assert.match(docker,/chmod -R a\+rX lib\/db/);
 });
 
-test('builds wait for exact-SHA CI before competing for the single build worker', () => {
+test('production images build ahead of the CI gate and only a verified SHA deploys', () => {
+  const production = workflow('deploy-production');
+  assert.doesNotMatch(job(production, 'build-images'), /\n\s+needs:/);
+  const deploy = job(production, 'deploy');
+  assert.match(deploy, /needs: \[ci-gate, build-images\]/);
+  assert.match(deploy, /needs\['ci-gate'\]\.result == 'success'/);
+  assert.match(deploy, /needs\['build-images'\]\.result == 'success'/);
+  assert.match(deploy, /workflow_dispatch/);
+  assert.match(job(production, 'ci-gate'), /coordinateReleaseGate/);
+  assert.match(job(production, 'release'), /needs: \[build-images, deploy\]/);
   for (const name of ['build-api', 'build-app']) {
     assert.match(job(workflow('preview'), name), /needs: \[resolve, ci-gate\]/);
-    assert.match(job(workflow('deploy-production'), name), /needs: ci-gate/);
   }
   for (const file of ['preview', 'deploy-production']) {
     assert.match(job(workflow(file), 'ci-gate'), /oren-control/);

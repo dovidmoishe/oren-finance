@@ -808,9 +808,13 @@ class Handler(socketserver.StreamRequestHandler):
             except (OSError, ValueError, KeyError):
                 break
             time.sleep(1)
-        self.server.admission.note_worker_exit(uid, pid, stamp)
-        while not self.server.admission.drain(uid):
-            time.sleep(1)
+        try:
+            self.server.admission.note_worker_exit(uid, pid, stamp)
+        except ValueError:
+            # The shared reaper may already have released this exact lease.
+            pass
+        # The shared reaper drains held slices. Keeping this request alive
+        # until idle leaks a thread whenever a successor reuses the slot.
 
 
 class Server(socketserver.ThreadingUnixStreamServer):
