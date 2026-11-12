@@ -1,4 +1,12 @@
 {
+  "marketForYou": {
+    "title": "Dành cho bạn",
+    "chooseDetail": "Chọn ngành để xem cổ phiếu phù hợp với sở thích của bạn.",
+    "choose": "Chọn ngành",
+    "empty": "Chưa có cổ phiếu phù hợp với các ngành bạn chọn.",
+    "edit": "Chỉnh sửa ngành",
+    "error": "Không thể tải đề xuất của bạn."
+  },
   "preferences": {
     "title": "Tùy chọn",
     "followTitle": "Bạn theo dõi ngành nào?",

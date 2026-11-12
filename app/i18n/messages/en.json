@@ -1,4 +1,12 @@
 {
+  "marketForYou": {
+    "title": "For You",
+    "chooseDetail": "Choose sectors to see stocks that match your interests.",
+    "choose": "Choose sectors",
+    "empty": "No stocks match your selected sectors yet.",
+    "edit": "Edit sectors",
+    "error": "Couldn’t load your picks."
+  },
   "preferences": {
     "title": "Preferences",
     "followTitle": "What do you follow?",

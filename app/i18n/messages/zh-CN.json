@@ -1,4 +1,12 @@
 {
+  "marketForYou": {
+    "title": "为你推荐",
+    "chooseDetail": "选择行业，查看与你兴趣匹配的股票。",
+    "choose": "选择行业",
+    "empty": "暂时没有符合所选行业的股票。",
+    "edit": "编辑行业",
+    "error": "无法加载推荐。"
+  },
   "preferences": {
     "title": "偏好设置",
     "followTitle": "你关注哪些行业？",

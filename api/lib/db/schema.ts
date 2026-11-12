@@ -471,6 +471,7 @@ export const stockSignals = pgTable(
 export const cachedStocks = pgTable(
   'cached_stocks',
   {
+    sectorId: text('sector_id'),
     assetId: text('asset_id').primaryKey(),
     ticker: text('ticker').notNull(),
     name: text('name').notNull(),

@@ -1,4 +1,12 @@
 {
+  "marketForYou": {
+    "title": "Pour vous",
+    "chooseDetail": "Choisissez des secteurs pour découvrir des actions qui vous intéressent.",
+    "choose": "Choisir des secteurs",
+    "empty": "Aucune action ne correspond encore à vos secteurs.",
+    "edit": "Modifier les secteurs",
+    "error": "Impossible de charger vos suggestions."
+  },
   "preferences": {
     "title": "Préférences",
     "followTitle": "Quels secteurs suivez-vous ?",

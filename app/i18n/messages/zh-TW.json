@@ -1,4 +1,12 @@
 {
+  "marketForYou": {
+    "title": "為你推薦",
+    "chooseDetail": "選擇產業，查看符合你興趣的股票。",
+    "choose": "選擇產業",
+    "empty": "目前沒有符合所選產業的股票。",
+    "edit": "編輯產業",
+    "error": "無法載入推薦。"
+  },
   "preferences": {
     "title": "偏好設定",
     "followTitle": "你關注哪些產業？",

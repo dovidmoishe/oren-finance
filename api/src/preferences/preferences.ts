@@ -1,18 +1,6 @@
 import { BadRequestException } from '@nestjs/common';
 
-const sectorIds = new Set([
-  'communicationServices',
-  'consumerDiscretionary',
-  'consumerStaples',
-  'energy',
-  'financials',
-  'healthCare',
-  'industrials',
-  'informationTechnology',
-  'materials',
-  'realEstate',
-  'utilities',
-]);
+import { isSectorId, sectorIds } from '../../types/sectors';
 
 const fields = new Set([
   'sectors',
@@ -33,11 +21,8 @@ export function parsePreferences(body: unknown) {
     body as Record<string, unknown>;
   if (
     !Array.isArray(sectors) ||
-    sectors.length > sectorIds.size ||
-    !sectors.every(
-      (sector): sector is string =>
-        typeof sector === 'string' && sectorIds.has(sector),
-    ) ||
+    sectors.length > sectorIds.length ||
+    !sectors.every(isSectorId) ||
     new Set(sectors).size !== sectors.length
   ) {
     throw new BadRequestException('Invalid sectors');

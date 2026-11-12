@@ -1,4 +1,12 @@
 {
+  "marketForYou": {
+    "title": "Für Sie",
+    "chooseDetail": "Wählen Sie Branchen aus, um passende Aktien zu entdecken.",
+    "choose": "Branchen wählen",
+    "empty": "Für Ihre gewählten Branchen gibt es noch keine passenden Aktien.",
+    "edit": "Branchen bearbeiten",
+    "error": "Ihre Vorschläge konnten nicht geladen werden."
+  },
   "preferences": {
     "title": "Einstellungen",
     "followTitle": "Welche Branchen verfolgen Sie?",

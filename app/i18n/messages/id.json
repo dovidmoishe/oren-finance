@@ -1,4 +1,12 @@
 {
+  "marketForYou": {
+    "title": "Untuk Anda",
+    "chooseDetail": "Pilih sektor untuk melihat saham yang sesuai dengan minat Anda.",
+    "choose": "Pilih sektor",
+    "empty": "Belum ada saham yang cocok dengan sektor pilihan Anda.",
+    "edit": "Ubah sektor",
+    "error": "Saran Anda tidak dapat dimuat."
+  },
   "preferences": {
     "title": "Preferensi",
     "followTitle": "Sektor apa yang Anda ikuti?",

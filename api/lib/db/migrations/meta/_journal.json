@@ -120,6 +120,13 @@
       "breakpoints": true,
       "tag": "0016_user_preferences",
       "idx": 16
+    },
+    {
+      "version": "7",
+      "when": 1794441600002,
+      "breakpoints": true,
+      "tag": "0017_cached_stock_sectors",
+      "idx": 17
     }
   ]
 }

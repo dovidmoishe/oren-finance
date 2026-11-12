@@ -3,6 +3,34 @@ import type { StockCatalogRepository } from '../tokens/stock-catalog.repository'
 import { MarketService } from './market.service';
 
 describe('MarketService', () => {
+  it('distinguishes no interests, a classified catalog without matches, and an unavailable catalog', async () => {
+    const findSectorCandidates = jest
+      .fn()
+      .mockResolvedValueOnce({ items: [], isFresh: true })
+      .mockResolvedValueOnce(null);
+    const tokens = {
+      getStocks: jest.fn().mockResolvedValue([]),
+    } as unknown as TokensService;
+    const catalog = {
+      findSectorCandidates,
+      replaceAll: jest.fn(),
+    } as unknown as StockCatalogRepository;
+    const service = new MarketService(tokens, catalog);
+
+    await expect(service.getForYou([])).resolves.toEqual({
+      state: 'no_preferences',
+      items: [],
+    });
+    expect(findSectorCandidates).not.toHaveBeenCalled();
+    await expect(service.getForYou(['energy'])).resolves.toEqual({
+      state: 'no_matches',
+      items: [],
+    });
+    await expect(service.getForYou(['energy'])).rejects.toMatchObject({
+      status: 503,
+    });
+  });
+
   it('requests only the selected stock page and returns pagination metadata', async () => {
     const getStocksPage = jest.fn().mockResolvedValue({
       stocks: [

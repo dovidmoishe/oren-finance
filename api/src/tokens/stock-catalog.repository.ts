@@ -1,9 +1,22 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { asc, count, desc, ilike, inArray, or } from 'drizzle-orm';
+import {
+  asc,
+  count,
+  desc,
+  eq,
+  ilike,
+  inArray,
+  isNotNull,
+  or,
+  and,
+} from 'drizzle-orm';
 import type { Equity, EquityCategory, EquitySummary } from '../../types/equity';
+import { isSectorId, type SectorId } from '../../types/sectors';
 import { DRIZZLE } from '../config/constants';
 import type { Database } from '../database/database.provider';
 import { cachedStocks } from '../database/schema';
+
+import { resolveStockSector } from './stock-sectors';
 
 export type CachedStockRow = typeof cachedStocks.$inferSelect;
 
@@ -38,6 +51,42 @@ export class StockCatalogRepository {
       isFresh:
         total > 0 &&
         Boolean(latestRows[0]?.expiresAt.getTime() > now.getTime()),
+    };
+  }
+
+  async findSectorCandidates(sectors: SectorId[], now = new Date()) {
+    // Check that a classified generation exists. Rows from before the sector
+    // migration are still usable by the broad market, but not by For You.
+    const [generation] = await this.db
+      .select({ expiresAt: cachedStocks.expiresAt })
+      .from(cachedStocks)
+      .where(isNotNull(cachedStocks.sectorId))
+      .limit(1);
+    if (!generation) return null;
+
+    const rows = await this.db
+      .select()
+      .from(cachedStocks)
+      .where(
+        and(
+          eq(cachedStocks.category, 'equity'),
+          inArray(cachedStocks.sectorId, sectors),
+        ),
+      );
+    return {
+      items: rows.flatMap((row) =>
+        isSectorId(row.sectorId)
+          ? [
+              {
+                id: row.assetId,
+                stock: rowToStockSummary(row),
+                sectorId: row.sectorId,
+                sortRank: row.sortRank,
+              },
+            ]
+          : [],
+      ),
+      isFresh: generation.expiresAt > now,
     };
   }
 
@@ -78,6 +127,10 @@ export class StockCatalogRepository {
           ticker: stock.ticker,
           name: stock.name,
           category: stock.category,
+          sectorId:
+            stock.category === 'equity'
+              ? resolveStockSector(stock.id, stock.sector)
+              : null,
           logo: stock.logo,
           price: toNumeric(stock.price),
           priceChange24h: toNumeric(stock.priceChange24h),
