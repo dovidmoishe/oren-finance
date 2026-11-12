@@ -71,7 +71,6 @@ test('legacy settings redirects and the app page preserve only a valid pending i
     'next/navigation': { redirect: destination => { redirects.push(destination); } },
   });
   const { default: AppPage } = loadComponent('../app/app/settings/connections/page.tsx', {
-    '@/components/shell': { AppShell: () => null },
     '@/components/settings/agent-connections': { AgentConnections: () => null },
   });
   for (const connection of ['pending_42', undefined, ['a', 'b'], '//evil.example']) {
@@ -79,6 +78,6 @@ test('legacy settings redirects and the app page preserve only a valid pending i
     await LegacyPage({ searchParams });
     assert.equal(redirects.at(-1), mcpEnrollmentLinks(connection).settings);
     const page = await AppPage({ searchParams });
-    assert.equal(page.props.children.props.connectionUid, connection === 'pending_42' ? connection : undefined);
+    assert.equal(page.props.connectionUid, connection === 'pending_42' ? connection : undefined);
   }
 });
