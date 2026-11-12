@@ -79,6 +79,7 @@ async function bootstrap() {
     const expressApp = app.getHttpAdapter().getInstance() as Express;
     const db = app.get(DatabaseService).db;
     const identity = app.get(PrivyWalletAuth, { strict: false });
+    const approvalRpc = app.get(ApprovalRpc, { strict: false });
     const delegatedAccess = {
       publicAccess: env.MCP_DELEGATED_TRADES_PUBLIC,
       allowedUsers: new Set(env.MCP_DELEGATED_TRADES_ALLOWED_USERS),
@@ -93,7 +94,7 @@ async function bootstrap() {
       signerQuorumId: env.PRIVY_MCP_SIGNER_QUORUM_ID ?? '',
       signerPolicyId: env.PRIVY_MCP_SIGNER_POLICY_ID,
       tokens: app.get(TokensService, { strict: false }),
-      rpc: app.get(ApprovalRpc, { strict: false }),
+      rpc: approvalRpc,
       connection: new Connection(
         `https://solana-${env.SOLANA_NETWORK}.g.alchemy.com/v2/${env.ALCHEMY_API_KEY}`,
         'confirmed',
@@ -115,6 +116,7 @@ async function bootstrap() {
       portfolio: app.get(PortfolioService, { strict: false }),
       research: app.get(ResearchService, { strict: false }),
       execution: app.get(ExecutionService, { strict: false }),
+      tradeRpc: approvalRpc,
       gate: env.MCP_DELEGATED_TRADES_ENABLED ? grantGate : undefined,
       signerPolicyId: env.PRIVY_MCP_SIGNER_POLICY_ID,
       delegatedSides: {

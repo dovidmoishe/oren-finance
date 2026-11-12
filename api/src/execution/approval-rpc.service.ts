@@ -178,13 +178,14 @@ export class ApprovalRpc {
       },
     ]);
   }
-  async status(signature: string) {
+  async status(signature: string, signal?: AbortSignal) {
     const result = await this.rpc.call<{
       value: ({ err: unknown; confirmationStatus: string | null } | null)[];
-    }>('getSignatureStatuses', [
-      [signature],
-      { searchTransactionHistory: true },
-    ]);
+    }>(
+      'getSignatureStatuses',
+      [[signature], { searchTransactionHistory: true }],
+      signal,
+    );
     return result.value[0];
   }
   async expiryHeight() {
