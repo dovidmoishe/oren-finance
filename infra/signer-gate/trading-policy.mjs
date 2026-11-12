@@ -23,7 +23,7 @@ export function samePolicySemantics(a, b) {
 }
 
 /** A new policy; never expands an enrolled wallet's policy in place. */
-export function buildTradingPolicy({ idl, stockMints, ownerId, expiresAtUnix, nowUnix = Math.floor(Date.now() / 1000), allowDestinationAccountCreation = false, untilRevoked = false }) {
+export function buildTradingPolicy({ idl, stockMints, ownerId, expiresAtUnix, nowUnix = Math.floor(Date.now() / 1000), allowDestinationAccountCreation = false, untilRevoked = false, customSpendLimits = false }) {
   const route = idl?.instructions?.[0];
   if (!ownerId || idl?.address !== JUPITER || idl.instructions.length !== 1 ||
       route?.name !== 'shared_accounts_route' ||
@@ -41,5 +41,5 @@ export function buildTradingPolicy({ idl, stockMints, ownerId, expiresAtUnix, no
     ...(untilRevoked ? [] : [{name:'deny after policy expiry',method:'signTransaction',action:'DENY',conditions:[{field_source:'system',field:'current_unix_timestamp',operator:'gte',value:String(expiresAtUnix)}]}]),
     {name:'allow compute budget',method:'signTransaction',action:'ALLOW',conditions:[{field_source:'solana_program_instruction',field:'programId',operator:'eq',value:COMPUTE}]},
     {name:'reviewed argument decoder',conditions:[{idl}]},
-  ]},mints,{allowDestinationAccountCreation, untilRevoked});
+  ]},mints,{allowDestinationAccountCreation, untilRevoked, customSpendLimits});
 }

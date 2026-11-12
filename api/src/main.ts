@@ -22,6 +22,11 @@ import { ResearchService } from './research/research.service';
 import { PortfolioService } from './portfolio/portfolio.service';
 import { ExecutionService } from './execution/execution.service';
 import { handleMcpRequest } from './mcp-auth/mcp-resource';
+import {
+  isGrantUsdAmount,
+  MAX_GRANT_DAILY_USD,
+  MAX_MCP_TRADE_USD,
+} from './mcp-auth/grant-spend-limits';
 import { mcpConsentScopes } from './mcp-auth/consent-scopes';
 import { requireMcpOfflineConsent } from './mcp-auth/offline-consent';
 import { SignerGateClient } from './mcp-auth/signer-gate.client';
@@ -214,6 +219,7 @@ async function bootstrap() {
             canEnroll: limits?.untilRevoked === true || maxDurationHours >= 1,
             untilRevoked: limits?.untilRevoked === true,
             maxDurationHours,
+            spendLimits: limits?.spendLimits,
             sellAvailable: env.MCP_DELEGATED_SELLS_ENABLED,
           });
         }
@@ -315,8 +321,8 @@ async function bootstrap() {
     const grantSettingsSchema = z
       .object({
         allowSell: z.boolean(),
-        perTradeUsd: z.number().finite().min(0.01).max(25),
-        dailyUsd: z.number().finite().min(0.01).max(50),
+        perTradeUsd: z.number().max(MAX_MCP_TRADE_USD).refine(isGrantUsdAmount),
+        dailyUsd: z.number().max(MAX_GRANT_DAILY_USD).refine(isGrantUsdAmount),
         maxSlippageBps: z.number().int().min(1).max(50),
         durationHours: z.number().int().min(1).max(MAX_GRANT_HOURS).nullable(),
       })
