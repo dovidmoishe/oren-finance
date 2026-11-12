@@ -6,7 +6,7 @@ import tokensService from '/app/dist/src/tokens/tokens.service.js';
 import gate from '/app/dist/src/signer-gate/signer-gate.service.js';
 import { buildTradingPolicy, samePolicySemantics, tradingPolicyIdl } from './trading-policy.mjs';
 import { preparePolicyOwner } from './policy-owner.mjs';
-import { selectLaunchMints } from './build-launch-policy.mjs';
+import { verifyLaunchMints } from './build-launch-policy.mjs';
 
 const required = key => { if (!process.env[key]) throw new Error(`Missing ${key}`); return process.env[key]; };
 const privy = new PrivyClient({ appId: required('PRIVY_APP_ID'), appSecret: required('PRIVY_APP_SECRET') });
@@ -29,7 +29,7 @@ while (hasMore) {
 }
 const catalogMints = stocks.flatMap(stock => stock.variants.filter(variant => variant.tradable).map(variant => variant.mint));
 const reviewedMints = JSON.parse(readFileSync(required('SIGNER_GATE_LAUNCH_MINTS_FILE'), 'utf8'));
-const stockMints = selectLaunchMints(catalogMints, reviewedMints);
+const stockMints = await verifyLaunchMints(catalogMints, reviewedMints, tokens);
 const resultPath = '/state/trading-policy.json';
 const existing = existsSync(resultPath) ? JSON.parse(readFileSync(resultPath, 'utf8')) : null;
 const allowDestinationAccountCreation = process.argv.includes('--allow-destination-account-creation');

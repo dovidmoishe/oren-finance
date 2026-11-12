@@ -25,14 +25,34 @@ export function compactRouteIdl(idl) {
   return result;
 }
 
+function validateReviewedMints(reviewedMints) {
+  if (!Array.isArray(reviewedMints) || !reviewedMints.length || reviewedMints.length > 100 || new Set(reviewedMints).size !== reviewedMints.length ||
+      reviewedMints.some(m => typeof m !== 'string' || !/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(m) || m === 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v'))
+    throw Error('Provide an explicitly reviewed list of 1..100 unique stock mints');
+}
+
 /** Provisioning never silently chooses a subset or expands an approved list. */
 export function selectLaunchMints(catalogMints, reviewedMints) {
-  if (!Array.isArray(reviewedMints) || !reviewedMints.length || reviewedMints.length > 100 || new Set(reviewedMints).size !== reviewedMints.length)
-    throw Error('Provide an explicitly reviewed list of 1..100 unique stock mints');
+  validateReviewedMints(reviewedMints);
   const tradable = new Set(catalogMints);
-  if (reviewedMints.some(m => typeof m !== 'string' || !/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(m) || !tradable.has(m) || m === 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v'))
+  if (reviewedMints.some(m => !tradable.has(m)))
     throw Error('Reviewed launch list contains a nontradable or invalid stock mint');
   return [...reviewedMints].sort();
+}
+
+/** The curated catalog can omit variants that are still individually tradable. */
+export async function verifyLaunchMints(catalogMints, reviewedMints, tokens) {
+  validateReviewedMints(reviewedMints);
+  const tradable = new Set(catalogMints);
+  for (const mint of reviewedMints) {
+    if (tradable.has(mint)) continue;
+    const stock = await tokens.resolveMint(mint);
+    if (!stock) continue;
+    const variants = await tokens.getVariants(stock.id);
+    if (variants.some(variant => variant.mint === mint && variant.tradable))
+      tradable.add(mint);
+  }
+  return selectLaunchMints(tradable, reviewedMints);
 }
 /** Build a bounded launch policy within Privy's 128 KiB aggregate IDL limit. */
 export function buildLaunchPolicy(template, selectedMints, { allowDestinationAccountCreation = false, untilRevoked = false } = {}) {

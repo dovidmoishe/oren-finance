@@ -160,9 +160,10 @@ the API and gate remain enforced independently.
 For each rotation, write the approved mint addresses as a JSON array in a private
 state file, for example `/state/launch-mints.json`, and set
 `SIGNER_GATE_LAUNCH_MINTS_FILE=/state/launch-mints.json` in the one-off provisioning
-container. `prepare-trading-policy.mjs` requires this file, validates its 1..100
-unique entries against the complete current tradable catalog, and records the
-reviewed subset in the candidate checkpoint. Newly listed stocks never expand
+container. `prepare-trading-policy.mjs` requires this file and validates its 1..100
+unique entries. For a reviewed mint omitted from the curated catalog, it resolves
+the exact address and checks that the provider's variant list marks it tradable.
+The candidate checkpoint records the reviewed subset. Newly listed stocks never expand
 that reviewed subset automatically. A missing, stale or broader list fails closed.
 Rebuild the pinned web release and require explicit user re-enrollment when the
 production policy ID changes. Policy creation and sign-only diagnostics are not
