@@ -15,7 +15,8 @@ if (prior.owner_id !== required('SIGNER_GATE_POLICY_OWNER_ID') || gate.gatePolic
   throw new Error('The live policy no longer matches its reviewed fingerprint');
 if (prior.owner_id === required('SIGNER_GATE_QUORUM_ID')) throw new Error('Policy owner must be separate from trade signers');
 const idl = tradingPolicyIdl(prior);
-const tokens = new tokensService.TokensService(new tokensClient.TokensClient({ TOKENS_API_BASE_URL: process.env.TOKENS_API_BASE_URL ?? 'https://api.tokens.xyz', TOKENS_API_KEY: required('TOKENS_API_KEY') }));
+const catalogClient = new tokensClient.TokensClient({ TOKENS_API_BASE_URL: process.env.TOKENS_API_BASE_URL ?? 'https://api.tokens.xyz', TOKENS_API_KEY: required('TOKENS_API_KEY') });
+const tokens = new tokensService.TokensService(catalogClient);
 let offset = 0;
 let hasMore = true;
 const stocks = [];
@@ -29,7 +30,13 @@ while (hasMore) {
 }
 const catalogMints = stocks.flatMap(stock => stock.variants.filter(variant => variant.tradable).map(variant => variant.mint));
 const reviewedMints = JSON.parse(readFileSync(required('SIGNER_GATE_LAUNCH_MINTS_FILE'), 'utf8'));
-const stockMints = await verifyLaunchMints(catalogMints, reviewedMints, tokens);
+const stockMints = await verifyLaunchMints(catalogMints, reviewedMints, {
+  resolveMint: mint => tokens.resolveMint(mint),
+  getRawVariants: async assetId => {
+    const response = await catalogClient.get(`/assets/${encodeURIComponent(assetId)}/variants`, { kind: 'tokenized_equity' });
+    return response.variants;
+  },
+});
 const resultPath = '/state/trading-policy.json';
 const existing = existsSync(resultPath) ? JSON.parse(readFileSync(resultPath, 'utf8')) : null;
 const allowDestinationAccountCreation = process.argv.includes('--allow-destination-account-creation');

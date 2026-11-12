@@ -36,7 +36,7 @@ test('verifies an omitted reviewed mint by exact address without substituting an
       assert.equal(mint, omitted);
       return { id: 'nvidia' };
     },
-    async getVariants(assetId) {
+    async getRawVariants(assetId) {
       assert.equal(assetId, 'nvidia');
       return [{ mint: listed, tradable: true }, variant];
     },
@@ -47,8 +47,10 @@ test('verifies an omitted reviewed mint by exact address without substituting an
   await assert.rejects(verifyLaunchMints([listed], [listed, omitted], tokens), /nontradable/);
   await assert.rejects(verifyLaunchMints([], ['invalid-mint'], tokens), /explicitly reviewed/);
   assert.deepEqual(calls, [omitted, omitted]);
+  delete variant.tradable;
+  await assert.rejects(verifyLaunchMints([listed], [listed, omitted], tokens), /nontradable/);
   await assert.rejects(verifyLaunchMints([listed], [listed, omitted], {
     resolveMint: async () => null,
-    getVariants: async () => assert.fail('An unresolved mint must never supply variants'),
+    getRawVariants: async () => assert.fail('An unresolved mint must never supply variants'),
   }), /nontradable/);
 });

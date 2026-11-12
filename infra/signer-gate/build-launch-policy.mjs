@@ -41,15 +41,15 @@ export function selectLaunchMints(catalogMints, reviewedMints) {
 }
 
 /** The curated catalog can omit variants that are still individually tradable. */
-export async function verifyLaunchMints(catalogMints, reviewedMints, tokens) {
+export async function verifyLaunchMints(catalogMints, reviewedMints, { resolveMint, getRawVariants }) {
   validateReviewedMints(reviewedMints);
   const tradable = new Set(catalogMints);
   for (const mint of reviewedMints) {
     if (tradable.has(mint)) continue;
-    const stock = await tokens.resolveMint(mint);
+    const stock = await resolveMint(mint);
     if (!stock) continue;
-    const variants = await tokens.getVariants(stock.id);
-    if (variants.some(variant => variant.mint === mint && variant.tradable))
+    const variants = await getRawVariants(stock.id);
+    if (variants.some(variant => variant.mint === mint && variant.tradable === true))
       tradable.add(mint);
   }
   return selectLaunchMints(tradable, reviewedMints);
