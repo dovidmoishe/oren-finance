@@ -7,18 +7,20 @@ export type GrantDraft = {
   durationHours: string;
 };
 
+export type GrantSpendLimits = { maxPerTradeUsd: number; maxDailyUsd: number };
+
 export function grantDurationOptions(maxDurationHours = 24): number[] {
   return [1, 6, 12, 24, 48, 72].filter(hours => hours <= maxDurationHours);
 }
 
-export function parseGrantSettings(draft: GrantDraft, sellAvailable: boolean, maxDurationHours = 24, untilRevoked = false): GrantSettings {
+export function parseGrantSettings(draft: GrantDraft, sellAvailable: boolean, maxDurationHours = 24, untilRevoked = false, spendLimits?: GrantSpendLimits): GrantSettings {
   const dollars = (value: string, max: number) => {
     if (!/^\d+(?:\.\d{1,2})?$/.test(value) || Number(value) < 0.01 || Number(value) > max)
       throw new Error(`Enter an amount between $0.01 and $${max}.`);
     return Number(value);
   };
-  const perTradeUsd = dollars(draft.perTradeUsd, 25);
-  const dailyUsd = dollars(draft.dailyUsd, 50);
+  const perTradeUsd = dollars(draft.perTradeUsd, spendLimits?.maxPerTradeUsd ?? 25);
+  const dailyUsd = dollars(draft.dailyUsd, spendLimits?.maxDailyUsd ?? 50);
   if (dailyUsd < perTradeUsd) throw new Error("Your 24-hour limit must cover at least one trade.");
   if (!/^\d+(?:\.\d{1,2})?$/.test(draft.slippagePercent) ||
       Number(draft.slippagePercent) < 0.01 || Number(draft.slippagePercent) > 0.5)

@@ -10,6 +10,7 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 
 const require = createRequire(import.meta.url);
+const messages = JSON.parse(readFileSync(new URL('../i18n/messages/en.json', import.meta.url), 'utf8'));
 function loadComponent(path, mocks = {}) {
   const exports = {};
   vm.runInNewContext(ts.transpileModule(readFileSync(new URL(path, import.meta.url), 'utf8'), {
@@ -20,6 +21,11 @@ function loadComponent(path, mocks = {}) {
     if (id === 'next/link') return { default: ({ children, ...props }) => createElement('a', props, children) };
     if (id === '@/services/mcp-enrollment-flow') return { mcpEnrollmentLinks };
     if (id === '@/services/mcp-grant-settings') return { grantDurationOptions, parseGrantSettings };
+    if (id === '@/i18n/i18n') return { useI18n: () => ({
+      locale: 'en',
+      t: (key, values = {}) => key.split('.').reduce((value, part) => value[part], messages)
+        .replace(/\{(\w+)\}/g, (_, name) => String(values[name])),
+    }) };
     if (id === '@hugeicons/react') return { HugeiconsIcon: () => null };
     if (id === '@hugeicons/core-free-icons') return {};
     return require(id);
@@ -55,12 +61,16 @@ test('active permission offers a continuation link, or instructions without a pe
 test('the form discloses both sides without a permission selector and respects server availability', () => {
   const { TradeGrantEditor } = loadComponent('../app/settings/mcp/trade-grant-editor.tsx');
   for (const sellAvailable of [true, false]) {
-    const html = renderToStaticMarkup(createElement(TradeGrantEditor, { sellAvailable, maxDurationHours: 0, untilRevoked: true, busy: false, signerConfigured: true, onReview() {} }));
+    const spendLimits = { maxPerTradeUsd: 100000, maxDailyUsd: 999999999.99 };
+    const html = renderToStaticMarkup(createElement(TradeGrantEditor, { sellAvailable, spendLimits, maxDurationHours: 0, untilRevoked: true, busy: false, signerConfigured: true, onReview() {} }));
     assert.doesNotMatch(html, /Trading permission|Choose which trades/);
     assert.match(html, sellAvailable ? /allow my agent to buy and sell within them/ : /allow my agent to buy within them/);
     assert.match(html, /disabled=""/); // Consent is required before review.
     assert.match(html, /Until revoked/);
     assert.doesNotMatch(html, /<select/);
+    assert.match(html, /max="100000"/);
+    assert.match(html, /max="999999999.99"/);
+    assert.match(html, /Up to \$100,000 each trade/);
   }
 });
 
