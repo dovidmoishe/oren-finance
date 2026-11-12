@@ -4,9 +4,13 @@ import tempfile
 import threading
 import time
 import unittest
+import io
+import struct
+from types import SimpleNamespace
+from unittest.mock import Mock, patch
 from admission import (
     ACTIVE_MAX_MIB, CONTROL_MAX_MIB, HOST_MIB, IDLE_MAX_MIB, LIGHT_MAX_MIB,
-    MARGIN_MIB, NO_PROGRESS_LIMIT, RECOVERY, Admission, ensure_public_dir,
+    MARGIN_MIB, NO_PROGRESS_LIMIT, RECOVERY, Admission, Handler, ensure_public_dir,
     heavy_raise_ok, limit,
     light_headroom_ok, protect, reclaim_file_cache, reclaim_needed,
     simultaneous_mib, slice_within_idle, worker_identity,
@@ -14,6 +18,24 @@ from admission import (
 
 
 class AdmissionTests(unittest.TestCase):
+    def test_finished_worker_handler_leaves_draining_to_shared_reaper(self):
+        for already_reaped in (False, True):
+            gate = Mock()
+            gate.acquire.return_value = 'stamp'
+            if already_reaped:
+                gate.note_worker_exit.side_effect = ValueError('lease mismatch')
+            handler = object.__new__(Handler)
+            handler.request = Mock()
+            handler.request.getsockopt.return_value = struct.pack('3i', 42, 1001, 1001)
+            handler.rfile = io.BytesIO(b'42\n')
+            handler.wfile = io.BytesIO()
+            handler.server = SimpleNamespace(admission=gate)
+            with patch('admission.worker_identity', side_effect=ProcessLookupError):
+                handler.handle()
+            self.assertEqual(handler.wfile.getvalue(), b'OK\n')
+            gate.note_worker_exit.assert_called_once_with(1001, 42, 'stamp')
+            gate.drain.assert_not_called()
+
     def test_verified_waiters_do_not_mistake_each_other_for_untracked_work(self):
         usage = {1001: 0, 1003: 0}
         gate = Admission(list(usage), lambda *args: None, lambda pid, uid: str(pid),

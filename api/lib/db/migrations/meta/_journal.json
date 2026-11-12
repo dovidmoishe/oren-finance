@@ -116,24 +116,31 @@
     },
     {
       "version": "7",
-      "when": 1794441600001,
+      "when": 1794528000000,
       "breakpoints": true,
-      "tag": "0016_user_preferences",
+      "tag": "0016_mcp_custom_spend_limits",
       "idx": 16
     },
     {
       "version": "7",
-      "when": 1794441600002,
+      "when": 1794528000001,
       "breakpoints": true,
-      "tag": "0017_cached_stock_sectors",
+      "tag": "0017_user_preferences",
       "idx": 17
     },
     {
       "version": "7",
-      "when": 1794441600003,
+      "when": 1794528000002,
       "breakpoints": true,
-      "tag": "0018_notifications",
+      "tag": "0018_cached_stock_sectors",
       "idx": 18
+    },
+    {
+      "version": "7",
+      "when": 1794528000003,
+      "breakpoints": true,
+      "tag": "0019_notifications",
+      "idx": 19
     }
   ]
 }

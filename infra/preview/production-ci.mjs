@@ -1,13 +1,16 @@
 // Images may build speculatively. Only this exact master push can authorize deploy.
-export async function requireProductionCi({github, repo, sha, sleep = ms => new Promise(resolve => setTimeout(resolve, ms)), attempts = 120}) {
+export async function requireProductionCi({
+  github, repo, sha, sleep = ms => new Promise(resolve => setTimeout(resolve, ms)),
+  attempts = 120, request = operation => operation(),
+}) {
   if (!/^[a-f0-9]{40}$/.test(sha ?? '')) throw Error('Invalid production SHA');
   const fullName = `${repo.owner}/${repo.repo}`;
   let consecutiveApiFailures = 0;
   for (let attempt = 0; attempt < attempts; attempt++) {
     let data;
     try {
-      ({data} = await github.rest.actions.listWorkflowRuns({...repo,
-        workflow_id: 'ci.yml', head_sha: sha, branch: 'master', event: 'push', per_page: 100}));
+      ({data} = await request(() => github.rest.actions.listWorkflowRuns({...repo,
+        workflow_id: 'ci.yml', head_sha: sha, branch: 'master', event: 'push', per_page: 100})));
     } catch (error) {
       // Octokit reports transport failures such as "fetch failed" as HTTP 500.
       consecutiveApiFailures++;

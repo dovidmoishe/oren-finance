@@ -44,6 +44,11 @@ import { buildGateJupiterRoute } from './gate-jupiter';
 import { USDC_MINT } from '../config/constants';
 import { delegatedUserAllowed } from '../mcp-auth/delegated-access';
 import {
+  CUSTOM_GRANT_SPEND_LIMITS,
+  LEGACY_GRANT_SPEND_LIMITS,
+  isGrantUsdAmount,
+} from '../mcp-auth/grant-spend-limits';
+import {
   HOUR_MS,
   grantDurationMatches,
   grantExpired,
@@ -62,6 +67,29 @@ type Execution = typeof mcpDelegatedExecutions.$inferSelect;
 type PrivyPolicy = Awaited<
   ReturnType<ReturnType<PrivyClient['policies']>['get']>
 >;
+
+function grantSpendLimits(policy: PrivyPolicy, sellsEnabled: boolean) {
+  const cap = String(CUSTOM_GRANT_SPEND_LIMITS.maxPerTradeUsd * 1_000_000);
+  const sides = sellsEnabled ? ['buy', 'sell'] : ['buy'];
+  const supportsCustomLimits = sides.every((side) =>
+    policy.rules.some(
+      (rule) =>
+        rule.name === `allow bounded jupiter ${side}` &&
+        rule.action === 'ALLOW' &&
+        rule.conditions?.some(
+          (condition) =>
+            condition.field_source === 'solana_instruction_data' &&
+            condition.field ===
+              `shared_accounts_route.args.${side === 'buy' ? 'in_amount' : 'quoted_out_amount'}` &&
+            condition.operator === 'lte' &&
+            condition.value === cap,
+        ),
+    ),
+  );
+  return supportsCustomLimits
+    ? CUSTOM_GRANT_SPEND_LIMITS
+    : LEGACY_GRANT_SPEND_LIMITS;
+}
 
 /** Exact rule contents remain pinned by gatePolicyFingerprint. */
 export function gatePolicyRulesValid(
@@ -194,10 +222,13 @@ export class SignerGateService {
 
   async grantLimits() {
     this.assertEnabled();
-    const expiresAt = signingPolicyExpiresAt(await this.verifyPolicy());
+    const policy = await this.verifyPolicy();
+    const expiresAt = signingPolicyExpiresAt(policy);
+    const spendLimits = grantSpendLimits(policy, this.config.sellsEnabled);
     return expiresAt === null
-      ? { untilRevoked: true }
+      ? { untilRevoked: true, spendLimits }
       : {
+          spendLimits,
           maxDurationHours: Math.max(
             0,
             Math.min(
@@ -238,12 +269,9 @@ export class SignerGateService {
     if (
       !this.config.buysEnabled ||
       (settings.allowSell && !this.config.sellsEnabled) ||
-      !Number.isFinite(settings.perTradeUsd) ||
-      settings.perTradeUsd < 0.01 ||
-      settings.perTradeUsd > 25 ||
-      !Number.isFinite(settings.dailyUsd) ||
+      !isGrantUsdAmount(settings.perTradeUsd) ||
+      !isGrantUsdAmount(settings.dailyUsd) ||
       settings.dailyUsd < settings.perTradeUsd ||
-      settings.dailyUsd > 50 ||
       !Number.isInteger(settings.maxSlippageBps) ||
       settings.maxSlippageBps < 1 ||
       settings.maxSlippageBps > 50
@@ -251,7 +279,14 @@ export class SignerGateService {
       throw new Error('Grant terms exceed the owner-only limits');
     const expiresAt =
       owner.terms.expiresAt === null ? null : new Date(owner.terms.expiresAt);
-    const policyExpiry = signingPolicyExpiresAt(await this.verifyPolicy());
+    const policy = await this.verifyPolicy();
+    const limits = grantSpendLimits(policy, this.config.sellsEnabled);
+    if (
+      settings.perTradeUsd > limits.maxPerTradeUsd ||
+      settings.dailyUsd > limits.maxDailyUsd
+    )
+      throw new Error('Grant exceeds the signing policy spend limits');
+    const policyExpiry = signingPolicyExpiresAt(policy);
     if (
       policyExpiry !== null &&
       (expiresAt === null || expiresAt.getTime() > policyExpiry)
@@ -471,8 +506,6 @@ export class SignerGateService {
       (intent.side === 'buy' && !this.config.buysEnabled) ||
       (intent.side === 'sell' &&
         (!this.config.sellsEnabled || !delegation.allowSell)) ||
-      usdMicros(delegation.perTradeLimitUsd) > 25_000_000n ||
-      usdMicros(delegation.dailyLimitUsd) > 50_000_000n ||
       (delegation.expiresAt !== null &&
         delegation.expiresAt.getTime() - delegation.createdAt.getTime() >
           MAX_GRANT_MS)
@@ -541,6 +574,14 @@ export class SignerGateService {
       throw new Error('Privy signer policy changed');
     if (stockMint && !policyAllowsStock(policy, stockMint))
       throw new Error('Stock mint is outside the delegated policy allowlist');
+    const limits = grantSpendLimits(policy, this.config.sellsEnabled);
+    if (
+      usdMicros(delegation.perTradeLimitUsd) >
+        usdMicros(limits.maxPerTradeUsd.toFixed(6)) ||
+      usdMicros(delegation.dailyLimitUsd) >
+        usdMicros(limits.maxDailyUsd.toFixed(6))
+    )
+      throw new Error('Grant exceeds the signing policy spend limits');
     return policy;
   }
 

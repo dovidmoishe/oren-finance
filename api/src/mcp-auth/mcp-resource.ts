@@ -15,6 +15,8 @@ import type { PrivyWalletAuth } from '../auth/privy-wallet-auth';
 import type { MarketService } from '../market/market.service';
 import type { PortfolioService } from '../portfolio/portfolio.service';
 import type { ExecutionService } from '../execution/execution.service';
+import type { ApprovalRpc } from '../execution/approval-rpc.service';
+import { MAX_MCP_TRADE_USD } from './grant-spend-limits';
 import {
   SOL_RENT_MESSAGE,
   SOL_FEE_MESSAGE,
@@ -41,6 +43,7 @@ export interface McpResourceDeps {
   market: MarketService;
   portfolio: PortfolioService;
   execution: ExecutionService;
+  tradeRpc: Pick<ApprovalRpc, 'status'>;
   research?: {
     getStock(
       assetId: string,
@@ -232,7 +235,12 @@ export async function handleMcpRequest(
         inputSchema: z.object({
           assetId: z.string().trim().min(1).max(80),
           side: z.enum(['buy', 'sell']),
-          amountUsd: z.number().finite().min(0.01).max(100000).optional(),
+          amountUsd: z
+            .number()
+            .finite()
+            .min(0.01)
+            .max(MAX_MCP_TRADE_USD)
+            .optional(),
           amountShares: z
             .number()
             .finite()
@@ -458,7 +466,7 @@ export async function handleMcpRequest(
             'Save a USDC stock buy request for browser review. This does not sign or submit a trade.',
           inputSchema: z.object({
             assetId: z.string().trim().min(1).max(80),
-            amountUsd: z.number().finite().min(0.01).max(100000),
+            amountUsd: z.number().finite().min(0.01).max(MAX_MCP_TRADE_USD),
             slippageBps: z.number().int().min(1).max(50).default(50),
           }),
         },
@@ -642,6 +650,10 @@ export async function handleMcpRequest(
                     status: result.state,
                     signature: result.chainSignature,
                     ...signingOutcome(result.reason, result.chainSignature),
+                    ...delegatedConfirmationMessage(
+                      result.state,
+                      result.chainSignature,
+                    ),
                   }),
                 },
               ],
@@ -756,7 +768,7 @@ export async function handleMcpRequest(
       {
         title: 'Get trade request status',
         description:
-          'Read the status of an Oren buy or sell intent and its browser approval, if one exists.',
+          'Check an Oren trade by intent ID. Use this tool to verify whether a delegated trade settled on Solana. A broadcast or pending response is not a fill.',
         inputSchema: z.object({ intentId: z.uuid() }),
         annotations: { readOnlyHint: true },
       },
@@ -805,11 +817,41 @@ export async function handleMcpRequest(
             .where(eq(mcpDelegatedExecutions.intentId, intentId))
             .limit(1);
           if (execution) {
-            status = execution.state;
             signature = execution.chainSignature ?? undefined;
+            const chain =
+              signature &&
+              ['signed', 'pending', 'broadcast'].includes(execution.state)
+                ? await deps.tradeRpc
+                    .status(signature, AbortSignal.timeout(4_000))
+                    .catch(() => undefined)
+                : undefined;
+            const confirmation = chain?.confirmationStatus;
+            const settled =
+              chain?.err !== undefined &&
+              (confirmation === 'confirmed' || confirmation === 'finalized');
+            status = settled
+              ? chain?.err
+                ? 'failed'
+                : 'confirmed'
+              : execution.state;
             signingDetails = {
               ...signingOutcome(execution.errorCode, signature),
               ...statusFailure(execution.errorCode, intent.slippageBps),
+              ...delegatedConfirmationMessage(status, signature),
+              ...(settled ? { confirmationStatus: confirmation } : {}),
+              ...(signature && status === 'broadcast' && chain === undefined
+                ? {
+                    message:
+                      'The transaction was submitted, but Solana confirmation could not be checked. Try trade_status again before reporting a fill.',
+                  }
+                : {}),
+              ...(settled && chain?.err
+                ? {
+                    reason: 'chain_failure',
+                    message:
+                      'Solana recorded a failed transaction. The trade did not fill. A network fee may have been charged.',
+                  }
+                : {}),
             };
           }
         }
@@ -863,6 +905,23 @@ export async function handleMcpRequest(
   } finally {
     await server.close();
   }
+}
+
+function delegatedConfirmationMessage(status: string, signature?: string) {
+  if (!signature) return {};
+  if (status === 'confirmed')
+    return {
+      confirmationStatus: 'confirmed',
+      message: 'Solana confirmed the trade. Quoted amounts are estimates.',
+    };
+  if (status === 'broadcast' || status === 'pending' || status === 'signed')
+    return {
+      message:
+        status === 'broadcast'
+          ? 'The transaction was submitted to Solana. Use trade_status to check confirmation before reporting a fill.'
+          : 'The transaction has a signature, but submission or confirmation is pending. Use trade_status before retrying or reporting a fill.',
+    };
+  return {};
 }
 
 function statusFailure(code: string | null, slippageBps: number) {

@@ -63,6 +63,19 @@ test('persistent API failures and permission errors block deployment', async () 
     assert.equal(f.sleeps.length, queries - 1);
   }
 });
+
+test('transient retries preserve the injected request policy', async () => {
+  const unavailable = Object.assign(new Error('Service unavailable'), {status: 503});
+  const f = fixture([unavailable, [good]]);
+  let requests = 0;
+  f.args.request = async operation => {
+    requests++;
+    return operation();
+  };
+  assert.equal(await requireProductionCi(f.args), good.id);
+  assert.equal(requests, 2);
+  assert.deepEqual(f.sleeps, [15000]);
+});
 test('invalid SHA and API errors fail closed', async () => {
   const f = fixture([[good]]);
   await assert.rejects(requireProductionCi({...f.args, sha: 'master'}), /Invalid/);

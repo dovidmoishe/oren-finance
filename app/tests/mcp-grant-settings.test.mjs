@@ -18,6 +18,15 @@ test('new grants include buys and sells when available, without a side selection
   assert.equal(parseGrantSettings(draft, true).allowSell, true);
   assert.equal(parseGrantSettings(draft, false).allowSell, false);
 });
+test('accepts higher owner limits only when advertised by the signer', () => {
+  const larger = { ...draft, perTradeUsd: '125.50', dailyUsd: '600' };
+  const caps = { maxPerTradeUsd: 100000, maxDailyUsd: 999999999.99 };
+  assert.throws(() => parseGrantSettings(larger, true));
+  assert.equal(parseGrantSettings(larger, true, 0, true, caps).perTradeUsd, 125.5);
+  assert.equal(parseGrantSettings(larger, true, 0, true, caps).dailyUsd, 600);
+  assert.throws(() => parseGrantSettings({ ...larger, dailyUsd: '125.49' }, true, 0, true, caps));
+  assert.throws(() => parseGrantSettings({ ...larger, perTradeUsd: '100000.01', dailyUsd: '200000' }, true, 0, true, caps));
+});
 test('multi-day durations are available only within the policy limit', () => {
   assert.deepEqual(grantDurationOptions(72), [1, 6, 12, 24, 48, 72]);
   assert.deepEqual(grantDurationOptions(23), [1, 6, 12]);

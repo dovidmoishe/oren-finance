@@ -176,7 +176,7 @@ on the gate. Each service checks its own flag, so both must agree before any
 non-allowlisted user can enroll or trade; with either flag off, the named
 allowlists apply as before. A `*` allowlist entry is rejected on both services.
 Public access lifts only the allowlist: every grant still needs the owner's
-wallet-signed terms, the $25 per-trade and $50 daily ceilings, 0.5% slippage,
+wallet-signed spending limits, 0.5% slippage,
 owner-authorized expiry and revocation,
 the tradable-stock check and the two-key quorum all still apply.
 
@@ -187,6 +187,15 @@ and the new policy pins. The wallet owner must approve the exact until-revoked
 grant and attach the new policy. Existing dated grants retain their expiry.
 Connector OAuth expiration is independent of wallet permission.
 Turn the flags off to return to the allowlist without a redeploy of code.
+
+To enable custom spend limits, provision a new candidate with
+`--custom-spend-limits` in a fresh state directory. Keep the existing expiry
+mode, destination account settings, and reviewed mints. The flag raises the
+Privy USDC route ceiling to the existing $100,000 MCP quote limit. Both services
+still enforce the wallet's signed per-trade and rolling 24-hour budgets.
+Apply `0016_mcp_custom_spend_limits` before enrolling higher-limit grants.
+Verify the new policy by readback, rotate the API, gate and web pins, then have
+users re-enroll. The previous policy continues to advertise $25 and $50.
 
 ## Request and retry states
 

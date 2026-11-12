@@ -4,13 +4,14 @@ import { useId, useState } from "react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { ArrowRight01Icon, InformationCircleIcon, Shield01Icon } from "@hugeicons/core-free-icons";
 import type { GrantSettings } from "@/services/mcp-grant-authorization";
-import { grantDurationOptions, parseGrantSettings, type GrantDraft } from "@/services/mcp-grant-settings";
+import { grantDurationOptions, parseGrantSettings, type GrantDraft, type GrantSpendLimits } from "@/services/mcp-grant-settings";
 import { useI18n } from "@/i18n/i18n";
 
-export function TradeGrantEditor({ sellAvailable, maxDurationHours, untilRevoked, busy, signerConfigured, onReview }: {
+export function TradeGrantEditor({ sellAvailable, maxDurationHours, untilRevoked, spendLimits, busy, signerConfigured, onReview }: {
   sellAvailable: boolean;
   maxDurationHours: number;
   untilRevoked: boolean;
+  spendLimits?: GrantSpendLimits;
   busy: boolean;
   signerConfigured: boolean;
   onReview: (settings: GrantSettings) => Promise<void>;
@@ -31,7 +32,7 @@ export function TradeGrantEditor({ sellAvailable, maxDurationHours, untilRevoked
     <form className="[margin-top:28px]" onSubmit={event => {
       event.preventDefault();
       if (busy || !acknowledged || !signerConfigured) return;
-      try { void onReview(parseGrantSettings(draft, sellAvailable, maxDurationHours, untilRevoked)); }
+      try { void onReview(parseGrantSettings(draft, sellAvailable, maxDurationHours, untilRevoked, spendLimits)); }
       catch (cause) { setError(cause instanceof Error ? cause.message : t("grant.checkLimits")); }
     }}>
       <fieldset disabled={busy} className="trade-grant-fields">
@@ -47,13 +48,13 @@ export function TradeGrantEditor({ sellAvailable, maxDurationHours, untilRevoked
         <div className="trade-grant-grid">
           <label className="trade-grant-field">
             <span>{t("grant.perTrade")}</span>
-            <span className="trade-grant-input-wrap"><span aria-hidden="true">$</span><input aria-label={t("grant.perTradeAria")} aria-describedby={`${id}-trade`} type="number" inputMode="decimal" min="0.01" max="25" step="0.01" required value={draft.perTradeUsd} onChange={event => update("perTradeUsd", event.target.value)} /><span>USD</span></span>
-            <small id={`${id}-trade`}>{t("grant.perTradeHint")}</small>
+            <span className="trade-grant-input-wrap"><span aria-hidden="true">$</span><input aria-label={t("grant.perTradeAria")} aria-describedby={`${id}-trade`} type="number" inputMode="decimal" min="0.01" max={spendLimits?.maxPerTradeUsd ?? 25} step="0.01" required value={draft.perTradeUsd} onChange={event => update("perTradeUsd", event.target.value)} /><span>USD</span></span>
+            <small id={`${id}-trade`}>{t("grant.perTradeHint", { max: new Intl.NumberFormat(locale).format(spendLimits?.maxPerTradeUsd ?? 25) })}</small>
           </label>
           <label className="trade-grant-field">
             <span>{t("grant.perDay")}</span>
-            <span className="trade-grant-input-wrap"><span aria-hidden="true">$</span><input aria-label={t("grant.perDayAria")} aria-describedby={`${id}-daily`} type="number" inputMode="decimal" min="0.01" max="50" step="0.01" required value={draft.dailyUsd} onChange={event => update("dailyUsd", event.target.value)} /><span>USD</span></span>
-            <small id={`${id}-daily`}>{t("grant.perDayHint")}</small>
+            <span className="trade-grant-input-wrap"><span aria-hidden="true">$</span><input aria-label={t("grant.perDayAria")} aria-describedby={`${id}-daily`} type="number" inputMode="decimal" min="0.01" max={spendLimits?.maxDailyUsd ?? 50} step="0.01" required value={draft.dailyUsd} onChange={event => update("dailyUsd", event.target.value)} /><span>USD</span></span>
+            <small id={`${id}-daily`}>{t("grant.perDayHint", { max: new Intl.NumberFormat(locale).format(spendLimits?.maxDailyUsd ?? 50) })}</small>
           </label>
           <label className="trade-grant-field">
             <span>{t("grant.tolerance")}</span>

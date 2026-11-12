@@ -8,6 +8,7 @@ import { ConnectionNextStep } from "./connection-next-step";
 import { useOrenAuth } from "@/components/auth/auth-context";
 import { mcpApiOrigin } from "@/services/mcp-api-origin";
 import { validateGrantPermission, validateTrustedTradeSigner, type GrantSettings } from "@/services/mcp-grant-authorization";
+import type { GrantSpendLimits } from "@/services/mcp-grant-settings";
 import { MessageKeyError, useI18n, useShownMessage, shownFromUnknown, shownKey, type ShownMessage } from "@/i18n/i18n";
 import { formatDateTime } from "@/components/ui";
 
@@ -28,6 +29,7 @@ type GrantState = {
   canEnroll?: boolean;
   maxDurationHours?: number;
   untilRevoked?: boolean;
+  spendLimits?: GrantSpendLimits;
   sellAvailable?: boolean;
   pendingGrant?: PendingGrant;
   delegationId?: string;
@@ -359,7 +361,7 @@ export function TradeGrant({ connectionUid }: { connectionUid?: string }) {
       )}
       {!grant?.enabled && !grant?.reenrollmentRequired && !pending && grant?.canEnroll && (
         <TradeGrantEditor key={`${grant.sellAvailable}:${grant.maxDurationHours}:${grant.untilRevoked}`} sellAvailable={grant.sellAvailable === true} maxDurationHours={grant.maxDurationHours ?? 24} untilRevoked={grant.untilRevoked === true} busy={busy}
-          signerConfigured={Boolean(trustedSigner.signerId && trustedSigner.policyId)} onReview={prepare} />
+          spendLimits={grant.spendLimits} signerConfigured={Boolean(trustedSigner.signerId && trustedSigner.policyId)} onReview={prepare} />
       )}
       {!grant?.enabled && !grant?.reenrollmentRequired && !pending && grant && !grant.canEnroll && (
         <p className="mt-4 text-sm text-muted">

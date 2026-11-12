@@ -218,7 +218,10 @@ describe('owner-bound grant enrollment', () => {
         privy: { policies: () => ({ get: () => Promise.resolve(policy) }) },
       } as never,
     );
-    await expect(gate.grantLimits()).resolves.toEqual({ maxDurationHours: 60 });
+    await expect(gate.grantLimits()).resolves.toEqual({
+      maxDurationHours: 60,
+      spendLimits: { maxPerTradeUsd: 25, maxDailyUsd: 50 },
+    });
     await expect(
       gate.prepareGrant(await f.getProof('prepare'), f.settings),
     ).rejects.toThrow('Grant duration exceeds the signing policy expiry');
@@ -227,6 +230,106 @@ describe('owner-bound grant enrollment', () => {
       gate.prepareGrant(await f.getProof('prepare'), f.settings),
     ).rejects.toThrow('Grant duration exceeds the signing policy expiry');
   });
+
+  it.each([false, true])(
+    'enforces the pinned policy for larger owner-signed grants (custom: %s)',
+    async (custom) => {
+      const f = fixture();
+      Object.assign(f.settings, {
+        perTradeUsd: 125.5,
+        dailyUsd: 600,
+        durationHours: null,
+      });
+      const proof = await f.getProof('prepare');
+      const owner = JSON.parse(proof.message.split('\n')[1]) as OwnerMessage;
+      const policy = {
+        owner_id: 'policy-owner',
+        chain_type: 'solana',
+        version: '1.0',
+        rules: [
+          {
+            name: 'allow compute budget',
+            method: 'signTransaction',
+            action: 'ALLOW',
+            conditions: [],
+          },
+          {
+            name: 'allow bounded jupiter buy',
+            method: 'signTransaction',
+            action: 'ALLOW',
+            conditions: [
+              {
+                field_source: 'solana_instruction_data',
+                field: 'shared_accounts_route.args.in_amount',
+                operator: 'lte',
+                value: custom ? '100000000000' : '25000000',
+              },
+            ],
+          },
+        ],
+      } as Parameters<typeof gatePolicyFingerprint>[0];
+      const gate = new SignerGateService(
+        {
+          enabled: true,
+          appId: 'app',
+          signerQuorumId: 'quorum',
+          policyId: 'policy',
+          policyOwnerId: 'policy-owner',
+          policyHash: gatePolicyFingerprint(policy),
+          allowedUsers: new Set(['owner']),
+          buysEnabled: true,
+          sellsEnabled: false,
+        } as SignerGateConfig,
+        {
+          auth: f.auth,
+          privy: { policies: () => ({ get: () => Promise.resolve(policy) }) },
+          db: {
+            select: () => ({
+              from: () => ({
+                where: () => ({
+                  limit: () =>
+                    Promise.resolve([
+                      {
+                        id: owner.delegationId,
+                        status: 'pending_signer',
+                        signerId: 'quorum',
+                        policyId: 'policy',
+                        wallet: owner.wallet,
+                        perTradeLimitUsd: '125.500000',
+                        dailyLimitUsd: '600.000000',
+                        maxSlippageBps: 50,
+                        expiresAt: null,
+                        allowSell: false,
+                      },
+                    ]),
+                }),
+              }),
+            }),
+          },
+        } as never,
+      );
+      const prepare = gate.prepareGrant(proof, f.settings);
+      if (!custom) {
+        await expect(prepare).rejects.toThrow(
+          'Grant exceeds the signing policy spend limits',
+        );
+        return;
+      }
+      const grant = await prepare;
+      expect(grant).toMatchObject({
+        perTradeUsd: '125.500000',
+        dailyUsd: '600.000000',
+      });
+      await f.service.recordPending('owner-token', proof, f.settings, grant);
+      expect(f.saved()).toMatchObject({
+        perTradeLimitUsd: '125.500000',
+        dailyLimitUsd: '600.000000',
+      });
+      await expect(
+        gate.prepareGrant(proof, { ...f.settings, dailyUsd: 601 }),
+      ).rejects.toThrow('wallet-authorized');
+    },
+  );
 
   it('lets a non-allowlisted user enroll only when public access is on, within the same limits', async () => {
     const closed = fixture({ allowedUsers: new Set(['someone-else']) });

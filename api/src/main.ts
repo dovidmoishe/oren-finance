@@ -22,6 +22,11 @@ import { ResearchService } from './research/research.service';
 import { PortfolioService } from './portfolio/portfolio.service';
 import { ExecutionService } from './execution/execution.service';
 import { handleMcpRequest } from './mcp-auth/mcp-resource';
+import {
+  isGrantUsdAmount,
+  MAX_GRANT_DAILY_USD,
+  MAX_MCP_TRADE_USD,
+} from './mcp-auth/grant-spend-limits';
 import { mcpConsentScopes } from './mcp-auth/consent-scopes';
 import { requireMcpOfflineConsent } from './mcp-auth/offline-consent';
 import { SignerGateClient } from './mcp-auth/signer-gate.client';
@@ -79,6 +84,7 @@ async function bootstrap() {
     const expressApp = app.getHttpAdapter().getInstance() as Express;
     const db = app.get(DatabaseService).db;
     const identity = app.get(PrivyWalletAuth, { strict: false });
+    const approvalRpc = app.get(ApprovalRpc, { strict: false });
     const delegatedAccess = {
       publicAccess: env.MCP_DELEGATED_TRADES_PUBLIC,
       allowedUsers: new Set(env.MCP_DELEGATED_TRADES_ALLOWED_USERS),
@@ -93,7 +99,7 @@ async function bootstrap() {
       signerQuorumId: env.PRIVY_MCP_SIGNER_QUORUM_ID ?? '',
       signerPolicyId: env.PRIVY_MCP_SIGNER_POLICY_ID,
       tokens: app.get(TokensService, { strict: false }),
-      rpc: app.get(ApprovalRpc, { strict: false }),
+      rpc: approvalRpc,
       connection: new Connection(
         `https://solana-${env.SOLANA_NETWORK}.g.alchemy.com/v2/${env.ALCHEMY_API_KEY}`,
         'confirmed',
@@ -115,6 +121,7 @@ async function bootstrap() {
       portfolio: app.get(PortfolioService, { strict: false }),
       research: app.get(ResearchService, { strict: false }),
       execution: app.get(ExecutionService, { strict: false }),
+      tradeRpc: approvalRpc,
       gate: env.MCP_DELEGATED_TRADES_ENABLED ? grantGate : undefined,
       signerPolicyId: env.PRIVY_MCP_SIGNER_POLICY_ID,
       delegatedSides: {
@@ -212,6 +219,7 @@ async function bootstrap() {
             canEnroll: limits?.untilRevoked === true || maxDurationHours >= 1,
             untilRevoked: limits?.untilRevoked === true,
             maxDurationHours,
+            spendLimits: limits?.spendLimits,
             sellAvailable: env.MCP_DELEGATED_SELLS_ENABLED,
           });
         }
@@ -313,8 +321,8 @@ async function bootstrap() {
     const grantSettingsSchema = z
       .object({
         allowSell: z.boolean(),
-        perTradeUsd: z.number().finite().min(0.01).max(25),
-        dailyUsd: z.number().finite().min(0.01).max(50),
+        perTradeUsd: z.number().max(MAX_MCP_TRADE_USD).refine(isGrantUsdAmount),
+        dailyUsd: z.number().max(MAX_GRANT_DAILY_USD).refine(isGrantUsdAmount),
         maxSlippageBps: z.number().int().min(1).max(50),
         durationHours: z.number().int().min(1).max(MAX_GRANT_HOURS).nullable(),
       })

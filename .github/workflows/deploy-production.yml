@@ -29,10 +29,13 @@ jobs:
     name: Require successful master CI for release SHA
     if: github.ref == 'refs/heads/master'
     runs-on: [self-hosted, linux, x64, oren-control]
-    timeout-minutes: 35
+    # CI polling plus the image build. The build starts immediately and this
+    # job keeps waiting so a failed CI result is still what blocks deploy.
+    timeout-minutes: 70
     permissions:
       contents: read
-      actions: read
+      actions: write
+      pull-requests: read
     steps:
       # Always execute trusted gating code, including during manual rollback.
       - uses: actions/checkout@v4
@@ -44,68 +47,30 @@ jobs:
           RELEASE_SHA: ${{ github.event_name == 'workflow_dispatch' && inputs.image_tag || github.sha }}
         with:
           script: |
-            const {requireProductionCi} = await import(process.env.GITHUB_WORKSPACE + '/infra/preview/production-ci.mjs');
-            const id = await requireProductionCi({github, repo: context.repo, sha: process.env.RELEASE_SHA});
-            core.notice(`Production CI verified: ${id} for ${process.env.RELEASE_SHA}`);
-  build-api:
-    needs: ci-gate
-    name: Build and publish API image
+            const {coordinateReleaseGate} = await import(process.env.GITHUB_WORKSPACE + '/infra/ci/release-lane.mjs');
+            await coordinateReleaseGate({
+              github, repo: context.repo, core,
+              sha: process.env.RELEASE_SHA,
+              runId: context.runId,
+              eventName: context.eventName,
+            });
+  # No `needs: ci-gate`. Images for this SHA start with the push and share the
+  # release runner's single heavy slot. Deploy below is what waits for CI.
+  # One job avoids the same-UID admission drain between two release jobs.
+  build-images:
+    name: Build and publish release images
     if: github.event_name == 'push'
     runs-on: [self-hosted, linux, x64, oren-release]
-    timeout-minutes: 25
+    timeout-minutes: 60
     outputs:
-      digest: ${{ steps.publish.outputs.digest }}
+      api_digest: ${{ steps.api.outputs.digest }}
+      app_digest: ${{ steps.app.outputs.digest }}
     steps:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.sha }}
-      - uses: docker/setup-buildx-action@v3
-      - name: Locate private API build cache
-        id: cache
-        run: |
-          mkdir -p /home/oren-ci-release/cache
-          if [[ -f /home/oren-ci-release/cache/api/index.json ]]; then
-            echo 'from=type=local,src=/home/oren-ci-release/cache/api' >> "$GITHUB_OUTPUT"
-          fi
-      - uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      - uses: docker/build-push-action@v6
-        id: publish
-        with:
-          context: ./api
-          file: ./api/Dockerfile
-          push: true
-          tags: ghcr.io/${{ github.repository_owner }}/oren-api:${{ github.sha }}
-          cache-from: ${{ steps.cache.outputs.from }}
-          cache-to: type=local,dest=/home/oren-ci-release/cache/api-next,mode=max
-      - name: Verify runtime migration files as the image default user
-        env:
-          API_DIGEST: ${{ steps.publish.outputs.digest }}
-        run: |
-          [[ "$API_DIGEST" =~ ^sha256:[a-f0-9]{64}$ ]]
-          docker run --rm -i --read-only --network none --cap-drop ALL --security-opt no-new-privileges \
-            --memory 512m --entrypoint node "ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/oren-api@$API_DIGEST" \
-            --input-type=module - < infra/ci/runtime-readable.mjs
-      - name: Retain private API build cache
-        run: |
-          test "$(id -un)" = oren-ci-release
-          rm -rf --one-file-system /home/oren-ci-release/cache/api
-          mv /home/oren-ci-release/cache/api-next /home/oren-ci-release/cache/api
-  build-app:
-    needs: ci-gate
-    name: Build and publish web image
-    if: github.event_name == 'push'
-    runs-on: [self-hosted, linux, x64, oren-release]
-    timeout-minutes: 25
-    outputs:
-      digest: ${{ steps.publish.outputs.digest }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.sha }}
+      - name: Require the release runner account
+        run: test "$(id -un)" = oren-ci-release
       - name: Validate public application origin
         env:
           PUBLIC_APP_ORIGIN: ${{ vars.PUBLIC_APP_ORIGIN || 'https://oren.finance' }}
@@ -113,21 +78,54 @@ jobs:
         run: |
           test -n "$PUBLIC_APP_ORIGIN"
           test -n "$PUBLIC_API_ORIGIN"
-      - uses: docker/setup-buildx-action@v3
-      - name: Locate private web build cache
-        id: cache
+      - name: Seed the API builder from the private cache when it is cold
+        id: api-cache
         run: |
           mkdir -p /home/oren-ci-release/cache
-          if [[ -f /home/oren-ci-release/cache/app/index.json ]]; then
-            echo 'from=type=local,src=/home/oren-ci-release/cache/app' >> "$GITHUB_OUTPUT"
+          if docker volume ls -q | grep -q '^buildx_buildkit_oren-api-release'; then
+            echo 'Release API builder state is already on this runner.'
+          elif [[ -f /home/oren-ci-release/cache/api/index.json ]]; then
+            echo 'from=type=local,src=/home/oren-ci-release/cache/api' >> "$GITHUB_OUTPUT"
           fi
+      - uses: docker/setup-buildx-action@v3
+        with:
+          name: oren-api-release
+          keep-state: true
       - uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - uses: docker/build-push-action@v6
-        id: publish
+        id: api
+        with:
+          context: ./api
+          file: ./api/Dockerfile
+          push: true
+          tags: ghcr.io/${{ github.repository_owner }}/oren-api:${{ github.sha }}
+          cache-from: ${{ steps.api-cache.outputs.from }}
+      - name: Verify runtime migration files as the image default user
+        env:
+          API_DIGEST: ${{ steps.api.outputs.digest }}
+        run: |
+          [[ "$API_DIGEST" =~ ^sha256:[a-f0-9]{64}$ ]]
+          docker run --rm -i --read-only --network none --cap-drop ALL --security-opt no-new-privileges \
+            --memory 512m --entrypoint node "ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/oren-api@$API_DIGEST" \
+            --input-type=module - < infra/ci/runtime-readable.mjs
+      - name: Seed the web builder from the private cache when it is cold
+        id: app-cache
+        run: |
+          if docker volume ls -q | grep -q '^buildx_buildkit_oren-app-release'; then
+            echo 'Release web builder state is already on this runner.'
+          elif [[ -f /home/oren-ci-release/cache/app/index.json ]]; then
+            echo 'from=type=local,src=/home/oren-ci-release/cache/app' >> "$GITHUB_OUTPUT"
+          fi
+      - uses: docker/setup-buildx-action@v3
+        with:
+          name: oren-app-release
+          keep-state: true
+      - uses: docker/build-push-action@v6
+        id: app
         with:
           context: ./app
           file: ./app/Dockerfile
@@ -139,21 +137,15 @@ jobs:
             NEXT_PUBLIC_COMMIT_SHA=${{ github.sha }}
           push: true
           tags: ghcr.io/${{ github.repository_owner }}/oren-app:${{ github.sha }}
-          cache-from: ${{ steps.cache.outputs.from }}
-          cache-to: type=local,dest=/home/oren-ci-release/cache/app-next,mode=max
-      - name: Retain private web build cache
-        run: |
-          test "$(id -un)" = oren-ci-release
-          rm -rf --one-file-system /home/oren-ci-release/cache/app
-          mv /home/oren-ci-release/cache/app-next /home/oren-ci-release/cache/app
+          cache-from: ${{ steps.app-cache.outputs.from }}
 
   deploy:
     name: Deploy release to VPS
-    needs: [ci-gate, build-api, build-app]
+    needs: [ci-gate, build-images]
     if: >-
       always() && needs['ci-gate'].result == 'success' &&
       (github.event_name == 'workflow_dispatch' ||
-       (needs['build-api'].result == 'success' && needs['build-app'].result == 'success'))
+       needs['build-images'].result == 'success')
     runs-on: [self-hosted, linux, x64, oren-control]
     environment: production
     outputs:
@@ -165,8 +157,8 @@ jobs:
     env:
       IMAGE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.image_tag || github.sha }}
       GHCR_OWNER: ${{ github.repository_owner }}
-      API_BUILD_DIGEST: ${{ needs.build-api.outputs.digest }}
-      APP_BUILD_DIGEST: ${{ needs.build-app.outputs.digest }}
+      API_BUILD_DIGEST: ${{ needs.build-images.outputs.api_digest }}
+      APP_BUILD_DIGEST: ${{ needs.build-images.outputs.app_digest }}
       VPS_HOST: ${{ secrets.VPS_HOST }}
       VPS_PORT: ${{ secrets.VPS_PORT }}
       VPS_USER: ${{ secrets.VPS_USER }}
@@ -271,7 +263,7 @@ jobs:
 
   release:
     name: Record verified production deployment
-    needs: [build-api, build-app, deploy]
+    needs: [build-images, deploy]
     if: always() && needs.deploy.result == 'success'
     runs-on: [self-hosted, linux, x64, oren-control]
     permissions:

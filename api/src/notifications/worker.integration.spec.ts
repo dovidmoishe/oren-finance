@@ -67,7 +67,7 @@ run('notification jobs with disposable Postgres and Redis', () => {
       );
     `);
     await client.unsafe(
-      await readFile('lib/db/migrations/0018_notifications.sql', 'utf8'),
+      await readFile('lib/db/migrations/0019_notifications.sql', 'utf8'),
     );
     jobs = new NotificationJobs(drizzle(client) as never);
   }, 20_000);
