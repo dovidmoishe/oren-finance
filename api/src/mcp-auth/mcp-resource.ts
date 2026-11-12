@@ -16,6 +16,7 @@ import type { MarketService } from '../market/market.service';
 import type { PortfolioService } from '../portfolio/portfolio.service';
 import type { ExecutionService } from '../execution/execution.service';
 import type { ApprovalRpc } from '../execution/approval-rpc.service';
+import { MAX_MCP_TRADE_USD } from './grant-spend-limits';
 import {
   SOL_RENT_MESSAGE,
   SOL_FEE_MESSAGE,
@@ -234,7 +235,12 @@ export async function handleMcpRequest(
         inputSchema: z.object({
           assetId: z.string().trim().min(1).max(80),
           side: z.enum(['buy', 'sell']),
-          amountUsd: z.number().finite().min(0.01).max(100000).optional(),
+          amountUsd: z
+            .number()
+            .finite()
+            .min(0.01)
+            .max(MAX_MCP_TRADE_USD)
+            .optional(),
           amountShares: z
             .number()
             .finite()
@@ -460,7 +466,7 @@ export async function handleMcpRequest(
             'Save a USDC stock buy request for browser review. This does not sign or submit a trade.',
           inputSchema: z.object({
             assetId: z.string().trim().min(1).max(80),
-            amountUsd: z.number().finite().min(0.01).max(100000),
+            amountUsd: z.number().finite().min(0.01).max(MAX_MCP_TRADE_USD),
             slippageBps: z.number().int().min(1).max(50).default(50),
           }),
         },

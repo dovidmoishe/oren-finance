@@ -16,6 +16,16 @@ test('until-revoked candidates omit only the time cutoff and require explicit op
   assert.throws(() => buildTradingPolicy({ ...input, untilRevoked: true }));
 });
 const policy = buildTradingPolicy(input);
+test('custom spend policy raises only the two USDC route limits', () => {
+  const custom = buildTradingPolicy({ ...input, customSpendLimits: true });
+  const expected = structuredClone(policy);
+  for (const side of ['buy', 'sell']) {
+    const field = side === 'buy' ? 'in_amount' : 'quoted_out_amount';
+    const rule = expected.rules.find(rule => rule.name === `allow bounded jupiter ${side}`);
+    rule.conditions.find(condition => condition.field.endsWith(`args.${field}`)).value = '100000000000';
+  }
+  assert.deepEqual(custom, expected);
+});
 // Privy's documented semantics: all conditions in a rule, deny precedence,
 // and an allow for every top-level instruction. This exercises the boundary.
 function allowed(instructions, method = 'signTransaction', now = 150000) {

@@ -140,10 +140,11 @@ export class SignerGateClient {
   }
 
   grantLimits() {
-    return this.post<{ maxDurationHours?: number; untilRevoked?: boolean }>(
-      '/grant/limits',
-      {},
-    );
+    return this.post<{
+      maxDurationHours?: number;
+      untilRevoked?: boolean;
+      spendLimits?: { maxPerTradeUsd: number; maxDailyUsd: number };
+    }>('/grant/limits', {});
   }
 
   prepareGrant(

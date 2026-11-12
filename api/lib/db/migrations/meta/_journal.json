@@ -113,6 +113,13 @@
       "breakpoints": true,
       "tag": "0015_mcp_grant_expiry",
       "idx": 15
+    },
+    {
+      "version": "7",
+      "when": 1794528000000,
+      "breakpoints": true,
+      "tag": "0016_mcp_custom_spend_limits",
+      "idx": 16
     }
   ]
 }

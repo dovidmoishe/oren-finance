@@ -55,7 +55,7 @@ export async function verifyLaunchMints(catalogMints, reviewedMints, { resolveMi
   return selectLaunchMints(tradable, reviewedMints);
 }
 /** Build a bounded launch policy within Privy's 128 KiB aggregate IDL limit. */
-export function buildLaunchPolicy(template, selectedMints, { allowDestinationAccountCreation = false, untilRevoked = false } = {}) {
+export function buildLaunchPolicy(template, selectedMints, { allowDestinationAccountCreation = false, untilRevoked = false, customSpendLimits = false } = {}) {
   const mints=[...new Set(selectedMints)];
   const usdc='EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
   if(!mints.length||mints.length>100||mints.includes(usdc)||mints.some(m=>typeof m!=='string'||!/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(m)))throw Error('Invalid launch mint list');
@@ -68,7 +68,7 @@ export function buildLaunchPolicy(template, selectedMints, { allowDestinationAcc
   const C=(field,operator,value)=>({field_source:'solana_instruction_data',field:'shared_accounts_route.'+field,operator,value,idl});
   const rule=side=>({name:'allow bounded jupiter '+side,method:'signTransaction',action:'ALLOW',conditions:[
     {field_source:'solana_program_instruction',field:'programId',operator:'eq',value:full.address},
-    C(side==='buy'?'args.in_amount':'args.quoted_out_amount','lte','25000000'),
+    C(side==='buy'?'args.in_amount':'args.quoted_out_amount','lte',customSpendLimits ? '100000000000' : '25000000'),
     C('args.slippage_bps','lte','50'),C('args.platform_fee_bps','eq','0'),
     C('accounts.source_mint',side==='buy'?'eq':'in',side==='buy'?usdc:mints),
     C('accounts.destination_mint',side==='buy'?'in':'eq',side==='buy'?mints:usdc),
