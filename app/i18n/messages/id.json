@@ -1,4 +1,43 @@
 {
+  "preferences": {
+    "title": "Preferensi",
+    "followTitle": "Sektor apa yang Anda ikuti?",
+    "followDetail": "Pilih sektor agar Oren dapat menyesuaikan rekomendasi pasar Anda.",
+    "emailTitle": "Email apa yang ingin Anda terima?",
+    "morningBrief": "Ringkasan pagi",
+    "morningBriefDetail": "Tinjauan harian atas portofolio dan berita yang relevan bagi Anda.",
+    "breakingNews": "Berita penting",
+    "breakingNewsDetail": "Berita besar tentang saham yang Anda miliki atau ikuti.",
+    "deliveryLater": "Email akan mulai dikirim saat tiap fitur diluncurkan.",
+    "verifiedEmail": "Email terverifikasi diperlukan untuk menerima pembaruan.",
+    "briefTime": "Waktu pengiriman ringkasan",
+    "timeZone": "Zona waktu",
+    "skip": "Lewati",
+    "continue": "Lanjut",
+    "back": "Kembali",
+    "skipEmails": "Lewati email",
+    "saveContinue": "Simpan dan lanjutkan",
+    "continueWithoutSaving": "Lanjut tanpa menyimpan",
+    "retry": "Coba lagi",
+    "saving": "Menyimpan…",
+    "save": "Simpan preferensi",
+    "saved": "Preferensi tersimpan.",
+    "saveError": "Preferensi tidak dapat disimpan. Coba lagi.",
+    "loadError": "Preferensi tidak dapat dimuat.",
+    "sectors": {
+      "communicationServices": "Layanan komunikasi",
+      "consumerDiscretionary": "Konsumsi nonprimer",
+      "consumerStaples": "Konsumsi primer",
+      "energy": "Energi",
+      "financials": "Keuangan",
+      "healthCare": "Kesehatan",
+      "industrials": "Industri",
+      "informationTechnology": "Teknologi informasi",
+      "materials": "Bahan baku",
+      "realEstate": "Real estat",
+      "utilities": "Utilitas"
+    }
+  },
   "language": {
     "change": "Ganti bahasa",
     "title": "Bahasa"

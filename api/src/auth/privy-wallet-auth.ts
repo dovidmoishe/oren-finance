@@ -80,6 +80,11 @@ export class PrivyWalletAuth {
     return { userId, walletAddress: wallet, email: emailFromPrivyUser(user) };
   }
 
+  async requireAccountIdentity(authorization: string | undefined) {
+    const { userId, user } = await this.verifiedUser(authorization);
+    return { userId, email: emailFromPrivyUser(user) };
+  }
+
   async requireMcpUser(authorization: string | undefined): Promise<string> {
     return (await this.verifiedUser(authorization)).userId;
   }

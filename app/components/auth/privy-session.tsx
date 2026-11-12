@@ -49,6 +49,7 @@ import {
 import { AuthContext } from "./auth-context";
 import { setAgentTokenProvider } from "@/services/agent-service";
 import { EmailLogin } from "./email-login";
+import { PersonalizationDialog } from "./personalization-dialog";
 import { WalletModalContext } from "./wallet-modal-context";
 
 const SELECTION_KEY = "oren.active-wallet.v1";
@@ -90,11 +91,11 @@ export function PrivySession({ children }: { children: React.ReactNode }) {
   const { addSigners, removeSigners } = useSigners();
   const pathname = usePathname();
   const [depositOpen, setDepositOpen] = useState(false);
-  useLogin({
-    onComplete: ({ isNewUser, wasAlreadyAuthenticated }) => {
-      if (isNewUser && !wasAlreadyAuthenticated) setDepositOpen(true);
-    },
-  });
+  const [onboardingUserId, setOnboardingUserId] = useState<string>();
+  const inApp = pathname === "/app" || pathname.startsWith("/app/");
+  const onboardingEnabled =
+    process.env.NEXT_PUBLIC_DEPLOYMENT_ENV === "preview" ||
+    process.env.NODE_ENV === "development";
   const { wallets } = useWallets();
   const { wallets: standardWallets } = useStandardWallets();
   const embeddedSigner = standardWallets.find(
@@ -112,6 +113,20 @@ export function PrivySession({ children }: { children: React.ReactNode }) {
   const [error, setError] = useState<string>();
   const [signingOut, setSigningOut] = useState(false);
   const dialog = useRef<HTMLDialogElement>(null);
+  const lastPersonalizedSignup = useRef<string>(undefined);
+  useLogin({
+    onComplete: ({ user: signedInUser, isNewUser, wasAlreadyAuthenticated, loginMethod }) => {
+      if (!isNewUser || wasAlreadyAuthenticated) return;
+      if (inApp && onboardingEnabled && loginMethod === "email") {
+        if (lastPersonalizedSignup.current === signedInUser.id) return;
+        lastPersonalizedSignup.current = signedInUser.id;
+        setOnboardingUserId(signedInUser.id);
+        dialog.current?.close();
+        setVisible(false);
+      }
+      setDepositOpen(true);
+    },
+  });
   const actionLock = useRef(false);
   const setupAttempted = useRef(new Set<string>());
   const setupInFlight = useRef(new Set<string>());
@@ -144,6 +159,11 @@ export function PrivySession({ children }: { children: React.ReactNode }) {
     currentUser.current = authenticated && !signingOut ? user?.id : undefined;
     currentAddress.current = ready && authenticated && !signingOut ? address : undefined;
   }, [ready, authenticated, signingOut, user?.id, address]);
+
+  if (onboardingUserId && ready && authenticated && user && user.id !== onboardingUserId) {
+    setOnboardingUserId(undefined);
+    setDepositOpen(false);
+  }
 
   // Own creation explicitly for the custom email flow, with one automatic attempt per user.
   const setupWallet = useCallback(async () => {
@@ -229,6 +249,8 @@ export function PrivySession({ children }: { children: React.ReactNode }) {
     if (actionLock.current) return;
     actionLock.current = true;
     setSigningOut(true);
+    setOnboardingUserId(undefined);
+    setDepositOpen(false);
     setBusy(true);
     setError(undefined);
     clearWalletData();
@@ -372,6 +394,7 @@ export function PrivySession({ children }: { children: React.ReactNode }) {
               "Your account changed. Check the wallet signer state.",
             );
         },
+        userId: authenticated && !signingOut ? user?.id : undefined,
         email: user?.email?.address,
         walletPreparing:
           authenticated &&
@@ -379,7 +402,7 @@ export function PrivySession({ children }: { children: React.ReactNode }) {
           !error &&
           !(setup?.userId === user?.id && setup?.error) &&
           !signingOut,
-        depositOpen,
+        depositOpen: depositOpen && !onboardingUserId,
         openDeposit: () => setDepositOpen(true),
         closeDeposit: () => setDepositOpen(false),
         wallets: account.linked.map((wallet) => ({
@@ -443,6 +466,14 @@ export function PrivySession({ children }: { children: React.ReactNode }) {
             </button>
             {visible && <EmailLogin onComplete={() => setVisible(false)} />}
           </dialog>
+          {onboardingUserId && authenticated && !signingOut && !visible && inApp &&
+            user?.id === onboardingUserId && (
+              <PersonalizationDialog
+                key={onboardingUserId}
+                getAccessToken={getAccessToken}
+                onFinish={() => setOnboardingUserId(undefined)}
+              />
+            )}
         </WalletModalContext.Provider>
       </WalletContext.Provider>
     </AuthContext.Provider>

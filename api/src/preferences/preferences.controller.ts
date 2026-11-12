@@ -1,0 +1,64 @@
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Get,
+  Header,
+  Headers,
+  Inject,
+  Put,
+} from '@nestjs/common';
+import { eq } from 'drizzle-orm';
+import { PrivyWalletAuth } from '../auth/privy-wallet-auth';
+import { DRIZZLE } from '../config/constants';
+import type { Database } from '../database/database.provider';
+import { userPreferences } from '../database/schema';
+import { parsePreferences } from './preferences';
+
+const fields = {
+  sectors: userPreferences.sectors,
+  morningBrief: userPreferences.morningBrief,
+  breakingNews: userPreferences.breakingNews,
+  briefTime: userPreferences.briefTime,
+  timeZone: userPreferences.timeZone,
+};
+
+@Controller('me/preferences')
+export class PreferencesController {
+  constructor(
+    private readonly auth: PrivyWalletAuth,
+    @Inject(DRIZZLE) private readonly db: Database,
+  ) {}
+
+  @Get()
+  @Header('Cache-Control', 'private, no-store')
+  async get(@Headers('authorization') authorization?: string) {
+    const { userId, email } =
+      await this.auth.requireAccountIdentity(authorization);
+    const [preferences] = await this.db
+      .select(fields)
+      .from(userPreferences)
+      .where(eq(userPreferences.userId, userId));
+    return { preferences: preferences ?? null, emailEligible: Boolean(email) };
+  }
+
+  @Put()
+  @Header('Cache-Control', 'private, no-store')
+  async put(
+    @Body() body: unknown,
+    @Headers('authorization') authorization?: string,
+  ) {
+    const { userId, email } =
+      await this.auth.requireAccountIdentity(authorization);
+    const preferences = parsePreferences(body);
+    if (!email && (preferences.morningBrief || preferences.breakingNews)) {
+      throw new BadRequestException('A verified email is required for updates');
+    }
+    const [saved] = await this.db
+      .insert(userPreferences)
+      .values({ userId, ...preferences })
+      .onConflictDoUpdate({ target: userPreferences.userId, set: preferences })
+      .returning(fields);
+    return { preferences: saved, emailEligible: Boolean(email) };
+  }
+}

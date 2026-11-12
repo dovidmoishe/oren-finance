@@ -1,4 +1,43 @@
 {
+  "preferences": {
+    "title": "Preferências",
+    "followTitle": "Quais setores você acompanha?",
+    "followDetail": "Escolha setores para personalizar suas recomendações de mercado.",
+    "emailTitle": "Quais e-mails você quer receber?",
+    "morningBrief": "Resumo da manhã",
+    "morningBriefDetail": "Uma visão diária da sua carteira e das notícias relevantes para você.",
+    "breakingNews": "Notícias importantes",
+    "breakingNewsDetail": "Grandes notícias sobre ações que você tem ou acompanha.",
+    "deliveryLater": "Os e-mails começarão quando cada recurso for lançado.",
+    "verifiedEmail": "É necessário um e-mail verificado para receber atualizações.",
+    "briefTime": "Horário do resumo",
+    "timeZone": "Fuso horário",
+    "skip": "Pular",
+    "continue": "Continuar",
+    "back": "Voltar",
+    "skipEmails": "Pular e-mails",
+    "saveContinue": "Salvar e continuar",
+    "continueWithoutSaving": "Continuar sem salvar",
+    "retry": "Tentar novamente",
+    "saving": "Salvando…",
+    "save": "Salvar preferências",
+    "saved": "Preferências salvas.",
+    "saveError": "Não foi possível salvar suas preferências. Tente novamente.",
+    "loadError": "Não foi possível carregar suas preferências.",
+    "sectors": {
+      "communicationServices": "Serviços de comunicação",
+      "consumerDiscretionary": "Consumo discricionário",
+      "consumerStaples": "Consumo básico",
+      "energy": "Energia",
+      "financials": "Finanças",
+      "healthCare": "Saúde",
+      "industrials": "Indústria",
+      "informationTechnology": "Tecnologia da informação",
+      "materials": "Materiais",
+      "realEstate": "Imobiliário",
+      "utilities": "Serviços de utilidade pública"
+    }
+  },
   "language": {
     "change": "Mudar idioma",
     "title": "Idioma"

@@ -1,4 +1,43 @@
 {
+  "preferences": {
+    "title": "偏好设置",
+    "followTitle": "你关注哪些行业？",
+    "followDetail": "选择感兴趣的行业，Oren 将为你提供个性化市场推荐。",
+    "emailTitle": "你希望 Oren 发送哪些邮件？",
+    "morningBrief": "早间简报",
+    "morningBriefDetail": "每日了解你的投资组合及与你相关的新闻。",
+    "breakingNews": "重大新闻",
+    "breakingNewsDetail": "你持有或关注的股票的重大消息。",
+    "deliveryLater": "各功能上线后将开始发送邮件。",
+    "verifiedEmail": "接收更新需要已验证的邮箱。",
+    "briefTime": "简报发送时间",
+    "timeZone": "时区",
+    "skip": "跳过",
+    "continue": "继续",
+    "back": "返回",
+    "skipEmails": "跳过邮件",
+    "saveContinue": "保存并继续",
+    "continueWithoutSaving": "不保存并继续",
+    "retry": "重试",
+    "saving": "正在保存…",
+    "save": "保存偏好",
+    "saved": "偏好已保存。",
+    "saveError": "无法保存偏好，请重试。",
+    "loadError": "无法加载偏好。",
+    "sectors": {
+      "communicationServices": "通信服务",
+      "consumerDiscretionary": "可选消费",
+      "consumerStaples": "必需消费",
+      "energy": "能源",
+      "financials": "金融",
+      "healthCare": "医疗保健",
+      "industrials": "工业",
+      "informationTechnology": "信息技术",
+      "materials": "材料",
+      "realEstate": "房地产",
+      "utilities": "公用事业"
+    }
+  },
   "language": {
     "change": "切换语言",
     "title": "语言"

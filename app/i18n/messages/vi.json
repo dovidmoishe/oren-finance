@@ -1,4 +1,43 @@
 {
+  "preferences": {
+    "title": "Tùy chọn",
+    "followTitle": "Bạn theo dõi ngành nào?",
+    "followDetail": "Chọn ngành để Oren cá nhân hóa đề xuất thị trường cho bạn.",
+    "emailTitle": "Bạn muốn nhận email gì?",
+    "morningBrief": "Bản tin buổi sáng",
+    "morningBriefDetail": "Tổng quan hằng ngày về danh mục và tin tức liên quan đến bạn.",
+    "breakingNews": "Tin quan trọng",
+    "breakingNewsDetail": "Tin tức lớn về cổ phiếu bạn sở hữu hoặc theo dõi.",
+    "deliveryLater": "Email sẽ được gửi khi từng tính năng ra mắt.",
+    "verifiedEmail": "Cần email đã xác minh để nhận cập nhật.",
+    "briefTime": "Giờ gửi bản tin",
+    "timeZone": "Múi giờ",
+    "skip": "Bỏ qua",
+    "continue": "Tiếp tục",
+    "back": "Quay lại",
+    "skipEmails": "Bỏ qua email",
+    "saveContinue": "Lưu và tiếp tục",
+    "continueWithoutSaving": "Tiếp tục mà không lưu",
+    "retry": "Thử lại",
+    "saving": "Đang lưu…",
+    "save": "Lưu tùy chọn",
+    "saved": "Đã lưu tùy chọn.",
+    "saveError": "Không thể lưu tùy chọn. Vui lòng thử lại.",
+    "loadError": "Không thể tải tùy chọn.",
+    "sectors": {
+      "communicationServices": "Dịch vụ truyền thông",
+      "consumerDiscretionary": "Hàng tiêu dùng không thiết yếu",
+      "consumerStaples": "Hàng tiêu dùng thiết yếu",
+      "energy": "Năng lượng",
+      "financials": "Tài chính",
+      "healthCare": "Chăm sóc sức khỏe",
+      "industrials": "Công nghiệp",
+      "informationTechnology": "Công nghệ thông tin",
+      "materials": "Vật liệu",
+      "realEstate": "Bất động sản",
+      "utilities": "Tiện ích"
+    }
+  },
   "language": {
     "change": "Đổi ngôn ngữ",
     "title": "Ngôn ngữ"

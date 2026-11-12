@@ -10,6 +10,7 @@ export interface OrenAuth {
   wallets: { address: string; label: string }[];
   error?: string;
   busy: boolean;
+  userId?: string;
   email?: string;
   walletPreparing: boolean;
   depositOpen: boolean;

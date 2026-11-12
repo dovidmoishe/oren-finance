@@ -1,4 +1,43 @@
 {
+  "preferences": {
+    "title": "Preferences",
+    "followTitle": "What do you follow?",
+    "followDetail": "Pick sectors to help Oren tailor your market recommendations.",
+    "emailTitle": "What should Oren email you about?",
+    "morningBrief": "Morning Brief",
+    "morningBriefDetail": "A daily look at your portfolio and news that matters to you.",
+    "breakingNews": "Breaking News",
+    "breakingNewsDetail": "Major news about stocks you own or follow.",
+    "deliveryLater": "Emails will begin when each feature launches.",
+    "verifiedEmail": "A verified email is required for updates.",
+    "briefTime": "Brief send time",
+    "timeZone": "Time zone",
+    "skip": "Skip",
+    "continue": "Continue",
+    "back": "Back",
+    "skipEmails": "Skip emails",
+    "saveContinue": "Save and continue",
+    "continueWithoutSaving": "Continue without saving",
+    "retry": "Retry",
+    "saving": "Saving…",
+    "save": "Save preferences",
+    "saved": "Preferences saved.",
+    "saveError": "Couldn’t save your preferences. Please try again.",
+    "loadError": "Couldn’t load your preferences.",
+    "sectors": {
+      "communicationServices": "Communication Services",
+      "consumerDiscretionary": "Consumer Discretionary",
+      "consumerStaples": "Consumer Staples",
+      "energy": "Energy",
+      "financials": "Financials",
+      "healthCare": "Health Care",
+      "industrials": "Industrials",
+      "informationTechnology": "Information Technology",
+      "materials": "Materials",
+      "realEstate": "Real Estate",
+      "utilities": "Utilities"
+    }
+  },
   "language": {
     "change": "Change language",
     "title": "Language"

@@ -1,4 +1,43 @@
 {
+  "preferences": {
+    "title": "Einstellungen",
+    "followTitle": "Welche Branchen verfolgen Sie?",
+    "followDetail": "Wählen Sie Branchen für personalisierte Marktempfehlungen.",
+    "emailTitle": "Welche E-Mails möchten Sie erhalten?",
+    "morningBrief": "Morgenüberblick",
+    "morningBriefDetail": "Ein täglicher Überblick über Ihr Portfolio und relevante Nachrichten.",
+    "breakingNews": "Wichtige Nachrichten",
+    "breakingNewsDetail": "Wichtige Meldungen zu Aktien, die Sie halten oder verfolgen.",
+    "deliveryLater": "Die E-Mails beginnen mit dem Start der jeweiligen Funktion.",
+    "verifiedEmail": "Für Updates ist eine bestätigte E-Mail-Adresse erforderlich.",
+    "briefTime": "Versandzeit des Überblicks",
+    "timeZone": "Zeitzone",
+    "skip": "Überspringen",
+    "continue": "Weiter",
+    "back": "Zurück",
+    "skipEmails": "E-Mails überspringen",
+    "saveContinue": "Speichern und weiter",
+    "continueWithoutSaving": "Ohne Speichern weiter",
+    "retry": "Erneut versuchen",
+    "saving": "Wird gespeichert…",
+    "save": "Einstellungen speichern",
+    "saved": "Einstellungen gespeichert.",
+    "saveError": "Einstellungen konnten nicht gespeichert werden. Versuchen Sie es erneut.",
+    "loadError": "Einstellungen konnten nicht geladen werden.",
+    "sectors": {
+      "communicationServices": "Kommunikationsdienste",
+      "consumerDiscretionary": "Zyklische Konsumgüter",
+      "consumerStaples": "Basiskonsumgüter",
+      "energy": "Energie",
+      "financials": "Finanzen",
+      "healthCare": "Gesundheitswesen",
+      "industrials": "Industrie",
+      "informationTechnology": "Informationstechnologie",
+      "materials": "Grundstoffe",
+      "realEstate": "Immobilien",
+      "utilities": "Versorger"
+    }
+  },
   "language": {
     "change": "Sprache ändern",
     "title": "Sprache"

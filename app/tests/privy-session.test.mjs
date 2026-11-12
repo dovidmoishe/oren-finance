@@ -15,9 +15,9 @@ function deferred() {
   return { promise, resolve, reject };
 }
 // Execute the real session component with a minimal hook scheduler and controllable SDK.
-function session(createWallet) {
+function session(createWallet, { deployment = "production", pathname = "/app" } = {}) {
   const slots = [], effects = [];
-  let cursor = 0, loginComplete, modal, walletContext;
+  let cursor = 0, loginComplete, modal, walletContext, onboarding;
   const sdk = { ready: true, authenticated: true, user: { id: 'alice', linkedAccounts: [] }, logout: async () => {}, linkWallet() {}, getAccessToken: async () => 'token' };
   const walletSdk = { ready: true, wallets: [] };
   class SigningImplementation {
@@ -69,12 +69,12 @@ function session(createWallet) {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX },
   }).outputText;
   vm.runInNewContext(code, {
-    exports, URL, TextEncoder, btoa, window: { location: { href: 'https://oren.finance/app' }, localStorage: { getItem: () => null } },
+    exports, URL, TextEncoder, btoa, process: { env: { NEXT_PUBLIC_DEPLOYMENT_ENV: deployment } }, window: { location: { href: 'https://oren.finance/app' }, localStorage: { getItem: () => null } },
     require(id) {
       if (id === 'react') return react;
       if (id === '@privy-io/react-auth') return { useAuthorizationSignature: () => ({ generateAuthorizationSignature: async () => ({ signature: 'request-signature' }) }), useSigners: () => ({ addSigners: async () => {}, removeSigners: async () => {} }), usePrivy: () => sdk, useLogin: ({ onComplete }) => { loginComplete = onComplete; return { login() {} }; } };
       if (id === '@privy-io/react-auth/solana') return { useStandardWallets: () => standardSdk, useWallets: () => walletSdk, useCreateWallet: () => ({ createWallet }), useSignMessage: () => ({ signMessage: (...args) => messageSigner(...args) }), useSignTransaction: () => ({}) };
-      if (id === 'next/navigation') return { usePathname: () => '/app' };
+      if (id === 'next/navigation') return { usePathname: () => pathname };
       if (id === '@/store') return Object.fromEntries(['useAgentStore','useExecutionStore','usePortfolioStore','useSocialStore','useVaultStore','useWalletStore'].map(k => [k, store]));
       if (id === '@/services/wallet-session') return { invalidateWalletSession() {}, walletSessionIsCurrent: () => () => true };
       if (id === '@/services/approval-service') return { getApprovalAuthorizationRequest: async () => ({}) };
@@ -83,6 +83,7 @@ function session(createWallet) {
       if (id === '@/services/wallet-selection') return { resolveEmbeddedSolanaAccount, resolveSolanaWallet };
       if (id === './auth-context') return { AuthContext: { Provider: 'auth' } };
       if (id === './email-login') return { EmailLogin: 'email-login' };
+      if (id === './personalization-dialog') return { PersonalizationDialog: 'onboarding' };
       if (id === '@solana/wallet-adapter-react') return { WalletContext: { Provider: 'wallet' } };
       if (id === './wallet-modal-context') return { WalletModalContext: { Provider: 'wallet-modal' } };
       return require(id);
@@ -93,12 +94,72 @@ function session(createWallet) {
     const tree = exports.PrivySession({ children: null });
     walletContext = tree.props.children.props.value;
     modal = tree.props.children.props.children.props.value;
+    onboarding = tree.props.children.props.children.props.children.find(child => child?.type === 'onboarding');
     while (effects.length) effects.shift()();
     return tree.props.value;
   }
-  return { sdk, walletSdk, standardSdk, setMessageSigner: signer => { messageSigner = signer; }, embeddedSigner: signer => new PrivyStandardWallet(signer), render, wallet: () => walletContext, resetCount: () => resets, requestConnection: () => modal.setVisible(true), isLoginOpen: () => modal.visible, completeLogin: data => loginComplete(data) };
+  return { sdk, walletSdk, standardSdk, setMessageSigner: signer => { messageSigner = signer; }, embeddedSigner: signer => new PrivyStandardWallet(signer), render, wallet: () => walletContext, resetCount: () => resets, requestConnection: () => modal.setVisible(true), isLoginOpen: () => modal.visible, completeLogin: data => loginComplete(data), onboarding: () => onboarding };
 }
 const settle = () => new Promise(resolve => setImmediate(resolve));
+
+const verifiedSignup = {
+  user: { id: 'alice' },
+  isNewUser: true,
+  wasAlreadyAuthenticated: false,
+  loginMethod: 'email',
+};
+
+test('fresh preview OTP opens personalization before deposit even while the wallet is preparing', () => {
+  const wallet = deferred();
+  const app = session(() => wallet.promise, { deployment: 'preview' });
+  app.sdk.authenticated = false;
+  app.render().open();
+  app.render();
+  assert.equal(app.isLoginOpen(), true);
+  assert.equal(app.onboarding(), undefined);
+
+  app.completeLogin(verifiedSignup);
+  app.sdk.authenticated = true;
+  assert.equal(app.render().depositOpen, false);
+  assert.equal(app.isLoginOpen(), false);
+  assert.ok(app.onboarding());
+  app.render().openDeposit();
+  assert.equal(app.render().depositOpen, false);
+  app.onboarding().props.onFinish();
+  assert.equal(app.render().depositOpen, true);
+  assert.equal(app.onboarding(), undefined);
+  app.render().closeDeposit();
+  app.completeLogin(verifiedSignup);
+  assert.equal(app.render().depositOpen, false);
+  assert.equal(app.onboarding(), undefined);
+});
+
+test('restored and returning sessions, and MCP signup, never show personalization', () => {
+  const preview = { deployment: 'preview' };
+  for (const [options, event] of [
+    [preview, { ...verifiedSignup, wasAlreadyAuthenticated: true }],
+    [preview, { ...verifiedSignup, isNewUser: false }],
+    [{ ...preview, pathname: '/connect/mcp' }, verifiedSignup],
+  ]) {
+    const app = session(async () => {}, options);
+    app.render();
+    app.completeLogin(event);
+    app.render();
+    assert.equal(app.onboarding(), undefined);
+  }
+});
+
+test('changing accounts clears personalization and its queued deposit', () => {
+  const app = session(async () => {}, { deployment: 'preview' });
+  app.render();
+  app.completeLogin(verifiedSignup);
+  app.render();
+  assert.ok(app.onboarding());
+  app.sdk.user = { id: 'bob', linkedAccounts: [] };
+  app.render();
+  assert.equal(app.onboarding(), undefined);
+  assert.equal(app.render().depositOpen, false);
+});
 
 const permission = 'Oren chat trading permission\n{"action":"prepare"}';
 const permissionAddress = '11111111111111111111111111111111';

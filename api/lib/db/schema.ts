@@ -834,6 +834,15 @@ export const feedbackTickets = pgTable(
 );
 
 /** Optional short-lived news cache — not a Tokens API mirror. */
+export const userPreferences = pgTable('user_preferences', {
+  userId: text('user_id').primaryKey(),
+  sectors: text('sectors').array().notNull(),
+  morningBrief: boolean('morning_brief').notNull(),
+  breakingNews: boolean('breaking_news').notNull(),
+  briefTime: text('brief_time').notNull(),
+  timeZone: text('time_zone').notNull(),
+});
+
 export const cachedNews = pgTable(
   'cached_news',
   {
