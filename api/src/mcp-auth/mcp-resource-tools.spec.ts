@@ -1,7 +1,11 @@
 import type { Request, Response } from 'express';
 import { McpServer } from '@modelcontextprotocol/server';
 import { handleMcpRequest, type McpResourceDeps } from './mcp-resource';
-import { mcpConnections, mcpTradeIntents } from '../database/schema';
+import {
+  mcpConnections,
+  mcpDelegatedExecutions,
+  mcpTradeIntents,
+} from '../database/schema';
 import { USDC_MINT } from '../config/constants';
 import type { Quote } from '../../types/quote';
 import { uiAmountToRaw } from '../execution/jupiter/jupiter.mapper';
@@ -34,6 +38,10 @@ async function registeredTools(
     };
     converted?: boolean;
     gateError?: Error;
+    gateResult?: { state: string; chainSignature: string };
+    execution?: { state: string; chainSignature: string; errorCode: null };
+    chainStatus?: { confirmationStatus: string; err: unknown } | null;
+    chainUnavailable?: boolean;
     delegationExpiresAt?: Date;
     delegationPolicyId?: string;
   },
@@ -64,6 +72,12 @@ async function registeredTools(
     }),
   });
   const getQuote = jest.fn().mockResolvedValue(quote);
+  const status = jest.fn().mockResolvedValue(review?.chainStatus);
+  if (review?.chainUnavailable)
+    status.mockRejectedValue(new Error('private RPC details'));
+  const execute = review?.gateError
+    ? jest.fn().mockRejectedValue(review.gateError)
+    : jest.fn().mockResolvedValue(review?.gateResult);
   const deps = {
     db: {
       update: () => ({ set }),
@@ -77,20 +91,24 @@ async function registeredTools(
                   ? review?.intent
                     ? [review.intent]
                     : []
-                  : [
-                      {
-                        id: 'delegation-test',
-                        activatedAt: new Date(Date.now() - 60_000),
-                        expiresAt:
-                          review?.delegationExpiresAt ??
-                          new Date(Date.now() + 60_000),
-                        status: 'active',
-                        policyId:
-                          review?.delegationPolicyId ?? 'current-policy',
-                        maxSlippageBps: 50,
-                        allowSell: true,
-                      },
-                    ],
+                  : table === mcpDelegatedExecutions
+                    ? review?.execution
+                      ? [review.execution]
+                      : []
+                    : [
+                        {
+                          id: 'delegation-test',
+                          activatedAt: new Date(Date.now() - 60_000),
+                          expiresAt:
+                            review?.delegationExpiresAt ??
+                            new Date(Date.now() + 60_000),
+                          status: 'active',
+                          policyId:
+                            review?.delegationPolicyId ?? 'current-policy',
+                          maxSlippageBps: 50,
+                          allowSell: true,
+                        },
+                      ],
             );
             return { limit, orderBy: () => ({ limit }) };
           },
@@ -116,7 +134,8 @@ async function registeredTools(
         },
       },
     },
-    gate: { execute: jest.fn().mockRejectedValue(review?.gateError) },
+    gate: { execute },
+    tradeRpc: { status },
     delegatedSides: { buy: true, sell: true },
     signerPolicyId: 'current-policy',
     execution: { getQuote },
@@ -162,11 +181,82 @@ async function registeredTools(
       slippageBps: number;
     }) => Promise<{ content: { text: string }[]; isError?: boolean }>,
     getQuote,
+    chainLookup: status,
+    executeGate: execute,
+    tradeStatus: registrations.find(
+      ([name]) => name === 'trade_status',
+    )?.[2] as (input: {
+      intentId: string;
+    }) => Promise<{ content: { text: string }[] }>,
   };
 }
 
 describe('MCP trade tool exposure', () => {
   beforeEach(() => jest.clearAllMocks());
+  const submittedTrade = {
+    intent: { id: 'intent-test', mode: 'delegated', status: 'submitted' },
+    execution: {
+      state: 'broadcast',
+      chainSignature: 'trade-signature',
+      errorCode: null,
+    },
+  };
+
+  it.each([
+    ['finalized', null, 'confirmed'],
+    ['confirmed', { InstructionError: [2, 'Custom'] }, 'failed'],
+    ['processed', null, 'broadcast'],
+  ])(
+    'checks a stored broadcast against Solana status %s',
+    async (confirmationStatus, err, expected) => {
+      const tools = await registeredTools(
+        ['oren.trade.prepare', 'oren.trade.execute'],
+        undefined,
+        {
+          ...submittedTrade,
+          chainStatus: { confirmationStatus, err },
+        },
+      );
+      const result = await tools.tradeStatus({ intentId: 'intent-test' });
+      expect(JSON.parse(result.content[0].text)).toMatchObject({
+        status: expected,
+        signature: 'trade-signature',
+        ...(expected !== 'broadcast' ? { confirmationStatus } : {}),
+        ...(expected === 'failed' ? { reason: 'chain_failure' } : {}),
+      });
+      expect(tools.chainLookup).toHaveBeenCalledWith(
+        'trade-signature',
+        expect.any(AbortSignal),
+      );
+      expect(tools.executeGate).not.toHaveBeenCalled();
+    },
+  );
+
+  it('keeps an unverified broadcast pending if Solana is unavailable', async () => {
+    const tools = await registeredTools(
+      ['oren.trade.prepare', 'oren.trade.execute'],
+      undefined,
+      {
+        ...submittedTrade,
+        chainUnavailable: true,
+        gateResult: submittedTrade.execution,
+      },
+    );
+    const checked = await tools.tradeStatus({ intentId: 'intent-test' });
+    const submitted = await tools.execute({
+      intentId: 'intent-test',
+      idempotencyKey: 'original-execution-key',
+    });
+    for (const result of [checked, submitted])
+      expect(JSON.parse(result.content[0].text)).toMatchObject({
+        status: 'broadcast',
+        signature: 'trade-signature',
+        message: expect.stringContaining('trade_status'),
+      });
+    expect(JSON.parse(checked.content[0].text).message).toContain(
+      'confirmation could not be checked',
+    );
+  });
   it.each(['delegation_expired', 'delegation_policy_changed'])(
     'returns the renewal link for %s',
     async (browserReason) => {
