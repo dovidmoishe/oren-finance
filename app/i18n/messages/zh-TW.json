@@ -7,6 +7,21 @@
     "edit": "編輯產業",
     "error": "無法載入推薦。"
   },
+  "priceAlerts": {
+    "title": "價格提醒",
+    "open": "提醒我",
+    "variant": "代幣化版本",
+    "direction": "方向",
+    "above": "高於",
+    "below": "低於",
+    "target": "目標價（美元）",
+    "create": "建立提醒",
+    "cancel": "取消提醒",
+    "triggered": "已觸發",
+    "active": "進行中",
+    "detail": "當 Tokens.xyz 觀測到價格穿越目標時，我們會寄送郵件。如果價格已越過目標，將等待下一次穿越。",
+    "error": "無法更新提醒。請檢查目標價和現有提醒後重試。"
+  },
   "preferences": {
     "title": "偏好設定",
     "followTitle": "你關注哪些產業？",

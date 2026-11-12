@@ -7,6 +7,21 @@
     "edit": "Editar setores",
     "error": "Não foi possível carregar suas sugestões."
   },
+  "priceAlerts": {
+    "title": "Alertas de preço",
+    "open": "Avisar-me",
+    "variant": "Variante tokenizada",
+    "direction": "Direção",
+    "above": "Acima",
+    "below": "Abaixo",
+    "target": "Preço-alvo (USD)",
+    "create": "Criar alerta",
+    "cancel": "Cancelar alerta",
+    "triggered": "Disparado",
+    "active": "Ativo",
+    "detail": "Enviaremos um e-mail quando a Tokens.xyz observar o cruzamento. Se o preço já passou do alvo, o alerta aguarda um novo cruzamento.",
+    "error": "Não foi possível atualizar o alerta. Verifique o alvo e seus alertas ativos e tente novamente."
+  },
   "preferences": {
     "title": "Preferências",
     "followTitle": "Quais setores você acompanha?",

@@ -7,6 +7,21 @@
     "edit": "编辑行业",
     "error": "无法加载推荐。"
   },
+  "priceAlerts": {
+    "title": "价格提醒",
+    "open": "提醒我",
+    "variant": "代币化版本",
+    "direction": "方向",
+    "above": "高于",
+    "below": "低于",
+    "target": "目标价（美元）",
+    "create": "创建提醒",
+    "cancel": "取消提醒",
+    "triggered": "已触发",
+    "active": "进行中",
+    "detail": "当 Tokens.xyz 观测到价格穿越目标时，我们会发送邮件。如果价格已越过目标，将等待下一次穿越。",
+    "error": "无法更新提醒。请检查目标价和现有提醒后重试。"
+  },
   "preferences": {
     "title": "偏好设置",
     "followTitle": "你关注哪些行业？",

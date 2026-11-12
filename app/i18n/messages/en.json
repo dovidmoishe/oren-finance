@@ -7,6 +7,21 @@
     "edit": "Edit sectors",
     "error": "Couldn’t load your picks."
   },
+  "priceAlerts": {
+    "title": "Price alerts",
+    "open": "Alert me",
+    "variant": "Tokenized variant",
+    "direction": "Direction",
+    "above": "Above",
+    "below": "Below",
+    "target": "Target price (USD)",
+    "create": "Create alert",
+    "cancel": "Cancel alert",
+    "triggered": "Triggered",
+    "active": "Active",
+    "detail": "We’ll email you once Tokens.xyz observes a crossing. An alert already beyond the target waits for a new crossing.",
+    "error": "Couldn’t update the price alert. Check the target and your active alerts, then try again."
+  },
   "preferences": {
     "title": "Preferences",
     "followTitle": "What do you follow?",

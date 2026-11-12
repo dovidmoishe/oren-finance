@@ -7,6 +7,21 @@
     "edit": "Modifier les secteurs",
     "error": "Impossible de charger vos suggestions."
   },
+  "priceAlerts": {
+    "title": "Alertes de prix",
+    "open": "Créer une alerte",
+    "variant": "Variante tokenisée",
+    "direction": "Sens",
+    "above": "Au-dessus",
+    "below": "En dessous",
+    "target": "Prix cible (USD)",
+    "create": "Enregistrer l’alerte",
+    "cancel": "Annuler l’alerte",
+    "triggered": "Déclenchée",
+    "active": "Active",
+    "detail": "Vous recevrez un e-mail dès que Tokens.xyz observe un franchissement. Si le seuil est déjà dépassé, l’alerte attend le prochain franchissement.",
+    "error": "Impossible de modifier l’alerte. Vérifiez le prix cible et vos alertes actives."
+  },
   "preferences": {
     "title": "Préférences",
     "followTitle": "Quels secteurs suivez-vous ?",

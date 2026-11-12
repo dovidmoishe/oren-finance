@@ -7,6 +7,21 @@
     "edit": "Branchen bearbeiten",
     "error": "Ihre Vorschläge konnten nicht geladen werden."
   },
+  "priceAlerts": {
+    "title": "Preisalarme",
+    "open": "Alarm erstellen",
+    "variant": "Tokenisierte Variante",
+    "direction": "Richtung",
+    "above": "Über",
+    "below": "Unter",
+    "target": "Zielpreis (USD)",
+    "create": "Alarm speichern",
+    "cancel": "Alarm löschen",
+    "triggered": "Ausgelöst",
+    "active": "Aktiv",
+    "detail": "Sie erhalten eine E-Mail, sobald Tokens.xyz eine Überschreitung erkennt. Ist der Zielpreis bereits überschritten, wartet der Alarm auf eine erneute Überschreitung.",
+    "error": "Der Preisalarm konnte nicht aktualisiert werden. Prüfen Sie den Zielpreis und Ihre aktiven Alarme."
+  },
   "preferences": {
     "title": "Einstellungen",
     "followTitle": "Welche Branchen verfolgen Sie?",

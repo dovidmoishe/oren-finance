@@ -7,6 +7,21 @@
     "edit": "Ubah sektor",
     "error": "Saran Anda tidak dapat dimuat."
   },
+  "priceAlerts": {
+    "title": "Peringatan harga",
+    "open": "Beri tahu saya",
+    "variant": "Varian tokenisasi",
+    "direction": "Arah",
+    "above": "Di atas",
+    "below": "Di bawah",
+    "target": "Harga target (USD)",
+    "create": "Buat peringatan",
+    "cancel": "Batalkan peringatan",
+    "triggered": "Terpicu",
+    "active": "Aktif",
+    "detail": "Kami akan mengirim email saat Tokens.xyz melihat harga melintasi target. Jika harga sudah melewati target, peringatan menunggu pelintasan baru.",
+    "error": "Peringatan gagal diperbarui. Periksa target dan peringatan aktif, lalu coba lagi."
+  },
   "preferences": {
     "title": "Preferensi",
     "followTitle": "Sektor apa yang Anda ikuti?",

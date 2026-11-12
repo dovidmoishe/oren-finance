@@ -7,6 +7,21 @@
     "edit": "Chỉnh sửa ngành",
     "error": "Không thể tải đề xuất của bạn."
   },
+  "priceAlerts": {
+    "title": "Cảnh báo giá",
+    "open": "Thông báo cho tôi",
+    "variant": "Biến thể token hóa",
+    "direction": "Hướng",
+    "above": "Trên",
+    "below": "Dưới",
+    "target": "Giá mục tiêu (USD)",
+    "create": "Tạo cảnh báo",
+    "cancel": "Hủy cảnh báo",
+    "triggered": "Đã kích hoạt",
+    "active": "Đang hoạt động",
+    "detail": "Chúng tôi sẽ gửi email khi Tokens.xyz thấy giá vượt ngưỡng. Nếu giá đã qua ngưỡng, cảnh báo sẽ chờ lần vượt tiếp theo.",
+    "error": "Không thể cập nhật cảnh báo. Hãy kiểm tra giá mục tiêu và các cảnh báo đang hoạt động."
+  },
   "preferences": {
     "title": "Tùy chọn",
     "followTitle": "Bạn theo dõi ngành nào?",
