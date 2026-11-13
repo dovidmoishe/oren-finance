@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
-const workflow = name => readFileSync(new URL(`../../.github/workflows/${name}.yml`, import.meta.url), 'utf8');
+const workflow = name => readFileSync(new URL(`../../.github/workflows/${name}.yml`, import.meta.url), 'utf8').replaceAll('\r\n', '\n');
 const job = (text, name) => text.split(`\n  ${name}:\n`)[1]?.split(/\n  [a-z][a-z0-9-]*:\n/)[0];
 
 test('all workflows run on GitHub-hosted Ubuntu', () => {
@@ -11,6 +11,8 @@ test('all workflows run on GitHub-hosted Ubuntu', () => {
     const runners = [...source.matchAll(/^\s+runs-on: (.+)$/gm)].map(m => m[1]);
     assert.ok(runners.length, file);
     assert.ok(runners.every(runner => runner === 'ubuntu-24.04'), file);
+    const actions = [...source.matchAll(/^\s*(?:- )?uses:\s+(\S+)/gm)];
+    assert.ok(actions.every(([, action]) => /@[a-f0-9]{40}$/.test(action)), file);
   }
 });
 
