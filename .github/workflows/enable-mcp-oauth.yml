@@ -18,7 +18,7 @@ permissions:
 jobs:
   enable:
     if: inputs.confirm == 'enable-mcp-oauth'
-    runs-on: [self-hosted, linux, x64, oren-control]
+    runs-on: ubuntu-24.04
     environment: production
     env:
       VPS_HOST: ${{ secrets.VPS_HOST }}

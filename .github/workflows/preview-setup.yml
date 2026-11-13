@@ -15,7 +15,7 @@ permissions:
 jobs:
   setup:
     if: github.ref == 'refs/heads/master'
-    runs-on: [self-hosted, linux, x64, oren-control]
+    runs-on: ubuntu-24.04
     environment: preview
     steps:
       - uses: actions/checkout@v4
