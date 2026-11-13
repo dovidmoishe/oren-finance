@@ -19,7 +19,7 @@ export function CopilotResizeHandle({ width, maxWidth, onResize, onDragChange }:
     if (event.button !== 0 || drag.current) return;
     event.preventDefault();
     const direction = getComputedStyle(event.currentTarget).direction === "rtl" ? -1 : 1;
-    event.currentTarget.focus();
+    event.currentTarget.focus({ preventScroll: true });
     event.currentTarget.setPointerCapture(event.pointerId);
     drag.current = { pointerId: event.pointerId, x: event.clientX, width, direction };
     onDragChange(true);

@@ -105,8 +105,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     <div ref={shell} style={{ "--copilot-preferred-width": width + "px" } as CSSProperties} className={cn(
       "mx-auto min-h-dvh overflow-x-clip bg-panel-subtle text-foreground lg:grid lg:grid-cols-[var(--nav-width)_minmax(0,1fr)_var(--copilot-width)] lg:p-3 lg:[--app-shell-inset:0.75rem] motion-reduce:transition-none sm:[--app-menu-right:1.5rem] [--app-header-bottom:calc(var(--app-nav-height)+var(--app-shell-inset,0px))]",
       collapsed ? "lg:[--nav-width:4rem]" : "lg:[--nav-width:14rem] xl:[--nav-width:15.5rem]",
-      agentOpen && agentExpanded ? "lg:[--copilot-width:1fr]" : agentOpen ? "lg:[--copilot-width:var(--copilot-preferred-width)] lg:[transition-duration:var(--panel-open-dur)]" : "lg:[--copilot-width:0rem]",
-      resizing ? "select-none" : "lg:[transition:grid-template-columns_var(--panel-close-dur)_var(--panel-ease)]",
+      agentOpen && agentExpanded ? "lg:[--copilot-width:1fr]" : docked ? "lg:[--copilot-width:var(--copilot-preferred-width)]" : "lg:[--copilot-width:0rem]",
+      resizing ? "select-none lg:transition-none" : cn(
+        "lg:[transition:grid-template-columns_var(--panel-close-dur)_var(--panel-ease)]",
+        docked && "lg:[transition-duration:var(--panel-open-dur)]",
+      ),
     )}>
       <a className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-50 focus:rounded-lg focus:bg-panel focus:p-3" href="#app-content">{t("nav.skipToContent")}</a>
       <aside ref={sidebar} className="sticky top-3 hidden h-[calc(100dvh-1.5rem)] min-h-0 flex-col pe-3 ps-2 pb-2 lg:flex">
