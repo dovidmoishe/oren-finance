@@ -31,7 +31,7 @@ jobs:
       VPS_USER: ${{ secrets.VPS_USER }}
       VPS_SSH_KNOWN_HOSTS: ${{ secrets.VPS_SSH_KNOWN_HOSTS }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
@@ -42,7 +42,7 @@ jobs:
           test -n "$VPS_SSH_KNOWN_HOSTS"
           bash -n infra/signer-gate/bootstrap-disabled-gate.sh
           node --check infra/signer-gate/bootstrap-keys.mjs
-      - uses: webfactory/ssh-agent@v0.9.1
+      - uses: webfactory/ssh-agent@a6f90b1f127823b31d4d4a8d96047790581349bd # v0.9.1
         with:
           ssh-private-key: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
       - name: Pin the verified VPS host key
