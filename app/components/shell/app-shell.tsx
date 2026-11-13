@@ -1,8 +1,9 @@
 "use client";
 
 import {
-  Calendar03Icon, MarketAnalysisIcon, Menu01Icon, PanelLeftCloseIcon, PanelLeftOpenIcon,
-  PieChart02Icon, RankingIcon, SafeIcon, Search01Icon, Settings01Icon, TransactionHistoryIcon,
+  Calendar01Icon, ChartNoAxesCombinedIcon, ExchangeDollarIcon, LockKeyholeIcon,
+  MarketAnalysisIcon, Menu01Icon, PanelLeftCloseIcon, PanelLeftOpenIcon,
+  Search01Icon, Settings01Icon, TrophyIcon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
 import dynamic from "next/dynamic";
@@ -21,16 +22,16 @@ import { AppSearch } from "./app-search";
 const AgentPanel = dynamic(() => import("@/components/agent/agent-panel").then((mod) => mod.AgentPanel), { ssr: false });
 const DepositModal = dynamic(() => import("@/components/portfolio/deposit-dashboard").then((mod) => mod.DepositModal), { ssr: false });
 
-const portfolio = { href: "/app", label: "nav.portfolio", icon: PieChart02Icon } as const;
-const markets = { href: "/app/markets", label: "nav.markets", icon: MarketAnalysisIcon } as const;
+const portfolio = { href: "/app", label: "nav.portfolio", icon: MarketAnalysisIcon } as const;
+const markets = { href: "/app/markets", label: "nav.markets", icon: ChartNoAxesCombinedIcon } as const;
 const settings = { href: "/app/settings/connections", label: "nav.settings", icon: Settings01Icon } as const;
 const navigation: { href: string; label: MessageKey; icon: IconSvgElement }[] = [
   portfolio,
   markets,
-  { href: "/app/activity", label: "common.activityTitle", icon: TransactionHistoryIcon },
-  { href: "/app/vault", label: "nav.vault", icon: SafeIcon },
-  { href: "/app/calendar", label: "calendar.title", icon: Calendar03Icon },
-  { href: "/app/leaderboard", label: "nav.leaderboard", icon: RankingIcon },
+  { href: "/app/activity", label: "common.activityTitle", icon: ExchangeDollarIcon },
+  { href: "/app/vault", label: "nav.vault", icon: LockKeyholeIcon },
+  { href: "/app/calendar", label: "calendar.title", icon: Calendar01Icon },
+  { href: "/app/leaderboard", label: "nav.leaderboard", icon: TrophyIcon },
 ];
 
 const headerButton = "inline-flex h-10 shrink-0 items-center justify-center rounded-full text-muted hover:bg-panel-subtle hover:text-foreground focus-visible:outline-2 focus-visible:outline-focus lg:h-9 pointer-coarse:h-11";
@@ -59,16 +60,17 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const title = active ? t(active.label) : "Oren";
 
   function navigationLink(item: (typeof navigation)[number], compact = false) {
+    const isActive = item.href === active?.href;
     return (
       <Link
-        aria-current={item.href === active?.href ? "page" : undefined}
-        className={cn(navRow, item.href === active?.href ? "bg-black/[0.045] font-semibold text-foreground" : "font-medium text-muted", compact && "justify-center px-0")}
+        aria-current={isActive ? "page" : undefined}
+        className={cn(navRow, isActive ? "bg-black/[0.045] font-semibold text-foreground" : "font-medium text-muted", compact && "justify-center px-0")}
         href={item.href}
         key={item.href}
         onClick={() => mobileMenu.current?.hidePopover()}
         title={compact ? t(item.label) : undefined}
       >
-        <Icon icon={item.icon} />
+        <HugeiconsIcon aria-hidden="true" className="shrink-0" icon={item.icon} size={18} strokeWidth={isActive ? 2.2 : 1.65} />
         <span className={compact ? "sr-only" : undefined}>{t(item.label)}</span>
       </Link>
     );
