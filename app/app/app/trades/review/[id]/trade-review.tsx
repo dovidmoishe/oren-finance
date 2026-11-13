@@ -110,7 +110,7 @@ export function BrowserTradeReview({ intentId }: { intentId: string }) {
     }
   }
 
-  return <main className="mx-auto max-w-xl px-5 py-12">
+  return <section className="mx-auto max-w-xl px-5 py-12">
     <h1 className="text-3xl font-semibold">Review agent {intent?.side ?? 'trade'} request</h1>
     <p className="mt-3 text-muted">Oren will show a fresh quote and ask you to authorize the exact transaction in your wallet.</p>
     {!authenticated && <button className="mt-6 rounded-xl bg-foreground px-5 py-3 text-white" onClick={open} type="button">Sign in with email code</button>}
@@ -131,5 +131,5 @@ export function BrowserTradeReview({ intentId }: { intentId: string }) {
       onClose={() => setQuote(undefined)}
       onSign={signReviewedQuote}
     />
-  </main>;
+  </section>;
 }

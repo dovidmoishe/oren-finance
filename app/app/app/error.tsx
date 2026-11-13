@@ -8,5 +8,5 @@ export default function TerminalError({ error, reset }: { error: Error & { diges
     console.error(error);
   }, [error]);
 
-  return <RouteErrorPage reset={reset} />;
+  return <RouteErrorPage embedded reset={reset} />;
 }

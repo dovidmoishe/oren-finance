@@ -4,6 +4,14 @@
     "title": "Ngôn ngữ"
   },
   "nav": {
+    "portfolio": "Danh mục",
+    "markets": "Thị trường",
+    "settings": "Cài đặt",
+    "navigation": "Điều hướng",
+    "skipToContent": "Chuyển đến nội dung",
+    "expandSidebar": "Mở rộng thanh bên",
+    "collapseSidebar": "Thu gọn thanh bên",
+    "search": "Tìm kiếm",
     "dashboard": "Tổng quan",
     "market": "Thị trường",
     "leaderboard": "Bảng xếp hạng",
@@ -83,6 +91,18 @@
     "empty": "Chưa có cổ phiếu nào."
   },
   "portfolio": {
+    "totalValue": "Tổng giá trị",
+    "assetCount": "{count, plural, other {# tài sản}}",
+    "allocation": "Phân bổ tài sản",
+    "otherAssets": "Tài sản khác",
+    "hideBalances": "Ẩn số dư",
+    "showBalances": "Hiện số dư",
+    "valueHistory": "Lịch sử giá trị",
+    "snapshotChange": "Kể từ lần ghi nhận trước",
+    "recentActivity": "Hoạt động gần đây",
+    "colDate": "Ngày",
+    "col24h": "Thay đổi 24 giờ",
+    "positionDetails": "Chi tiết",
     "logoAlt": "Logo {name}",
     "thisWeek": "Tuần này",
     "roiTitle": "Lợi nhuận đầu tư",

@@ -4,6 +4,14 @@
     "title": "Sprache"
   },
   "nav": {
+    "portfolio": "Portfolio",
+    "markets": "Märkte",
+    "settings": "Einstellungen",
+    "navigation": "Navigation",
+    "skipToContent": "Zum Inhalt springen",
+    "expandSidebar": "Seitenleiste einblenden",
+    "collapseSidebar": "Seitenleiste einklappen",
+    "search": "Suchen",
     "dashboard": "Dashboard",
     "market": "Markt",
     "leaderboard": "Rangliste",
@@ -83,6 +91,18 @@
     "empty": "Noch keine Aktien."
   },
   "portfolio": {
+    "totalValue": "Gesamtwert",
+    "assetCount": "{count, plural, one {# Vermögenswert} other {# Vermögenswerte}}",
+    "allocation": "Vermögensverteilung",
+    "otherAssets": "Weitere Vermögenswerte",
+    "hideBalances": "Beträge ausblenden",
+    "showBalances": "Beträge anzeigen",
+    "valueHistory": "Wertverlauf",
+    "snapshotChange": "Seit letzter Erfassung",
+    "recentActivity": "Letzte Aktivitäten",
+    "colDate": "Datum",
+    "col24h": "24-Std.-Änderung",
+    "positionDetails": "Details",
     "logoAlt": "Logo von {name}",
     "thisWeek": "Diese Woche",
     "roiTitle": "Kapitalrendite",

@@ -4,6 +4,14 @@
     "title": "Langue"
   },
   "nav": {
+    "portfolio": "Portefeuille",
+    "markets": "Marchés",
+    "settings": "Paramètres",
+    "navigation": "Navigation",
+    "skipToContent": "Aller au contenu",
+    "expandSidebar": "Développer la barre latérale",
+    "collapseSidebar": "Réduire la barre latérale",
+    "search": "Rechercher",
     "dashboard": "Tableau de bord",
     "market": "Marché",
     "leaderboard": "Classement",
@@ -83,6 +91,18 @@
     "empty": "Aucune action pour l’instant."
   },
   "portfolio": {
+    "totalValue": "Valeur totale",
+    "assetCount": "{count, plural, one {# actif} other {# actifs}}",
+    "allocation": "Répartition des actifs",
+    "otherAssets": "Autres actifs",
+    "hideBalances": "Masquer les soldes",
+    "showBalances": "Afficher les soldes",
+    "valueHistory": "Historique de la valeur",
+    "snapshotChange": "Depuis le dernier relevé",
+    "recentActivity": "Activité récente",
+    "colDate": "Date",
+    "col24h": "Variation sur 24 h",
+    "positionDetails": "Détails",
     "logoAlt": "Logo de {name}",
     "thisWeek": "Cette semaine",
     "roiTitle": "Retour sur investissement",

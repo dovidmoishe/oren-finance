@@ -89,6 +89,6 @@ test('legacy settings redirects and the app page preserve only a valid pending i
     await LegacyPage({ searchParams });
     assert.equal(redirects.at(-1), mcpEnrollmentLinks(connection).settings);
     const page = await AppPage({ searchParams });
-    assert.equal(page.props.children.props.connectionUid, connection === 'pending_42' ? connection : undefined);
+    assert.equal(page.props.connectionUid, connection === 'pending_42' ? connection : undefined);
   }
 });

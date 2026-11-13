@@ -4,6 +4,14 @@
     "title": "Language"
   },
   "nav": {
+    "portfolio": "Portfolio",
+    "markets": "Markets",
+    "settings": "Settings",
+    "navigation": "Navigation",
+    "skipToContent": "Skip to content",
+    "expandSidebar": "Expand sidebar",
+    "collapseSidebar": "Collapse sidebar",
+    "search": "Search",
     "dashboard": "Dashboard",
     "market": "Market",
     "leaderboard": "Leaderboard",
@@ -83,6 +91,18 @@
     "empty": "No stocks yet."
   },
   "portfolio": {
+    "totalValue": "Total value",
+    "assetCount": "{count, plural, one {# asset} other {# assets}}",
+    "allocation": "Asset allocation",
+    "otherAssets": "Other assets",
+    "hideBalances": "Hide balances",
+    "showBalances": "Show balances",
+    "valueHistory": "Value history",
+    "snapshotChange": "Since last snapshot",
+    "recentActivity": "Recent activity",
+    "colDate": "Date",
+    "col24h": "24h change",
+    "positionDetails": "Details",
     "logoAlt": "{name} logo",
     "thisWeek": "This week",
     "roiTitle": "Return on Investment",

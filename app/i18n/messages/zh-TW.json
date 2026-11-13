@@ -4,6 +4,14 @@
     "title": "語言"
   },
   "nav": {
+    "portfolio": "投資組合",
+    "markets": "市場",
+    "settings": "設定",
+    "navigation": "導覽",
+    "skipToContent": "跳至內容",
+    "expandSidebar": "展開側欄",
+    "collapseSidebar": "收合側欄",
+    "search": "搜尋",
     "dashboard": "儀表板",
     "market": "市場",
     "leaderboard": "排行榜",
@@ -83,6 +91,18 @@
     "empty": "目前沒有股票。"
   },
   "portfolio": {
+    "totalValue": "總價值",
+    "assetCount": "{count, plural, other {# 項資產}}",
+    "allocation": "資產分布",
+    "otherAssets": "其他資產",
+    "hideBalances": "隱藏餘額",
+    "showBalances": "顯示餘額",
+    "valueHistory": "價值歷史",
+    "snapshotChange": "較上次快照",
+    "recentActivity": "近期活動",
+    "colDate": "日期",
+    "col24h": "24 小時漲跌",
+    "positionDetails": "詳細資料",
     "logoAlt": "{name} 標誌",
     "thisWeek": "本週",
     "roiTitle": "投資報酬",

@@ -56,9 +56,10 @@ export function getStocks(page = 1, limit = 20) {
   }));
 }
 
-export function searchStocks(query: string) {
+export function searchStocks(query: string, signal?: AbortSignal) {
   return apiRequest<ApiStockSummary[]>("/stocks/search", {
     query: { q: query },
+    signal,
   }).then((stocks) => stocks.map(mapStockSummary));
 }
 

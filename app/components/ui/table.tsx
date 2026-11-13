@@ -1,4 +1,4 @@
-import type { HTMLAttributes, TableHTMLAttributes } from "react";
+import type { HTMLAttributes, TableHTMLAttributes, ThHTMLAttributes } from "react";
 import { cn } from "./utils";
 
 export function Table({ className, ...props }: TableHTMLAttributes<HTMLTableElement>) {
@@ -17,7 +17,7 @@ export function TableRow({ className, ...props }: HTMLAttributes<HTMLTableRowEle
   return <tr className={cn("align-middle", className)} {...props} />;
 }
 
-export function TableHead({ className, ...props }: HTMLAttributes<HTMLTableCellElement>) {
+export function TableHead({ className, ...props }: ThHTMLAttributes<HTMLTableCellElement>) {
   return <th className={cn("oren-table-cell font-semibold", className)} {...props} />;
 }
 

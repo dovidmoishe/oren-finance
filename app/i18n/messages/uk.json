@@ -4,6 +4,14 @@
     "title": "Мова"
   },
   "nav": {
+    "portfolio": "Портфель",
+    "markets": "Ринки",
+    "settings": "Налаштування",
+    "navigation": "Навігація",
+    "skipToContent": "Перейти до вмісту",
+    "expandSidebar": "Розгорнути бічну панель",
+    "collapseSidebar": "Згорнути бічну панель",
+    "search": "Пошук",
     "dashboard": "Панель",
     "market": "Ринок",
     "leaderboard": "Рейтинг",
@@ -83,6 +91,18 @@
     "empty": "Акцій поки немає."
   },
   "portfolio": {
+    "totalValue": "Загальна вартість",
+    "assetCount": "{count, plural, one {# актив} few {# активи} many {# активів} other {# активу}}",
+    "allocation": "Розподіл активів",
+    "otherAssets": "Інші активи",
+    "hideBalances": "Приховати баланси",
+    "showBalances": "Показати баланси",
+    "valueHistory": "Історія вартості",
+    "snapshotChange": "Від останнього знімка",
+    "recentActivity": "Останні операції",
+    "colDate": "Дата",
+    "col24h": "Зміна за 24 год",
+    "positionDetails": "Деталі",
     "logoAlt": "Логотип {name}",
     "thisWeek": "Цього тижня",
     "roiTitle": "Прибутковість інвестицій",

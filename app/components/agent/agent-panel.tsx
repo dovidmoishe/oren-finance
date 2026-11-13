@@ -227,8 +227,8 @@ export function AgentPanel() {
       <div
         aria-hidden
         className={cn(
-          'fixed inset-0 top-[var(--app-nav-height,4.5rem)] z-30 bg-black/20 backdrop-blur-[2px] transition-opacity',
-          panelOpen && !expanded ? 'opacity-100 2xl:hidden' : 'pointer-events-none opacity-0',
+          'fixed inset-0 top-[var(--app-header-bottom,var(--app-nav-height,4.5rem))] z-30 bg-black/20 backdrop-blur-[2px] transition-opacity',
+          panelOpen && !expanded ? 'opacity-100 xl:hidden' : 'pointer-events-none opacity-0',
         )}
         onClick={handleBackdropClick}
       />
@@ -236,7 +236,7 @@ export function AgentPanel() {
       <div
         aria-hidden
         className={cn(
-          'fixed inset-0 top-[var(--app-nav-height,4.5rem)] z-30 hidden bg-black/20 backdrop-blur-[2px] transition-opacity lg:block',
+          'fixed inset-0 top-[var(--app-header-bottom,var(--app-nav-height,4.5rem))] z-30 hidden bg-black/20 backdrop-blur-[2px] transition-opacity lg:block',
           panelOpen && expanded ? 'opacity-100' : 'pointer-events-none opacity-0',
         )}
         onClick={handleBackdropClick}
@@ -249,8 +249,8 @@ export function AgentPanel() {
         className={cn(
           't-panel-slide fixed z-40 flex min-h-0 flex-col overflow-hidden border border-border bg-panel shadow-[0_28px_90px_rgba(23,23,23,0.18)]',
           expanded
-            ? 't-agent-expanded inset-x-2 bottom-2 top-[calc(var(--app-nav-height,4.5rem)+0.5rem)] rounded-[28px] lg:inset-x-4 lg:bottom-4 lg:top-[calc(var(--app-nav-height,4.5rem)+1rem)]'
-            : 'inset-x-2 bottom-2 top-[calc(var(--app-nav-height,4.5rem)+0.5rem)] rounded-[28px] sm:inset-x-auto sm:bottom-4 sm:right-4 sm:top-[calc(var(--app-nav-height,4.5rem)+1rem)] sm:w-[380px] 2xl:right-5',
+            ? 't-agent-expanded inset-x-2 bottom-2 top-[calc(var(--app-header-bottom,var(--app-nav-height,4.5rem))+0.5rem)] rounded-[28px] lg:inset-x-4 lg:bottom-4 lg:top-[calc(var(--app-header-bottom,var(--app-nav-height,4.5rem))+1rem)]'
+            : 'inset-x-2 bottom-2 top-[calc(var(--app-header-bottom,var(--app-nav-height,4.5rem))+0.5rem)] rounded-[28px] sm:inset-x-auto sm:bottom-4 sm:right-4 sm:top-[calc(var(--app-header-bottom,var(--app-nav-height,4.5rem))+1rem)] sm:w-[380px] 2xl:right-5',
           !expanded && hasReviewOpen ? 'opacity-40' : '',
         )}
         data-expanded={expanded && panelOpen && hydrated}

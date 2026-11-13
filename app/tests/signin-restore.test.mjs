@@ -356,7 +356,9 @@ function dashboardRequire(auth) {
       useVaultStore: (select) => select(storeState),
     };
     if (id === "@/hooks/use-portfolio-refresh") return { usePortfolioRefresh: () => async () => {} };
-    if (id === "@/components/charts/market-chart") return { MarketChart: () => null };
+    if (id === "./portfolio-skeleton") return { PortfolioSkeleton: () => null };
+    if (id === "./portfolio-summary-card") return { PortfolioSummaryCard: () => null };
+    if (id === "./portfolio-tables") return { PortfolioTables: () => null };
     if (id === "@/components/portfolio/activity-list") return { ActivityList: () => null };
     if (id === "@/services/environment") return { financialExecutionEnabled: false };
     if (id === "./vault-review-modal") return { VaultReviewModal: () => null };

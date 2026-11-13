@@ -4,6 +4,14 @@
     "title": "Bahasa"
   },
   "nav": {
+    "portfolio": "Portofolio",
+    "markets": "Pasar",
+    "settings": "Pengaturan",
+    "navigation": "Navigasi",
+    "skipToContent": "Lewati ke konten",
+    "expandSidebar": "Perluas bilah samping",
+    "collapseSidebar": "Ciutkan bilah samping",
+    "search": "Cari",
     "dashboard": "Dasbor",
     "market": "Pasar",
     "leaderboard": "Papan peringkat",
@@ -83,6 +91,18 @@
     "empty": "Belum ada saham."
   },
   "portfolio": {
+    "totalValue": "Nilai total",
+    "assetCount": "{count, plural, other {# aset}}",
+    "allocation": "Alokasi aset",
+    "otherAssets": "Aset lainnya",
+    "hideBalances": "Sembunyikan saldo",
+    "showBalances": "Tampilkan saldo",
+    "valueHistory": "Riwayat nilai",
+    "snapshotChange": "Sejak catatan terakhir",
+    "recentActivity": "Aktivitas terbaru",
+    "colDate": "Tanggal",
+    "col24h": "Perubahan 24 jam",
+    "positionDetails": "Detail",
     "logoAlt": "Logo {name}",
     "thisWeek": "Minggu ini",
     "roiTitle": "Imbal hasil investasi",
