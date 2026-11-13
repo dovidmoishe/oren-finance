@@ -16,6 +16,8 @@ import { IntelligenceModule } from './intelligence/intelligence.module';
 import { MarketModule } from './market/market.module';
 import { NewsModule } from './news/news.module';
 import { PortfolioModule } from './portfolio/portfolio.module';
+import { NotificationsModule } from './notifications/notifications.module';
+import { PreferencesModule } from './preferences/preferences.module';
 import { ResearchModule } from './research/research.module';
 import { SenviokModule } from './senviok/senviok.module';
 import { SocialModule } from './social/social.module';
@@ -38,6 +40,8 @@ import { VaultModule } from './vault/vault.module';
     HealthModule,
     PortfolioModule,
     ResearchModule,
+    PreferencesModule,
+    NotificationsModule,
     IntelligenceModule,
     MarketModule,
     NewsModule,

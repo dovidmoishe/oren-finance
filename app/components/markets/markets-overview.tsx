@@ -9,6 +9,7 @@ import { getStockChart } from "@/services";
 import { useMarketStore } from "@/store";
 import type { MarketCandle, StockSummary } from "@/types";
 import { useI18n, useT } from "@/i18n/i18n";
+import { MarketForYou } from "./market-for-you";
 
 const sparklineCache = new Map<string, MarketCandle[]>();
 
@@ -312,6 +313,11 @@ export function MarketsOverview() {
           </section>
         ))}
       </div>
+
+      {!searching && (
+        process.env.NEXT_PUBLIC_DEPLOYMENT_ENV === "preview" ||
+        process.env.NODE_ENV === "development"
+      ) && <MarketForYou />}
 
       <div className="overflow-x-auto rounded-[24px] border border-border bg-panel shadow-[0_18px_60px_rgba(23,23,23,0.04)]">
         <div className="grid min-w-[700px] grid-cols-[minmax(240px,1.5fr)_140px_120px_220px_150px] bg-panel-subtle/70 px-4 py-3 text-xs font-semibold text-foreground">

@@ -12,6 +12,8 @@ allowBuilds:
   bigint-buffer: true
   bufferutil: true
   esbuild: true
+  msgpackr-extract: false
+
   unrs-resolver: true
   utf-8-validate: true
 

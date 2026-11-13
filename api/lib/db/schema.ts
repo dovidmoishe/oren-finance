@@ -471,6 +471,8 @@ export const stockSignals = pgTable(
 export const cachedStocks = pgTable(
   'cached_stocks',
   {
+    sectorId: text('sector_id'),
+    alertVariants: jsonb('alert_variants').$type<Array<{ mint: string; symbol: string }>>().notNull().default([]),
     assetId: text('asset_id').primaryKey(),
     ticker: text('ticker').notNull(),
     name: text('name').notNull(),
@@ -834,6 +836,18 @@ export const feedbackTickets = pgTable(
 );
 
 /** Optional short-lived news cache — not a Tokens API mirror. */
+export const userPreferences = pgTable('user_preferences', {
+  userId: text('user_id').primaryKey(),
+  sectors: text('sectors').array().notNull(),
+  morningBrief: boolean('morning_brief').notNull(),
+  breakingNews: boolean('breaking_news').notNull(),
+  briefTime: text('brief_time').notNull(),
+  timeZone: text('time_zone').notNull(),
+  briefDueAt: timestamp('brief_due_at', { withTimezone: true }),
+  briefWallet: text('brief_wallet'),
+  briefWalletSince: timestamp('brief_wallet_since', { withTimezone: true }),
+});
+
 export const cachedNews = pgTable(
   'cached_news',
   {

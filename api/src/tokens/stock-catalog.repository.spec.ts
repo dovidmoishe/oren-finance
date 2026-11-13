@@ -8,6 +8,8 @@ describe('stock catalog repository mapping', () => {
       ticker: 'NVDA',
       name: 'NVIDIA',
       category: 'equity',
+      sectorId: 'informationTechnology',
+      alertVariants: [],
       logo: 'https://cdn.tokens.xyz/nvidia.png',
       price: '182.14',
       priceChange24h: '2.35',
