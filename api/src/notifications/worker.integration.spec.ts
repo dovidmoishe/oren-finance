@@ -85,6 +85,16 @@ run('notification jobs with disposable Postgres and Redis', () => {
     }
   });
 
+  beforeEach(async () => {
+    await client`truncate cached_stocks, user_preferences, notification_jobs,
+      price_alerts, price_poll_cursor, notification_budgets`;
+  });
+
+  async function seedAlertVariant() {
+    await client`insert into cached_stocks values ('nvda', 'NVDA', 'equity', now()+interval '1 hour',
+      ${JSON.stringify([{ mint, symbol: 'NVDAx' }])}::jsonb)`;
+  }
+
   it('recovers a pending outbox job, accepts it once, and holds expired handoffs as uncertain', async () => {
     process.env.PRICE_ALERTS_ENABLED = 'false';
     await client`insert into user_preferences (user_id, morning_brief, brief_time, time_zone)
@@ -157,8 +167,7 @@ run('notification jobs with disposable Postgres and Redis', () => {
   }, 25_000);
 
   it('checks one mint for concurrent rules and cancels queued alert email on unsubscribe', async () => {
-    await client`insert into cached_stocks values ('nvda', 'NVDA', 'equity', now()+interval '1 hour',
-      ${JSON.stringify([{ mint, symbol: 'NVDAx' }])}::jsonb)`;
+    await seedAlertVariant();
     const alerts = new PriceAlerts(jobs.db, jobs);
     const body = { assetId: 'nvda', mint, direction: 'above', target: '120' };
     const first = await alerts.create(user, true, body);
@@ -183,11 +192,28 @@ run('notification jobs with disposable Postgres and Redis', () => {
     expect(getMarketSnapshots).toHaveBeenCalledTimes(1);
     const queued = await jobs.pending('alert-email');
     expect(queued).toHaveLength(2);
+    const provider = new SenviokEmailService({});
+    const sendEmail = jest.spyOn(provider, 'sendEmail');
     const delivery = new NotificationDelivery(
       jobs,
-      {} as PrivyWalletAuth,
-      {} as SenviokEmailService,
+      {
+        getNotificationIdentity: async () => ({
+          email: options.NOTIFICATION_FIXTURE_RECIPIENT,
+        }),
+      } as unknown as PrivyWalletAuth,
+      provider,
     );
+    const claimed = await jobs.claim(queued[0].id, 'alert-email');
+    expect(claimed).toBeDefined();
+    await delivery.send(claimed!);
+    const [accepted] =
+      await client`select state, provider_id from notification_jobs where id = ${queued[0].id}`;
+    expect(accepted).toEqual({
+      state: 'accepted',
+      provider_id: `fixture-${queued[0].id}`,
+    });
+    expect(await jobs.claim(queued[0].id, 'alert-email')).toBeUndefined();
+    expect(sendEmail).not.toHaveBeenCalled();
     expect(
       await delivery.subscription(unsubscribeToken(queued[0].id, secret), true),
     ).toBe('alert-email');
@@ -196,10 +222,10 @@ run('notification jobs with disposable Postgres and Redis', () => {
       (await alerts.list(user, true)).alerts.find(({ id }) => id === first.id),
     ).toBeUndefined();
     await jobs.db.execute(sql`select 1`);
-  }, 20_000);
+  }, 60_000);
 
   it('enforces the active cap and creation budget under concurrent requests', async () => {
-    await client`delete from notification_budgets where scope = ${`create-alert-${user}`}`;
+    await seedAlertVariant();
     await client`insert into price_alerts (user_id, asset_id, ticker, variant, mint, direction, target)
       select ${user}, 'nvda', 'NVDA', 'NVDAx', ${mint}, 'above', n from generate_series(1, 19) n`;
     const alerts = new PriceAlerts(jobs.db, jobs);
@@ -209,13 +235,18 @@ run('notification jobs with disposable Postgres and Redis', () => {
       alerts.create(user, true, { ...body, target: '201' }),
     ]);
     expect(races.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
+    expect(races.filter((r) => r.status === 'rejected')).toEqual([
+      expect.objectContaining({
+        reason: expect.objectContaining({ status: 409 }),
+      }),
+    ]);
     const limits = await Promise.all(
       Array.from({ length: 11 }, () =>
         jobs.budget('independent-test-creation', 10),
       ),
     );
     expect(limits.filter(Boolean)).toHaveLength(10);
-  }, 20_000);
+  }, 60_000);
 });
 
 async function waitFor(check: () => Promise<boolean>) {
