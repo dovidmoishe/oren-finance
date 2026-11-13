@@ -3,24 +3,10 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 import { sql } from 'drizzle-orm';
 import { PrivyWalletAuth } from '../auth/privy-wallet-auth';
 import { SenviokEmailService } from '../senviok/senviok.service';
+import { renderBriefEmail, type BriefEmailFacts } from './brief-email';
 import { NotificationJobs, type Job } from './jobs';
 import { BRIEF_GRACE_MS } from './schedule';
 import { notificationSettings } from './settings';
-
-const usd = (value: number) =>
-  new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(
-    value,
-  );
-
-const openings: Record<string, string> = {
-  up: 'Your Oren wallet gained value over the reporting window after accounting for external transfers.',
-  down: 'Your Oren wallet lost value over the reporting window after accounting for external transfers.',
-  flat: 'Your Oren wallet was flat over the reporting window after accounting for external transfers.',
-  unavailable:
-    'A verified performance comparison is unavailable for this brief.',
-  'holdings-news': 'Here are recent stories about stocks in your Oren wallet.',
-  'sector-news': 'Here are recent stories from your selected sectors.',
-};
 
 export function unsubscribeToken(id: string, secret: string) {
   return `${id}.${createHmac('sha256', secret).update(`notifications-v1-${id}`).digest('base64url')}`;
@@ -40,37 +26,11 @@ export function unsubscribeJobId(token: string, secret: string) {
 function render(job: Job, app: string, api: string, secret: string) {
   const stop = `${api}/api/notifications/unsubscribe/${unsubscribeToken(job.id, secret)}`;
   if (job.kind === 'brief-email') {
-    const facts = job.payload as {
-      date: string;
-      value?: number;
-      valueVerified?: boolean;
-      pnl?: number | null;
-      narrative?: string;
-      moves: Array<{ ticker: string; usd: number }>;
-      stories: Array<{ headline: string; url: string }>;
-    };
-    const lines = [
-      facts.narrative && Object.hasOwn(openings, facts.narrative)
-        ? openings[facts.narrative]
-        : undefined,
-      facts.value === undefined
-        ? undefined
-        : `Oren wallet value (tracked stocks and USDC${facts.valueVerified ? '' : ', indicative'}): ${usd(facts.value)}`,
-      facts.pnl == null
-        ? 'Daily P&L unavailable for this reporting window.'
-        : `Daily P&L after external transfers: ${usd(facts.pnl)}`,
-      ...facts.moves.map(
-        ({ ticker, usd: change }) =>
-          `${ticker} price effect on opening holdings: ${usd(change)}`,
-      ),
-      ...facts.stories.map(({ headline, url }) => `${headline}\n${url}`),
-      `Settings: ${app}/app/settings/preferences`,
-      `Stop Morning Brief emails: ${stop}`,
-    ].filter(Boolean);
-    return {
-      subject: `Oren Morning Brief · ${facts.date}`,
-      text: lines.join('\n\n'),
-    };
+    return renderBriefEmail(
+      job.payload as BriefEmailFacts,
+      `${app}/app/settings/preferences`,
+      stop,
+    );
   }
   const { ticker, variant, mint, price, quoteAt, direction, target, assetId } =
     job.payload as {

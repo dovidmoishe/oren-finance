@@ -173,7 +173,20 @@ export class MorningBrief {
           if (seen.has(url.href) || seen.has(headlineKey)) return [];
           seen.add(url.href);
           seen.add(headlineKey);
-          return [{ url: url.href, headline: story.headline.slice(0, 240) }];
+          const summary = story.summary?.replace(/\s+/g, ' ').trim();
+          return [
+            {
+              url: url.href,
+              headline: story.headline.slice(0, 240),
+              source: story.source?.slice(0, 80),
+              ticker: story.ticker?.slice(0, 20),
+              summary:
+                summary &&
+                (summary.length > 320
+                  ? summary.slice(0, 317).trimEnd() + '…'
+                  : summary),
+            },
+          ];
         } catch {
           return [];
         }
