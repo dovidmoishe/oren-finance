@@ -4,6 +4,7 @@ import { ArrowLeft01Icon, ArrowRight01Icon, RefreshCwIcon } from "@hugeicons/cor
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useEffect, useMemo, useState } from "react";
 import { useOrenAuth } from "@/components/auth/auth-context";
+import { RestoreActions, restoreBlocked } from "@/components/auth/restore-actions";
 import {
   Button,
   Card,
@@ -149,8 +150,9 @@ export function TradingCalendar() {
           <h1 className="font-display text-4xl font-semibold tracking-normal">{t("calendar.title")}</h1>
         </div>
         <EmptyState
-          description={auth.authenticated ? auth.error || t("calendar.preparingDescription") : t("calendar.signInDescription")}
-          title={!auth.ready ? t("calendar.restoring") : auth.authenticated ? t("calendar.preparing") : t("calendar.signInTitle")}
+          action={restoreBlocked(auth) ? <RestoreActions signInLabel={t("common.signIn")} /> : undefined}
+          description={restoreBlocked(auth) ? t("auth.restoreSlow") : auth.authenticated ? auth.error || t("calendar.preparingDescription") : t("calendar.signInDescription")}
+          title={restoreBlocked(auth) ? t("auth.restoreSlowTitle") : !auth.ready ? t("calendar.restoring") : auth.authenticated ? t("calendar.preparing") : t("calendar.signInTitle")}
         />
       </div>
     );

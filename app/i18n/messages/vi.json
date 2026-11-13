@@ -46,7 +46,11 @@
     "rateLimited": "Quá nhiều lần thử. Hãy đợi một lát rồi thử lại.",
     "network": "Không kết nối được với Oren. Kiểm tra mạng và thử lại.",
     "sendFailed": "Không gửi được mã. Vui lòng thử lại.",
-    "verifyFailed": "Không xác minh được mã này. Vui lòng thử lại."
+    "verifyFailed": "Không xác minh được mã này. Vui lòng thử lại.",
+    "restoreStillLoading": "Đăng nhập vẫn đang tải.",
+    "restoreSlow": "Đăng nhập đang mất nhiều thời gian hơn bình thường. Tải lại để thử lần nữa.",
+    "restoreSlowTitle": "Đăng nhập đang mất nhiều thời gian hơn bình thường",
+    "reload": "Tải lại"
   },
   "markets": {
     "explore": "Khám phá",
@@ -123,6 +127,7 @@
   },
   "common": {
     "somethingWrong": "Đã xảy ra lỗi",
+    "chunkFailed": "Một phần của trang không tải được. Tải lại để thử lần nữa.",
     "retry": "Thử lại",
     "loading": "Đang tải",
     "close": "Đóng",

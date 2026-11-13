@@ -28,6 +28,7 @@ import {
 import { ActivityList } from "@/components/portfolio/activity-list";
 import { usePortfolioRefresh } from "@/hooks/use-portfolio-refresh";
 import { useOrenAuth } from "@/components/auth/auth-context";
+import { RestoreActions, restoreBlocked } from "@/components/auth/restore-actions";
 import { usePortfolioStore, useWalletStore } from "@/store";
 import type { PortfolioPosition, PortfolioRange } from "@/types";
 import { useI18n, useT } from "@/i18n/i18n";
@@ -252,12 +253,14 @@ export function PortfolioDashboard() {
         </div>
         <EmptyState
           action={
-            !auth.ready ? null : auth.authenticated
-              ? auth.error && <Button disabled={auth.busy} onClick={() => void auth.createWallet()}>{t("portfolio.retryWallet")}</Button>
-              : <Button onClick={auth.open}>{t("portfolio.signIn")}</Button>
+            restoreBlocked(auth) ? <RestoreActions signInLabel={t("portfolio.signIn")} />
+              : !auth.ready ? null
+                : auth.authenticated
+                  ? auth.error && <Button disabled={auth.busy} onClick={() => void auth.createWallet()}>{t("portfolio.retryWallet")}</Button>
+                  : <Button onClick={auth.open}>{t("portfolio.signIn")}</Button>
           }
-          description={!auth.ready ? t("portfolio.restoringDescription") : auth.authenticated ? auth.error || t("portfolio.preparingDescription") : t("portfolio.signedOutDescription")}
-          title={!auth.ready ? t("portfolio.restoringTitle") : auth.authenticated ? auth.error ? t("portfolio.walletRetryTitle") : t("portfolio.preparingTitle") : t("portfolio.signedOutTitle")}
+          description={restoreBlocked(auth) ? t("auth.restoreSlow") : !auth.ready ? t("portfolio.restoringDescription") : auth.authenticated ? auth.error || t("portfolio.preparingDescription") : t("portfolio.signedOutDescription")}
+          title={restoreBlocked(auth) ? t("auth.restoreSlowTitle") : !auth.ready ? t("portfolio.restoringTitle") : auth.authenticated ? auth.error ? t("portfolio.walletRetryTitle") : t("portfolio.preparingTitle") : t("portfolio.signedOutTitle")}
         />
       </div>
     );
