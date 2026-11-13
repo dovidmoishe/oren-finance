@@ -46,7 +46,11 @@
     "rateLimited": "Muitas tentativas. Espere um instante e tente de novo.",
     "network": "Não foi possível falar com a Oren. Verifique sua conexão e tente de novo.",
     "sendFailed": "Não foi possível enviar um código. Tente de novo.",
-    "verifyFailed": "Não foi possível verificar esse código. Tente de novo."
+    "verifyFailed": "Não foi possível verificar esse código. Tente de novo.",
+    "restoreStillLoading": "O acesso ainda está carregando.",
+    "restoreSlow": "O acesso está demorando mais que o normal. Recarregue para tentar de novo.",
+    "restoreSlowTitle": "O acesso está demorando mais que o normal",
+    "reload": "Recarregar"
   },
   "markets": {
     "explore": "Explorar",

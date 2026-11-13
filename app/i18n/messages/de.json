@@ -46,7 +46,11 @@
     "rateLimited": "Zu viele Versuche. Warte einen Moment und versuche es erneut.",
     "network": "Oren ist nicht erreichbar. Prüfe deine Verbindung und versuche es erneut.",
     "sendFailed": "Der Code konnte nicht gesendet werden. Bitte versuche es erneut.",
-    "verifyFailed": "Der Code konnte nicht geprüft werden. Bitte versuche es erneut."
+    "verifyFailed": "Der Code konnte nicht geprüft werden. Bitte versuche es erneut.",
+    "restoreStillLoading": "Die Anmeldung wird noch geladen.",
+    "restoreSlow": "Die Anmeldung dauert länger als gewöhnlich. Lade die Seite neu, um es erneut zu versuchen.",
+    "restoreSlowTitle": "Die Anmeldung dauert länger als gewöhnlich",
+    "reload": "Neu laden"
   },
   "markets": {
     "explore": "Entdecken",

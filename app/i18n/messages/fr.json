@@ -46,7 +46,11 @@
     "rateLimited": "Trop de tentatives. Patientez un instant, puis réessayez.",
     "network": "Impossible de joindre Oren. Vérifiez votre connexion et réessayez.",
     "sendFailed": "Impossible d’envoyer un code. Veuillez réessayer.",
-    "verifyFailed": "Impossible de vérifier ce code. Veuillez réessayer."
+    "verifyFailed": "Impossible de vérifier ce code. Veuillez réessayer.",
+    "restoreStillLoading": "La connexion est encore en cours de chargement.",
+    "restoreSlow": "La connexion prend plus de temps que d’habitude. Rechargez la page pour réessayer.",
+    "restoreSlowTitle": "La connexion prend plus de temps que d’habitude",
+    "reload": "Recharger"
   },
   "markets": {
     "explore": "Explorer",

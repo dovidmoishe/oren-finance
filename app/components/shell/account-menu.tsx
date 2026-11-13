@@ -7,6 +7,7 @@ import { useId, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useOrenAuth } from "@/components/auth/auth-context";
+import { RestoreActions, restoreBlocked } from "@/components/auth/restore-actions";
 import { Button } from "@/components/ui";
 import { useT } from "@/i18n/i18n";
 
@@ -21,6 +22,7 @@ export function AccountMenu() {
   const [withdrawOpen, setWithdrawOpen] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   if (!auth.configured) return <span className="text-xs text-muted">{t("account.signInUnavailable")}</span>;
+  if (restoreBlocked(auth)) return <RestoreActions signInLabel={t("account.signIn")} size="sm" />;
   if (!auth.ready) return <span className="text-xs text-muted" role="status">{t("account.loading")}</span>;
   if (!auth.authenticated) return <Button onClick={auth.open} size="sm">{t("account.signIn")}</Button>;
   const initial = (auth.email?.[0] || "U").toUpperCase();

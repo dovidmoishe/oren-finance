@@ -56,6 +56,12 @@ function renderProviders(env) {
       if (id === '@/components/auth/auth-context') return { AuthContext };
       if (id === '@/components/auth/wallet-modal-context') return { WalletModalContext };
       if (id === '@/components/auth/privy-auth') throw new Error('Privy must be loaded lazily');
+      if (id === '@/lib/chunk-reload') {
+        const loaded = {};
+        vm.runInNewContext(transpile('../lib/chunk-reload.ts'), { exports: loaded, require });
+        return loaded;
+      }
+      if (id === '@/i18n/i18n') return require(id);
       return require(id);
     },
   });
@@ -105,6 +111,8 @@ test('MCP connection page receives the app authentication provider', () => {
         return { AppProviders({ children }) { return createElement(AuthContext.Provider, { value: auth }, children); } };
       if (id === '@/i18n/personalized-intl')
         return { PersonalizedIntl({ children }) { return children; } };
+      if (id === '@/components/chunk-load-recovery')
+        return { ChunkLoadRecovery: () => null };
       return require(id);
     },
   });

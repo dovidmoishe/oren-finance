@@ -12,15 +12,50 @@ import {
   WalletModalContext,
   type WalletModalContextState,
 } from "@/components/auth/wallet-modal-context";
+import { useT } from "@/i18n/i18n";
+import { reloadOnceForChunkFailure } from "@/lib/chunk-reload";
 
 const appId = process.env.NEXT_PUBLIC_PRIVY_APP_ID?.trim();
 
+/** Soft hint once Privy itself is loaded, then an actionable timeout. Download time is not counted. */
+export const PRIVY_STILL_LOADING_MS = 8_000;
+export const PRIVY_READY_TIMEOUT_MS = 28_000;
+
+type PrivyModuleState = { status: "pending" } | { status: "loaded" } | { status: "failed" };
+
+let privyModuleState: PrivyModuleState = { status: "pending" };
+const privyModuleListeners = new Set<(state: PrivyModuleState) => void>();
+
+function setPrivyModuleState(state: PrivyModuleState) {
+  privyModuleState = state;
+  for (const listener of privyModuleListeners) listener(state);
+}
+
+function subscribePrivyModule(listener: (state: PrivyModuleState) => void) {
+  privyModuleListeners.add(listener);
+  listener(privyModuleState);
+  return () => {
+    privyModuleListeners.delete(listener);
+  };
+}
+
+function loadPrivyAuth() {
+  return import("@/components/auth/privy-auth")
+    .then((mod) => {
+      setPrivyModuleState({ status: "loaded" });
+      return mod.PrivyAuth;
+    })
+    .catch(() => {
+      setPrivyModuleState({ status: "failed" });
+      return function PrivyAuthUnavailable() {
+        return null;
+      };
+    });
+}
+
 // Privy (with its bundled wallet libraries) is the largest part of the app's
 // JavaScript. Load it after the shell renders; until then auth is "not ready".
-const PrivyAuth = dynamic(
-  () => import("@/components/auth/privy-auth").then((mod) => mod.PrivyAuth),
-  { ssr: false },
-);
+const PrivyAuth = dynamic(loadPrivyAuth, { ssr: false });
 
 const REVIEW_IN_OREN =
   "Review and confirm this trade in Oren before submission.";
@@ -139,36 +174,63 @@ function DeferredPrivy({
   appId: string;
   children: React.ReactNode;
 }) {
+  const t = useT();
   const [session, setSession] = useState<PublishedSession>();
   const [loading] = useState(createLoadingSession);
+  const [moduleLoaded, setModuleLoaded] = useState(false);
+  const [stillLoading, setStillLoading] = useState(false);
   const [restoreTimedOut, setRestoreTimedOut] = useState(false);
+  const [restoreError, setRestoreError] = useState<string>();
 
   useEffect(() => {
-    if (session?.auth.ready) return;
-    const timer = window.setTimeout(() => setRestoreTimedOut(true), 15_000);
-    return () => window.clearTimeout(timer);
-  }, [session?.auth.ready]);
+    return subscribePrivyModule((state) => {
+      if (state.status === "loaded") setModuleLoaded(true);
+      if (state.status === "failed" && !reloadOnceForChunkFailure()) setRestoreError("auth.restoreSlow");
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!moduleLoaded || session?.auth.ready || restoreError) return;
+    const still = window.setTimeout(() => setStillLoading(true), PRIVY_STILL_LOADING_MS);
+    const timeout = window.setTimeout(() => setRestoreTimedOut(true), PRIVY_READY_TIMEOUT_MS);
+    return () => {
+      window.clearTimeout(still);
+      window.clearTimeout(timeout);
+    };
+  }, [moduleLoaded, restoreError, session?.auth.ready]);
 
   useEffect(() => {
     if (session) loading.replay(session);
   }, [loading, session]);
 
   const current = session ?? loading;
+  const failed = Boolean(restoreError);
+  const timedOut = restoreTimedOut && !current.auth.ready && !failed;
+  const auth = failed
+    ? { ...loading.auth, ready: true, authenticated: false, restoreError, restoreTimedOut: false }
+    : timedOut
+      ? { ...current.auth, restoreTimedOut: true }
+      : current.auth;
+  const wallet = failed ? signedOutWallet(false, loading.auth.open) : current.wallet;
   return (
     <>
-      {restoreTimedOut && !current.auth.ready ? (
+      {failed || timedOut ? (
         <div
           className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950"
           role="alert"
         >
-          <span>Sign-in could not finish loading. Reload this page or ask the team to check this preview&apos;s login setup.</span>
+          <span>{t("auth.restoreSlow")}</span>
           <button className="font-semibold underline" onClick={() => window.location.reload()} type="button">
-            Reload
+            {t("auth.reload")}
           </button>
         </div>
+      ) : stillLoading && !current.auth.ready ? (
+        <div className="mx-auto flex max-w-6xl items-center px-4 py-3 text-sm text-muted" role="status">
+          {t("auth.restoreStillLoading")}
+        </div>
       ) : null}
-      <AuthContext.Provider value={current.auth}>
-        <WalletContext.Provider value={current.wallet}>
+      <AuthContext.Provider value={auth}>
+        <WalletContext.Provider value={wallet}>
           <WalletModalContext.Provider value={current.modal}>
             {children}
           </WalletModalContext.Provider>

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { NextIntlClientProvider } from "next-intl";
 import "@fontsource-variable/instrument-sans";
 import "./globals.css";
+import { ChunkLoadRecoveryGate } from "@/components/chunk-load-recovery";
 import { PreviewBanner } from "@/components/preview-banner";
 import en from "@/i18n/messages/en.json";
 import { IntlErrorProvider } from "@/i18n/intl-error";
@@ -30,6 +31,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           <IntlErrorProvider>
             <LocaleSync />
             <PreviewBanner />
+            <ChunkLoadRecoveryGate />
             {children}
           </IntlErrorProvider>
         </NextIntlClientProvider>

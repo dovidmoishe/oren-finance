@@ -46,7 +46,11 @@
     "rateLimited": "尝试次数过多。请稍等片刻后再试。",
     "network": "无法连接 Oren。请检查网络后重试。",
     "sendFailed": "验证码未能发送。请重试。",
-    "verifyFailed": "无法验证该验证码。请重试。"
+    "verifyFailed": "无法验证该验证码。请重试。",
+    "restoreStillLoading": "登录仍在加载。",
+    "restoreSlow": "登录花费的时间比平时更长。请重新加载后再试。",
+    "restoreSlowTitle": "登录花费的时间比平时更长",
+    "reload": "重新加载"
   },
   "markets": {
     "explore": "探索",
