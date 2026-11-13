@@ -4,6 +4,7 @@ import dynamic from "next/dynamic";
 import { useEffect, useMemo, useState } from "react";
 import type { MarketChartRange } from "@/components/charts/market-chart";
 import { Button, EmptyState, ErrorState } from "@/components/ui";
+import { OrenLogo } from "@/components/brand/oren-logo";
 import { usePortfolioRefresh } from "@/hooks/use-portfolio-refresh";
 import { useOrenAuth } from "@/components/auth/auth-context";
 import { RestoreActions, restoreBlocked } from "@/components/auth/restore-actions";
@@ -62,6 +63,8 @@ export function PortfolioDashboard() {
     }
     return (
       <EmptyState
+        className="min-h-[65dvh] border-solid border-accent-lavender/40 bg-linear-to-b from-accent-lavender/20 via-panel to-panel shadow-none [&>h3]:mt-4 [&>h3]:text-2xl [&>h3]:font-medium [&>h3]:tracking-tight [&>p]:mt-3 [&>p]:leading-6 [&>div]:mt-6"
+        icon={<OrenLogo size={64} />}
         action={
           restoreBlocked(auth) ? <RestoreActions signInLabel={t("portfolio.signIn")} />
             : auth.authenticated

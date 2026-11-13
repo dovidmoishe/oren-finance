@@ -37,7 +37,7 @@ const navigation: { href: string; label: MessageKey; icon: IconSvgElement }[] = 
 
 const headerButton = "inline-flex h-10 shrink-0 items-center justify-center rounded-full text-muted hover:bg-panel-subtle hover:text-foreground focus-visible:outline-2 focus-visible:outline-focus lg:h-9 pointer-coarse:h-11";
 const iconButton = cn(headerButton, "w-10 lg:w-9 pointer-coarse:w-11");
-const navRow = "flex min-h-11 items-center gap-3 rounded-lg px-3.5 text-sm hover:bg-black/[0.035] hover:text-foreground focus-visible:outline-2 focus-visible:outline-focus pointer-coarse:min-h-11";
+const navRow = "flex min-h-11 items-center gap-3 rounded-xl px-3.5 text-sm hover:bg-black/[0.035] hover:text-foreground focus-visible:outline-2 focus-visible:outline-focus pointer-coarse:min-h-11";
 
 function Icon({ icon, size = 18 }: { icon: IconSvgElement; size?: number }) {
   return <HugeiconsIcon aria-hidden="true" className="shrink-0" icon={icon} size={size} strokeWidth={1.7} />;
@@ -54,6 +54,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [maxCopilotWidth, setMaxCopilotWidth] = useState(MAX_COPILOT_WIDTH);
   const [resizing, setResizing] = useState(false);
   const shell = useRef<HTMLDivElement>(null);
+  const header = useRef<HTMLElement>(null);
   const sidebar = useRef<HTMLElement>(null);
   const mobileMenu = useRef<HTMLDivElement>(null);
   const menuId = useId();
@@ -64,6 +65,24 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       ? markets
       : [...navigation.slice(1), settings].find(({ href }) => pathname === href || pathname.startsWith(href + "/"));
   const title = active ? t(active.label) : "Oren";
+
+  useEffect(() => {
+    const element = header.current;
+    if (!element) return;
+    const updateHeaderBottom = () => {
+      shell.current?.style.setProperty("--app-header-bottom", element.getBoundingClientRect().bottom + "px");
+    };
+    const observer = new ResizeObserver(updateHeaderBottom);
+    observer.observe(element);
+    window.addEventListener("scroll", updateHeaderBottom, { passive: true });
+    window.addEventListener("resize", updateHeaderBottom);
+    updateHeaderBottom();
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("scroll", updateHeaderBottom);
+      window.removeEventListener("resize", updateHeaderBottom);
+    };
+  }, []);
 
   useEffect(() => {
     const layout = shell.current;
@@ -89,7 +108,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     return (
       <Link
         aria-current={isActive ? "page" : undefined}
-        className={cn(navRow, isActive ? "bg-black/[0.045] font-semibold text-foreground" : "font-medium text-muted", compact && "justify-center px-0")}
+        className={cn(navRow, isActive ? "bg-panel font-semibold text-foreground shadow-[0_2px_8px_rgb(23_23_23/.05)] ring-1 ring-border/70 [&>svg]:text-[#7160b8]" : "font-medium text-muted", compact && "justify-center px-0")}
         href={item.href}
         key={item.href}
         onClick={() => mobileMenu.current?.hidePopover()}
@@ -137,8 +156,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </nav>
       </aside>
 
-      <div className={cn("min-h-dvh min-w-0 bg-panel lg:col-start-2 lg:row-start-1 lg:min-h-[calc(100dvh-1.5rem)] lg:rounded-2xl lg:border lg:border-border/80 lg:shadow-[0_1px_5px_rgb(0_0_0/.025)]", agentOpen && agentExpanded && "lg:hidden")}>
-        <header className="sticky top-0 z-30 flex min-h-[var(--app-nav-height)] items-center gap-1.5 border-b border-border/70 bg-panel px-2.5 sm:gap-2.5 sm:px-5 lg:rounded-t-2xl lg:border-b-0">
+      <div className={cn("min-h-dvh min-w-0 bg-panel lg:col-start-2 lg:row-start-1 lg:min-h-[calc(100dvh-1.5rem)] lg:rounded-[22px] lg:border lg:border-border/80 lg:shadow-[0_4px_24px_rgb(23_23_23/.025)]", agentOpen && agentExpanded && "lg:hidden")}>
+        <header ref={header} className="sticky top-0 z-30 flex min-h-[var(--app-nav-height)] items-center gap-1.5 border-b border-border/70 bg-panel px-2.5 sm:gap-2.5 sm:px-5 lg:rounded-t-[22px] lg:border-b-0">
           <button aria-label={t("nav.navigation")} className={cn(iconButton, "lg:hidden")} popoverTarget={menuId} type="button"><Icon icon={Menu01Icon} size={20} /></button>
           <div className="fixed inset-x-2 top-[var(--app-header-bottom)] bottom-auto m-0 max-h-[calc(100dvh-var(--app-nav-height)-1rem)] overflow-y-auto rounded-xl border border-border bg-panel p-2 text-foreground shadow-xl lg:hidden" id={menuId} popover="auto" ref={mobileMenu}>
             <nav aria-label={t("nav.navigation")} className="grid gap-1">
@@ -147,8 +166,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </nav>
           </div>
           {active === portfolio || pathname === markets.href
-            ? <h1 className="min-w-0 flex-1 truncate font-display text-[1.2rem] font-bold tracking-tight sm:text-[1.35rem]">{title}</h1>
-            : <span className="min-w-0 flex-1 truncate font-display text-[1.2rem] font-bold tracking-tight sm:text-[1.35rem]">{title}</span>}
+            ? <h1 className="min-w-0 flex-1 truncate font-display text-[1.2rem] font-bold tracking-tight sm:text-[1.25rem]">{title}</h1>
+            : <span className="min-w-0 flex-1 truncate font-display text-[1.2rem] font-bold tracking-tight sm:text-[1.25rem]">{title}</span>}
           <div aria-label={t("nav.yourAccount")} className="flex min-w-0 items-center gap-0.5 sm:gap-2">
             <button aria-haspopup="dialog" aria-label={t("markets.searchLabel")} className={cn(iconButton, "lg:hidden")} onClick={() => search.current?.showModal()} type="button"><Icon icon={Search01Icon} /></button>
             <LanguageMenu />
@@ -156,7 +175,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               aria-controls="oren-agent-panel"
               aria-expanded={agentOpen}
               aria-label={t(agentOpen ? "agent.close" : "agent.ask")}
-              className={cn(headerButton, "gap-1.5 whitespace-nowrap border border-border max-sm:w-10 sm:px-3 pointer-coarse:max-sm:w-11", agentOpen && "border-foreground/25 bg-panel-subtle text-foreground")}
+              className={cn(headerButton, "gap-1.5 whitespace-nowrap border border-accent-lavender/65 bg-accent-lavender/15 max-sm:w-10 sm:px-3 pointer-coarse:max-sm:w-11", agentOpen && "border-foreground/25 bg-panel-subtle text-foreground")}
               id="oren-agent-launcher"
               onClick={() => setPanelOpen(!agentOpen)}
               title={t(agentOpen ? "agent.close" : "agent.ask")}
@@ -169,7 +188,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </div>
         </header>
         <main
-          className={cn("@container min-w-0 px-3 pb-10 pt-3 sm:px-6 sm:pt-4 lg:pt-2", agentOpen && "max-lg:invisible")}
+          className={cn("@container min-w-0 px-3 pb-10 pt-3 sm:px-7 sm:pt-5 lg:pt-4", agentOpen && "max-lg:invisible")}
           id="app-content"
           tabIndex={-1}
         >

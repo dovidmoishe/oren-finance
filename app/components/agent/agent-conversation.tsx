@@ -139,10 +139,10 @@ export function EmptyConversation({
   const t = useT();
   return (
     <div className="flex min-h-full flex-col justify-center py-8">
-      <div className="grid h-12 w-12 place-items-center rounded-[18px] bg-accent-pink-soft">
+      <div className="grid h-12 w-12 place-items-center rounded-2xl bg-accent-lavender/30 text-[#7160b8]">
         <Icon icon={SparklesIcon} size={21} />
       </div>
-      <h3 className="mt-5 font-display text-2xl font-semibold">{t("agent.emptyTitle")}</h3>
+      <h3 className="mt-5 font-display text-2xl leading-tight font-medium tracking-tight">{t("agent.emptyTitle")}</h3>
       <p className="mt-2 max-w-sm text-sm leading-6 text-muted">
         {t("agent.emptyBody")}
       </p>
@@ -166,15 +166,15 @@ export function DisconnectedState({ onConnect }: { onConnect: () => void }) {
   const auth = useOrenAuth();
   const t = useT();
   return (
-    <div className="flex h-full flex-col justify-center rounded-[24px] bg-accent-pink-soft p-6">
-      <div className="grid h-12 w-12 place-items-center rounded-[18px] bg-white">
+    <div className="flex h-full flex-col justify-center rounded-[20px] bg-linear-to-b from-accent-lavender/20 via-panel to-panel p-5">
+      <div className="grid h-12 w-12 place-items-center rounded-2xl border border-accent-lavender/60 bg-panel text-[#7160b8]">
         <Icon icon={Wallet02Icon} size={20} />
       </div>
-      <h3 className="mt-5 font-display text-2xl font-semibold">{t("agent.disconnectedTitle")}</h3>
+      <h3 className="mt-5 font-display text-2xl leading-tight font-medium tracking-tight">{t("agent.disconnectedTitle")}</h3>
       <p className="mt-2 text-sm leading-6 text-muted">
         {auth.authenticated ? auth.error || t("agent.preparingWallet") : t("agent.signInBody")}
       </p>
-      {(!auth.authenticated || auth.error) && <Button className="mt-6 h-11 rounded-[15px]" onClick={auth.authenticated ? () => void auth.createWallet() : onConnect} variant="primary">
+      {(!auth.authenticated || auth.error) && <Button className="mt-6 h-11 rounded-xl" onClick={auth.authenticated ? () => void auth.createWallet() : onConnect} variant="primary">
         <Icon icon={Wallet02Icon} size={16} />
         {auth.authenticated ? t("agent.retryWallet") : t("agent.signIn")}
       </Button>}

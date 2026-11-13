@@ -20,8 +20,8 @@ const activityLabels: Record<PortfolioActivityItem["type"], MessageKey> = {
   unknown: "common.activityUnknown",
 };
 
-const headerCell = "px-2.5 py-2.5 font-medium sm:px-3.5";
-const cell = "px-2.5 py-3 sm:px-3.5";
+const headerCell = "px-2.5 py-3 font-medium text-muted sm:px-4";
+const cell = "px-2.5 py-4 sm:px-4 sm:py-5";
 const desktopCell = "hidden @2xl:table-cell";
 const toolbarButton = "inline-flex min-h-9 shrink-0 items-center justify-center gap-1.5 rounded-full border border-border px-2.5 text-xs font-semibold text-muted hover:bg-panel-subtle hover:text-foreground focus-visible:outline-2 focus-visible:outline-focus disabled:opacity-50 pointer-coarse:min-h-11";
 
@@ -32,10 +32,10 @@ function PositionLogo({ position }: { position: PortfolioPosition }) {
     : logo?.startsWith("//") ? "https:" + logo : logo;
 
   return (
-    <span aria-hidden="true" className="grid size-7 shrink-0 place-items-center rounded-full bg-panel-subtle text-[10px] font-bold text-muted sm:size-8">
+    <span aria-hidden="true" className="grid size-8 shrink-0 place-items-center rounded-xl border border-border/60 bg-panel text-[10px] font-bold text-muted sm:size-10">
       {url && !failed ? (
         // eslint-disable-next-line @next/next/no-img-element
-        <img alt="" className="size-full rounded-full object-contain p-0.5" onError={() => setFailed(true)} src={url} />
+        <img alt="" className="size-full rounded-[inherit] object-contain p-1" onError={() => setFailed(true)} src={url} />
       ) : position.ticker.slice(0, 2)}
     </span>
   );
@@ -53,7 +53,7 @@ function PositionsTable({ positions, hidden }: { positions: PortfolioPosition[];
 
   return (
     <Table aria-label={t("portfolio.positions")} className="table-fixed">
-      <TableHeader className="bg-panel-subtle">
+      <TableHeader className="bg-panel-subtle/70">
         <TableRow>
           <TableHead className={cn(headerCell, "w-[44%] rounded-s-xl")} scope="col">{t("portfolio.colAsset")}</TableHead>
           <TableHead className={cn(headerCell, "w-[20%] text-end")} scope="col">{t("portfolio.col24h")}</TableHead>
@@ -79,7 +79,7 @@ function PositionsTable({ positions, hidden }: { positions: PortfolioPosition[];
                     <PositionLogo position={position} />
                     <span className="min-w-0">
                       <span className="block truncate text-xs font-semibold sm:text-sm" title={position.name}>{position.name}</span>
-                      <span className="block truncate text-xs text-muted">{position.ticker}</span>
+                      <span className="mt-0.5 block truncate text-[11px] text-muted">{position.ticker}</span>
                     </span>
                   </Link>
                 </TableCell>
@@ -123,7 +123,7 @@ function RecentActivityTable({ activity, hidden }: { activity: PortfolioActivity
 
   return (
     <Table aria-label={t("portfolio.recentActivity")} className="table-fixed">
-      <TableHeader className="bg-panel-subtle">
+      <TableHeader className="bg-panel-subtle/70">
         <TableRow>
           <TableHead className={cn(headerCell, desktopCell, "w-[23%] rounded-s-xl")} scope="col">{t("portfolio.colDate")}</TableHead>
           <TableHead className={cn(headerCell, "w-[46%] rounded-s-xl @2xl:w-auto @2xl:rounded-none")} scope="col">{t("common.activityTitle")}</TableHead>
@@ -178,14 +178,14 @@ export function PortfolioTables({ positions, activity, allocation, history, hidd
 
   return (
     <section aria-label={options.find((option) => option.id === section)?.label}>
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-b border-border">
-        <div aria-label={t("nav.portfolio")} className="flex flex-wrap gap-x-3 @lg:gap-x-6" role="group">
+      <div className="mb-5 flex items-center justify-between gap-2 @lg:gap-3">
+        <div aria-label={t("nav.portfolio")} className="flex min-w-0 gap-0.5 overflow-x-auto rounded-xl bg-panel-subtle p-1" role="group">
           {options.map(({ id, label }) => (
             <button
               aria-pressed={id === section}
               className={cn(
-                "min-h-11 border-b-2 px-0.5 text-xs font-semibold focus-visible:rounded focus-visible:outline-2 focus-visible:outline-focus @lg:text-sm",
-                id === section ? "border-foreground text-foreground" : "border-transparent text-muted hover:text-foreground",
+                "min-h-10 shrink-0 whitespace-nowrap rounded-lg px-1.5 text-xs font-medium focus-visible:outline-2 focus-visible:outline-focus @lg:px-4 @lg:text-sm",
+                id === section ? "bg-panel text-foreground shadow-[0_1px_4px_rgb(23_23_23/.08)]" : "text-muted hover:bg-panel/60 hover:text-foreground",
               )}
               key={id}
               onClick={() => setSection(id)}

@@ -77,7 +77,7 @@ export function PortfolioSummaryCard({ portfolio, hidden, onToggleHidden, onDepo
   const changeColor = !hidden && change ? change > 0 ? "text-[#16734a]" : "text-[#be3545]" : "text-muted";
 
   return (
-    <section aria-label={t("portfolio.totalValue")} className="rounded-2xl bg-panel-subtle/80 p-4 @lg:px-7 @lg:py-6">
+    <section aria-label={t("portfolio.totalValue")} className="rounded-[20px] border border-accent-lavender/45 bg-linear-to-br from-panel via-panel to-accent-lavender/30 p-5 shadow-[0_4px_20px_rgb(23_23_23/.025)] @lg:px-8 @lg:py-8">
       <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-3">
         <div className="min-w-0">
           <div className="flex items-center gap-1">
@@ -93,15 +93,15 @@ export function PortfolioSummaryCard({ portfolio, hidden, onToggleHidden, onDepo
               <HugeiconsIcon aria-hidden="true" icon={hidden ? ViewOffIcon : ViewIcon} size={16} strokeWidth={1.7} />
             </button>
           </div>
-          <p className="break-words font-display text-[clamp(1.65rem,6cqi,3rem)] leading-[1.12] font-semibold tracking-[-0.055em] tabular-nums">{hidden ? masked : formatCurrency(portfolio.totalValueUsd, locale)}</p>
+          <p className="break-words font-display mt-3 text-[clamp(1.85rem,5.6cqi,3.5rem)] leading-[1.1] font-medium tracking-[-0.06em] tabular-nums">{hidden ? masked : formatCurrency(portfolio.totalValueUsd, locale)}</p>
           {change !== undefined && (
-            <p className="mt-2 flex flex-wrap items-baseline gap-x-2 text-xs text-muted @lg:text-sm">
+            <p className="mt-4 flex flex-wrap items-baseline gap-x-2 text-xs text-muted @lg:text-sm">
               <span className={cn("font-semibold tabular-nums", changeColor)}>{hidden ? masked : changeValue}</span>
               <span>{t("portfolio.snapshotChange")}</span>
             </p>
           )}
         </div>
-        <Button className="rounded-full shadow-none" onClick={onDeposit} size="md" variant="primary">
+        <Button className="rounded-xl shadow-[0_3px_8px_rgb(23_23_23/.12)]" onClick={onDeposit} size="md" variant="primary">
           <HugeiconsIcon aria-hidden="true" icon={Add01Icon} size={16} strokeWidth={1.8} />
           {t("account.deposit")}
         </Button>

@@ -12,14 +12,18 @@ export function EmptyState({
   title,
   description,
   action,
+  className,
+  icon,
 }: {
   title: string;
   description: string;
   action?: React.ReactNode;
+  className?: string;
+  icon?: React.ReactNode;
 }) {
   return (
-    <div className="flex min-h-52 flex-col items-center justify-center rounded-[24px] border border-dashed border-border bg-panel p-8 text-center shadow-[0_18px_60px_rgba(23,23,23,0.04)]">
-      <HugeiconsIcon className="mb-3 text-muted" color="currentColor" icon={InboxIcon} size={24} strokeWidth={1.8} />
+    <div className={cn("flex min-h-52 flex-col items-center justify-center rounded-[24px] border border-dashed border-border bg-panel p-8 text-center shadow-[0_18px_60px_rgba(23,23,23,0.04)]", className)}>
+      {icon ?? <HugeiconsIcon className="mb-3 text-muted" color="currentColor" icon={InboxIcon} size={24} strokeWidth={1.8} />}
       <h3 className="font-display text-base font-semibold">{title}</h3>
       <p className="mt-1 max-w-sm text-sm text-muted">{description}</p>
       {action ? <div className="mt-4">{action}</div> : null}

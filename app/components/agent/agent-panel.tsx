@@ -210,7 +210,7 @@ export function AgentPanel() {
         aria-busy={isSending}
         aria-hidden={!visible}
         className={cn(
-          't-panel-slide fixed inset-x-0 bottom-0 top-[var(--app-nav-height)] z-20 flex min-h-0 min-w-0 flex-col overflow-hidden border-t border-border bg-panel lg:relative lg:inset-auto lg:h-[calc(100dvh-1.5rem)] lg:rounded-2xl lg:border',
+          't-panel-slide fixed inset-x-0 bottom-0 top-[var(--app-header-bottom,var(--app-nav-height))] z-20 flex min-h-0 min-w-0 flex-col overflow-hidden border-t border-border bg-panel lg:relative lg:inset-auto lg:h-[calc(100dvh-1.5rem)] lg:rounded-2xl lg:border',
           !expanded && hasReviewOpen ? 'opacity-40' : '',
         )}
         data-open={visible}
