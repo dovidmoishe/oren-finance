@@ -109,7 +109,11 @@
     "rateLimited": "嘗試次數過多。請稍等片刻後再試。",
     "network": "無法連線到 Oren。請檢查網路後再試。",
     "sendFailed": "驗證碼未能寄出。請再試一次。",
-    "verifyFailed": "無法驗證這個驗證碼。請再試一次。"
+    "verifyFailed": "無法驗證這個驗證碼。請再試一次。",
+    "restoreStillLoading": "登入仍在載入。",
+    "restoreSlow": "登入花費的時間比平常更久。請重新載入後再試。",
+    "restoreSlowTitle": "登入花費的時間比平常更久",
+    "reload": "重新載入"
   },
   "markets": {
     "explore": "探索",
@@ -186,6 +190,7 @@
   },
   "common": {
     "somethingWrong": "發生問題",
+    "chunkFailed": "頁面有一部分未能載入。請重新載入後再試。",
     "retry": "重試",
     "loading": "載入中",
     "close": "關閉",

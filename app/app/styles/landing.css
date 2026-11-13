@@ -29,7 +29,7 @@
 }
 
 .landing-headline {
-  @apply max-w-[590px] [font-family:var(--font-neue-freigeist),_system-ui,_sans-serif] text-[clamp(2.25rem,_3.6vw,_2.875rem)] font-medium leading-[1.05] tracking-[-.055em] text-balance;
+  @apply max-w-[590px] [font-family:var(--font-oren-sans),_system-ui,_sans-serif] text-[clamp(2.25rem,_3.6vw,_2.875rem)] font-medium leading-[1.05] tracking-[-.055em] text-balance;
 }
 
 .landing-headline > span {

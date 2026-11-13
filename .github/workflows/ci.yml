@@ -17,18 +17,19 @@ concurrency:
 jobs:
   preview-infra:
     name: Preview infrastructure tests
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: [self-hosted, linux, x64, oren-build]
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
       - name: Configure disposable preview fixture paths
         run: |
           echo "PREVIEW_PROVIDER_ENV=$RUNNER_TEMP/ci-preview-provider.env" >> "$GITHUB_ENV"
           echo "PREVIEW_OAUTH_ENV=$RUNNER_TEMP/ci-preview-oauth.env" >> "$GITHUB_ENV"
           echo "PREVIEW_ACCESS_ENV=$RUNNER_TEMP/ci-preview-access.env" >> "$GITHUB_ENV"
           echo "PREVIEW_NOTIFICATION_ENV=$RUNNER_TEMP/ci-preview-notification.env" >> "$GITHUB_ENV"
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
       - run: node --test infra/ci/*.test.mjs infra/preview/*.test.mjs infra/docs/*.test.mjs
@@ -92,8 +93,7 @@ jobs:
           docker run --rm -e DOMAIN=production.example.com -e API_DOMAIN=api.production.example.com -v "$PWD/Caddyfile:/etc/caddy/Caddyfile:ro" -v "$RUNNER_TEMP/caddy-previews:/etc/caddy/previews:ro" caddy:2.10.2-alpine caddy validate --config /etc/caddy/Caddyfile
   api:
     name: API test and build
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: [self-hosted, linux, x64, oren-build]
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
     services:
       postgres:
@@ -123,7 +123,9 @@ jobs:
       run:
         working-directory: api
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
       - name: Configure disposable Postgres and Redis connections
         env:
           TEST_REDIS_PORT: ${{ job.services.notification-redis.ports['6379'] }}
@@ -132,11 +134,11 @@ jobs:
           [[ "$TEST_DB_PORT" =~ ^[0-9]+$ && "$TEST_REDIS_PORT" =~ ^[0-9]+$ ]]
           echo "NOTIFICATION_TEST_REDIS_URL=redis://127.0.0.1:$TEST_REDIS_PORT" >> "$GITHUB_ENV"
           echo "MCP_TEST_POSTGRES_URL=postgres://oren_test:oren_test@127.0.0.1:$TEST_DB_PORT/oren_mcp_test" >> "$GITHUB_ENV"
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
         with:
           version: 11.22.0
           run_install: false
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
           cache: pnpm
@@ -144,7 +146,7 @@ jobs:
       # setup-node caches the package store only. This directory holds the
       # full-metadata mirror and lockfile-verified.jsonl, which skips the
       # registry when the lockfile is unchanged.
-      - uses: actions/cache@v4
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: ~/.cache/pnpm
           key: pnpm-metadata-api-${{ runner.os }}-11.22-${{ hashFiles('api/pnpm-lock.yaml') }}
@@ -181,22 +183,12 @@ jobs:
 
   app-check:
     name: App ${{ matrix.check }}
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: [self-hosted, linux, x64, "${{ matrix.runner }}"]
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
-        include:
-          # Frozen pnpm install peaks at about 2.4 GiB and is killed in the
-          # 768 MiB light slice. Lint uses a heavy slot and still runs the
-          # 12-file eslint chunks. The aggregate check below stays light.
-          - check: test
-            runner: oren-build
-          - check: lint
-            runner: oren-build
-          - check: build
-            runner: oren-build
+        check: [test, lint, build]
     defaults:
       run:
         working-directory: app
@@ -205,12 +197,14 @@ jobs:
       # prerender failures that an absolute CI URL would miss.
       NEXT_PUBLIC_OREN_API_URL: /api
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
         with:
           version: 11.22.0
           run_install: false
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
           cache: pnpm
@@ -218,7 +212,7 @@ jobs:
       # setup-node caches the package store only. This directory holds the
       # full-metadata mirror and lockfile-verified.jsonl, which skips the
       # registry when the lockfile is unchanged.
-      - uses: actions/cache@v4
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: ~/.cache/pnpm
           key: pnpm-metadata-app-${{ runner.os }}-11.22-${{ hashFiles('app/pnpm-lock.yaml') }}
@@ -237,15 +231,12 @@ jobs:
             pnpm run "$CHECK"
           fi
 
-  # Preserve the required-check name used by preview setup and branch protection.
-  # The body is one shell comparison. It uses the bounded light runner so it
-  # does not take the single heavy worker. Do not merge until oren-vps-light
-  # is online; a missing label queues this required check.
+  # Preserve the required-check name used by branch protection.
   app:
     name: App test, lint, and build
     needs: app-check
     if: always()
-    runs-on: [self-hosted, linux, x64, oren-light]
+    runs-on: ubuntu-24.04
     steps:
       - name: Require all web checks
         env:

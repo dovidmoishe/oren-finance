@@ -54,8 +54,14 @@ const contentSecurityPolicy = [
   .map((directive) => directive.join(" "))
   .join("; ");
 
+// Already passed into the image build. A stale tab then hard-reloads on client
+// navigation instead of mixing deployments. This does not keep the previous
+// build's hashed files on disk.
+const deploymentId = process.env.NEXT_PUBLIC_COMMIT_SHA?.trim();
+
 const nextConfig: NextConfig = {
   output: "standalone",
+  ...(deploymentId ? { deploymentId } : {}),
   async headers() {
     return [{ source: "/:path*", headers: [{ key: "Content-Security-Policy", value: contentSecurityPolicy }] }];
   },

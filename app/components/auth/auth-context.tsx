@@ -9,6 +9,10 @@ export interface OrenAuth {
   address?: string;
   wallets: { address: string; label: string }[];
   error?: string;
+  /** Catalog key set when sign-in could not load after one reload. */
+  restoreError?: string;
+  /** Privy loaded, but it did not become ready before the restore window. */
+  restoreTimedOut?: boolean;
   busy: boolean;
   userId?: string;
   email?: string;

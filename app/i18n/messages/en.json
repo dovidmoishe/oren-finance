@@ -109,7 +109,11 @@
     "rateLimited": "Too many attempts. Wait a moment and try again.",
     "network": "We couldn’t reach Oren. Check your connection and try again.",
     "sendFailed": "We couldn’t send a code. Please try again.",
-    "verifyFailed": "We couldn’t verify that code. Please try again."
+    "verifyFailed": "We couldn’t verify that code. Please try again.",
+    "restoreStillLoading": "Sign-in is still loading.",
+    "restoreSlow": "Sign-in is taking longer than usual. Reload to try again.",
+    "restoreSlowTitle": "Sign-in is taking longer than usual",
+    "reload": "Reload"
   },
   "markets": {
     "explore": "Explore",
@@ -186,6 +190,7 @@
   },
   "common": {
     "somethingWrong": "Something went wrong",
+    "chunkFailed": "Part of the page failed to load. Reload to try again.",
     "retry": "Retry",
     "loading": "Loading",
     "close": "Close",

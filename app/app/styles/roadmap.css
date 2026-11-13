@@ -19,7 +19,7 @@
 }
 
 .roadmap-hero h1 {
-  @apply [font-family:var(--font-neue-freigeist),_sans-serif] text-[clamp(42px,_4.4vw,_60px)] font-medium tracking-[-.06em] leading-[1.04] [margin:0_0_23px];
+  @apply [font-family:var(--font-oren-sans),_sans-serif] text-[clamp(42px,_4.4vw,_60px)] font-medium tracking-[-.06em] leading-[1.04] [margin:0_0_23px];
 }
 
 .roadmap-hero h1 span {
@@ -104,7 +104,7 @@
 }
 
 .roadmap-toolbar h2 {
-  @apply [font-family:var(--font-neue-freigeist),_sans-serif] text-[27px] font-medium tracking-[-.045em];
+  @apply [font-family:var(--font-oren-sans),_sans-serif] text-[27px] font-medium tracking-[-.045em];
 }
 
 .roadmap-timeline {
@@ -172,7 +172,7 @@
 }
 
 .roadmap-card h3 {
-  @apply [font-family:var(--font-neue-freigeist),_sans-serif] text-[24px] leading-[1.2] font-medium tracking-[-.04em] m-0;
+  @apply [font-family:var(--font-oren-sans),_sans-serif] text-[24px] leading-[1.2] font-medium tracking-[-.04em] m-0;
 }
 
 .roadmap-disclosure {
@@ -475,7 +475,7 @@
 }
 
 .roadmap-ongoing h2 {
-  @apply [font-family:var(--font-neue-freigeist),_sans-serif] text-[29px] tracking-[-.04em] font-medium mb-[7px];
+  @apply [font-family:var(--font-oren-sans),_sans-serif] text-[29px] tracking-[-.04em] font-medium mb-[7px];
 }
 
 .roadmap-ongoing p {

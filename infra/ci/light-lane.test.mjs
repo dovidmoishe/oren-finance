@@ -1,14 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { readFileSync, readdirSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const text = name => readFileSync(fileURLToPath(new URL(name, import.meta.url)), 'utf8');
 const sha = name => createHash('sha256').update(readFileSync(fileURLToPath(new URL(name, import.meta.url)))).digest('hex');
 const budget = JSON.parse(text('./budgets.json'));
-const workflows = fileURLToPath(new URL('../../.github/workflows/', import.meta.url));
 const repo = fileURLToPath(new URL('../..', import.meta.url));
 
 test('installed heavy hooks and lease client stay byte-identical', () => {
@@ -52,26 +51,7 @@ test('light cap stays bounded and the 13 GiB host keeps a 3.75 GiB reserve', () 
   assert.ok(budget.lightMaxMiB < 1280);
 });
 
-test('lint stays on the heavy lane because install exceeds the light cap', () => {
-  const hits = [];
-  for (const file of readdirSync(workflows)) {
-    if (!file.endsWith('.yml')) continue;
-    readFileSync(`${workflows}/${file}`, 'utf8').split('\n').forEach((line, index) => {
-      if (line.includes('oren-light')) hits.push(`${file}:${index + 1}:${line.trim()}`);
-    });
-  }
-  assert.equal(hits.length, 1);
-  assert.match(hits[0], /ci\.yml:\d+:runs-on: \[self-hosted, linux, x64, oren-light\]/);
-  const ci = text('../../.github/workflows/ci.yml');
-  const appCheck = ci.split('\n  app-check:\n')[1].split('\n  app:\n')[0];
-  assert.match(appCheck, /check: test/);
-  assert.match(appCheck, /check: lint/);
-  assert.match(appCheck, /check: build/);
-  assert.equal(appCheck.match(/runner: oren-build/g).length, 3);
-  assert.doesNotMatch(appCheck, /oren-light/);
-  assert.match(appCheck, /pnpm install --frozen-lockfile/);
-  assert.match(appCheck, /node scripts\/lint-bounded\.mjs/);
-  assert.match(ci.split('\n  app:\n')[1], /test "\$RESULT" = success/);
+test('the legacy light lane keeps its memory and CPU caps', () => {
   const slice = text('./light.slice.conf');
   assert.match(slice, /MemoryHigh=768M\nMemoryMax=768M\nMemorySwapMax=0/);
   assert.match(slice, /CPUQuota=100%/);

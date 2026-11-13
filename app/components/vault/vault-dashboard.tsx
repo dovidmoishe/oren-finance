@@ -12,6 +12,7 @@ import {
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useEffect, useMemo, useState } from "react";
 import { useOrenAuth } from "@/components/auth/auth-context";
+import { RestoreActions, restoreBlocked } from "@/components/auth/restore-actions";
 import {
   Button,
   Card,
@@ -196,8 +197,9 @@ export function VaultDashboard() {
           <h1 className="mt-1 font-display text-4xl font-semibold tracking-normal">{t("vault.title")}</h1>
         </header>
         <EmptyState
-          title={!auth.ready ? t("vault.restoring") : auth.authenticated ? t("vault.preparing") : t("vault.signInTitle")}
-          description={auth.authenticated ? auth.error || t("vault.preparingDescription") : t("vault.signInDescription")}
+          action={restoreBlocked(auth) ? <RestoreActions signInLabel={t("common.signIn")} /> : undefined}
+          description={restoreBlocked(auth) ? t("auth.restoreSlow") : auth.authenticated ? auth.error || t("vault.preparingDescription") : t("vault.signInDescription")}
+          title={restoreBlocked(auth) ? t("auth.restoreSlowTitle") : !auth.ready ? t("vault.restoring") : auth.authenticated ? t("vault.preparing") : t("vault.signInTitle")}
         />
       </div>
     );

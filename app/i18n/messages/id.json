@@ -109,7 +109,11 @@
     "rateLimited": "Terlalu banyak percobaan. Tunggu sebentar, lalu coba lagi.",
     "network": "Tidak dapat menghubungi Oren. Periksa koneksi Anda dan coba lagi.",
     "sendFailed": "Kode tidak dapat dikirim. Silakan coba lagi.",
-    "verifyFailed": "Kode itu tidak dapat diverifikasi. Silakan coba lagi."
+    "verifyFailed": "Kode itu tidak dapat diverifikasi. Silakan coba lagi.",
+    "restoreStillLoading": "Proses masuk masih dimuat.",
+    "restoreSlow": "Proses masuk memakan waktu lebih lama dari biasanya. Muat ulang untuk mencoba lagi.",
+    "restoreSlowTitle": "Proses masuk memakan waktu lebih lama dari biasanya",
+    "reload": "Muat ulang"
   },
   "markets": {
     "explore": "Jelajahi",
@@ -186,6 +190,7 @@
   },
   "common": {
     "somethingWrong": "Terjadi kesalahan",
+    "chunkFailed": "Sebagian halaman gagal dimuat. Muat ulang untuk mencoba lagi.",
     "retry": "Coba lagi",
     "loading": "Memuat",
     "close": "Tutup",
