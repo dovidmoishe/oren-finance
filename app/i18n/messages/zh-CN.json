@@ -127,6 +127,7 @@
   },
   "common": {
     "somethingWrong": "出现问题",
+    "chunkFailed": "页面有一部分未能加载。请重新加载后再试。",
     "retry": "重试",
     "loading": "加载中",
     "close": "关闭",

@@ -41,7 +41,7 @@ export function ChunkLoadRecovery({ banner = true }: { banner?: boolean }) {
       className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950"
       role="alert"
     >
-      <span>{t("auth.restoreSlow")}</span>
+      <span>{t("common.chunkFailed")}</span>
       <button className="font-semibold underline" onClick={() => window.location.reload()} type="button">
         {t("auth.reload")}
       </button>

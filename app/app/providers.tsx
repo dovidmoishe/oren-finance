@@ -209,7 +209,15 @@ function DeferredPrivy({
   // The failed import never publishes a session, so a queued sign-in cannot open. Reload instead.
   const retryFailedImport = () => window.location.reload();
   const auth = failed
-    ? { ...loading.auth, ready: true, authenticated: false, restoreError, restoreTimedOut: false, open: retryFailedImport }
+    ? {
+        ...loading.auth,
+        ready: true,
+        authenticated: false,
+        restoreError,
+        restoreTimedOut: false,
+        open: retryFailedImport,
+        openDeposit: retryFailedImport,
+      }
     : timedOut
       ? { ...current.auth, restoreTimedOut: true }
       : current.auth;

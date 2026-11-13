@@ -27,9 +27,14 @@ function chunkError() {
   return error;
 }
 
-function loadChunkModule(window) {
+function loadChunkModule(window, env = {}) {
   const exports = {};
-  vm.runInNewContext(transpile("../lib/chunk-reload.ts"), { exports, window, Date });
+  vm.runInNewContext(transpile("../lib/chunk-reload.ts"), {
+    exports,
+    window,
+    Date,
+    process: { env: { NEXT_PUBLIC_COMMIT_SHA: "deploy-sha", ...env } },
+  });
   return exports;
 }
 
@@ -68,6 +73,12 @@ test("a chunk load error reloads once, then asks for a manual reload", () => {
   let gaveUp = 0;
   first.installChunkLoadRecovery(() => { gaveUp += 1; });
   firstWindow.dispatchEvent({ type: "error", error: new Error("Failed to fetch"), message: "Failed to fetch", filename: "" });
+  firstWindow.dispatchEvent({
+    type: "error",
+    error: new Error("script"),
+    message: "Loading chunk 9 failed.",
+    filename: "/_next/static/chunks/old.js",
+  });
   assert.equal(firstWindow.reloads(), 0);
 
   firstWindow.dispatchEvent({ type: "error", error: chunkError(), message: "Loading chunk 884 failed.", filename: "/_next/static/chunks/old.js" });
@@ -132,7 +143,12 @@ function mountPrivy({ fail }) {
       }
       if (id === "@/lib/chunk-reload") {
         const loaded = {};
-        vm.runInNewContext(transpile("../lib/chunk-reload.ts"), { exports: loaded, window, Date: clock });
+        vm.runInNewContext(transpile("../lib/chunk-reload.ts"), {
+          exports: loaded,
+          window,
+          Date: clock,
+          process: { env: { NEXT_PUBLIC_COMMIT_SHA: "deploy-sha" } },
+        });
         return loaded;
       }
       if (id === "@/i18n/i18n") return require(id);
@@ -208,7 +224,9 @@ test("a rejected Privy import reloads once and then shows Reload instead of wait
   assert.equal(page.reloads(), 1);
   assert.doesNotMatch(page.settle(), /taking longer than usual/);
 
-  page.advance(2_000);
+  page.advance(10 * 60 * 1000);
+  page.remount();
+  page.settle();
   page.remount();
   const html = page.settle();
   assert.equal(page.reloads(), 1);
@@ -220,6 +238,23 @@ test("a rejected Privy import reloads once and then shows Reload instead of wait
   assert.equal(page.auth().restoreError, "auth.restoreSlow");
   page.auth().open();
   assert.equal(page.reloads(), 2);
+  page.auth().openDeposit();
+  assert.equal(page.reloads(), 3);
+});
+
+test("a chunk failure after any delay does not reload a second time for the same deploy", () => {
+  const storage = memoryStorage();
+  let now = 1_700_000_000_000;
+  const firstWindow = browserWindow(storage);
+  const first = loadChunkModule(firstWindow);
+  const reloads = [];
+  assert.equal(first.reloadOnceForChunkFailure(() => reloads.push(now), storage), true);
+  now += 24 * 60 * 60 * 1000;
+  firstWindow.now = now;
+  assert.equal(first.reloadOnceForChunkFailure(() => reloads.push(now), storage), false);
+  const second = loadChunkModule(browserWindow(storage));
+  assert.equal(second.reloadOnceForChunkFailure(() => reloads.push(now), storage), false);
+  assert.deepEqual(reloads, [1_700_000_000_000]);
 });
 
 test("blocked sessionStorage falls through to manual recovery", () => {
@@ -380,6 +415,17 @@ test("account, vault, and calendar gates offer Reload and Sign in when restore f
   assert.doesNotMatch(renderSignedOut("../components/shell/account-menu.tsx", "AccountMenu", waiting), /<button/);
   assert.match(renderSignedOut("../components/vault/vault-dashboard.tsx", "VaultDashboard", waiting), /Restoring your account/);
   assert.match(renderSignedOut("../components/calendar/trading-calendar.tsx", "TradingCalendar", waiting), /Restoring your account/);
+});
+
+test("a failed page chunk uses generic catalog copy", () => {
+  const source = readFileSync(new URL("../components/chunk-load-recovery.tsx", import.meta.url), "utf8");
+  assert.match(source, /t\("common\.chunkFailed"\)/);
+  assert.doesNotMatch(source, /auth\.restoreSlow/);
+  assert.equal(messages.common.chunkFailed, "Part of the page failed to load. Reload to try again.");
+  for (const locale of ["de", "fr", "id", "pt-BR", "uk", "vi", "zh-CN", "zh-TW"]) {
+    const catalog = JSON.parse(readFileSync(new URL(`../i18n/messages/${locale}.json`, import.meta.url), "utf8"));
+    assert.notEqual(catalog.common.chunkFailed, messages.common.chunkFailed, locale);
+  }
 });
 
 test("deployment id follows the commit already baked into the web image", () => {

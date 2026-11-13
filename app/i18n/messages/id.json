@@ -127,6 +127,7 @@
   },
   "common": {
     "somethingWrong": "Terjadi kesalahan",
+    "chunkFailed": "Sebagian halaman gagal dimuat. Muat ulang untuk mencoba lagi.",
     "retry": "Coba lagi",
     "loading": "Memuat",
     "close": "Tutup",

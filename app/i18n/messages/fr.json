@@ -127,6 +127,7 @@
   },
   "common": {
     "somethingWrong": "Un problème est survenu",
+    "chunkFailed": "Une partie de la page n’a pas pu être chargée. Rechargez pour réessayer.",
     "retry": "Réessayer",
     "loading": "Chargement",
     "close": "Fermer",

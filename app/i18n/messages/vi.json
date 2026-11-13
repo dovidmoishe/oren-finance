@@ -127,6 +127,7 @@
   },
   "common": {
     "somethingWrong": "Đã xảy ra lỗi",
+    "chunkFailed": "Một phần của trang không tải được. Tải lại để thử lần nữa.",
     "retry": "Thử lại",
     "loading": "Đang tải",
     "close": "Đóng",

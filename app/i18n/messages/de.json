@@ -127,6 +127,7 @@
   },
   "common": {
     "somethingWrong": "Etwas ist schiefgelaufen",
+    "chunkFailed": "Ein Teil der Seite konnte nicht geladen werden. Lade neu, um es erneut zu versuchen.",
     "retry": "Erneut versuchen",
     "loading": "Wird geladen",
     "close": "Schließen",

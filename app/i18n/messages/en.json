@@ -127,6 +127,7 @@
   },
   "common": {
     "somethingWrong": "Something went wrong",
+    "chunkFailed": "Part of the page failed to load. Reload to try again.",
     "retry": "Retry",
     "loading": "Loading",
     "close": "Close",

@@ -127,6 +127,7 @@
   },
   "common": {
     "somethingWrong": "Algo deu errado",
+    "chunkFailed": "Parte da página não carregou. Recarregue para tentar de novo.",
     "retry": "Tentar novamente",
     "loading": "Carregando",
     "close": "Fechar",
