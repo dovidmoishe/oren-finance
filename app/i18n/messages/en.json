@@ -884,6 +884,7 @@
     "review": "Review permission"
   },
   "agent": {
+    "resize": "Resize Oren chat",
     "ask": "Ask Oren",
     "proposes": "Oren proposes. Your wallet approves.",
     "stop": "Stop response",

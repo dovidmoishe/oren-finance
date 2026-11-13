@@ -1,9 +1,9 @@
 "use client";
 
-import { ArrowRight01Icon, RefreshCwIcon } from "@hugeicons/core-free-icons";
+import { ArrowDown01Icon, ArrowRight01Icon, RefreshCwIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import Link from "next/link";
-import { useState } from "react";
+import { Fragment, useId, useState, type ReactNode } from "react";
 import {
   EmptyState, Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
   cn, formatCurrency, formatDateTime, formatNumber, formatPercent,
@@ -43,6 +43,8 @@ function PositionLogo({ position }: { position: PortfolioPosition }) {
 
 function PositionsTable({ positions, hidden }: { positions: PortfolioPosition[]; hidden: boolean }) {
   const { locale, t } = useI18n();
+  const [expandedAsset, setExpandedAsset] = useState<string>();
+  const detailsId = useId();
   const privateValue = (value: string) => hidden ? "••••••" : value;
 
   if (!positions.length) {
@@ -53,47 +55,61 @@ function PositionsTable({ positions, hidden }: { positions: PortfolioPosition[];
     <Table aria-label={t("portfolio.positions")} className="table-fixed">
       <TableHeader className="bg-panel-subtle">
         <TableRow>
-          <TableHead className={cn(headerCell, "w-[47%] rounded-s-xl @2xl:w-auto")} scope="col">{t("portfolio.colAsset")}</TableHead>
-          <TableHead className={cn(headerCell, "w-[22%] text-end @2xl:w-[13%]")} scope="col">{t("portfolio.col24h")}</TableHead>
-          <TableHead className={cn(headerCell, desktopCell, "w-[13%] text-end")} scope="col">{t("portfolio.colAvailable")}</TableHead>
-          <TableHead className={cn(headerCell, desktopCell, "w-[12%] text-end")} scope="col">{t("portfolio.colLocked")}</TableHead>
-          <TableHead className={cn(headerCell, desktopCell, "w-[13%] text-end")} scope="col">{t("portfolio.colPrice")}</TableHead>
-          <TableHead className={cn(headerCell, "rounded-e-xl text-end @2xl:w-[16%]")} scope="col">{t("vault.colValue")}</TableHead>
+          <TableHead className={cn(headerCell, "w-[44%] rounded-s-xl")} scope="col">{t("portfolio.colAsset")}</TableHead>
+          <TableHead className={cn(headerCell, "w-[20%] text-end")} scope="col">{t("portfolio.col24h")}</TableHead>
+          <TableHead className={cn(headerCell, "text-end")} scope="col">{t("vault.colValue")}</TableHead>
+          <TableHead className="w-9 rounded-e-xl" scope="col"><span className="sr-only">{t("portfolio.positionDetails")}</span></TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
-        {positions.map((position) => {
-          const available = privateValue(formatNumber(position.availableQuantity, locale));
-          const locked = privateValue(formatNumber(position.lockedQuantity, locale));
-          const price = formatCurrency(position.priceUsd, locale);
+        {positions.map((position, index) => {
+          const open = expandedAsset === position.assetId;
+          const target = detailsId + "-" + index;
           const change = position.change24hPct;
+          const details = [
+            { label: t("portfolio.colAvailable"), value: privateValue(formatNumber(position.availableQuantity, locale)) },
+            { label: t("portfolio.colLocked"), value: privateValue(formatNumber(position.lockedQuantity, locale)) },
+            { label: t("portfolio.colPrice"), value: formatCurrency(position.priceUsd, locale) },
+          ];
           return (
-            <TableRow className="hover:bg-panel-subtle/60" key={position.assetId}>
-              <TableCell className={cell}>
-                <Link className="flex min-w-0 items-center gap-2 rounded focus-visible:outline-2 focus-visible:outline-focus sm:gap-2.5" href={"/app/stocks/" + encodeURIComponent(position.assetId)}>
-                  <PositionLogo position={position} />
-                  <span className="min-w-0">
-                    <span className="block truncate text-sm font-semibold" title={position.name}>{position.name}</span>
-                    <span className="block truncate text-xs text-muted">{position.ticker}</span>
-                  </span>
-                </Link>
-                <details className="mt-1 text-xs text-muted @2xl:hidden">
-                  <summary className="w-fit cursor-pointer rounded py-1 font-medium focus-visible:outline-2 focus-visible:outline-focus">{t("portfolio.positionDetails")}<span className="sr-only"> {position.ticker}</span></summary>
-                  <dl className="mt-1 grid gap-1">
-                    {[[t("portfolio.colAvailable"), available], [t("portfolio.colLocked"), locked], [t("portfolio.colPrice"), price]].map(([label, value]) => (
-                      <div className="flex flex-wrap justify-between gap-x-1" key={label}><dt>{label}</dt><dd className="break-all font-medium text-foreground tabular-nums">{value}</dd></div>
+            <Fragment key={position.assetId}>
+              <TableRow className="hover:bg-panel-subtle/60">
+                <TableCell className={cell}>
+                  <Link className="flex min-w-0 items-center gap-2 rounded focus-visible:outline-2 focus-visible:outline-focus sm:gap-2.5" href={"/app/stocks/" + encodeURIComponent(position.assetId)}>
+                    <PositionLogo position={position} />
+                    <span className="min-w-0">
+                      <span className="block truncate text-xs font-semibold sm:text-sm" title={position.name}>{position.name}</span>
+                      <span className="block truncate text-xs text-muted">{position.ticker}</span>
+                    </span>
+                  </Link>
+                </TableCell>
+                <TableCell className={cn(cell, "break-words text-end text-xs font-semibold tabular-nums sm:text-sm", change === undefined || change === 0 ? "text-muted" : change < 0 ? "text-[#be3545]" : "text-[#16734a]")}>
+                  {change === undefined ? "—" : formatPercent(change, locale, change !== 0)}
+                </TableCell>
+                <TableCell className={cn(cell, "break-words text-end text-xs font-semibold tabular-nums sm:text-sm")}>{privateValue(formatCurrency(position.valueUsd, locale))}</TableCell>
+                <TableCell className="p-0">
+                  <button
+                    aria-controls={target}
+                    aria-expanded={open}
+                    aria-label={t("portfolio.positionDetails") + " " + position.ticker}
+                    className="grid h-11 w-9 place-items-center rounded text-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-focus"
+                    onClick={() => setExpandedAsset(open ? undefined : position.assetId)}
+                    type="button"
+                  >
+                    <HugeiconsIcon aria-hidden="true" className={open ? "rotate-180" : undefined} icon={ArrowDown01Icon} size={15} strokeWidth={1.8} />
+                  </button>
+                </TableCell>
+              </TableRow>
+              <tr className="bg-panel-subtle/65" hidden={!open} id={target}>
+                <td className="px-3.5 py-3.5" colSpan={4}>
+                  <dl className="grid grid-cols-3 gap-2 text-xs">
+                    {details.map(({ label, value }) => (
+                      <div className="min-w-0" key={label}><dt className="text-muted">{label}</dt><dd className="mt-1 break-words font-medium tabular-nums">{value}</dd></div>
                     ))}
                   </dl>
-                </details>
-              </TableCell>
-              <TableCell className={cn(cell, "break-words text-end text-xs font-semibold tabular-nums sm:text-sm", change === undefined || change === 0 ? "text-muted" : change < 0 ? "text-[#be3545]" : "text-[#16734a]")}>
-                {change === undefined ? "—" : formatPercent(change, locale, change !== 0)}
-              </TableCell>
-              <TableCell className={cn(cell, desktopCell, "break-words text-end tabular-nums")}>{available}</TableCell>
-              <TableCell className={cn(cell, desktopCell, "break-words text-end tabular-nums")}>{locked}</TableCell>
-              <TableCell className={cn(cell, desktopCell, "break-words text-end tabular-nums")}>{price}</TableCell>
-              <TableCell className={cn(cell, "break-words text-end text-xs font-semibold tabular-nums sm:text-sm")}>{privateValue(formatCurrency(position.valueUsd, locale))}</TableCell>
-            </TableRow>
+                </td>
+              </tr>
+            </Fragment>
           );
         })}
       </TableBody>
@@ -142,37 +158,44 @@ function RecentActivityTable({ activity, hidden }: { activity: PortfolioActivity
   );
 }
 
-export function PortfolioTables({ positions, activity, hidden, isLoading, onRefresh }: {
+export function PortfolioTables({ positions, activity, allocation, history, hidden, isLoading, onRefresh }: {
   positions: PortfolioPosition[];
   activity: PortfolioActivityItem[];
+  allocation: ReactNode;
+  history?: ReactNode;
   hidden: boolean;
   isLoading: boolean;
   onRefresh: () => void;
 }) {
   const { t } = useI18n();
-  const [showActivity, setShowActivity] = useState(false);
-  const options = [{ label: t("portfolio.positions"), activity: false }, { label: t("portfolio.recentActivity"), activity: true }];
+  const [section, setSection] = useState<"positions" | "allocation" | "history" | "activity">("positions");
+  const options = [
+    { id: "positions", label: t("portfolio.positions") },
+    { id: "allocation", label: t("trader.allocation") },
+    { id: "history", label: t("portfolio.valueHistory") },
+    { id: "activity", label: t("common.activityTitle") },
+  ] as const;
 
   return (
-    <section aria-label={showActivity ? t("portfolio.recentActivity") : t("portfolio.positions")}>
-      <div className="mb-2.5 flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
-        <div aria-label={t("nav.portfolio")} className="flex flex-wrap gap-3 sm:gap-5" role="group">
-          {options.map((option) => (
+    <section aria-label={options.find((option) => option.id === section)?.label}>
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-b border-border">
+        <div aria-label={t("nav.portfolio")} className="flex flex-wrap gap-x-3 @lg:gap-x-6" role="group">
+          {options.map(({ id, label }) => (
             <button
-              aria-pressed={option.activity === showActivity}
+              aria-pressed={id === section}
               className={cn(
-                "min-h-10 border-b-2 px-0.5 text-sm font-semibold focus-visible:rounded focus-visible:outline-2 focus-visible:outline-focus pointer-coarse:min-h-11",
-                option.activity === showActivity ? "border-foreground text-foreground" : "border-transparent text-muted hover:text-foreground",
+                "min-h-11 border-b-2 px-0.5 text-xs font-semibold focus-visible:rounded focus-visible:outline-2 focus-visible:outline-focus @lg:text-sm",
+                id === section ? "border-foreground text-foreground" : "border-transparent text-muted hover:text-foreground",
               )}
-              key={option.label}
-              onClick={() => setShowActivity(option.activity)}
+              key={id}
+              onClick={() => setSection(id)}
               type="button"
             >
-              {option.label}
+              {label}
             </button>
           ))}
         </div>
-        {showActivity ? (
+        {section === "activity" ? (
           <Link className={toolbarButton} href="/app/activity">
             {t("portfolio.viewAll")}
             <HugeiconsIcon aria-hidden="true" icon={ArrowRight01Icon} size={14} strokeWidth={1.8} />
@@ -180,11 +203,13 @@ export function PortfolioTables({ positions, activity, hidden, isLoading, onRefr
         ) : (
           <button aria-label={t("portfolio.refresh")} className={toolbarButton} disabled={isLoading} onClick={onRefresh} title={t("portfolio.refresh")} type="button">
             <HugeiconsIcon aria-hidden="true" className={isLoading ? "motion-safe:animate-spin" : undefined} icon={RefreshCwIcon} size={15} strokeWidth={1.8} />
-            <span className="hidden sm:inline">{t("portfolio.refresh")}</span>
           </button>
         )}
       </div>
-      {showActivity ? <RecentActivityTable activity={activity} hidden={hidden} /> : <PositionsTable hidden={hidden} positions={positions} />}
+      {section === "positions" && <PositionsTable hidden={hidden} positions={positions} />}
+      {section === "allocation" && allocation}
+      {section === "history" && (history ?? <p className="rounded-xl bg-panel-subtle p-4 text-sm text-muted">{t("portfolio.showBalances")}</p>)}
+      {section === "activity" && <RecentActivityTable activity={activity} hidden={hidden} />}
     </section>
   );
 }

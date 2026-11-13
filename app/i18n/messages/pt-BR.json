@@ -884,6 +884,7 @@
     "review": "Revisar permissão"
   },
   "agent": {
+    "resize": "Redimensionar o chat do Oren",
     "ask": "Pergunte à Oren",
     "proposes": "A Oren propõe. Sua wallet aprova.",
     "stop": "Parar resposta",

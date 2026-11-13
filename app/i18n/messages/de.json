@@ -884,6 +884,7 @@
     "review": "Berechtigung prüfen"
   },
   "agent": {
+    "resize": "Größe des Oren-Chats ändern",
     "ask": "Oren fragen",
     "proposes": "Oren schlägt vor. Deine Wallet genehmigt.",
     "stop": "Antwort stoppen",

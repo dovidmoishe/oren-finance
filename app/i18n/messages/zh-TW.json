@@ -884,6 +884,7 @@
     "review": "檢視權限"
   },
   "agent": {
+    "resize": "調整 Oren 聊天面板大小",
     "ask": "詢問 Oren",
     "proposes": "Oren 提議，你的錢包核准。",
     "stop": "停止回覆",

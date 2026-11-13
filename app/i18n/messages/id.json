@@ -884,6 +884,7 @@
     "review": "Tinjau izin"
   },
   "agent": {
+    "resize": "Ubah ukuran obrolan Oren",
     "ask": "Tanya Oren",
     "proposes": "Oren mengusulkan. Dompet Anda menyetujui.",
     "stop": "Hentikan respons",

@@ -884,6 +884,7 @@
     "review": "Examiner l’autorisation"
   },
   "agent": {
+    "resize": "Redimensionner le chat Oren",
     "ask": "Demander à Oren",
     "proposes": "Oren propose. Votre wallet approuve.",
     "stop": "Arrêter la réponse",

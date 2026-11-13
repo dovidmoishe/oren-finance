@@ -9,7 +9,7 @@ import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState, type CSSProperties } from "react";
 import { OrenLogo } from "@/components/brand/oren-logo";
 import { LanguageMenu } from "@/components/language/language-menu";
 import { PendingApprovalNotice } from "@/components/trading/pending-approval-notice";
@@ -18,6 +18,7 @@ import { useT, type MessageKey } from "@/i18n/i18n";
 import { useAgentStore } from "@/store";
 import { AccountMenu } from "./account-menu";
 import { AppSearch } from "./app-search";
+import { CopilotResizeHandle, MAX_COPILOT_WIDTH, MIN_COPILOT_WIDTH } from "./copilot-resize-handle";
 
 const AgentPanel = dynamic(() => import("@/components/agent/agent-panel").then((mod) => mod.AgentPanel), { ssr: false });
 const DepositModal = dynamic(() => import("@/components/portfolio/deposit-dashboard").then((mod) => mod.DepositModal), { ssr: false });
@@ -36,7 +37,7 @@ const navigation: { href: string; label: MessageKey; icon: IconSvgElement }[] = 
 
 const headerButton = "inline-flex h-10 shrink-0 items-center justify-center rounded-full text-muted hover:bg-panel-subtle hover:text-foreground focus-visible:outline-2 focus-visible:outline-focus lg:h-9 pointer-coarse:h-11";
 const iconButton = cn(headerButton, "w-10 lg:w-9 pointer-coarse:w-11");
-const navRow = "flex min-h-10 items-center gap-3 rounded-lg px-3 text-sm hover:bg-black/[0.035] hover:text-foreground focus-visible:outline-2 focus-visible:outline-focus pointer-coarse:min-h-11";
+const navRow = "flex min-h-11 items-center gap-3 rounded-lg px-3.5 text-sm hover:bg-black/[0.035] hover:text-foreground focus-visible:outline-2 focus-visible:outline-focus pointer-coarse:min-h-11";
 
 function Icon({ icon, size = 18 }: { icon: IconSvgElement; size?: number }) {
   return <HugeiconsIcon aria-hidden="true" className="shrink-0" icon={icon} size={size} strokeWidth={1.7} />;
@@ -49,6 +50,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const agentExpanded = useAgentStore((state) => state.expanded);
   const setPanelOpen = useAgentStore((state) => state.setPanelOpen);
   const [collapsed, setCollapsed] = useState(false);
+  const [copilotWidth, setCopilotWidth] = useState(360);
+  const [maxCopilotWidth, setMaxCopilotWidth] = useState(MAX_COPILOT_WIDTH);
+  const [resizing, setResizing] = useState(false);
+  const shell = useRef<HTMLDivElement>(null);
+  const sidebar = useRef<HTMLElement>(null);
   const mobileMenu = useRef<HTMLDivElement>(null);
   const menuId = useId();
   const search = useRef<HTMLDialogElement>(null);
@@ -58,6 +64,25 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       ? markets
       : [...navigation.slice(1), settings].find(({ href }) => pathname === href || pathname.startsWith(href + "/"));
   const title = active ? t(active.label) : "Oren";
+
+  useEffect(() => {
+    const layout = shell.current;
+    const navigation = sidebar.current;
+    if (!layout || !navigation) return;
+
+    const observer = new ResizeObserver(() => {
+      if (!navigation.offsetWidth) return;
+      const { paddingLeft, paddingRight } = getComputedStyle(layout);
+      const available = layout.clientWidth - parseFloat(paddingLeft) - parseFloat(paddingRight) - navigation.offsetWidth - 432;
+      setMaxCopilotWidth(Math.max(MIN_COPILOT_WIDTH, Math.min(MAX_COPILOT_WIDTH, available)));
+    });
+    observer.observe(layout);
+    observer.observe(navigation);
+    return () => observer.disconnect();
+  }, []);
+
+  const width = Math.min(copilotWidth, maxCopilotWidth);
+  const docked = agentOpen && !agentExpanded;
 
   function navigationLink(item: (typeof navigation)[number], compact = false) {
     const isActive = item.href === active?.href;
@@ -70,20 +95,21 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         onClick={() => mobileMenu.current?.hidePopover()}
         title={compact ? t(item.label) : undefined}
       >
-        <HugeiconsIcon aria-hidden="true" className="shrink-0" icon={item.icon} size={18} strokeWidth={isActive ? 2.2 : 1.65} />
+        <HugeiconsIcon aria-hidden="true" className="shrink-0" icon={item.icon} size={19} strokeWidth={isActive ? 2.2 : 1.65} />
         <span className={compact ? "sr-only" : undefined}>{t(item.label)}</span>
       </Link>
     );
   }
 
   return (
-    <div className={cn(
-      "mx-auto min-h-dvh overflow-x-clip bg-panel-subtle text-foreground lg:grid lg:grid-cols-[var(--nav-width)_minmax(0,1fr)_var(--copilot-width)] lg:p-3 lg:[--app-shell-inset:0.75rem] lg:[transition:grid-template-columns_var(--panel-close-dur)_var(--panel-ease)] motion-reduce:transition-none sm:[--app-menu-right:1.5rem] [--app-header-bottom:calc(var(--app-nav-height)+var(--app-shell-inset,0px))]",
-      collapsed ? "lg:[--nav-width:4rem]" : "lg:[--nav-width:11.5rem] xl:[--nav-width:12.5rem]",
-      agentOpen && agentExpanded ? "lg:[--copilot-width:1fr]" : agentOpen ? "lg:[--copilot-width:clamp(18rem,26vw,23rem)] lg:[transition-duration:var(--panel-open-dur)]" : "lg:[--copilot-width:0rem]",
+    <div ref={shell} style={{ "--copilot-preferred-width": width + "px" } as CSSProperties} className={cn(
+      "mx-auto min-h-dvh overflow-x-clip bg-panel-subtle text-foreground lg:grid lg:grid-cols-[var(--nav-width)_minmax(0,1fr)_var(--copilot-width)] lg:p-3 lg:[--app-shell-inset:0.75rem] motion-reduce:transition-none sm:[--app-menu-right:1.5rem] [--app-header-bottom:calc(var(--app-nav-height)+var(--app-shell-inset,0px))]",
+      collapsed ? "lg:[--nav-width:4rem]" : "lg:[--nav-width:14rem] xl:[--nav-width:15.5rem]",
+      agentOpen && agentExpanded ? "lg:[--copilot-width:1fr]" : agentOpen ? "lg:[--copilot-width:var(--copilot-preferred-width)] lg:[transition-duration:var(--panel-open-dur)]" : "lg:[--copilot-width:0rem]",
+      resizing ? "select-none" : "lg:[transition:grid-template-columns_var(--panel-close-dur)_var(--panel-ease)]",
     )}>
       <a className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-50 focus:rounded-lg focus:bg-panel focus:p-3" href="#app-content">{t("nav.skipToContent")}</a>
-      <aside className="sticky top-3 hidden h-[calc(100dvh-1.5rem)] min-h-0 flex-col px-2 pb-2 lg:flex">
+      <aside ref={sidebar} className="sticky top-3 hidden h-[calc(100dvh-1.5rem)] min-h-0 flex-col pe-3 ps-2 pb-2 lg:flex">
         <div className={cn("flex h-[var(--app-nav-height)] shrink-0 items-center", collapsed ? "justify-center" : "justify-between px-1")}>
           {collapsed ? null : (
             <Link className="flex items-center gap-2 font-display text-[1.2rem] font-bold tracking-tight" href="/app">
@@ -148,7 +174,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           {children}
         </main>
       </div>
-      <AgentPanel />
+      <div className={cn("contents lg:sticky lg:top-3 lg:row-start-1 lg:block lg:min-w-0 lg:self-start", agentExpanded ? "lg:col-span-2 lg:col-start-2" : "lg:col-start-3", docked && "lg:ps-3")}>
+        {docked && <CopilotResizeHandle
+          maxWidth={maxCopilotWidth}
+          onDragChange={setResizing}
+          onResize={(next) => setCopilotWidth(Math.max(MIN_COPILOT_WIDTH, Math.min(maxCopilotWidth, next)))}
+          width={width}
+        />}
+        <AgentPanel />
+      </div>
       <AppSearch dialog={search} />
       <DepositModal />
     </div>
