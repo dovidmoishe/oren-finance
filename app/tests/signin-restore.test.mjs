@@ -218,6 +218,19 @@ test("a rejected Privy import reloads once and then shows Reload instead of wait
   assert.equal(page.auth().ready, true);
   assert.equal(page.auth().authenticated, false);
   assert.equal(page.auth().restoreError, "auth.restoreSlow");
+  page.auth().open();
+  assert.equal(page.reloads(), 2);
+});
+
+test("blocked sessionStorage falls through to manual recovery", () => {
+  const window = {
+    get sessionStorage() {
+      throw new DOMException("The operation is insecure.", "SecurityError");
+    },
+    location: { reload() { throw new Error("reload should not run"); } },
+  };
+  const recovery = loadChunkModule(window);
+  assert.equal(recovery.reloadOnceForChunkFailure(), false);
 });
 
 test("the slow sign-in timer starts only after Privy has loaded and uses catalog copy", async () => {
@@ -244,6 +257,8 @@ test("the slow sign-in timer starts only after Privy has loaded and uses catalog
   assert.equal(page.auth().restoreTimedOut, true);
   assert.equal(page.auth().ready, false);
   assert.equal(page.auth().authenticated, false);
+  page.auth().open();
+  assert.equal(page.reloads(), 0);
 });
 
 function dashboardRequire(auth) {

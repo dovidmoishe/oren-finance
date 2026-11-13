@@ -206,12 +206,15 @@ function DeferredPrivy({
   const current = session ?? loading;
   const failed = Boolean(restoreError);
   const timedOut = restoreTimedOut && !current.auth.ready && !failed;
+  // The failed import never publishes a session, so a queued sign-in cannot open. Reload instead.
+  const retryFailedImport = () => window.location.reload();
   const auth = failed
-    ? { ...loading.auth, ready: true, authenticated: false, restoreError, restoreTimedOut: false }
+    ? { ...loading.auth, ready: true, authenticated: false, restoreError, restoreTimedOut: false, open: retryFailedImport }
     : timedOut
       ? { ...current.auth, restoreTimedOut: true }
       : current.auth;
-  const wallet = failed ? signedOutWallet(false, loading.auth.open) : current.wallet;
+  const wallet = failed ? signedOutWallet(false, retryFailedImport) : current.wallet;
+  const modal = failed ? { visible: false, setVisible(next: boolean) { if (next) retryFailedImport(); } } : current.modal;
   return (
     <>
       {failed || timedOut ? (
@@ -231,7 +234,7 @@ function DeferredPrivy({
       ) : null}
       <AuthContext.Provider value={auth}>
         <WalletContext.Provider value={wallet}>
-          <WalletModalContext.Provider value={current.modal}>
+          <WalletModalContext.Provider value={modal}>
             {children}
           </WalletModalContext.Provider>
         </WalletContext.Provider>

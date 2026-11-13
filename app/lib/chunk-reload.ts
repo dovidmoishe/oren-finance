@@ -24,13 +24,15 @@ let sameAttemptAt = 0;
 export function reloadOnceForChunkFailure(
   now = Date.now(),
   reload: () => void = () => window.location.reload(),
-  storage: Pick<Storage, "getItem" | "setItem"> = window.sessionStorage,
+  storage?: Pick<Storage, "getItem" | "setItem">,
 ): boolean {
   if (sameAttemptAt && now - sameAttemptAt < 1_000) return true;
   try {
-    const previous = Number(storage.getItem(CHUNK_RELOAD_STORAGE_KEY));
+    // Reading sessionStorage can throw before the body runs if it is a default argument.
+    const store = storage ?? window.sessionStorage;
+    const previous = Number(store.getItem(CHUNK_RELOAD_STORAGE_KEY));
     if (Number.isFinite(previous) && previous > 0 && now - previous < CHUNK_RELOAD_GUARD_MS) return false;
-    storage.setItem(CHUNK_RELOAD_STORAGE_KEY, String(now));
+    store.setItem(CHUNK_RELOAD_STORAGE_KEY, String(now));
   } catch {
     return false;
   }
