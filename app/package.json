@@ -13,6 +13,7 @@
     "validate:translations": "node scripts/validate-translations.mjs"
   },
   "dependencies": {
+    "@fontsource-variable/instrument-sans": "5.3.0",
     "@hugeicons/core-free-icons": "^4.3.2",
     "@hugeicons/react": "^1.1.10",
     "@privy-io/react-auth": "^3.51.0",

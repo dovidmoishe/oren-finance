@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "@fontsource-variable/instrument-sans";
 @import "./styles/conversation-motion.css";
 @import "./styles/trade-grant.css";
 @import "./styles/mcp-connect.css";
@@ -75,7 +76,7 @@
   --color-accent-pink-soft: var(--accent-pink-soft);
   --color-accent-yellow: var(--accent-yellow);
   --color-accent-lavender: var(--accent-lavender);
-  --font-oren-sans: system-ui, sans-serif;
+  --font-oren-sans: "Instrument Sans Variable", system-ui, sans-serif;
   --font-sans: var(--font-oren-sans);
   --font-display: var(--font-oren-sans);
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
