@@ -1,5 +1,4 @@
 @import "tailwindcss";
-@import "@fontsource-variable/instrument-sans";
 @import "./styles/conversation-motion.css";
 @import "./styles/trade-grant.css";
 @import "./styles/mcp-connect.css";

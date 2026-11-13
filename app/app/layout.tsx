@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { NextIntlClientProvider } from "next-intl";
+import "@fontsource-variable/instrument-sans";
 import "./globals.css";
 import { PreviewBanner } from "@/components/preview-banner";
 import en from "@/i18n/messages/en.json";
