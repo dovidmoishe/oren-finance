@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowDown01Icon, ArrowUp01Icon, Search01Icon } from "@hugeicons/core-free-icons";
+import { Search01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -12,14 +12,7 @@ import { useI18n, useT } from "@/i18n/i18n";
 
 const sparklineCache = new Map<string, MarketCandle[]>();
 
-function SortIcon() {
-  return (
-    <span className="inline-flex flex-col text-muted">
-      <HugeiconsIcon color="currentColor" icon={ArrowUp01Icon} size={10} strokeWidth={2} />
-      <HugeiconsIcon className="-mt-1.5" color="currentColor" icon={ArrowDown01Icon} size={10} strokeWidth={2} />
-    </span>
-  );
-}
+const marketColumns = "grid grid-cols-[minmax(0,1fr)_4.75rem_4.25rem] items-center gap-2.5 px-3 @lg:grid-cols-[minmax(0,1fr)_minmax(5.5rem,0.55fr)_minmax(4rem,0.5fr)_minmax(5rem,0.55fr)] @3xl:grid-cols-[minmax(0,1fr)_minmax(5.5rem,0.55fr)_minmax(4rem,0.5fr)_minmax(6rem,0.65fr)_minmax(5rem,0.55fr)] @lg:gap-4 @lg:px-4";
 
 function StockLogo({ stock }: { stock: StockSummary }) {
   const t = useT();
@@ -30,7 +23,7 @@ function StockLogo({ stock }: { stock: StockSummary }) {
       // eslint-disable-next-line @next/next/no-img-element
       <img
         alt={t("markets.logoAlt", { name: stock.name })}
-        className="h-7 w-7 rounded-full object-contain"
+        className="size-8 shrink-0 rounded-full object-contain"
         loading="lazy"
         onError={() => setFailed(true)}
         src={normalizeLogoUrl(stock.logoUrl)}
@@ -39,7 +32,7 @@ function StockLogo({ stock }: { stock: StockSummary }) {
   }
 
   return (
-    <div className="flex h-7 w-7 items-center justify-center rounded-full bg-panel-subtle font-mono text-[10px] font-semibold">
+    <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-panel-subtle text-[10px] font-semibold">
       {stock.ticker.slice(0, 2)}
     </div>
   );
@@ -96,7 +89,7 @@ function Sparkline({ stock }: { stock: StockSummary }) {
   }, [cacheKey, stock.assetId]);
 
   if (!candles) {
-    return <Skeleton className="h-8 w-32 rounded-full" />;
+    return <Skeleton className="h-7 w-full max-w-28 rounded-full" />;
   }
 
   const points = buildSparklinePoints(candles);
@@ -113,7 +106,7 @@ function Sparkline({ stock }: { stock: StockSummary }) {
   return (
     <svg
       aria-label={t("markets.sparklineLabel", { ticker: stock.ticker })}
-      className={cn("h-8 w-32", positive ? "text-positive" : "text-negative")}
+      className={cn("h-7 w-full max-w-28", positive ? "text-positive" : "text-negative")}
       preserveAspectRatio="none"
       viewBox="0 0 128 32"
     >
@@ -143,50 +136,47 @@ function normalizeLogoUrl(url: string) {
 
 function StockRow({ stock }: { stock: StockSummary }) {
   const { locale } = useI18n();
-  const positive = (stock.change24hPct ?? 0) >= 0;
+  const change = stock.change24hPct;
 
   return (
     <Link
-      className="grid min-w-[700px] grid-cols-[minmax(240px,1.5fr)_140px_120px_220px_150px] items-center border-t border-border px-4 py-3 text-sm transition-colors hover:bg-panel-subtle"
-      href={`/app/stocks/${stock.assetId}`}
+      className={cn(marketColumns, "min-h-16 rounded-lg border-b border-border/75 py-2.5 text-xs hover:bg-panel-subtle focus-visible:outline-2 focus-visible:outline-focus @lg:text-sm")}
+      href={"/app/stocks/" + encodeURIComponent(stock.assetId)}
       prefetch={false}
     >
-      <div className="flex min-w-0 items-center gap-3">
+      <div className="flex min-w-0 items-center gap-2.5">
         <StockLogo stock={stock} />
         <div className="min-w-0">
-          <span className="font-medium">{stock.name}</span>
-          <span className="ml-2 font-mono text-muted">${stock.ticker}</span>
+          <span className="block truncate font-semibold" title={stock.name}>{stock.name}</span>
+          <span className="block truncate text-xs text-muted">{stock.ticker}</span>
         </div>
       </div>
-      <div className="font-mono">{formatCurrency(stock.priceUsd, locale)}</div>
-      <div className={cn("font-mono", positive ? "text-positive" : "text-negative")}>
-        {positive ? "▲" : "▼"} {formatPercent(Math.abs(stock.change24hPct ?? 0), locale, false)}
-      </div>
-      <Sparkline stock={stock} />
-      <div className="font-mono">{formatCompactCurrency(stock.liquidityUsd, locale)}</div>
+      <span className="text-end font-medium tabular-nums">{stock.priceUsd === undefined ? "—" : formatCurrency(stock.priceUsd, locale)}</span>
+      <span className={cn("text-end font-medium tabular-nums", change === undefined || change === 0 ? "text-muted" : change > 0 ? "text-[#16734a]" : "text-[#be3545]")}>
+        {change === undefined ? "—" : formatPercent(change, locale, change !== 0)}
+      </span>
+      <span className="hidden w-full max-w-28 justify-self-end @3xl:block"><Sparkline stock={stock} /></span>
+      <span className="hidden text-end text-muted tabular-nums @lg:block">{stock.liquidityUsd === undefined ? "—" : formatCompactCurrency(stock.liquidityUsd, locale)}</span>
     </Link>
   );
 }
 
-function TableSkeleton({ count = 10 }: { count?: number }) {
+function TableSkeleton({ count = 6 }: { count?: number }) {
   return (
-    <>
+    <div aria-hidden="true">
       {Array.from({ length: count }).map((_, index) => (
-        <div
-          className="grid min-w-[700px] grid-cols-[minmax(240px,1.5fr)_140px_120px_220px_150px] items-center gap-4 border-t border-border px-4 py-3"
-          key={index}
-        >
-          <div className="flex items-center gap-3">
-            <Skeleton className="h-7 w-7 shrink-0 rounded-full" />
-            <Skeleton className="h-4 w-36" />
+        <div className={cn(marketColumns, "min-h-16 border-b border-border/75 py-2.5")} key={index}>
+          <div className="flex min-w-0 items-center gap-2.5">
+            <Skeleton className="size-8 shrink-0 rounded-full" />
+            <Skeleton className="h-4 w-full max-w-28" />
           </div>
-          <Skeleton className="h-4 w-20" />
-          <Skeleton className="h-4 w-16" />
-          <Skeleton className="h-8 w-32" />
-          <Skeleton className="h-4 w-20" />
+          <Skeleton className="h-4 w-12 justify-self-end" />
+          <Skeleton className="h-4 w-10 justify-self-end" />
+          <Skeleton className="hidden h-6 w-16 justify-self-end @3xl:block" />
+          <Skeleton className="hidden h-4 w-12 justify-self-end @lg:block" />
         </div>
       ))}
-    </>
+    </div>
   );
 }
 
@@ -206,7 +196,7 @@ export function MarketsOverview() {
   const search = useMarketStore((state) => state.search);
   const loadMoreRef = useRef<HTMLDivElement>(null);
   const [query, setQuery] = useState("");
-  const { locale, t } = useI18n();
+  const t = useT();
 
   useEffect(() => {
     void loadMarkets();
@@ -245,81 +235,43 @@ export function MarketsOverview() {
     [searchResults, searching, stocks],
   );
   const featured = [
-    {
-      key: "trending",
-      title: t("markets.trending"),
-      detail: t("markets.trendingDetail"),
-      stock: trending[0] ?? stocks[0],
-      className: "bg-accent-yellow",
-    },
-    {
-      key: "opportunity",
-      title: t("markets.opportunity"),
-      detail: t("markets.opportunityDetail"),
-      stock: opportunities[0] ?? stocks[1],
-      className: "bg-accent-pink",
-    },
-    {
-      key: "coverage",
-      title: t("markets.coverage"),
-      detail: t("markets.coverageDetail", { count: stocks.length }),
-      stock: stocks[2],
-      className: "bg-accent-lavender",
-    },
+    { label: t("markets.trending"), stock: trending[0] },
+    { label: t("markets.opportunity"), stock: opportunities[0] },
   ];
 
   return (
-    <div className="mx-auto max-w-[1540px] space-y-5 pb-20">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <p className="text-sm text-muted">{t("markets.explore")}</p>
-          <h1 className="font-display text-4xl font-semibold tracking-normal">{t("markets.title")}</h1>
-          <p className="mt-1 text-sm text-muted">{t("markets.subtitle")}</p>
-        </div>
-        <label className="flex h-11 w-full items-center gap-2 rounded-[14px] border border-border bg-panel px-4 shadow-sm focus-within:border-border-strong sm:w-[360px]">
-          <HugeiconsIcon className="text-muted" color="currentColor" icon={Search01Icon} size={17} strokeWidth={1.8} />
+    <div className="mx-auto max-w-[1320px] space-y-5 pb-6">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <label className="flex min-h-11 w-full items-center gap-2 rounded-xl border border-border bg-panel px-3.5 focus-within:border-border-strong @lg:max-w-80">
+          <HugeiconsIcon aria-hidden="true" className="shrink-0 text-muted" icon={Search01Icon} size={17} strokeWidth={1.8} />
           <span className="sr-only">{t("markets.searchLabel")}</span>
           <input
-            className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-2"
+            className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted"
             onChange={(event) => setQuery(event.target.value)}
             placeholder={t("markets.searchPlaceholder")}
             type="search"
             value={query}
           />
-          {isSearching ? <span className="text-xs text-muted">{t("markets.searching")}</span> : null}
         </label>
-      </div>
-
-      <div className="grid gap-4 md:grid-cols-3">
-        {featured.map((item) => (
-          <section className={cn("rounded-[24px] p-4 text-foreground shadow-[0_18px_60px_rgba(23,23,23,0.05)]", item.className)} key={item.key}>
-            <p className="text-base font-semibold">{item.title}</p>
-            <p className="mt-1 text-xs text-foreground/65">{item.detail}</p>
-            {item.stock ? (
-              <Link className="mt-6 flex items-end justify-between gap-4" href={`/app/stocks/${item.stock.assetId}`} prefetch={false}>
-                <div>
-                  <p className="font-display text-3xl font-semibold">{item.stock.ticker}</p>
-                  <p className="mt-1 line-clamp-1 text-sm text-foreground/70">{item.stock.name}</p>
-                </div>
-                <div className="text-right">
-                  <p className="font-mono text-sm">{formatCurrency(item.stock.priceUsd, locale)}</p>
-                  <ChangePill positive={(item.stock.change24hPct ?? 0) >= 0} value={item.stock.change24hPct} />
-                </div>
+        {!searching && featured.some(({ stock }) => stock) && (
+          <div className="flex flex-wrap items-center gap-2">
+            {featured.map(({ label, stock }) => stock && (
+              <Link className="inline-flex min-h-9 items-center gap-1.5 rounded-full border border-border px-3 text-xs hover:bg-panel-subtle focus-visible:outline-2 focus-visible:outline-focus" href={"/app/stocks/" + encodeURIComponent(stock.assetId)} key={label} prefetch={false}>
+                <span className="text-muted">{label}</span>
+                <span className="font-semibold">{stock.ticker}</span>
               </Link>
-            ) : (
-              <div className="mt-6 text-sm text-foreground/60">{t("markets.loadingData")}</div>
-            )}
-          </section>
-        ))}
+            ))}
+          </div>
+        )}
       </div>
 
-      <div className="overflow-x-auto rounded-[24px] border border-border bg-panel shadow-[0_18px_60px_rgba(23,23,23,0.04)]">
-        <div className="grid min-w-[700px] grid-cols-[minmax(240px,1.5fr)_140px_120px_220px_150px] bg-panel-subtle/70 px-4 py-3 text-xs font-semibold text-foreground">
-          <div className="flex items-center gap-1">{t("markets.colName")} <SortIcon /></div>
-          <div className="flex items-center gap-1">{t("markets.colPrice")} <SortIcon /></div>
-          <div className="flex items-center gap-1">{t("markets.col1d")} <SortIcon /></div>
-          <div>{t("markets.colLast24h")}</div>
-          <div className="flex items-center gap-1">{t("markets.colLiquidity")} <SortIcon /></div>
+      <section aria-label={t("nav.markets")} aria-busy={isLoading || isSearching}>
+        <div className={cn(marketColumns, "rounded-xl bg-panel-subtle py-2.5 text-xs font-medium text-muted")}>
+          <span>{t("portfolio.colAsset")}</span>
+          <span className="text-end">{t("markets.colPrice")}</span>
+          <span className="text-end">{t("portfolio.col24h")}</span>
+          <span className="hidden text-end @3xl:block">{t("markets.colLast24h")}</span>
+          <span className="hidden text-end @lg:block">{t("markets.colLiquidity")}</span>
         </div>
         {(isLoading || isSearching) && rows.length === 0 ? <TableSkeleton /> : null}
         {rows.length && !(isSearching && searchResults.length === 0)
@@ -352,16 +304,7 @@ export function MarketsOverview() {
                 : t("markets.empty")}
           </div>
         ) : null}
-      </div>
+      </section>
     </div>
-  );
-}
-
-function ChangePill({ positive, value }: { positive: boolean; value?: number }) {
-  const { locale } = useI18n();
-  return (
-    <span className={cn("mt-2 inline-flex rounded-full bg-panel px-2 py-1 text-xs font-semibold", positive ? "text-foreground" : "text-negative")}>
-      {positive ? "▲" : "▼"} {formatPercent(Math.abs(value ?? 0), locale, false)}
-    </span>
   );
 }

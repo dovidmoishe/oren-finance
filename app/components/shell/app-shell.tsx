@@ -76,8 +76,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className={cn(
-      "mx-auto min-h-dvh overflow-x-clip bg-panel-subtle text-foreground lg:grid lg:p-3 lg:[--app-shell-inset:0.75rem] sm:[--app-menu-right:1.5rem] [--app-header-bottom:calc(var(--app-nav-height)+var(--app-shell-inset,0px))]",
-      collapsed ? "lg:grid-cols-[4rem_minmax(0,1fr)]" : "lg:grid-cols-[13rem_minmax(0,1fr)]",
+      "mx-auto min-h-dvh overflow-x-clip bg-panel-subtle text-foreground lg:grid lg:grid-cols-[var(--nav-width)_minmax(0,1fr)_var(--copilot-width)] lg:p-3 lg:[--app-shell-inset:0.75rem] lg:[transition:grid-template-columns_var(--panel-close-dur)_var(--panel-ease)] motion-reduce:transition-none sm:[--app-menu-right:1.5rem] [--app-header-bottom:calc(var(--app-nav-height)+var(--app-shell-inset,0px))]",
+      collapsed ? "lg:[--nav-width:4rem]" : "lg:[--nav-width:11.5rem] xl:[--nav-width:12.5rem]",
+      agentOpen && agentExpanded ? "lg:[--copilot-width:1fr]" : agentOpen ? "lg:[--copilot-width:clamp(18rem,26vw,23rem)] lg:[transition-duration:var(--panel-open-dur)]" : "lg:[--copilot-width:0rem]",
     )}>
       <a className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-50 focus:rounded-lg focus:bg-panel focus:p-3" href="#app-content">{t("nav.skipToContent")}</a>
       <aside className="sticky top-3 hidden h-[calc(100dvh-1.5rem)] min-h-0 flex-col px-2 pb-2 lg:flex">
@@ -105,7 +106,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </nav>
       </aside>
 
-      <div className="min-h-dvh min-w-0 bg-panel lg:min-h-[calc(100dvh-1.5rem)] lg:rounded-2xl lg:border lg:border-border/80 lg:shadow-[0_1px_5px_rgb(0_0_0/.025)]">
+      <div className={cn("min-h-dvh min-w-0 bg-panel lg:col-start-2 lg:row-start-1 lg:min-h-[calc(100dvh-1.5rem)] lg:rounded-2xl lg:border lg:border-border/80 lg:shadow-[0_1px_5px_rgb(0_0_0/.025)]", agentOpen && agentExpanded && "lg:hidden")}>
         <header className="sticky top-0 z-30 flex min-h-[var(--app-nav-height)] items-center gap-1.5 border-b border-border/70 bg-panel px-2.5 sm:gap-2.5 sm:px-5 lg:rounded-t-2xl lg:border-b-0">
           <button aria-label={t("nav.navigation")} className={cn(iconButton, "lg:hidden")} popoverTarget={menuId} type="button"><Icon icon={Menu01Icon} size={20} /></button>
           <div className="fixed inset-x-2 top-[var(--app-header-bottom)] bottom-auto m-0 max-h-[calc(100dvh-var(--app-nav-height)-1rem)] overflow-y-auto rounded-xl border border-border bg-panel p-2 text-foreground shadow-xl lg:hidden" id={menuId} popover="auto" ref={mobileMenu}>
@@ -114,7 +115,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <div className="mt-1 border-t border-border pt-1">{navigationLink(settings)}</div>
             </nav>
           </div>
-          {active === portfolio
+          {active === portfolio || pathname === markets.href
             ? <h1 className="min-w-0 flex-1 truncate font-display text-[1.2rem] font-bold tracking-tight sm:text-[1.35rem]">{title}</h1>
             : <span className="min-w-0 flex-1 truncate font-display text-[1.2rem] font-bold tracking-tight sm:text-[1.35rem]">{title}</span>}
           <div aria-label={t("nav.yourAccount")} className="flex min-w-0 items-center gap-0.5 sm:gap-2">
@@ -136,25 +137,16 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <AccountMenu />
           </div>
         </header>
-        <div className={cn(
-          "lg:grid lg:items-start lg:[transition:grid-template-columns_var(--panel-close-dur)_var(--panel-ease)] motion-reduce:transition-none",
-          agentOpen && agentExpanded
-            ? "lg:grid-cols-[minmax(0,1fr)]"
-            : agentOpen
-              ? "lg:grid-cols-[minmax(0,1fr)_min(37vw,23rem)] lg:[transition-duration:var(--panel-open-dur)]"
-              : "lg:grid-cols-[minmax(0,1fr)_0rem]",
-        )}>
-          <main
-            className={cn("@container min-w-0 px-3 pb-10 pt-3 sm:px-5 sm:pt-4 lg:pt-1", agentOpen && (agentExpanded ? "max-lg:invisible lg:hidden" : "max-lg:invisible"))}
-            id="app-content"
-            tabIndex={-1}
-          >
-            <PendingApprovalNotice key={pathname} />
-            {children}
-          </main>
-          <AgentPanel />
-        </div>
+        <main
+          className={cn("@container min-w-0 px-3 pb-10 pt-3 sm:px-6 sm:pt-4 lg:pt-2", agentOpen && "max-lg:invisible")}
+          id="app-content"
+          tabIndex={-1}
+        >
+          <PendingApprovalNotice key={pathname} />
+          {children}
+        </main>
       </div>
+      <AgentPanel />
       <AppSearch dialog={search} />
       <DepositModal />
     </div>
