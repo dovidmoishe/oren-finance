@@ -13,9 +13,13 @@ permissions:
   contents: read
 jobs:
   resolve:
-    if: github.ref == 'refs/heads/master'
+    if: >-
+      github.ref == 'refs/heads/master' &&
+      (github.event_name != 'workflow_run' ||
+       (github.event.workflow_run.event == 'pull_request' &&
+        github.event.workflow_run.head_repository.full_name == github.repository))
     environment: preview
-    runs-on: [self-hosted, linux, x64, oren-control]
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
       pull-requests: read
@@ -47,10 +51,8 @@ jobs:
             for (const candidate of candidates) {
               const {data: pr} = await github.rest.pulls.get({...args, pull_number: candidate.number});
               if (pr.state !== 'open' || pr.base.ref !== 'master' || (run && pr.head.sha !== run.head_sha)) continue;
+              if (pr.head.repo?.full_name !== context.payload.repository.full_name || pr.user.type !== 'User') continue;
               const status = (state, description) => github.rest.repos.createCommitStatus({...args, sha: pr.head.sha, context: 'Preview ready', state, description, target_url: `${context.serverUrl}/${args.owner}/${args.repo}/actions/runs/${context.runId}`});
-              if (pr.head.repo?.full_name !== context.payload.repository.full_name || pr.user.type !== 'User') {
-                await status('failure', 'Preview unsupported: use a trusted repository branch'); continue;
-              }
               const {data: permission} = await github.rest.repos.getCollaboratorPermissionLevel({...args, username: pr.user.login});
               if (!['admin','maintain','write'].includes(permission.permission)) {
                 await status('failure', 'Preview requires a repository collaborator'); continue;
@@ -76,7 +78,7 @@ jobs:
     name: Require successful CI for preview head
     needs: resolve
     if: needs.resolve.outputs.pr != ''
-    runs-on: [self-hosted, linux, x64, oren-control]
+    runs-on: ubuntu-24.04
     timeout-minutes: 35
     permissions:
       contents: read
@@ -99,7 +101,7 @@ jobs:
     name: Build and publish preview API image
     needs: [resolve, ci-gate]
     if: needs.resolve.outputs.pr != ''
-    runs-on: [self-hosted, linux, x64, oren-build]
+    runs-on: ubuntu-24.04
     timeout-minutes: 25
     concurrency:
       group: preview-api-image-${{ needs.resolve.outputs.pr }}
@@ -184,7 +186,7 @@ jobs:
     name: Build and publish preview web image
     needs: [resolve, ci-gate]
     if: needs.resolve.outputs.pr != ''
-    runs-on: [self-hosted, linux, x64, oren-build]
+    runs-on: ubuntu-24.04
     timeout-minutes: 25
     concurrency:
       group: preview-web-image-${{ needs.resolve.outputs.pr }}
@@ -221,7 +223,7 @@ jobs:
   deploy:
     needs: [resolve, ci-gate, build-api, build-app]
     if: always() && needs.resolve.outputs.pr != ''
-    runs-on: [self-hosted, linux, x64, oren-control]
+    runs-on: ubuntu-24.04
     environment: preview
     concurrency:
       group: preview-${{ needs.resolve.outputs.pr }}

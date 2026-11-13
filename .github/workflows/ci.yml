@@ -17,11 +17,12 @@ concurrency:
 jobs:
   preview-infra:
     name: Preview infrastructure tests
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: [self-hosted, linux, x64, oren-build]
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - name: Configure disposable preview fixture paths
         run: |
           echo "PREVIEW_PROVIDER_ENV=$RUNNER_TEMP/ci-preview-provider.env" >> "$GITHUB_ENV"
@@ -90,8 +91,7 @@ jobs:
           docker run --rm -e DOMAIN=production.example.com -e API_DOMAIN=api.production.example.com -v "$PWD/Caddyfile:/etc/caddy/Caddyfile:ro" -v "$RUNNER_TEMP/caddy-previews:/etc/caddy/previews:ro" caddy:2.10.2-alpine caddy validate --config /etc/caddy/Caddyfile
   api:
     name: API test and build
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: [self-hosted, linux, x64, oren-build]
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
     services:
       postgres:
@@ -112,6 +112,8 @@ jobs:
         working-directory: api
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - name: Configure disposable Postgres connection
         env:
           TEST_DB_PORT: ${{ job.services.postgres.ports['5432'] }}
@@ -167,22 +169,12 @@ jobs:
 
   app-check:
     name: App ${{ matrix.check }}
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: [self-hosted, linux, x64, "${{ matrix.runner }}"]
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
-        include:
-          # Frozen pnpm install peaks at about 2.4 GiB and is killed in the
-          # 768 MiB light slice. Lint uses a heavy slot and still runs the
-          # 12-file eslint chunks. The aggregate check below stays light.
-          - check: test
-            runner: oren-build
-          - check: lint
-            runner: oren-build
-          - check: build
-            runner: oren-build
+        check: [test, lint, build]
     defaults:
       run:
         working-directory: app
@@ -192,6 +184,8 @@ jobs:
       NEXT_PUBLIC_OREN_API_URL: /api
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: pnpm/action-setup@v4
         with:
           version: 11.22.0
@@ -223,15 +217,12 @@ jobs:
             pnpm run "$CHECK"
           fi
 
-  # Preserve the required-check name used by preview setup and branch protection.
-  # The body is one shell comparison. It uses the bounded light runner so it
-  # does not take the single heavy worker. Do not merge until oren-vps-light
-  # is online; a missing label queues this required check.
+  # Preserve the required-check name used by branch protection.
   app:
     name: App test, lint, and build
     needs: app-check
     if: always()
-    runs-on: [self-hosted, linux, x64, oren-light]
+    runs-on: ubuntu-24.04
     steps:
       - name: Require all web checks
         env:
