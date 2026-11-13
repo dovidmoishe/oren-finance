@@ -11,8 +11,9 @@ import { sql } from 'drizzle-orm';
 import { DRIZZLE } from '../config/constants';
 import type { Database } from '../database/database.provider';
 import { TokensService } from '../tokens/tokens.service';
+import type { TokensMarketSnapshotRaw } from '../tokens/tokens.types';
 import { insertJob, NotificationJobs } from './jobs';
-import { crossed, providerQuote, type Quote } from './quotes';
+import { alreadyPast, crossed, providerQuote, type Quote } from './quotes';
 import { notificationSettings } from './settings';
 
 type Alert = {
@@ -24,7 +25,7 @@ type Alert = {
   variant: string;
   direction: 'above' | 'below';
   target: string;
-  state: 'active' | 'triggered' | 'canceled';
+  state: 'active' | 'triggered' | 'canceled' | 'failed';
   created_at: string | Date;
   quote_at: string | Date | null;
   quote_price: string | null;
@@ -64,13 +65,14 @@ export class PriceAlerts {
   constructor(
     @Inject(DRIZZLE) private readonly db: Database,
     private readonly jobs: NotificationJobs,
+    private readonly tokens: TokensService,
   ) {}
 
   async list(userId: string, eligible: boolean, assetId?: string) {
     const config = notificationSettings();
     const enabled = eligible && config.alerts && config.pilotUsers.has(userId);
     const rows = await this.db.execute<Alert>(sql`select * from price_alerts
-      where user_id = ${userId} and state in ('active','triggered')
+      where user_id = ${userId} and state in ('active','triggered','failed')
       ${assetId ? sql`and asset_id = ${assetId}` : sql``}
       order by (state = 'active') desc, created_at desc limit 100`);
     const variants: Array<{ mint: string }> =
@@ -100,6 +102,20 @@ export class PriceAlerts {
     const alert = parseAlert(body);
     if (!config.alertMints.has(alert.mint))
       throw new BadRequestException('This variant is not available for alerts');
+    // An alert whose target is already met would never cross and so never fire.
+    const snapshot = await this.tokens
+      .getMarketSnapshots([alert.mint])
+      .catch((): TokensMarketSnapshotRaw[] => []);
+    const quote = snapshot
+      .map((row) => providerQuote(row, new Date()))
+      .find((q) => q?.mint === alert.mint);
+    if (
+      quote &&
+      alreadyPast(alert.direction, Number(alert.target), quote.price)
+    )
+      throw new BadRequestException(
+        `The price is already ${alert.direction === 'above' ? 'at or above' : 'at or below'} this target`,
+      );
     return this.db.transaction(async (tx) => {
       await tx.execute(
         sql`select pg_advisory_xact_lock(hashtext(${`alerts-${userId}`}))`,
@@ -142,7 +158,7 @@ export class PriceAlerts {
         sql`select pg_advisory_xact_lock(hashtext(${`alerts-${userId}`}))`,
       );
       await tx.execute(sql`update price_alerts set state = 'canceled'
-        where user_id = ${userId} and state in ('active','triggered')
+        where user_id = ${userId} and state in ('active','triggered','failed')
         ${id ? sql`and id = ${id}` : sql``}`);
       await tx.execute(sql`update notification_jobs set state = 'canceled', updated_at = now()
         where user_id = ${userId} and kind = 'alert-email' and state in ('pending','running')

@@ -178,7 +178,7 @@ export class NotificationDelivery {
           sql`select pg_advisory_xact_lock(hashtext(${`alerts-${userId}`}))`,
         );
         await tx.execute(sql`update price_alerts set state = 'canceled'
-          where user_id = ${userId} and state in ('active','triggered')`);
+          where user_id = ${userId} and state in ('active','triggered','failed')`);
       }
       await tx.execute(sql`update notification_jobs set state = 'canceled', updated_at = now()
         where user_id = ${userId} and state in ('pending','running')

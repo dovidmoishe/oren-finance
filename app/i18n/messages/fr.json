@@ -18,6 +18,7 @@
     "create": "Enregistrer l’alerte",
     "cancel": "Annuler l’alerte",
     "triggered": "Déclenchée",
+    "failed": "Échec de l’e-mail – alerte non remise",
     "active": "Active",
     "detail": "Vous recevrez un e-mail dès que Tokens.xyz observe un franchissement. Si le seuil est déjà dépassé, l’alerte attend le prochain franchissement.",
     "error": "Impossible de modifier l’alerte. Vérifiez le prix cible et vos alertes actives."

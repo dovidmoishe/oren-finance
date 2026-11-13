@@ -85,6 +85,14 @@ export class NotificationJobs {
       update notification_jobs set state = case when attempts >= 5 then 'failed' else 'pending' end,
         lease_token = null, lease_until = null, updated_at = now()
       where state = 'running' and lease_until < now()`);
+    // An alert whose email permanently failed or was canceled by the system is
+    // marked failed so the user can see it was not delivered. User cancels and
+    // unsubscribes mark the alert canceled first, so they are unaffected.
+    await this.db.execute(sql`
+      update price_alerts a set state = 'failed'
+      from notification_jobs j
+      where j.logical_key = 'alert-' || a.id::text and j.kind = 'alert-email'
+        and j.state in ('failed', 'canceled') and a.state = 'triggered'`);
     return uncertain.length;
   }
 

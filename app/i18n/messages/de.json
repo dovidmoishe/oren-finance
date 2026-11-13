@@ -18,6 +18,7 @@
     "create": "Alarm speichern",
     "cancel": "Alarm löschen",
     "triggered": "Ausgelöst",
+    "failed": "E-Mail fehlgeschlagen – Alarm nicht zugestellt",
     "active": "Aktiv",
     "detail": "Sie erhalten eine E-Mail, sobald Tokens.xyz eine Überschreitung erkennt. Ist der Zielpreis bereits überschritten, wartet der Alarm auf eine erneute Überschreitung.",
     "error": "Der Preisalarm konnte nicht aktualisiert werden. Prüfen Sie den Zielpreis und Ihre aktiven Alarme."

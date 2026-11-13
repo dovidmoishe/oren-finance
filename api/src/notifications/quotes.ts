@@ -1,7 +1,6 @@
 import type { TokensMarketSnapshotRaw } from '../tokens/tokens.types';
 
 export const QUOTE_MAX_AGE_MS = 120_000;
-export const BASELINE_MAX_GAP_MS = 180_000;
 
 export interface Quote {
   mint: string;
@@ -52,13 +51,19 @@ export function crossed(
   previous: { price: number; at: Date } | null,
   current: Quote,
 ): boolean {
-  if (
-    !previous ||
-    current.at.getTime() <= previous.at.getTime() ||
-    current.at.getTime() - previous.at.getTime() > BASELINE_MAX_GAP_MS
-  )
-    return false;
+  // The current quote is already fresh (providerQuote), so a crossing is real
+  // even if the previous baseline is old (overnight gap, provider outage).
+  if (!previous || current.at.getTime() <= previous.at.getTime()) return false;
   return direction === 'above'
     ? previous.price < target && current.price >= target
     : previous.price > target && current.price <= target;
+}
+
+/** True when the price already satisfies the alert, so it could never "cross". */
+export function alreadyPast(
+  direction: 'above' | 'below',
+  target: number,
+  price: number,
+): boolean {
+  return direction === 'above' ? price >= target : price <= target;
 }

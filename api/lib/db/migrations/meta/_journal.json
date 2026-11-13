@@ -141,6 +141,13 @@
       "breakpoints": true,
       "tag": "0019_notifications",
       "idx": 19
+    },
+    {
+      "version": "7",
+      "when": 1794528000004,
+      "breakpoints": true,
+      "tag": "0020_price_alert_failed",
+      "idx": 20
     }
   ]
 }

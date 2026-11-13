@@ -1,6 +1,6 @@
 import { normalizeMarketSnapshots } from '../tokens/market-snapshots';
 import { calculatePnl, priceMoves, type Valuation } from './brief-math';
-import { crossed, providerQuote } from './quotes';
+import { alreadyPast, crossed, providerQuote } from './quotes';
 import { nextBrief } from './schedule';
 import { notificationSettings } from './settings';
 import { unsubscribeJobId, unsubscribeToken } from './delivery';
@@ -74,14 +74,32 @@ describe('notification rules', () => {
     expect(crossed('above', 120, { ...previous, at: now }, current)).toBe(
       false,
     );
+    // A long gap (overnight, outage) must not swallow a real crossing.
     expect(
       crossed(
         'above',
         120,
-        { ...previous, at: new Date(now.getTime() - 181_000) },
+        { ...previous, at: new Date(now.getTime() - 3 * 3600_000) },
+        current,
+      ),
+    ).toBe(true);
+    // ...but a stale baseline already past the target does not fire.
+    expect(
+      crossed(
+        'above',
+        120,
+        { price: 125, at: new Date(now.getTime() - 3 * 3600_000) },
         current,
       ),
     ).toBe(false);
+  });
+
+  it('flags targets the price already satisfies', () => {
+    expect(alreadyPast('above', 100, 105)).toBe(true);
+    expect(alreadyPast('above', 100, 100)).toBe(true);
+    expect(alreadyPast('above', 100, 99.99)).toBe(false);
+    expect(alreadyPast('below', 100, 95)).toBe(true);
+    expect(alreadyPast('below', 100, 100.01)).toBe(false);
   });
 
   it('reconciles balances before subtracting deposits or adding withdrawals to dollar P&L', () => {

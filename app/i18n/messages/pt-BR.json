@@ -18,6 +18,7 @@
     "create": "Criar alerta",
     "cancel": "Cancelar alerta",
     "triggered": "Disparado",
+    "failed": "Falha no e-mail – alerta não entregue",
     "active": "Ativo",
     "detail": "Enviaremos um e-mail quando a Tokens.xyz observar o cruzamento. Se o preço já passou do alvo, o alerta aguarda um novo cruzamento.",
     "error": "Não foi possível atualizar o alerta. Verifique o alvo e seus alertas ativos e tente novamente."

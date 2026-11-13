@@ -18,6 +18,7 @@
     "create": "Tạo cảnh báo",
     "cancel": "Hủy cảnh báo",
     "triggered": "Đã kích hoạt",
+    "failed": "Email thất bại – cảnh báo chưa được gửi",
     "active": "Đang hoạt động",
     "detail": "Chúng tôi sẽ gửi email khi Tokens.xyz thấy giá vượt ngưỡng. Nếu giá đã qua ngưỡng, cảnh báo sẽ chờ lần vượt tiếp theo.",
     "error": "Không thể cập nhật cảnh báo. Hãy kiểm tra giá mục tiêu và các cảnh báo đang hoạt động."

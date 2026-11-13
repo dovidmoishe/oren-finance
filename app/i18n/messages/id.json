@@ -18,6 +18,7 @@
     "create": "Buat peringatan",
     "cancel": "Batalkan peringatan",
     "triggered": "Terpicu",
+    "failed": "Email gagal – peringatan tidak terkirim",
     "active": "Aktif",
     "detail": "Kami akan mengirim email saat Tokens.xyz melihat harga melintasi target. Jika harga sudah melewati target, peringatan menunggu pelintasan baru.",
     "error": "Peringatan gagal diperbarui. Periksa target dan peringatan aktif, lalu coba lagi."

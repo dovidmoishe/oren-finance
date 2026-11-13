@@ -168,7 +168,9 @@ run('notification jobs with disposable Postgres and Redis', () => {
 
   it('checks one mint for concurrent rules and cancels queued alert email on unsubscribe', async () => {
     await seedAlertVariant();
-    const alerts = new PriceAlerts(jobs.db, jobs);
+    const alerts = new PriceAlerts(jobs.db, jobs, {
+      getMarketSnapshots: jest.fn().mockResolvedValue([]),
+    } as unknown as TokensService);
     const body = { assetId: 'nvda', mint, direction: 'above', target: '120' };
     const first = await alerts.create(user, true, body);
     await expect(alerts.create(user, true, body)).rejects.toMatchObject({
@@ -228,7 +230,9 @@ run('notification jobs with disposable Postgres and Redis', () => {
     await seedAlertVariant();
     await client`insert into price_alerts (user_id, asset_id, ticker, variant, mint, direction, target)
       select ${user}, 'nvda', 'NVDA', 'NVDAx', ${mint}, 'above', n from generate_series(1, 19) n`;
-    const alerts = new PriceAlerts(jobs.db, jobs);
+    const alerts = new PriceAlerts(jobs.db, jobs, {
+      getMarketSnapshots: jest.fn().mockResolvedValue([]),
+    } as unknown as TokensService);
     const body = { assetId: 'nvda', mint, direction: 'above' };
     const races = await Promise.allSettled([
       alerts.create(user, true, { ...body, target: '200' }),

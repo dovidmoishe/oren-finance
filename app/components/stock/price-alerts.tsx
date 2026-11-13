@@ -9,7 +9,7 @@ import type { StockDetail } from "@/types";
 
 type Alert = {
   id: string; variant: string; direction: "above" | "below"; target: string;
-  state: "active" | "triggered";
+  state: "active" | "triggered" | "failed";
 };
 type AlertList = { enabled: boolean; variants: string[]; alerts: Alert[] };
 const inputClass = "mt-1 block w-full rounded-xl border border-border bg-background px-3 py-2 text-sm";

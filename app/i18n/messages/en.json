@@ -18,8 +18,9 @@
     "create": "Create alert",
     "cancel": "Cancel alert",
     "triggered": "Triggered",
+    "failed": "Email failed – alert not delivered",
     "active": "Active",
-    "detail": "We’ll email you once Tokens.xyz observes a crossing. An alert already beyond the target waits for a new crossing.",
+    "detail": "We’ll email you once Tokens.xyz observes the price cross your target. The price must not already be beyond it.",
     "error": "Couldn’t update the price alert. Check the target and your active alerts, then try again."
   },
   "preferences": {
