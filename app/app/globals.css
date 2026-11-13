@@ -50,7 +50,6 @@
   --focus: #86b7ff;
   --panel-open-dur: 400ms;
   --panel-close-dur: 350ms;
-  --panel-translate-y: 100px;
   --panel-blur: 2px;
   --panel-ease: cubic-bezier(0.22, 1, 0.36, 1);
   --shimmer-dur: 2000ms;

@@ -82,7 +82,7 @@ export function PortfolioDashboard() {
 
   const showHistory = historyOpen && !hidden;
   return (
-    <div className="space-y-6 sm:space-y-8">
+    <div className="space-y-5 sm:space-y-7">
       {error ? <ErrorState description={error} onRetry={() => void refresh()} /> : null}
       <div className="space-y-3">
         <PortfolioSummaryCard

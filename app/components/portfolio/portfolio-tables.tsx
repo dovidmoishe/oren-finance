@@ -22,7 +22,7 @@ const activityLabels: Record<PortfolioActivityItem["type"], MessageKey> = {
 
 const headerCell = "px-2.5 py-2.5 font-medium sm:px-3.5";
 const cell = "px-2.5 py-3 sm:px-3.5";
-const desktopCell = "hidden md:table-cell";
+const desktopCell = "hidden @2xl:table-cell";
 const toolbarButton = "inline-flex min-h-9 shrink-0 items-center justify-center gap-1.5 rounded-full border border-border px-2.5 text-xs font-semibold text-muted hover:bg-panel-subtle hover:text-foreground focus-visible:outline-2 focus-visible:outline-focus disabled:opacity-50 pointer-coarse:min-h-11";
 
 function PositionLogo({ position }: { position: PortfolioPosition }) {
@@ -53,12 +53,12 @@ function PositionsTable({ positions, hidden }: { positions: PortfolioPosition[];
     <Table aria-label={t("portfolio.positions")} className="table-fixed">
       <TableHeader className="bg-panel-subtle">
         <TableRow>
-          <TableHead className={cn(headerCell, "w-[47%] rounded-s-xl md:w-auto")} scope="col">{t("portfolio.colAsset")}</TableHead>
-          <TableHead className={cn(headerCell, "w-[22%] text-end md:w-[13%]")} scope="col">{t("portfolio.col24h")}</TableHead>
+          <TableHead className={cn(headerCell, "w-[47%] rounded-s-xl @2xl:w-auto")} scope="col">{t("portfolio.colAsset")}</TableHead>
+          <TableHead className={cn(headerCell, "w-[22%] text-end @2xl:w-[13%]")} scope="col">{t("portfolio.col24h")}</TableHead>
           <TableHead className={cn(headerCell, desktopCell, "w-[13%] text-end")} scope="col">{t("portfolio.colAvailable")}</TableHead>
           <TableHead className={cn(headerCell, desktopCell, "w-[12%] text-end")} scope="col">{t("portfolio.colLocked")}</TableHead>
           <TableHead className={cn(headerCell, desktopCell, "w-[13%] text-end")} scope="col">{t("portfolio.colPrice")}</TableHead>
-          <TableHead className={cn(headerCell, "rounded-e-xl text-end md:w-[16%]")} scope="col">{t("vault.colValue")}</TableHead>
+          <TableHead className={cn(headerCell, "rounded-e-xl text-end @2xl:w-[16%]")} scope="col">{t("vault.colValue")}</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -77,7 +77,7 @@ function PositionsTable({ positions, hidden }: { positions: PortfolioPosition[];
                     <span className="block truncate text-xs text-muted">{position.ticker}</span>
                   </span>
                 </Link>
-                <details className="mt-1 text-xs text-muted md:hidden">
+                <details className="mt-1 text-xs text-muted @2xl:hidden">
                   <summary className="w-fit cursor-pointer rounded py-1 font-medium focus-visible:outline-2 focus-visible:outline-focus">{t("portfolio.positionDetails")}<span className="sr-only"> {position.ticker}</span></summary>
                   <dl className="mt-1 grid gap-1">
                     {[[t("portfolio.colAvailable"), available], [t("portfolio.colLocked"), locked], [t("portfolio.colPrice"), price]].map(([label, value]) => (
@@ -110,10 +110,10 @@ function RecentActivityTable({ activity, hidden }: { activity: PortfolioActivity
       <TableHeader className="bg-panel-subtle">
         <TableRow>
           <TableHead className={cn(headerCell, desktopCell, "w-[23%] rounded-s-xl")} scope="col">{t("portfolio.colDate")}</TableHead>
-          <TableHead className={cn(headerCell, "w-[46%] rounded-s-xl md:w-auto md:rounded-none")} scope="col">{t("common.activityTitle")}</TableHead>
+          <TableHead className={cn(headerCell, "w-[46%] rounded-s-xl @2xl:w-auto @2xl:rounded-none")} scope="col">{t("common.activityTitle")}</TableHead>
           <TableHead className={cn(headerCell, desktopCell, "w-[15%] text-end")} scope="col">{t("trader.quantity")}</TableHead>
-          <TableHead className={cn(headerCell, "w-[25%] md:w-[18%]")} scope="col">{t("vault.colStatus")}</TableHead>
-          <TableHead className={cn(headerCell, "rounded-e-xl text-end md:w-[17%]")} scope="col">{t("vault.colValue")}</TableHead>
+          <TableHead className={cn(headerCell, "w-[25%] @2xl:w-[18%]")} scope="col">{t("vault.colStatus")}</TableHead>
+          <TableHead className={cn(headerCell, "rounded-e-xl text-end @2xl:w-[17%]")} scope="col">{t("vault.colValue")}</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -125,7 +125,7 @@ function RecentActivityTable({ activity, hidden }: { activity: PortfolioActivity
               <TableCell className={cell}>
                 <span className="block truncate font-semibold">{item.ticker ?? t(activityLabels[item.type])}</span>
                 {(item.ticker || item.route) && <span className="block text-xs text-muted">{[item.ticker ? t(activityLabels[item.type]) : undefined, item.route].filter(Boolean).join(" · ")}</span>}
-                <span className="block text-xs text-muted md:hidden">{timestamp}</span>
+                <span className="block text-xs text-muted @2xl:hidden">{timestamp}</span>
               </TableCell>
               <TableCell className={cn(cell, desktopCell, "break-words text-end tabular-nums")}>
                 {item.quantity === undefined ? "—" : hidden ? "••••••" : formatNumber(item.quantity, locale)}

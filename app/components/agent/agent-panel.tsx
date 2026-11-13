@@ -122,18 +122,6 @@ export function AgentPanel() {
   }, [loadPortfolio, portfolio?.wallet, walletAddress]);
 
   useEffect(() => {
-    if (!panelOpen || typeof window === 'undefined') return;
-    const isMobileSidecar = !expanded && window.innerWidth < 640;
-    const isExpandedOverlay = expanded && window.innerWidth >= 1024;
-    if (!isMobileSidecar && !isExpandedOverlay) return;
-    const previous = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => {
-      document.body.style.overflow = previous;
-    };
-  }, [expanded, panelOpen]);
-
-  useEffect(() => {
     if (!panelOpen) return;
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== 'Escape' || reviewQuote || reviewBasket || reviewLimitOrder) return;
@@ -213,56 +201,27 @@ export function AgentPanel() {
     window.requestAnimationFrame(() => reviewOriginRef.current?.focus());
   };
 
-  const handleBackdropClick = () => {
-    if (expanded) {
-      collapseToSidecar();
-      return;
-    }
-    closePanel();
-  };
-
   const hasReviewOpen = Boolean(reviewQuote || reviewBasket || reviewLimitOrder);
+  const visible = panelOpen && hydrated;
   return (
     <>
-      <div
-        aria-hidden
-        className={cn(
-          'fixed inset-0 top-[var(--app-header-bottom,var(--app-nav-height,4.5rem))] z-30 bg-black/20 backdrop-blur-[2px] transition-opacity',
-          panelOpen && !expanded ? 'opacity-100 xl:hidden' : 'pointer-events-none opacity-0',
-        )}
-        onClick={handleBackdropClick}
-      />
-
-      <div
-        aria-hidden
-        className={cn(
-          'fixed inset-0 top-[var(--app-header-bottom,var(--app-nav-height,4.5rem))] z-30 hidden bg-black/20 backdrop-blur-[2px] transition-opacity lg:block',
-          panelOpen && expanded ? 'opacity-100' : 'pointer-events-none opacity-0',
-        )}
-        onClick={handleBackdropClick}
-      />
-
       <aside
         aria-label={t("agent.copilotLabel")}
         aria-busy={isSending}
-        aria-hidden={!panelOpen}
+        aria-hidden={!visible}
         className={cn(
-          't-panel-slide fixed z-40 flex min-h-0 flex-col overflow-hidden border border-border bg-panel shadow-[0_28px_90px_rgba(23,23,23,0.18)]',
-          expanded
-            ? 't-agent-expanded inset-x-2 bottom-2 top-[calc(var(--app-header-bottom,var(--app-nav-height,4.5rem))+0.5rem)] rounded-[28px] lg:inset-x-4 lg:bottom-4 lg:top-[calc(var(--app-header-bottom,var(--app-nav-height,4.5rem))+1rem)]'
-            : 'inset-x-2 bottom-2 top-[calc(var(--app-header-bottom,var(--app-nav-height,4.5rem))+0.5rem)] rounded-[28px] sm:inset-x-auto sm:bottom-4 sm:right-4 sm:top-[calc(var(--app-header-bottom,var(--app-nav-height,4.5rem))+1rem)] sm:w-[380px] 2xl:right-5',
+          't-panel-slide fixed inset-x-0 bottom-0 top-[var(--app-nav-height)] z-20 flex min-h-0 min-w-0 flex-col overflow-hidden border-t border-border bg-panel lg:sticky lg:inset-x-auto lg:bottom-auto lg:h-[calc(100dvh-var(--app-nav-height)-0.75rem)] lg:rounded-br-2xl lg:border-t-0',
+          !expanded && 'lg:border-s',
           !expanded && hasReviewOpen ? 'opacity-40' : '',
         )}
-        data-expanded={expanded && panelOpen && hydrated}
-        data-open={panelOpen && hydrated}
-        inert={!panelOpen}
+        data-open={visible}
+        id="oren-agent-panel"
+        inert={!visible}
         ref={panelRef}
       >
         <header className="flex shrink-0 items-center justify-between gap-3 border-b border-border px-4 py-3">
           <div className="flex min-w-0 items-center gap-3">
-            <div className="grid h-10 w-10 shrink-0 place-items-center overflow-visible rounded-[15px] bg-foreground">
-              <OrenLogo size={30} state={logoState} />
-            </div>
+            <OrenLogo className="shrink-0" size={30} state={logoState} />
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
                 <h2 className="truncate font-display font-semibold">Oren</h2>
@@ -300,27 +259,16 @@ export function AgentPanel() {
             >
               <Icon icon={Add01Icon} size={18} />
             </Button>
-            {expanded ? (
+            <div className="hidden lg:block">
               <Button
-                aria-label={t("agent.collapse")}
-                className="hidden lg:inline-flex"
-                onClick={collapseToSidecar}
+                aria-label={t(expanded ? "agent.collapse" : "agent.expand")}
+                onClick={() => setExpanded(!expanded)}
                 size="icon"
                 variant="ghost"
               >
-                <CollapseIcon />
+                {expanded ? <CollapseIcon /> : <ExpandIcon />}
               </Button>
-            ) : (
-              <Button
-                aria-label={t("agent.expand")}
-                className="hidden lg:inline-flex"
-                onClick={() => setExpanded(true)}
-                size="icon"
-                variant="ghost"
-              >
-                <ExpandIcon />
-              </Button>
-            )}
+            </div>
             <Button aria-label={t("agent.close")} onClick={closePanel} size="icon" variant="ghost">
               <Icon icon={Cancel01Icon} size={18} />
             </Button>

@@ -77,15 +77,11 @@
 }
 
 .t-panel-slide {
-  @apply [transform:translateY(var(--panel-translate-y))] opacity-[0] [filter:blur(var(--panel-blur))] pointer-events-none [transition:transform_var(--panel-close-dur)_var(--panel-ease),_opacity_var(--panel-close-dur)_var(--panel-ease),_filter_var(--panel-close-dur)_var(--panel-ease)] [will-change:transform,_opacity,_filter];
+  @apply [transform:translateX(0.625rem)] opacity-[0] [filter:blur(var(--panel-blur))] pointer-events-none [transition:transform_var(--panel-close-dur)_var(--panel-ease),_opacity_var(--panel-close-dur)_var(--panel-ease),_filter_var(--panel-close-dur)_var(--panel-ease)] [will-change:transform,_opacity,_filter];
 }
 
 .t-panel-slide[data-open="true"] {
-  @apply [transform:translateY(0)] opacity-[1] [filter:blur(0)] pointer-events-auto [transition:transform_var(--panel-open-dur)_var(--panel-ease),_opacity_var(--panel-open-dur)_var(--panel-ease),_filter_var(--panel-open-dur)_var(--panel-ease)];
-}
-
-.t-agent-expanded[data-open="true"] {
-  @apply [transition:transform_var(--panel-open-dur)_var(--panel-ease),_opacity_var(--panel-open-dur)_var(--panel-ease),_filter_var(--panel-open-dur)_var(--panel-ease),_inset_var(--panel-open-dur)_var(--panel-ease),_border-radius_var(--panel-open-dur)_var(--panel-ease)];
+  @apply [transform:translateX(0)] opacity-[1] [filter:blur(0)] pointer-events-auto [transition:transform_var(--panel-open-dur)_var(--panel-ease),_opacity_var(--panel-open-dur)_var(--panel-ease),_filter_var(--panel-open-dur)_var(--panel-ease)];
 }
 
 .t-shimmer {
@@ -107,9 +103,6 @@
 
 @media (prefers-reduced-motion: reduce) {
   .t-panel-slide {
-    transition: none !important;
-  }
-  .t-agent-expanded {
     transition: none !important;
   }
   .t-shimmer::before {

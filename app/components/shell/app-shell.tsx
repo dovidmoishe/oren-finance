@@ -33,7 +33,8 @@ const navigation: { href: string; label: MessageKey; icon: IconSvgElement }[] = 
   { href: "/app/leaderboard", label: "nav.leaderboard", icon: RankingIcon },
 ];
 
-const iconButton = "grid size-10 shrink-0 place-items-center rounded-full text-muted hover:bg-panel-subtle hover:text-foreground focus-visible:outline-2 focus-visible:outline-focus lg:size-9 pointer-coarse:size-11";
+const headerButton = "inline-flex h-10 shrink-0 items-center justify-center rounded-full text-muted hover:bg-panel-subtle hover:text-foreground focus-visible:outline-2 focus-visible:outline-focus lg:h-9 pointer-coarse:h-11";
+const iconButton = cn(headerButton, "w-10 lg:w-9 pointer-coarse:w-11");
 const navRow = "flex min-h-10 items-center gap-3 rounded-lg px-3 text-sm hover:bg-black/[0.035] hover:text-foreground focus-visible:outline-2 focus-visible:outline-focus pointer-coarse:min-h-11";
 
 function Icon({ icon, size = 18 }: { icon: IconSvgElement; size?: number }) {
@@ -75,7 +76,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className={cn(
-      "mx-auto min-h-dvh bg-panel-subtle text-foreground lg:grid lg:p-3 lg:[--app-shell-inset:0.75rem] sm:[--app-menu-right:1.5rem] [--app-header-bottom:calc(var(--app-nav-height)+var(--app-shell-inset,0px))]",
+      "mx-auto min-h-dvh overflow-x-clip bg-panel-subtle text-foreground lg:grid lg:p-3 lg:[--app-shell-inset:0.75rem] sm:[--app-menu-right:1.5rem] [--app-header-bottom:calc(var(--app-nav-height)+var(--app-shell-inset,0px))]",
       collapsed ? "lg:grid-cols-[4rem_minmax(0,1fr)]" : "lg:grid-cols-[13rem_minmax(0,1fr)]",
     )}>
       <a className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-50 focus:rounded-lg focus:bg-panel focus:p-3" href="#app-content">{t("nav.skipToContent")}</a>
@@ -83,7 +84,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <div className={cn("flex h-[var(--app-nav-height)] shrink-0 items-center", collapsed ? "justify-center" : "justify-between px-1")}>
           {collapsed ? null : (
             <Link className="flex items-center gap-2 font-display text-[1.2rem] font-bold tracking-tight" href="/app">
-              <span className="grid size-8 place-items-center rounded-[10px] bg-foreground"><OrenLogo size={25} /></span>
+              <OrenLogo className="shrink-0" size={30} />
               Oren
             </Link>
           )}
@@ -104,7 +105,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </nav>
       </aside>
 
-      <div className="min-w-0 bg-panel lg:min-h-[calc(100dvh-1.5rem)] lg:rounded-2xl lg:border lg:border-border/80 lg:shadow-[0_1px_5px_rgb(0_0_0/.025)]">
+      <div className="min-h-dvh min-w-0 bg-panel lg:min-h-[calc(100dvh-1.5rem)] lg:rounded-2xl lg:border lg:border-border/80 lg:shadow-[0_1px_5px_rgb(0_0_0/.025)]">
         <header className="sticky top-0 z-30 flex min-h-[var(--app-nav-height)] items-center gap-1.5 border-b border-border/70 bg-panel px-2.5 sm:gap-2.5 sm:px-5 lg:rounded-t-2xl lg:border-b-0">
           <button aria-label={t("nav.navigation")} className={cn(iconButton, "lg:hidden")} popoverTarget={menuId} type="button"><Icon icon={Menu01Icon} size={20} /></button>
           <div className="fixed inset-x-2 top-[var(--app-header-bottom)] bottom-auto m-0 max-h-[calc(100dvh-var(--app-nav-height)-1rem)] overflow-y-auto rounded-xl border border-border bg-panel p-2 text-foreground shadow-xl lg:hidden" id={menuId} popover="auto" ref={mobileMenu}>
@@ -120,30 +121,41 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <button aria-haspopup="dialog" aria-label={t("markets.searchLabel")} className={cn(iconButton, "lg:hidden")} onClick={() => search.current?.showModal()} type="button"><Icon icon={Search01Icon} /></button>
             <LanguageMenu />
             <button
+              aria-controls="oren-agent-panel"
               aria-expanded={agentOpen}
-              aria-label={t(agentOpen ? "agent.close" : "nav.openOren")}
-              className={cn(iconButton, "relative border border-border bg-panel-subtle", agentOpen && "border-foreground/30 bg-accent-lavender/45")}
+              aria-label={t(agentOpen ? "agent.close" : "agent.ask")}
+              className={cn(headerButton, "gap-1.5 whitespace-nowrap border border-border max-sm:w-10 sm:px-3 pointer-coarse:max-sm:w-11", agentOpen && "border-foreground/25 bg-panel-subtle text-foreground")}
               id="oren-agent-launcher"
               onClick={() => setPanelOpen(!agentOpen)}
-              title={t(agentOpen ? "agent.close" : "nav.openOren")}
+              title={t(agentOpen ? "agent.close" : "agent.ask")}
               type="button"
             >
-              <OrenLogo size={27} />
+              <OrenLogo size={24} />
+              <span className="hidden text-xs font-semibold sm:inline">{t("agent.ask")}</span>
             </button>
             <AccountMenu />
           </div>
         </header>
-        <main
-          className={cn("min-w-0 px-3 pb-10 pt-3 sm:px-5 sm:pt-4 lg:pt-1 [transition:padding-right_var(--panel-open-dur)_var(--panel-ease)] motion-reduce:transition-none", agentOpen && !agentExpanded && "xl:pr-[412px]")}
-          id="app-content"
-          tabIndex={-1}
-        >
-          <PendingApprovalNotice key={pathname} />
-          {children}
-        </main>
+        <div className={cn(
+          "lg:grid lg:items-start lg:[transition:grid-template-columns_var(--panel-close-dur)_var(--panel-ease)] motion-reduce:transition-none",
+          agentOpen && agentExpanded
+            ? "lg:grid-cols-[minmax(0,1fr)]"
+            : agentOpen
+              ? "lg:grid-cols-[minmax(0,1fr)_min(37vw,23rem)] lg:[transition-duration:var(--panel-open-dur)]"
+              : "lg:grid-cols-[minmax(0,1fr)_0rem]",
+        )}>
+          <main
+            className={cn("@container min-w-0 px-3 pb-10 pt-3 sm:px-5 sm:pt-4 lg:pt-1", agentOpen && (agentExpanded ? "max-lg:invisible lg:hidden" : "max-lg:invisible"))}
+            id="app-content"
+            tabIndex={-1}
+          >
+            <PendingApprovalNotice key={pathname} />
+            {children}
+          </main>
+          <AgentPanel />
+        </div>
       </div>
       <AppSearch dialog={search} />
-      <AgentPanel />
       <DepositModal />
     </div>
   );
