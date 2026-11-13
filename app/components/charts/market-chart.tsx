@@ -154,7 +154,7 @@ export function MarketChart({
         layout: {
           background: { color: "transparent", type: ColorType.Solid },
           textColor: "#b7b7b0",
-          fontFamily: "var(--font-oren-sans)",
+          fontFamily: getComputedStyle(container).getPropertyValue("--font-oren-sans").trim(),
         },
         grid: {
           horzLines: { color: "#eeeeea", style: LineStyle.Dotted },
