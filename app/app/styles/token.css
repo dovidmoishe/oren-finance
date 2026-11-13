@@ -53,7 +53,7 @@
 }
 
 .token-film-heading h2 {
-  @apply [font-family:var(--font-neue-freigeist),_sans-serif] text-[clamp(24px,_3vw,_34px)] font-medium tracking-[-.04em];
+  @apply [font-family:var(--font-oren-sans),_sans-serif] text-[clamp(24px,_3vw,_34px)] font-medium tracking-[-.04em];
 }
 
 .token-film-heading > span, .token-film-caption {
@@ -85,7 +85,7 @@
 }
 
 .token-hero h1 {
-  @apply [font-family:var(--font-neue-freigeist),_system-ui,_sans-serif] text-[clamp(2.25rem,_3.6vw,_2.875rem)] font-medium leading-[1.05] tracking-[-.055em] [margin:0_0_20px] text-balance;
+  @apply [font-family:var(--font-oren-sans),_system-ui,_sans-serif] text-[clamp(2.25rem,_3.6vw,_2.875rem)] font-medium leading-[1.05] tracking-[-.055em] [margin:0_0_20px] text-balance;
 }
 
 .token-hero h1 > span {
@@ -155,7 +155,7 @@
 }
 
 .token-main h2 {
-  @apply [font-family:var(--font-neue-freigeist),_sans-serif] font-medium text-[clamp(26px,_2.7vw,_34px)] leading-[1.2] tracking-[-.045em];
+  @apply [font-family:var(--font-oren-sans),_sans-serif] font-medium text-[clamp(26px,_2.7vw,_34px)] leading-[1.2] tracking-[-.045em];
 }
 
 .token-intro {
