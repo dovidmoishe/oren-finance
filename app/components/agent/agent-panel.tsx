@@ -124,7 +124,7 @@ export function AgentPanel() {
   useEffect(() => {
     if (!panelOpen) return;
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape' || reviewQuote || reviewBasket || reviewLimitOrder) return;
+      if (event.key !== 'Escape' || reviewQuote || reviewBasket || reviewLimitOrder || document.querySelector(':popover-open')) return;
       if (showHistory) {
         setShowHistory(false);
         return;

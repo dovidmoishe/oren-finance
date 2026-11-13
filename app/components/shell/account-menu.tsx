@@ -3,13 +3,14 @@ import { ArrowDownLeft01Icon, ArrowUpRight01Icon, CustomerSupportIcon, Link01Ico
 import { HugeiconsIcon } from '@hugeicons/react';
 
 
-import { useId, useRef, useState } from "react";
+import { useId, useState } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useOrenAuth } from "@/components/auth/auth-context";
 import { RestoreActions, restoreBlocked } from "@/components/auth/restore-actions";
 import { Button } from "@/components/ui";
 import { useT } from "@/i18n/i18n";
+import { useAnchoredPopover } from "@/hooks/use-anchored-popover";
 
 const WithdrawalModal = dynamic(() => import('@/components/portfolio/withdrawal-modal').then(mod => mod.WithdrawalModal), { ssr: false });
 const FeedbackModal = dynamic(() => import('@/components/feedback/feedback-modal').then(mod => mod.FeedbackModal), { ssr: false });
@@ -18,7 +19,7 @@ export function AccountMenu() {
   const auth = useOrenAuth();
   const t = useT();
   const id = useId();
-  const menu = useRef<HTMLDivElement>(null);
+  const { trigger, menu, onBeforeToggle, onToggle } = useAnchoredPopover();
   const [withdrawOpen, setWithdrawOpen] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   if (!auth.configured) return <span className="sr-only text-xs text-muted sm:not-sr-only">{t("account.signInUnavailable")}</span>;
@@ -28,10 +29,10 @@ export function AccountMenu() {
   const initial = (auth.email?.[0] || "U").toUpperCase();
   const close = () => menu.current?.hidePopover();
   return <>
-    <button aria-label={t("account.openMenu")} className="grid h-[var(--app-control-icon,2.75rem)] w-[var(--app-control-icon,2.75rem)] place-items-center rounded-full bg-[#6860f5] text-base font-semibold text-white outline-offset-4 focus-visible:outline-2" popoverTarget={id} type="button">
+    <button aria-label={t("account.openMenu")} className="grid h-[var(--app-control-icon,2.75rem)] w-[var(--app-control-icon,2.75rem)] place-items-center rounded-full bg-[#6860f5] text-base font-semibold text-white outline-offset-4 focus-visible:outline-2" popoverTarget={id} ref={trigger} type="button">
       {initial}
     </button>
-    <div className="oren-account-menu" id={id} popover="auto" ref={menu}>
+    <div className="oren-account-menu" id={id} onBeforeToggle={onBeforeToggle} onToggle={onToggle} popover="auto" ref={menu}>
       <div className="oren-account-menu-surface w-[min(320px,calc(100vw-2rem))] overflow-hidden rounded-3xl border border-border bg-panel p-0 text-foreground shadow-xl">
       <div className="flex items-center gap-3 border-b border-border p-4">
         <span aria-hidden className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-[#6860f5] font-semibold text-white">{initial}</span>

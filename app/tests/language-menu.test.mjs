@@ -24,6 +24,36 @@ function load(file, sandbox) {
 
 const locales = load("../i18n/locales.ts", {});
 
+test("header popovers follow their trigger when the copilot changes the workspace width", () => {
+  let rect = { right: 900, top: 30, bottom: 66 };
+  let pending;
+  let cancelled = 0;
+  const popover = {
+    style: {}, offsetWidth: 224, offsetHeight: 420, scrollHeight: 420,
+    matches: () => true,
+  };
+  const refs = [{ current: { getBoundingClientRect: () => rect } }, { current: popover }, { current: 0 }];
+  const { useAnchoredPopover } = load("../hooks/use-anchored-popover.ts", {
+    require: () => ({ useRef: () => refs.shift(), useEffect() {} }),
+    window: { innerHeight: 900 },
+    document: { documentElement: { clientWidth: 1440 } },
+    requestAnimationFrame(callback) { pending = callback; return 1; },
+    cancelAnimationFrame(id) { cancelled = id; },
+  });
+  const hook = useAnchoredPopover();
+  hook.onToggle({ newState: "open" });
+  assert.equal(popover.style.left, "676px");
+  assert.equal(popover.style.top, "74px");
+  rect = { right: 650, top: 30, bottom: 66 };
+  pending();
+  assert.equal(popover.style.left, "426px");
+  rect = { right: 120, top: 30, bottom: 66 };
+  pending();
+  assert.equal(popover.style.left, "8px", "a trigger near the left edge keeps the menu in view");
+  hook.onToggle({ newState: "closed" });
+  assert.equal(cancelled, 1);
+});
+
 test("NEXT_LOCALE is still found when another cookie is joined without a space", () => {
   const preview = "__Host-oren-preview=session;NEXT_LOCALE=de";
   assert.equal(locales.cookieValue(preview, "NEXT_LOCALE"), "de");
@@ -73,6 +103,7 @@ test("a language row commits on pointerdown when the click never arrives", async
         },
       };
       if (id === "react") return require("react");
+      if (id === "@/hooks/use-anchored-popover") return load("../hooks/use-anchored-popover.ts", { require });
       if (id === "next/navigation") return { useRouter: () => ({ refresh: () => { refreshes += 1; } }) };
       if (id === "@hugeicons/core-free-icons") return { Globe02Icon: {}, Tick02Icon: {} };
       if (id === "@hugeicons/react") return { HugeiconsIcon: () => null };

@@ -122,7 +122,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div ref={shell} style={{ "--copilot-preferred-width": width + "px" } as CSSProperties} className={cn(
-      "mx-auto min-h-dvh overflow-x-clip bg-panel-subtle text-foreground lg:grid lg:grid-cols-[var(--nav-width)_minmax(0,1fr)_var(--copilot-width)] lg:p-3 lg:[--app-shell-inset:0.75rem] motion-reduce:transition-none sm:[--app-menu-right:1.5rem] [--app-header-bottom:calc(var(--app-nav-height)+var(--app-shell-inset,0px))]",
+      "mx-auto min-h-dvh overflow-x-clip bg-panel-subtle text-foreground lg:grid lg:grid-cols-[var(--nav-width)_minmax(0,1fr)_var(--copilot-width)] lg:p-3 lg:[--app-shell-inset:0.75rem] motion-reduce:transition-none [--app-header-bottom:calc(var(--app-nav-height)+var(--app-shell-inset,0px))]",
       collapsed ? "lg:[--nav-width:4rem]" : "lg:[--nav-width:14rem] xl:[--nav-width:15.5rem]",
       agentOpen && agentExpanded ? "lg:[--copilot-width:1fr]" : docked ? "lg:[--copilot-width:var(--copilot-preferred-width)]" : "lg:[--copilot-width:0rem]",
       resizing ? "select-none lg:transition-none" : cn(

@@ -57,7 +57,7 @@
 /* Native top-layer surfaces retain Escape, outside-click and focus behavior. */
 
 .oren-account-menu {
-  @apply [inset:calc(var(--app-header-bottom,_var(--app-nav-height,_4.5rem))_+_.5rem)_1rem_auto_auto] m-0 p-0 [border:none] bg-transparent;
+  @apply fixed inset-auto m-0 overflow-auto p-0 [border:none] bg-transparent;
 }
 
 /* Animate the inner surface to preserve iOS Safari popover hit targets. */
@@ -106,12 +106,6 @@
     --app-control-small: 2.5rem;
     --app-control-icon: 2.75rem;
     --app-tab-height: 2.5rem;
-  }
-}
-
-@media (min-width: 640px) {
-  .oren-account-menu {
-    @apply [right:var(--app-menu-right,_max(1.5rem,_calc((100vw_-_1540px)_/_2_+_1.5rem)))];
   }
 }
 
