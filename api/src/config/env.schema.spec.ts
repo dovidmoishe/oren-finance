@@ -273,6 +273,18 @@ describe('validateEnv — notifications', () => {
         .PRICE_ALERTS_PUBLIC,
     ).toBe('false');
   });
+
+  it('reads the morning brief switch without a pilot list', () => {
+    expect(validateEnv(required).MORNING_BRIEF_ENABLED).toBeUndefined();
+    expect(validateEnv(required).NOTIFICATION_PILOT_USERS).toBeUndefined();
+    expect(
+      validateEnv({
+        ...required,
+        MORNING_BRIEF_ENABLED: 'true',
+        NOTIFICATION_PILOT_USERS: '',
+      }).MORNING_BRIEF_ENABLED,
+    ).toBe('true');
+  });
 });
 
 describe('validateEnv — Senviok', () => {

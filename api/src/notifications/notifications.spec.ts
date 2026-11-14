@@ -12,10 +12,20 @@ import {
   formatAlertPrice,
   providerQuote,
 } from './quotes';
-import { nextBrief } from './schedule';
+import { MorningBrief } from './brief';
+import {
+  briefAdmitPerMinute,
+  briefEmailSlots,
+  briefSnapshotSlots,
+  nextBrief,
+} from './schedule';
 import { alertUserAllowed, notificationSettings } from './settings';
 import { NotificationUnsubscribeController } from './unsubscribe.controller';
-import { notificationWorkerStartup } from './worker';
+import {
+  notificationDispatchError,
+  notificationWorkerStartup,
+  shouldLogDispatchFailure,
+} from './worker';
 
 jest.mock('@privy-io/node', () => ({ PrivyClient: jest.fn() }));
 
@@ -186,7 +196,7 @@ describe('notification rules', () => {
     ).toBe(true);
   });
 
-  it('opens alert membership without opening morning briefs', () => {
+  it('opens alert membership and keeps briefs behind their own switch', () => {
     const config = notificationSettings(alertRuntime());
     expect(config.alertsPublic).toBe(false);
     expect(alertUserAllowed('pilot-user', config)).toBe(true);
@@ -199,18 +209,18 @@ describe('notification rules', () => {
     );
     expect(alertUserAllowed('other', open)).toBe(true);
     expect(open.briefs).toBe(false);
-    expect(
-      notificationSettings(
-        alertRuntime({
-          PRICE_ALERTS_PUBLIC: 'true',
-          MORNING_BRIEF_ENABLED: 'true',
-          NOTIFICATION_PILOT_USERS: 'pilot-user',
-        }),
-      ).briefs,
-    ).toBe(true);
+    const briefs = notificationSettings(
+      alertRuntime({
+        PRICE_ALERTS_PUBLIC: 'false',
+        MORNING_BRIEF_ENABLED: 'true',
+        NOTIFICATION_PILOT_USERS: '',
+      }),
+    );
+    expect(briefs.briefs).toBe(true);
+    expect(briefs.alertsPublic).toBe(false);
   });
 
-  it('requires pilot accounts only for briefs and private alerts', () => {
+  it('requires pilot accounts only for private alerts', () => {
     expect(
       notificationWorkerStartup(
         notificationSettings(
@@ -243,11 +253,33 @@ describe('notification rules', () => {
         ),
       ),
     ).toThrow(/pilot accounts/);
-    expect(() =>
+    expect(
+      notificationWorkerStartup(
+        notificationSettings(
+          alertRuntime({
+            PRICE_ALERTS_ENABLED: 'false',
+            MORNING_BRIEF_ENABLED: 'true',
+            NOTIFICATION_PILOT_USERS: '',
+          }),
+        ),
+      ),
+    ).toBe('ready');
+    expect(
       notificationWorkerStartup(
         notificationSettings(
           alertRuntime({
             PRICE_ALERTS_PUBLIC: 'true',
+            MORNING_BRIEF_ENABLED: 'true',
+            NOTIFICATION_PILOT_USERS: '',
+          }),
+        ),
+      ),
+    ).toBe('ready');
+    expect(() =>
+      notificationWorkerStartup(
+        notificationSettings(
+          alertRuntime({
+            PRICE_ALERTS_PUBLIC: 'false',
             MORNING_BRIEF_ENABLED: 'true',
             NOTIFICATION_PILOT_USERS: '',
           }),
@@ -259,6 +291,7 @@ describe('notification rules', () => {
         notificationSettings(
           alertRuntime({
             PRICE_ALERTS_PUBLIC: 'true',
+            MORNING_BRIEF_ENABLED: 'true',
             NOTIFICATION_PILOT_USERS: '',
             NOTIFICATION_REDIS_URL: '',
           }),
@@ -270,7 +303,37 @@ describe('notification rules', () => {
     ).toBe('ready');
   });
 
-  it('formats stored alert prices and keeps brief delivery on the pilot list', async () => {
+  it('admits briefs inside the email and token budgets', () => {
+    expect(briefEmailSlots(5, true)).toBe(4);
+    expect(briefEmailSlots(5, false)).toBe(5);
+    expect(briefEmailSlots(1, true)).toBe(1);
+    expect(briefSnapshotSlots(2, true)).toBe(1);
+    expect(briefSnapshotSlots(2, false)).toBe(2);
+    expect(briefSnapshotSlots(1, true)).toBe(1);
+    expect(
+      briefAdmitPerMinute({
+        alerts: true,
+        emailPerMinute: 5,
+        tokensPerMinute: 2,
+      }),
+    ).toBe(1);
+    expect(
+      briefAdmitPerMinute({
+        alerts: false,
+        emailPerMinute: 5,
+        tokensPerMinute: 2,
+      }),
+    ).toBe(2);
+    const horizon = 120;
+    const perMinute = briefAdmitPerMinute({
+      alerts: true,
+      emailPerMinute: 5,
+      tokensPerMinute: 2,
+    });
+    expect(perMinute * horizon).toBe(120);
+  });
+
+  it('formats stored alert prices and delivers briefs without a pilot list', async () => {
     expect(formatAlertPrice('120.00000000')).toBe('120.00');
     expect(formatAlertPrice('120.50000000')).toBe('120.50');
     expect(formatAlertPrice('120.12340000')).toBe('120.1234');
@@ -325,9 +388,10 @@ describe('notification rules', () => {
       expect(defer).toHaveBeenCalledWith(alert);
 
       process.env.MORNING_BRIEF_ENABLED = 'true';
-      process.env.NOTIFICATION_PILOT_USERS = 'pilot-user';
+      process.env.NOTIFICATION_PILOT_USERS = '';
       update.mockClear();
       budget.mockClear();
+      defer.mockClear();
       const brief = {
         ...alert,
         user_id: 'other',
@@ -339,11 +403,110 @@ describe('notification rules', () => {
         },
       };
       await delivery.send(brief);
+      expect(update).not.toHaveBeenCalled();
+      expect(budget).toHaveBeenCalled();
+      expect(defer).toHaveBeenCalledWith(brief);
+
+      process.env.MORNING_BRIEF_ENABLED = 'false';
+      update.mockClear();
+      budget.mockClear();
+      await delivery.send(brief);
       expect(update).toHaveBeenCalledWith(brief, 'canceled');
+      expect(budget).not.toHaveBeenCalled();
+
+      process.env.MORNING_BRIEF_ENABLED = 'true';
+      update.mockClear();
+      budget.mockClear();
+      const expired = {
+        ...brief,
+        payload: {
+          ...brief.payload,
+          scheduled: new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString(),
+        },
+      };
+      await delivery.send(expired);
+      expect(update).toHaveBeenCalledWith(expired, 'canceled');
       expect(budget).not.toHaveBeenCalled();
     } finally {
       process.env = saved;
     }
+  });
+
+  it('builds a morning brief for an opted-in user who is not on the pilot list', async () => {
+    const saved = { ...process.env };
+    Object.assign(process.env, alertRuntime(), {
+      MORNING_BRIEF_ENABLED: 'true',
+      NOTIFICATION_PILOT_USERS: '',
+    });
+    const identity = jest
+      .fn()
+      .mockResolvedValue({ email: 'person@example.com', wallet: null });
+    const brief = new MorningBrief(
+      {
+        scheduleFor: jest.fn().mockResolvedValue({
+          brief_time: '08:00',
+          time_zone: 'UTC',
+          brief_wallet: null,
+          brief_wallet_since: null,
+        }),
+        update: jest.fn().mockResolvedValue(undefined),
+      } as never,
+      { getNotificationIdentity: identity } as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      { getSectors: jest.fn().mockResolvedValue([]) } as never,
+      { getRecentNews: jest.fn().mockResolvedValue([]) } as never,
+      null as never,
+      { OPENAI_MODEL: 'gpt-5-mini' } as never,
+    );
+    try {
+      await brief.build({
+        id: 'c1bdb5a5-22d1-43ac-b125-c30466655829',
+        user_id: 'someone-else',
+        kind: 'brief',
+        attempts: 1,
+        lease_token: 'lease',
+        logical_key: 'brief-someone-else-2026-11-14',
+        payload: {
+          date: '2026-11-14',
+          time: '08:00',
+          zone: 'UTC',
+          scheduled: new Date().toISOString(),
+        },
+      });
+      expect(identity).toHaveBeenCalledWith('someone-else', null);
+    } finally {
+      process.env = saved;
+    }
+  });
+
+  it('logs a dispatch failure code without the query and then rate limits it', () => {
+    const wrapped = new Error('Failed query: select secret\nparams: hunter2');
+    (wrapped as { cause?: unknown }).cause = Object.assign(
+      new Error('permission denied for table notification_jobs'),
+      { code: '42501' },
+    );
+    expect(notificationDispatchError(wrapped)).toEqual({
+      code: '42501',
+      message: 'permission denied for table notification_jobs',
+    });
+    expect(
+      notificationDispatchError(
+        Object.assign(
+          new Error('connection failed postgres://oren:secret@db/oren'),
+          { code: '28P01' },
+        ),
+      ),
+    ).toEqual({ code: '28P01', message: 'notification dispatch failed' });
+    const state = { at: 0, key: '' };
+    const key = '42501 permission denied for table notification_jobs';
+    expect(shouldLogDispatchFailure(state, key, 1_000)).toBe(true);
+    expect(shouldLogDispatchFailure(state, key, 30_000)).toBe(false);
+    expect(shouldLogDispatchFailure(state, key, 61_000)).toBe(true);
+    expect(
+      shouldLogDispatchFailure(state, '08006 connection refused', 61_000),
+    ).toBe(true);
   });
 
   it('confirms an unsubscribe with an html page', async () => {

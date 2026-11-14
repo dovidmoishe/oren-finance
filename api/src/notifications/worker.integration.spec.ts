@@ -12,6 +12,8 @@ import { PriceAlerts, PricePolling } from './alerts';
 import type { MorningBrief } from './brief';
 import { NotificationDelivery, unsubscribeToken } from './delivery';
 import { insertJob, NotificationJobs } from './jobs';
+import { briefAdmitPerMinute } from './schedule';
+import { notificationSettings } from './settings';
 import { NotificationWorker } from './worker';
 
 jest.mock('@privy-io/node', () => ({ PrivyClient: jest.fn() }));
@@ -252,7 +254,7 @@ run('notification jobs with disposable Postgres and Redis', () => {
     expect(limits.filter(Boolean)).toHaveLength(10);
   }, 60_000);
 
-  it('starts public alerts with an empty pilot list and still requires one for briefs', async () => {
+  it('starts public alerts and public briefs with an empty pilot list', async () => {
     const previous = {
       MORNING_BRIEF_ENABLED: process.env.MORNING_BRIEF_ENABLED,
       PRICE_ALERTS_ENABLED: process.env.PRICE_ALERTS_ENABLED,
@@ -286,13 +288,85 @@ run('notification jobs with disposable Postgres and Redis', () => {
         /pilot accounts/,
       );
 
-      process.env.PRICE_ALERTS_PUBLIC = 'true';
+      process.env.PRICE_ALERTS_ENABLED = 'false';
       process.env.MORNING_BRIEF_ENABLED = 'true';
+      const briefs = workerFor();
+      started = briefs;
+      expect(() => briefs.onApplicationBootstrap()).not.toThrow();
+      await briefs.onModuleDestroy();
+      started = undefined;
+
+      process.env.PRICE_ALERTS_ENABLED = 'true';
+      process.env.PRICE_ALERTS_PUBLIC = 'true';
+      const both = workerFor();
+      started = both;
+      expect(() => both.onApplicationBootstrap()).not.toThrow();
+      await both.onModuleDestroy();
+      started = undefined;
+
+      process.env.PRICE_ALERTS_PUBLIC = 'false';
       expect(() => workerFor().onApplicationBootstrap()).toThrow(
         /pilot accounts/,
       );
     } finally {
       if (started) await started.onModuleDestroy();
+      for (const [key, value] of Object.entries(previous)) {
+        if (value === undefined) delete process.env[key];
+        else process.env[key] = value;
+      }
+    }
+  }, 20_000);
+
+  it('queues a shared brief time inside the provider budgets', async () => {
+    const previous = {
+      MORNING_BRIEF_ENABLED: process.env.MORNING_BRIEF_ENABLED,
+      PRICE_ALERTS_ENABLED: process.env.PRICE_ALERTS_ENABLED,
+      NOTIFICATION_EMAIL_PER_MINUTE: process.env.NOTIFICATION_EMAIL_PER_MINUTE,
+      NOTIFICATION_TOKENS_PER_MINUTE:
+        process.env.NOTIFICATION_TOKENS_PER_MINUTE,
+      NOTIFICATION_PILOT_USERS: process.env.NOTIFICATION_PILOT_USERS,
+    };
+    const now = new Date();
+    const staleClock = new Date(now.getTime() - 3 * 60 * 60 * 1000);
+    const briefTime = staleClock.toISOString().slice(11, 16);
+    try {
+      process.env.MORNING_BRIEF_ENABLED = 'true';
+      process.env.PRICE_ALERTS_ENABLED = 'true';
+      process.env.NOTIFICATION_EMAIL_PER_MINUTE = '5';
+      process.env.NOTIFICATION_TOKENS_PER_MINUTE = '2';
+      process.env.NOTIFICATION_PILOT_USERS = '';
+      expect(briefAdmitPerMinute(notificationSettings())).toBe(1);
+      const due = new Date(now.getTime() - 60_000).toISOString();
+      const stale = staleClock.toISOString();
+      for (const id of ['user-a', 'user-b', 'user-c', 'user-d', 'user-e']) {
+        await client`insert into user_preferences (user_id, morning_brief, brief_time, time_zone, brief_due_at)
+          values (${id}, true, ${briefTime}, 'UTC', ${due})`;
+      }
+      await client`insert into user_preferences (user_id, morning_brief, brief_time, time_zone, brief_due_at)
+        values ('user-stale', true, ${briefTime}, 'UTC', ${stale})`;
+      await client`insert into user_preferences (user_id, morning_brief, brief_time, time_zone)
+        values ('user-new', true, ${briefTime}, 'UTC')`;
+      expect(await jobs.schedule(now)).toBe(1);
+      const queued =
+        await client`select user_id from notification_jobs where kind = 'brief' order by user_id`;
+      expect(queued.map((row) => row.user_id)).toEqual(['user-a']);
+      const stillDue =
+        await client`select count(*)::int as n from user_preferences
+        where morning_brief and brief_due_at <= ${now.toISOString()} and user_id <> 'user-stale'`;
+      expect(stillDue[0].n).toBe(4);
+      const parked =
+        await client`select brief_due_at from user_preferences where user_id in ('user-stale', 'user-new')`;
+      expect(parked).toHaveLength(2);
+      for (const row of parked) {
+        expect(new Date(row.brief_due_at).getTime()).toBeGreaterThan(
+          now.getTime(),
+        );
+      }
+      expect(await jobs.schedule(new Date())).toBe(0);
+      const second =
+        await client`select count(*)::int as n from notification_jobs where kind = 'brief'`;
+      expect(second[0].n).toBe(2);
+    } finally {
       for (const [key, value] of Object.entries(previous)) {
         if (value === undefined) delete process.env[key];
         else process.env[key] = value;

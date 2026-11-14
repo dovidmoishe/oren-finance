@@ -6,7 +6,7 @@ import { SenviokEmailService } from '../senviok/senviok.service';
 import { renderBriefEmail, type BriefEmailFacts } from './brief-email';
 import { NotificationJobs, type Job } from './jobs';
 import { formatAlertPrice } from './quotes';
-import { BRIEF_GRACE_MS } from './schedule';
+import { BRIEF_GRACE_MS, briefEmailSlots } from './schedule';
 import { alertUserAllowed, notificationSettings } from './settings';
 
 export function unsubscribeToken(id: string, secret: string) {
@@ -78,9 +78,7 @@ export class NotificationDelivery {
   async send(job: Job) {
     const config = notificationSettings();
     const brief = job.kind === 'brief-email';
-    const allowed = brief
-      ? config.pilotUsers.has(job.user_id)
-      : alertUserAllowed(job.user_id, config);
+    const allowed = brief || alertUserAllowed(job.user_id, config);
     if (
       !(brief ? config.briefs : config.alerts) ||
       !allowed ||
@@ -96,8 +94,7 @@ export class NotificationDelivery {
     }
     // Leave at least one alert slot when there is more than one total slot.
     const total = config.emailPerMinute;
-    const briefSlots =
-      total > 1 && config.alerts ? Math.floor(total * 0.8) : total;
+    const briefSlots = briefEmailSlots(total, config.alerts);
     if (total === 1 && brief && config.alerts) {
       const pending = await this.jobs.pending('alert-email');
       if (pending.length) return this.jobs.defer(job);

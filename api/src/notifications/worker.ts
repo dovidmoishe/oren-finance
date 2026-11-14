@@ -24,12 +24,12 @@ const lanes = {
 type Lane = keyof typeof lanes;
 const outboxLanes: Kind[] = ['alert-email', 'brief-email', 'brief'];
 
-/** Idle when both features are off. Pilot accounts are required for briefs and for private alerts. */
+/** Idle when both features are off. Pilot accounts are required only for private price alerts. */
 export function notificationWorkerStartup(
   config: ReturnType<typeof notificationSettings>,
 ): 'idle' | 'ready' {
   if (!config.briefs && !config.alerts) return 'idle';
-  const needsPilot = config.briefs || (config.alerts && !config.alertsPublic);
+  const needsPilot = config.alerts && !config.alertsPublic;
   if (
     !config.redisUrl ||
     !config.tokensPerMinute ||
@@ -56,6 +56,7 @@ export class NotificationWorker
   private timer?: ReturnType<typeof setInterval>;
   private running?: Promise<void>;
   private lastMinute = -1;
+  private readonly dispatchFailureLog = { at: 0, key: '' };
 
   constructor(
     private readonly jobs: NotificationJobs,
@@ -135,7 +136,17 @@ export class NotificationWorker
     const tick = () => {
       if (this.running) return;
       this.running = this.dispatch()
-        .catch(() => this.logger.warn('Notification dispatch will retry'))
+        .catch((error: unknown) => {
+          const failure = notificationDispatchError(error);
+          const key = `${failure.code} ${failure.message}`;
+          if (
+            shouldLogDispatchFailure(this.dispatchFailureLog, key, Date.now())
+          ) {
+            this.logger.warn(
+              `Notification dispatch will retry (${failure.code}): ${failure.message}`,
+            );
+          }
+        })
         .finally(() => {
           this.running = undefined;
         });
@@ -149,9 +160,7 @@ export class NotificationWorker
     const now = new Date();
     const minute = Math.floor(now.getTime() / MINUTE_MS);
     if (minute !== this.lastMinute) {
-      const missed = config.briefs
-        ? await this.jobs.schedule(now, config.pilotUsers)
-        : 0;
+      const missed = config.briefs ? await this.jobs.schedule(now) : 0;
       const uncertain = await this.jobs.sweep();
       const [stats] = await this.jobs.db.execute<{
         pending: number;
@@ -212,4 +221,59 @@ function laneEnabled(
   return lane === 'brief' || lane === 'brief-email'
     ? config.briefs
     : config.alerts;
+}
+
+export const DISPATCH_LOG_INTERVAL_MS = 60_000;
+
+/** Log the first failure immediately, then the same failure at most once a minute. */
+export function shouldLogDispatchFailure(
+  state: { at: number; key: string },
+  key: string,
+  now: number,
+) {
+  if (state.key === key && now - state.at < DISPATCH_LOG_INTERVAL_MS)
+    return false;
+  state.at = now;
+  state.key = key;
+  return true;
+}
+
+/**
+ * SQLSTATE plus a one-line driver message. Drizzle's wrapper includes the
+ * query and parameters, so those stay out of the log.
+ */
+export function notificationDispatchError(error: unknown) {
+  let code = 'unknown';
+  let message = 'notification dispatch failed';
+  const seen = new Set<unknown>();
+  let current: unknown = error;
+  while (current && typeof current === 'object' && !seen.has(current)) {
+    seen.add(current);
+    const record = current as {
+      code?: unknown;
+      message?: unknown;
+      cause?: unknown;
+    };
+    if (typeof record.code === 'string' && /^[0-9A-Z]{5}$/.test(record.code)) {
+      code = record.code;
+      message = safeDispatchMessage(record.message);
+    }
+    current = record.cause;
+  }
+  if (code === 'unknown' && error instanceof Error)
+    message = safeDispatchMessage(error.message);
+  return { code, message };
+}
+
+function safeDispatchMessage(value: unknown) {
+  if (typeof value !== 'string') return 'notification dispatch failed';
+  const line = value.split('\n')[0]?.trim() ?? '';
+  if (
+    !line ||
+    line.length > 180 ||
+    /params:|failed query|postgres(?:ql)?:\/\//i.test(line)
+  ) {
+    return 'notification dispatch failed';
+  }
+  return line;
 }

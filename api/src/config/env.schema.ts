@@ -101,12 +101,17 @@ export interface AppEnv {
   DRIP_REQUEST_TIMEOUT_MS: number;
   SENVIOK_API_KEY?: string;
   SENVIOK_FROM?: string;
+  /**
+   * When "true", every opted-in user with a verified email receives the
+   * Morning Brief. NOTIFICATION_PILOT_USERS is not consulted. Unset or any
+   * other value leaves briefs off.
+   */
   MORNING_BRIEF_ENABLED?: string;
   PRICE_ALERTS_ENABLED?: string;
   /**
    * When "true", price alerts are available to every signed-in user with a
-   * verified email. Morning briefs stay limited to NOTIFICATION_PILOT_USERS.
-   * Unset or any other value keeps the pilot allowlist. Defaults to off.
+   * verified email. Unset or any other value keeps the pilot allowlist.
+   * Defaults to off. Does not affect Morning Brief.
    */
   PRICE_ALERTS_PUBLIC?: string;
   TOKENS_ALERT_TIMESTAMPS_VERIFIED?: string;
@@ -439,17 +444,32 @@ export function validateEnv(env: EnvSource = process.env): AppEnv {
     MORNING_BRIEF_ENABLED: readEnv(env, 'MORNING_BRIEF_ENABLED'),
     PRICE_ALERTS_ENABLED: readEnv(env, 'PRICE_ALERTS_ENABLED'),
     PRICE_ALERTS_PUBLIC: readEnv(env, 'PRICE_ALERTS_PUBLIC'),
-    TOKENS_ALERT_TIMESTAMPS_VERIFIED: readEnv(env, 'TOKENS_ALERT_TIMESTAMPS_VERIFIED'),
+    TOKENS_ALERT_TIMESTAMPS_VERIFIED: readEnv(
+      env,
+      'TOKENS_ALERT_TIMESTAMPS_VERIFIED',
+    ),
     NOTIFICATION_ALERT_MINTS: readEnv(env, 'NOTIFICATION_ALERT_MINTS'),
     NOTIFICATION_REDIS_URL: readEnv(env, 'NOTIFICATION_REDIS_URL'),
     NOTIFICATION_APP_ORIGIN: readEnv(env, 'NOTIFICATION_APP_ORIGIN'),
     NOTIFICATION_API_ORIGIN: readEnv(env, 'NOTIFICATION_API_ORIGIN'),
-    NOTIFICATION_UNSUBSCRIBE_SECRET: readEnv(env, 'NOTIFICATION_UNSUBSCRIBE_SECRET'),
-    NOTIFICATION_TOKENS_PER_MINUTE: readEnv(env, 'NOTIFICATION_TOKENS_PER_MINUTE'),
-    NOTIFICATION_EMAIL_PER_MINUTE: readEnv(env, 'NOTIFICATION_EMAIL_PER_MINUTE'),
+    NOTIFICATION_UNSUBSCRIBE_SECRET: readEnv(
+      env,
+      'NOTIFICATION_UNSUBSCRIBE_SECRET',
+    ),
+    NOTIFICATION_TOKENS_PER_MINUTE: readEnv(
+      env,
+      'NOTIFICATION_TOKENS_PER_MINUTE',
+    ),
+    NOTIFICATION_EMAIL_PER_MINUTE: readEnv(
+      env,
+      'NOTIFICATION_EMAIL_PER_MINUTE',
+    ),
     NOTIFICATION_PILOT_USERS: readEnv(env, 'NOTIFICATION_PILOT_USERS'),
     NOTIFICATION_FIXTURE_MODE: readEnv(env, 'NOTIFICATION_FIXTURE_MODE'),
-    NOTIFICATION_FIXTURE_RECIPIENT: readEnv(env, 'NOTIFICATION_FIXTURE_RECIPIENT'),
+    NOTIFICATION_FIXTURE_RECIPIENT: readEnv(
+      env,
+      'NOTIFICATION_FIXTURE_RECIPIENT',
+    ),
     VAULT_PROGRAM_ID:
       readEnv(env, 'VAULT_PROGRAM_ID') || DEFAULT_VAULT_PROGRAM_ID,
     VAULT_PROGRAM_LIVE: readBool(env, 'VAULT_PROGRAM_LIVE', false),
