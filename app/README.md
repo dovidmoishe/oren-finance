@@ -18,7 +18,7 @@ Open [http://localhost:3000](http://localhost:3000) with your browser to see the
 
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
-The web app self-hosts [Manrope](https://fonts.google.com/specimen/Manrope) via `@fontsource-variable/manrope`. The shared sans and display tokens also supply chart typography. See [the font license](public/licenses/manrope-OFL.txt).
+The web app self-hosts [Onest](https://fonts.google.com/specimen/Onest) via `@fontsource-variable/onest`. The shared sans and display tokens also supply chart typography. See [the font license](public/licenses/onest-OFL.txt).
 
 ## Learn More
 

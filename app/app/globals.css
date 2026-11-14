@@ -74,7 +74,7 @@
   --color-accent-pink-soft: var(--accent-pink-soft);
   --color-accent-yellow: var(--accent-yellow);
   --color-accent-lavender: var(--accent-lavender);
-  --font-oren-sans: "Manrope Variable", system-ui, sans-serif;
+  --font-oren-sans: "Onest Variable", system-ui, sans-serif;
   --font-sans: var(--font-oren-sans);
   --font-display: var(--font-oren-sans);
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
