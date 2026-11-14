@@ -71,4 +71,49 @@ describe('PriceAlerts.create target already met', () => {
     );
     expect(transaction).toHaveBeenCalled();
   });
+
+  it('keeps alerts on the pilot list until they are public', async () => {
+    const { alerts, transaction } = service(90);
+    await expect(
+      alerts.create('other', true, body('above', '100')),
+    ).rejects.toMatchObject({ status: 503 });
+    expect(transaction).not.toHaveBeenCalled();
+
+    process.env.PRICE_ALERTS_PUBLIC = 'true';
+    delete process.env.NOTIFICATION_PILOT_USERS;
+    await expect(
+      alerts.create('other', true, body('above', '100')),
+    ).rejects.toThrow('reached db');
+    expect(transaction).toHaveBeenCalled();
+  });
+
+  it('still requires a verified email when alerts are public', async () => {
+    process.env.PRICE_ALERTS_PUBLIC = 'true';
+    delete process.env.NOTIFICATION_PILOT_USERS;
+    const { alerts, transaction } = service(90);
+    await expect(
+      alerts.create('other', false, body('above', '100')),
+    ).rejects.toMatchObject({ status: 400 });
+    expect(transaction).not.toHaveBeenCalled();
+  });
+
+  it('reports the feature off for users outside the pilot until it is public', async () => {
+    const execute = jest.fn().mockResolvedValue([]);
+    const alerts = new PriceAlerts(
+      { execute } as never,
+      {} as never,
+      {} as never,
+    );
+    await expect(alerts.list('other', true)).resolves.toMatchObject({
+      enabled: false,
+      alerts: [],
+    });
+    process.env.PRICE_ALERTS_PUBLIC = 'true';
+    await expect(alerts.list('other', true)).resolves.toMatchObject({
+      enabled: true,
+    });
+    await expect(alerts.list('other', false)).resolves.toMatchObject({
+      enabled: false,
+    });
+  });
 });

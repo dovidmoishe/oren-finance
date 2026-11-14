@@ -261,6 +261,20 @@ describe('validateEnv — CORS_ORIGIN', () => {
   });
 });
 
+describe('validateEnv — notifications', () => {
+  it('leaves price alerts private unless PRICE_ALERTS_PUBLIC is set', () => {
+    expect(validateEnv(required).PRICE_ALERTS_PUBLIC).toBeUndefined();
+    expect(
+      validateEnv({ ...required, PRICE_ALERTS_PUBLIC: 'true' })
+        .PRICE_ALERTS_PUBLIC,
+    ).toBe('true');
+    expect(
+      validateEnv({ ...required, PRICE_ALERTS_PUBLIC: 'false' })
+        .PRICE_ALERTS_PUBLIC,
+    ).toBe('false');
+  });
+});
+
 describe('validateEnv — Senviok', () => {
   it('keeps transactional email credentials optional', () => {
     const env = validateEnv(required);

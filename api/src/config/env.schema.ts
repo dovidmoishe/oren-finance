@@ -103,6 +103,12 @@ export interface AppEnv {
   SENVIOK_FROM?: string;
   MORNING_BRIEF_ENABLED?: string;
   PRICE_ALERTS_ENABLED?: string;
+  /**
+   * When "true", price alerts are available to every signed-in user with a
+   * verified email. Morning briefs stay limited to NOTIFICATION_PILOT_USERS.
+   * Unset or any other value keeps the pilot allowlist. Defaults to off.
+   */
+  PRICE_ALERTS_PUBLIC?: string;
   TOKENS_ALERT_TIMESTAMPS_VERIFIED?: string;
   NOTIFICATION_ALERT_MINTS?: string;
   NOTIFICATION_REDIS_URL?: string;
@@ -432,6 +438,7 @@ export function validateEnv(env: EnvSource = process.env): AppEnv {
     SENVIOK_FROM: readEnv(env, 'SENVIOK_FROM'),
     MORNING_BRIEF_ENABLED: readEnv(env, 'MORNING_BRIEF_ENABLED'),
     PRICE_ALERTS_ENABLED: readEnv(env, 'PRICE_ALERTS_ENABLED'),
+    PRICE_ALERTS_PUBLIC: readEnv(env, 'PRICE_ALERTS_PUBLIC'),
     TOKENS_ALERT_TIMESTAMPS_VERIFIED: readEnv(env, 'TOKENS_ALERT_TIMESTAMPS_VERIFIED'),
     NOTIFICATION_ALERT_MINTS: readEnv(env, 'NOTIFICATION_ALERT_MINTS'),
     NOTIFICATION_REDIS_URL: readEnv(env, 'NOTIFICATION_REDIS_URL'),

@@ -69,6 +69,10 @@ jobs:
           docker compose -f deploy.yml config --quiet
           printf 'POSTGRES_URL=postgres://oren_test:test-password@db:5432/oren_mcp_test\n' > .env.api
           docker compose --profile delegated-trades -f deploy.yml config --quiet
+          docker compose --profile notifications -f deploy.yml config --quiet
+          services=$(docker compose --profile notifications -f deploy.yml config --services)
+          grep -qx notification-redis <<< "$services"
+          grep -qx notification-worker <<< "$services"
       - name: Verify production image pins override tags
         env:
           GHCR_OWNER: example
@@ -81,8 +85,8 @@ jobs:
           OREN_API_IMAGE: ghcr.io/example/oren-api@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
           OREN_APP_IMAGE: ghcr.io/example/oren-app@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
         run: |
-          docker compose --profile delegated-trades -f deploy.yml config --format json > "$RUNNER_TEMP/pinned-compose.json"
-          node --input-type=module -e "import fs from 'node:fs'; import assert from 'node:assert/strict'; const c=JSON.parse(fs.readFileSync(process.argv[1])); for (const s of ['api','api-migrate','signer-gate']) assert.equal(c.services[s].image,process.env.OREN_API_IMAGE); assert.equal(c.services.app.image,process.env.OREN_APP_IMAGE);" "$RUNNER_TEMP/pinned-compose.json"
+          docker compose --profile delegated-trades --profile notifications -f deploy.yml config --format json > "$RUNNER_TEMP/pinned-compose.json"
+          node --input-type=module -e "import fs from 'node:fs'; import assert from 'node:assert/strict'; const c=JSON.parse(fs.readFileSync(process.argv[1])); for (const s of ['api','api-migrate','signer-gate','notification-worker']) assert.equal(c.services[s].image,process.env.OREN_API_IMAGE); assert.equal(c.services.app.image,process.env.OREN_APP_IMAGE); assert.ok(c.services['notification-redis']);" "$RUNNER_TEMP/pinned-compose.json"
       - name: Verify two disposable preview databases are isolated
         run: bash infra/preview/isolation.sh
       - name: Validate Caddy with a generated preview route
