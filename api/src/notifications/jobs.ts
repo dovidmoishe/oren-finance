@@ -2,7 +2,15 @@ import { Inject, Injectable } from '@nestjs/common';
 import { sql, type SQL } from 'drizzle-orm';
 import { DRIZZLE } from '../config/constants';
 import type { Database } from '../database/database.provider';
-import { BRIEF_GRACE_MS, localDate, nextBrief } from './schedule';
+import { notificationSettings } from './settings';
+import {
+  BRIEF_GRACE_MS,
+  BRIEF_SCHEDULE_BATCH,
+  MINUTE_MS,
+  briefAdmitPerMinute,
+  localDate,
+  nextBrief,
+} from './schedule';
 
 export type Kind = 'brief' | 'brief-email' | 'alert-email';
 export type Job = {
@@ -29,51 +37,91 @@ type Due = BriefSchedule & {
 export class NotificationJobs {
   constructor(@Inject(DRIZZLE) readonly db: Database) {}
 
-  async schedule(now: Date, pilot: ReadonlySet<string>) {
-    if (pilot.size === 0) return 0;
-    const users = sql.join(
-      [...pilot].map((id) => sql`${id}`),
-      sql`, `,
-    );
+  /**
+   * Arm and admit Morning Briefs for opted-in users.
+   * Reads at most BRIEF_SCHEDULE_BATCH due rows. A shared brief time stays in
+   * user_preferences until a slot is free: admission is capped at the brief
+   * share of the email and Tokens budgets, and in-flight brief jobs are capped
+   * at that rate times the grace window so a backlog cannot outlive BRIEF_GRACE_MS.
+   * Returns how many stored due times fell outside the grace window.
+   */
+  async schedule(now: Date) {
+    const config = notificationSettings();
+    if (!config.briefs) return 0;
+    const perMinute = briefAdmitPerMinute(config);
+    const horizon = BRIEF_GRACE_MS / MINUTE_MS;
+    const cap = perMinute * horizon;
     return this.db.transaction(async (tx) => {
+      const [inflight] = await tx.execute<{ waiting: number }>(sql`
+        select count(*)::int as waiting from notification_jobs
+        where kind in ('brief', 'brief-email')
+          and state in ('pending', 'running', 'sending')
+      `);
+      let admit = Math.min(
+        perMinute,
+        Math.max(0, cap - Number(inflight?.waiting ?? 0)),
+      );
       let missed = 0;
+      const cutoff = new Date(now.getTime() - BRIEF_GRACE_MS);
       const due = await tx.execute<Due>(sql`
         select user_id, brief_time, time_zone, brief_due_at, brief_wallet, brief_wallet_since
-        from user_preferences where morning_brief and user_id in (${users})
+        from user_preferences
+        where morning_brief
           and (brief_due_at is null or brief_due_at <= ${now.toISOString()})
-        order by brief_due_at nulls first limit 100 for update skip locked
+        order by brief_due_at asc nulls last, user_id
+        limit ${BRIEF_SCHEDULE_BATCH}
+        for update skip locked
       `);
       for (const row of due) {
-        if (row.brief_due_at) {
-          const previousDue = new Date(row.brief_due_at);
-          const cutoff = new Date(now.getTime() - BRIEF_GRACE_MS);
-          const scheduled =
-            previousDue >= cutoff
-              ? previousDue
-              : nextBrief(
-                  new Date(cutoff.getTime() - 1),
-                  row.brief_time,
-                  row.time_zone,
-                );
-          if (previousDue < cutoff) missed++;
-          if (scheduled <= now) {
-            const date = localDate(scheduled, row.time_zone);
-            await tx.execute(
-              insertJob(row.user_id, 'brief', `brief-${row.user_id}-${date}`, {
-                date,
-                scheduled: scheduled.toISOString(),
-                time: row.brief_time,
-                zone: row.time_zone,
-              }),
-            );
-          }
+        if (!row.brief_due_at) {
+          await this.setDue(
+            tx,
+            row,
+            nextBrief(now, row.brief_time, row.time_zone),
+          );
+          continue;
         }
-        await tx.execute(sql`update user_preferences
-          set brief_due_at = ${nextBrief(now, row.brief_time, row.time_zone).toISOString()}
-          where user_id = ${row.user_id}`);
+        const previousDue = new Date(row.brief_due_at);
+        const scheduled =
+          previousDue >= cutoff
+            ? previousDue
+            : nextBrief(
+                new Date(cutoff.getTime() - 1),
+                row.brief_time,
+                row.time_zone,
+              );
+        const stale = previousDue < cutoff;
+        if (scheduled > now) {
+          if (stale) missed++;
+          await this.setDue(tx, row, scheduled);
+          continue;
+        }
+        if (admit < 1) continue;
+        const date = localDate(scheduled, row.time_zone);
+        await tx.execute(
+          insertJob(row.user_id, 'brief', `brief-${row.user_id}-${date}`, {
+            date,
+            scheduled: scheduled.toISOString(),
+            time: row.brief_time,
+            zone: row.time_zone,
+          }),
+        );
+        await this.setDue(
+          tx,
+          row,
+          nextBrief(now, row.brief_time, row.time_zone),
+        );
+        if (stale) missed++;
+        admit--;
       }
       return missed;
     });
+  }
+
+  private async setDue(tx: Pick<Database, 'execute'>, row: Due, due: Date) {
+    await tx.execute(sql`update user_preferences
+      set brief_due_at = ${due.toISOString()}
+      where user_id = ${row.user_id}`);
   }
 
   async sweep() {

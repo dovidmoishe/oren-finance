@@ -32,7 +32,10 @@ export function notificationSettings(env = process.env) {
     enabled,
     briefs: enabled && env.MORNING_BRIEF_ENABLED === 'true',
     alerts,
-    /** Price alerts ignore the pilot allowlist. Morning briefs never do. */
+    /**
+     * Price alerts ignore pilotUsers when this is true. Morning briefs never
+     * consult pilotUsers: MORNING_BRIEF_ENABLED schedules every opted-in user.
+     */
     alertsPublic: env.PRICE_ALERTS_PUBLIC === 'true',
     alertMints,
     fixture,

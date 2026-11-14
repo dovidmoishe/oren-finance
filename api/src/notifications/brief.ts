@@ -56,7 +56,6 @@ export class MorningBrief {
     const prefs = await this.jobs.scheduleFor(job.user_id);
     if (
       !config.briefs ||
-      !config.pilotUsers.has(job.user_id) ||
       !prefs ||
       prefs.brief_time !== time ||
       prefs.time_zone !== zone ||

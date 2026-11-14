@@ -111,8 +111,10 @@ and reconcile them before any new grant.
    `oren_signer_gate`. Run `roles.sql` as the migration owner with psql variables
    `api_password` and `gate_password`. Do not place either on a command line or
    in a log. The provisioning workflow performs this step and stores the gate
-   role URL only in the private pending file. Re-run the grants after future
-   schema migrations.
+   role URL only in the private pending file. `roles.sql` also sets default
+   privileges so later tables created by this owner inherit runtime DML grants.
+   Ordinary app tables no longer need a manual re-run after migrations.
+   Sensitive MCP tables must still revoke in their own migration.
 3. Create `/opt/oren/.env.api` with the `oren_api_runtime` `POSTGRES_URL` and,
    when ready for the owner trial, only the API quorum key and gate URL/token.
    The later `.env.api` overrides `.env` in Compose. The API service blanks
