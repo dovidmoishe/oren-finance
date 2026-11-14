@@ -87,10 +87,10 @@ function PositionsTable({ positions, hidden }: { positions: PortfolioPosition[];
                     </span>
                   </Link>
                 </TableCell>
-                <TableCell className={cn(cell, "break-words text-end text-xs font-semibold tabular-nums sm:text-sm", change === undefined || change === 0 ? "text-muted" : change < 0 ? "text-[#be3545]" : "text-[#16734a]")}>
+                <TableCell className={cn(cell, "break-words text-end text-xs font-semibold font-money tabular-nums sm:text-sm", change === undefined || change === 0 ? "text-muted" : change < 0 ? "text-[#be3545]" : "text-[#16734a]")}>
                   {change === undefined ? "—" : formatPercent(change, locale, change !== 0)}
                 </TableCell>
-                <TableCell className={cn(cell, "break-words text-end text-xs font-semibold tabular-nums sm:text-sm")}>{privateValue(formatCurrency(position.valueUsd, locale))}</TableCell>
+                <TableCell className={cn(cell, "break-words text-end text-xs font-semibold font-money tabular-nums sm:text-sm")}>{privateValue(formatCurrency(position.valueUsd, locale))}</TableCell>
                 <TableCell className="p-0">
                   <button
                     aria-controls={target}
@@ -108,7 +108,7 @@ function PositionsTable({ positions, hidden }: { positions: PortfolioPosition[];
                 <td className="px-3.5 py-3.5" colSpan={4}>
                   <dl className="grid grid-cols-3 gap-2 text-xs">
                     {details.map(({ label, value }) => (
-                      <div className="min-w-0" key={label}><dt className="text-muted">{label}</dt><dd className="mt-1 break-words font-medium tabular-nums">{value}</dd></div>
+                      <div className="min-w-0" key={label}><dt className="text-muted">{label}</dt><dd className="mt-1 break-words font-medium font-money tabular-nums">{value}</dd></div>
                     ))}
                   </dl>
                 </td>
@@ -147,11 +147,11 @@ function RecentActivityTable({ activity, hidden }: { activity: PortfolioActivity
                 {(item.ticker || item.route) && <span className="block text-xs text-muted">{[item.ticker ? t(activityLabels[item.type]) : undefined, item.route].filter(Boolean).join(" · ")}</span>}
                 <span className="block text-xs text-muted @2xl:hidden">{timestamp}</span>
               </TableCell>
-              <TableCell className={cn(cell, desktopCell, "break-words text-end tabular-nums")}>
+              <TableCell className={cn(cell, desktopCell, "break-words text-end font-money tabular-nums")}>
                 {item.quantity === undefined ? "—" : hidden ? "••••••" : formatNumber(item.quantity, locale)}
               </TableCell>
               <TableCell className={cell}><span className="inline-block max-w-full break-words rounded-md bg-panel-subtle px-1.5 py-0.5 text-xs font-medium capitalize">{item.status ?? t("common.activitySeen")}</span></TableCell>
-              <TableCell className={cn(cell, "break-words text-end text-xs font-semibold tabular-nums sm:text-sm")}>
+              <TableCell className={cn(cell, "break-words text-end text-xs font-semibold font-money tabular-nums sm:text-sm")}>
                 {item.valueUsd === undefined ? "—" : hidden ? "••••••" : formatCurrency(item.valueUsd, locale)}
               </TableCell>
             </TableRow>

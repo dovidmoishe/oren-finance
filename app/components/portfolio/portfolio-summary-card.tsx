@@ -47,8 +47,8 @@ export function PortfolioAllocation({ portfolio, hidden }: { portfolio: Portfoli
                   <span aria-hidden="true" className={cn("size-2 shrink-0 rounded-full", color)} />
                   {label}
                 </span>
-                <span className="text-muted tabular-nums">{percent.format(value / portfolio.totalValueUsd)}</span>
-                <span className="text-end font-medium tabular-nums">{balance(value)}</span>
+                <span className="text-muted font-money tabular-nums">{percent.format(value / portfolio.totalValueUsd)}</span>
+                <span className="text-end font-medium font-money tabular-nums">{balance(value)}</span>
               </li>
             ))}
           </ul>
@@ -58,7 +58,7 @@ export function PortfolioAllocation({ portfolio, hidden }: { portfolio: Portfoli
         {metrics.map(({ label, value }) => (
           <div className="min-w-0" key={label}>
             <dt className="text-xs text-muted">{label}</dt>
-            <dd className="mt-1 break-words text-sm font-semibold tabular-nums">{balance(value)}</dd>
+            <dd className="mt-1 break-words text-sm font-semibold font-money tabular-nums">{balance(value)}</dd>
           </div>
         ))}
       </dl>
@@ -94,10 +94,10 @@ export function PortfolioSummaryCard({ portfolio, hidden, onToggleHidden, onDepo
               <InterfaceIcon aria-hidden="true" icon={hidden ? EyeOffIcon : EyeIcon} size={16} strokeWidth={1.7} />
             </button>
           </div>
-          <p className="break-words font-display mt-3 text-[clamp(1.85rem,5.6cqi,3.5rem)] leading-[1.1] font-medium tracking-[-0.06em] tabular-nums">{hidden ? masked : formatCurrency(portfolio.totalValueUsd, locale)}</p>
+          <p className="break-words mt-3 text-[clamp(1.85rem,5.6cqi,3.5rem)] leading-[1.1] font-semibold tracking-[-0.035em] font-money tabular-nums">{hidden ? masked : formatCurrency(portfolio.totalValueUsd, locale)}</p>
           {change !== undefined && (
             <p className="mt-4 flex flex-wrap items-baseline gap-x-2 text-xs text-muted @lg:text-sm">
-              <span className={cn("font-semibold tabular-nums", changeColor)}>{hidden ? masked : changeValue}</span>
+              <span className={cn("font-semibold font-money tabular-nums", changeColor)}>{hidden ? masked : changeValue}</span>
               <span>{t("portfolio.snapshotChange")}</span>
             </p>
           )}

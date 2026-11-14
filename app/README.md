@@ -20,6 +20,8 @@ You can start editing the page by modifying `app/page.tsx`. The page auto-update
 
 The web app self-hosts [Onest](https://fonts.google.com/specimen/Onest) via `@fontsource-variable/onest`. The shared sans and display tokens also supply chart typography. See [the font license](public/licenses/onest-OFL.txt).
 
+Balances, prices, and trade amounts use self-hosted Geist with tabular figures. See [the Geist font license](public/licenses/geist-OFL.txt).
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:

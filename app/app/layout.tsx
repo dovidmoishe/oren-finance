@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { NextIntlClientProvider } from "next-intl";
+import "@fontsource-variable/geist";
 import "@fontsource-variable/onest";
 import "./globals.css";
 import { ChunkLoadRecoveryGate } from "@/components/chunk-load-recovery";

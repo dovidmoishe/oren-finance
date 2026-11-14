@@ -172,12 +172,12 @@ function StockRow({ stock }: { stock: StockSummary }) {
           <span className="block truncate text-xs text-muted">{stock.ticker}</span>
         </div>
       </div>
-      <span className="text-end font-medium tabular-nums">{stock.priceUsd === undefined ? "—" : formatCurrency(stock.priceUsd, locale)}</span>
-      <span className={cn("text-end font-medium tabular-nums", change === undefined || change === 0 ? "text-muted" : change > 0 ? "text-[#16734a]" : "text-[#be3545]")}>
+      <span className="text-end font-medium font-money tabular-nums">{stock.priceUsd === undefined ? "—" : formatCurrency(stock.priceUsd, locale)}</span>
+      <span className={cn("text-end font-medium font-money tabular-nums", change === undefined || change === 0 ? "text-muted" : change > 0 ? "text-[#16734a]" : "text-[#be3545]")}>
         {change === undefined ? "—" : formatPercent(change, locale, change !== 0)}
       </span>
       <span className="hidden w-full max-w-28 justify-self-end @3xl:block"><Sparkline stock={stock} /></span>
-      <span className="hidden text-end text-muted tabular-nums @lg:block">{stock.liquidityUsd === undefined ? "—" : formatCompactCurrency(stock.liquidityUsd, locale)}</span>
+      <span className="hidden text-end text-muted font-money tabular-nums @lg:block">{stock.liquidityUsd === undefined ? "—" : formatCompactCurrency(stock.liquidityUsd, locale)}</span>
     </Link>
   );
 }

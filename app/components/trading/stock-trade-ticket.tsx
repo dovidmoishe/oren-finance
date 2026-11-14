@@ -81,7 +81,7 @@ function RouteRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-center justify-between gap-4 text-xs">
       <span className="text-muted">{label}</span>
-      <span className="text-right font-mono text-xs font-medium">{value}</span>
+      <span className="text-right font-money text-xs font-medium tabular-nums">{value}</span>
     </div>
   );
 }
@@ -498,7 +498,7 @@ export function StockTradeTicket({ stock, limitZones, onConfirmed }: StockTradeT
               <TokenBadge logoUrl={side === "buy" ? "/usdc.svg" : logoUrl} name={inputName} symbol={inputSymbol} tone={side === "buy" ? "cash" : "stock"} />
               <input
                 aria-label={t("ticket.amountLabel", { symbol: side === "buy" ? "USDC" : stock.ticker })}
-                className="min-w-0 flex-1 bg-transparent text-right font-display text-xl font-semibold outline-none placeholder:text-muted-2"
+                className="min-w-0 flex-1 bg-transparent text-right font-money! text-xl! font-semibold! tabular-nums! outline-none placeholder:text-muted-2"
                 inputMode="decimal"
                 onChange={(event) => handleAmountChange(event.target.value)}
                 placeholder="0"
@@ -518,7 +518,7 @@ export function StockTradeTicket({ stock, limitZones, onConfirmed }: StockTradeT
             </div>
             <div className="mt-1.5 flex items-center justify-between gap-3">
               <TokenBadge logoUrl={side === "buy" ? logoUrl : "/usdc.svg"} name={outputName} symbol={outputSymbol} tone={side === "buy" ? "stock" : "cash"} />
-              <p className="min-w-0 flex-1 truncate text-right font-display text-xl font-semibold">
+              <p className="min-w-0 flex-1 truncate text-right font-money text-xl font-semibold tabular-nums">
                 {orderMode === "limit"
                   ? amountIsValid && limitPriceIsValid
                     ? formatNumber(limitEstimatedReceive, locale, side === "buy" ? 4 : 2)
@@ -546,7 +546,7 @@ export function StockTradeTicket({ stock, limitZones, onConfirmed }: StockTradeT
               </div>
               <input
                 aria-label={t("ticket.limitPriceAria")}
-                className="mt-1.5 w-full bg-transparent font-display text-2xl font-semibold outline-none placeholder:text-muted-2"
+                className="mt-1.5 w-full bg-transparent font-money! text-2xl! font-semibold! tabular-nums! outline-none placeholder:text-muted-2"
                 inputMode="decimal"
                 onChange={(event) => setLimitPrice(event.target.value)}
                 placeholder="0.00"

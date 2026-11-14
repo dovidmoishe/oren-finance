@@ -277,7 +277,7 @@ export function MarketChart({
     <section className={cn("flex flex-col rounded-[24px] border border-border bg-panel shadow-[0_18px_60px_rgba(23,23,23,0.025)]", compact ? "p-3" : "p-[var(--app-card-padding,1.5rem)]", className)}>
       {showSummary && <div className="flex shrink-0 flex-wrap items-start justify-between gap-4">
         <div>
-          <p className={cn("font-display font-semibold tracking-normal", compact ? "text-3xl" : "text-6xl")}>{formatCurrency(value, locale)}</p>
+          <p className={cn("font-money font-semibold tabular-nums", compact ? "text-3xl" : "text-6xl")}>{formatCurrency(value, locale)}</p>
           <div className={cn("mt-1 flex items-center gap-3", compact ? "text-xs" : "text-sm")}>
             <span className={cn((changePct ?? 0) < 0 ? "text-negative" : "text-positive")}>
               {(changePct ?? 0) < 0 ? "▼" : "▲"} {formatPercent(changePct, locale)}
@@ -307,7 +307,7 @@ export function MarketChart({
                 className="pointer-events-none absolute rounded-[10px] border border-border bg-panel px-2.5 py-1.5 text-xs text-foreground shadow-sm"
                 style={{ left: Math.min(tooltip.x + 14, 340), top: Math.max(tooltip.y - 36, 0) }}
               >
-                <span className="font-medium">{tooltip.value}</span>
+                <span className="font-money font-medium tabular-nums">{tooltip.value}</span>
                 <span className="ml-2 text-muted">{tooltip.date}</span>
               </div>
             ) : null}
