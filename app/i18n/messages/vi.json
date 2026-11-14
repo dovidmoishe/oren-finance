@@ -1,4 +1,11 @@
 {
+  "settings": {
+    "intro": "Tài khoản, tùy chọn và các tác nhân đã kết nối ở cùng một nơi.",
+    "account": "Tài khoản",
+    "accountDetail": "Quản lý thông tin đăng nhập, ví và ngôn ngữ của bạn.",
+    "walletPending": "Không có ví đang hoạt động",
+    "signInDetail": "Đăng nhập để quản lý tài khoản."
+  },
   "marketForYou": {
     "title": "Dành cho bạn",
     "chooseDetail": "Chọn ngành để xem cổ phiếu phù hợp với sở thích của bạn.",

@@ -2,6 +2,7 @@
 
 import { useEffect, useLayoutEffect, useRef, useState, type FormEvent } from "react";
 import { useOrenAuth } from "@/components/auth/auth-context";
+import { RestoreActions, restoreBlocked } from "@/components/auth/restore-actions";
 import { Button } from "@/components/ui";
 import { useT } from "@/i18n/i18n";
 import { defaultPreferences, requestPreferences, type Preferences } from "@/services/preferences-service";
@@ -11,15 +12,17 @@ export function PreferencesSettings() {
   const auth = useOrenAuth();
   const t = useT();
   return (
-    <section className="mx-auto max-w-xl rounded-3xl border border-border bg-panel p-5 sm:p-7">
-      <h1 className="mb-5 font-display text-2xl font-semibold">{t("preferences.title")}</h1>
-      {!auth.ready ? (
-        <p role="status">{t("account.loading")}</p>
-      ) : auth.authenticated && auth.userId ? (
-        <PreferencesForm key={auth.userId} getAccessToken={auth.getAccessToken} />
-      ) : (
-        <Button type="button" variant="primary" disabled={!auth.configured} onClick={auth.open}>{t("account.signIn")}</Button>
-      )}
+    <section aria-labelledby="settings-preferences-title" className="space-y-5">
+      <div><h2 className="font-display text-xl font-semibold" id="settings-preferences-title">{t("preferences.title")}</h2><p className="mt-1 text-sm leading-6 text-muted">{t("preferences.followDetail")}</p></div>
+      <div className="rounded-2xl border border-border p-5 @lg:p-6">
+        {restoreBlocked(auth) ? <RestoreActions signInLabel={t("account.signIn")} /> : !auth.ready ? (
+          <p role="status">{t("account.loading")}</p>
+        ) : auth.authenticated && auth.userId ? (
+          <PreferencesForm key={auth.userId} getAccessToken={auth.getAccessToken} />
+        ) : (
+          <Button type="button" variant="primary" disabled={!auth.configured} onClick={auth.open}>{t("account.signIn")}</Button>
+        )}
+      </div>
     </section>
   );
 }

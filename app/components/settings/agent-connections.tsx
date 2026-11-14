@@ -2,13 +2,11 @@
 
 import { useEffect, useState } from "react";
 import {
-  ChevronLeft as ChevronLeftIcon,
   ArrowUpRight as ArrowUpRightIcon,
   Link as LinkIcon,
   Shield as ShieldIcon,
 } from "lucide-react";
 
-import Link from "next/link";
 import { useOrenAuth } from "@/components/auth/auth-context";
 import { Button, formatDate } from "@/components/ui";
 import { mcpApiOrigin } from "@/services/mcp-api-origin";
@@ -86,12 +84,11 @@ function ConnectionsContent({ connectionUid }: { connectionUid?: string }) {
   }
 
   return (
-    <div className="mx-auto max-w-4xl pb-16 pt-3 sm:pt-7">
-      <Link href="/app" className="inline-flex items-center gap-1.5 text-sm text-muted hover:text-foreground"><ChevronLeftIcon size={16} aria-hidden="true" /> {t("connections.back")}</Link>
-      <div className="mb-8 mt-7 flex flex-wrap items-start justify-between gap-5">
+    <section aria-labelledby="settings-connections-title">
+      <div className="mb-5 flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="font-display text-3xl font-semibold tracking-tight sm:text-4xl">{t("connections.title")}</h1>
-          <p className="mt-3 max-w-lg text-sm leading-relaxed text-muted">{t("connections.intro")}</p>
+          <h2 className="font-display text-xl font-semibold" id="settings-connections-title">{t("connections.title")}</h2>
+          <p className="mt-1 max-w-lg text-sm leading-6 text-muted">{t("connections.intro")}</p>
         </div>
         <Button href="/agents" size="sm">{t("connections.connect")} <ArrowUpRightIcon size={15} aria-hidden="true" /></Button>
       </div>
@@ -146,6 +143,6 @@ function ConnectionsContent({ connectionUid }: { connectionUid?: string }) {
           <p className="mt-5 flex items-start gap-2 px-1 text-xs leading-relaxed text-muted"><ShieldIcon className="mt-0.5 shrink-0" size={15} aria-hidden="true" />{t("connections.separateNote")}</p>
         </>
       )}
-    </div>
+    </section>
   );
 }

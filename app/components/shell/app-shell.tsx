@@ -31,7 +31,7 @@ const DepositModal = dynamic(() => import("@/components/portfolio/deposit-dashbo
 
 const portfolio = { href: "/app", label: "nav.portfolio", icon: "portfolio" } as const;
 const markets = { href: "/app/markets", label: "nav.markets", icon: "markets" } as const;
-const settings = { href: "/app/settings/connections", label: "nav.settings", icon: "settings" } as const;
+const settings = { href: "/app/settings", label: "nav.settings", icon: "settings" } as const;
 const navigation: { href: string; label: MessageKey; icon: NavigationIconName }[] = [
   portfolio,
   markets,

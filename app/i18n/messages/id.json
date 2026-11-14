@@ -1,4 +1,11 @@
 {
+  "settings": {
+    "intro": "Akun, preferensi, dan agen terhubung Anda di satu tempat.",
+    "account": "Akun",
+    "accountDetail": "Kelola detail masuk, dompet, dan bahasa Anda.",
+    "walletPending": "Tidak ada dompet aktif",
+    "signInDetail": "Masuk untuk mengelola akun Anda."
+  },
   "marketForYou": {
     "title": "Untuk Anda",
     "chooseDetail": "Pilih sektor untuk melihat saham yang sesuai dengan minat Anda.",

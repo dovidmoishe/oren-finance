@@ -1,4 +1,11 @@
 {
+  "settings": {
+    "intro": "在一处管理账户、偏好设置和已连接的智能体。",
+    "account": "账户",
+    "accountDetail": "管理登录信息、钱包和语言。",
+    "walletPending": "没有可用钱包",
+    "signInDetail": "登录以管理账户。"
+  },
   "marketForYou": {
     "title": "为你推荐",
     "chooseDetail": "选择行业，查看与你兴趣匹配的股票。",

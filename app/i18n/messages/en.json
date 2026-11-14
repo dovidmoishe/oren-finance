@@ -1,4 +1,11 @@
 {
+  "settings": {
+    "intro": "Your account, preferences, and connected agents in one place.",
+    "account": "Account",
+    "accountDetail": "Manage your sign-in details, wallet, and language.",
+    "walletPending": "No active wallet",
+    "signInDetail": "Sign in to manage your account."
+  },
   "marketForYou": {
     "title": "For You",
     "chooseDetail": "Choose sectors to see stocks that match your interests.",

@@ -1,4 +1,11 @@
 {
+  "settings": {
+    "intro": "Dein Konto, deine Einstellungen und verbundenen Agenten an einem Ort.",
+    "account": "Konto",
+    "accountDetail": "Verwalte deine Anmeldedaten, Wallet und Sprache.",
+    "walletPending": "Keine aktive Wallet",
+    "signInDetail": "Melde dich an, um dein Konto zu verwalten."
+  },
   "marketForYou": {
     "title": "Für Sie",
     "chooseDetail": "Wählen Sie Branchen aus, um passende Aktien zu entdecken.",

@@ -1,4 +1,11 @@
 {
+  "settings": {
+    "intro": "在同一處管理帳戶、偏好設定及已連結的代理。",
+    "account": "帳戶",
+    "accountDetail": "管理登入資訊、錢包及語言。",
+    "walletPending": "沒有可用錢包",
+    "signInDetail": "登入以管理帳戶。"
+  },
   "marketForYou": {
     "title": "為你推薦",
     "chooseDetail": "選擇產業，查看符合你興趣的股票。",

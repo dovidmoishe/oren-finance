@@ -1,4 +1,11 @@
 {
+  "settings": {
+    "intro": "Votre compte, vos préférences et vos agents connectés au même endroit.",
+    "account": "Compte",
+    "accountDetail": "Gérez vos informations de connexion, votre portefeuille et votre langue.",
+    "walletPending": "Aucun portefeuille actif",
+    "signInDetail": "Connectez-vous pour gérer votre compte."
+  },
   "marketForYou": {
     "title": "Pour vous",
     "chooseDetail": "Choisissez des secteurs pour découvrir des actions qui vous intéressent.",

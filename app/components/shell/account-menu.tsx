@@ -3,7 +3,6 @@ import {
   ArrowDownLeft as ArrowDownLeftIcon,
   ArrowUpRight as ArrowUpRightIcon,
   Headset as HeadsetIcon,
-  Link as LinkIcon,
   LogOut as LogOutIcon,
   Settings as SettingsIcon,
 } from "lucide-react";
@@ -44,8 +43,7 @@ export function AccountMenu() {
         <div className="min-w-0"><p className="font-semibold">{t("account.yourAccount")}</p><p className="mt-1 truncate text-sm text-muted">{auth.email || t("account.signedIn")}</p></div>
       </div>
       <div aria-label={t("account.actions")} className="p-2">
-        <Link className="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-sm font-medium hover:bg-background focus-visible:outline-2" href="/app/settings/preferences" onClick={close}><SettingsIcon size={20} strokeWidth={1.5} aria-hidden="true" /> {t("preferences.title")}</Link>
-        <Link className="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-sm font-medium hover:bg-background focus-visible:outline-2" href="/app/settings/connections" onClick={close}><LinkIcon size={20} strokeWidth={1.5} aria-hidden="true" /> {t("account.agentConnections")}</Link>
+        <Link className="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-sm font-medium hover:bg-background focus-visible:outline-2" href="/app/settings" onClick={close}><SettingsIcon size={20} strokeWidth={1.5} aria-hidden="true" /> {t("nav.settings")}</Link>
         <button className="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-sm font-medium hover:bg-background focus-visible:outline-2" type="button" onClick={() => { close(); setWithdrawOpen(true); }}><ArrowUpRightIcon size={20} strokeWidth={1.5} aria-hidden="true" /> {t("account.transfer")}</button>
         <button className="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-sm font-medium hover:bg-background focus-visible:outline-2" onClick={() => { close(); auth.openDeposit(); }} type="button"><ArrowDownLeftIcon size={20} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className="inline-block shrink-0 align-middle" /> {t("account.deposit")}</button>
         <button className="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-sm font-medium hover:bg-background focus-visible:outline-2" onClick={() => { close(); setFeedbackOpen(true); }} type="button"><HeadsetIcon size={20} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className="inline-block shrink-0 align-middle" /> {t("account.helpFeedback")}</button>

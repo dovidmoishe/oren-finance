@@ -1,4 +1,11 @@
 {
+  "settings": {
+    "intro": "Sua conta, preferências e agentes conectados em um só lugar.",
+    "account": "Conta",
+    "accountDetail": "Gerencie seus dados de acesso, carteira e idioma.",
+    "walletPending": "Nenhuma carteira ativa",
+    "signInDetail": "Entre para gerenciar sua conta."
+  },
   "marketForYou": {
     "title": "Para você",
     "chooseDetail": "Escolha setores para ver ações que combinam com seus interesses.",
