@@ -21,9 +21,12 @@ export function notificationSettings(env = process.env) {
       .map((mint) => mint.trim())
       .filter((mint) => /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(mint)),
   );
+  // "*" allows every tradable catalog variant. Use it only once the feed's
+  // freshness and request budget are verified for the whole catalog.
+  const alertAllMints = (env.NOTIFICATION_ALERT_MINTS ?? '').trim() === '*';
   const alerts =
     enabled &&
-    alertMints.size > 0 &&
+    (alertMints.size > 0 || alertAllMints) &&
     positive(env.NOTIFICATION_TOKENS_PER_MINUTE) > 0 &&
     positive(env.NOTIFICATION_EMAIL_PER_MINUTE) > 0 &&
     env.PRICE_ALERTS_ENABLED === 'true' &&
@@ -38,6 +41,10 @@ export function notificationSettings(env = process.env) {
      */
     alertsPublic: env.PRICE_ALERTS_PUBLIC === 'true',
     alertMints,
+    alertAllMints,
+    // The last trade may be this old before a quote is ignored. Default 2 min.
+    quoteMaxTradeAgeMs:
+      (positive(env.NOTIFICATION_QUOTE_MAX_TRADE_AGE_SECONDS) || 120) * 1000,
     fixture,
     fixtureRecipient,
     origin,
@@ -53,6 +60,13 @@ export function notificationSettings(env = process.env) {
         .filter(Boolean),
     ),
   };
+}
+
+export function alertMintAllowed(
+  mint: string,
+  config = notificationSettings(),
+) {
+  return config.alertAllMints || config.alertMints.has(mint);
 }
 
 export function alertUserAllowed(

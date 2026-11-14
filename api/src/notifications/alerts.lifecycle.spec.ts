@@ -208,4 +208,61 @@ run('price alert life cycle with disposable Postgres', () => {
       delete process.env.PRICE_ALERTS_PUBLIC;
     }
   }, 60000);
+
+  it('offers and fires alerts on any stock, even with expired catalog rows and a quiet market', async () => {
+    const other = 'So11111111111111111111111111111111111111112';
+    await client`truncate price_alerts, notification_jobs, notification_budgets, price_poll_cursor`;
+    await client`delete from cached_stocks where asset_id = 'thin'`;
+    await client`update cached_stocks set expires_at = now() - interval '2 hours'`;
+    await client.unsafe(`insert into cached_stocks values
+      ('thin','THIN','equity',now()-interval '2 hours','[{"mint":"${other}","symbol":"THINx"}]'::jsonb)`);
+    // Last trades five minutes old: ignored by default, accepted with a 10 minute window.
+    const quiet = {
+      getMarketSnapshots: jest.fn((mints: string[]) =>
+        Promise.resolve(
+          mints.map((m) => ({
+            mint: m,
+            price,
+            providerFetchedAt: Date.now() - 1000,
+            lastTradeAt: Date.now() - 300000,
+          })),
+        ),
+      ),
+    } as unknown as TokensService;
+    const anyStock = new PriceAlerts(jobs.db, jobs, quiet);
+    const anyPolling = new PricePolling(jobs, quiet);
+    process.env.NOTIFICATION_ALERT_MINTS = '*';
+    process.env.NOTIFICATION_QUOTE_MAX_TRADE_AGE_SECONDS = '600';
+    try {
+      price = 100;
+      for (const [assetId, m] of [
+        ['nvda', mint],
+        ['thin', other],
+      ]) {
+        const list = await anyStock.list(user, true, assetId);
+        expect(list).toMatchObject({ enabled: true, variants: [m] });
+        await anyStock.create(user, true, {
+          assetId,
+          mint: m,
+          direction: 'above',
+          target: '120',
+        });
+      }
+      await client`update price_alerts set created_at = now() - interval '1 day',
+        quote_at = now() - interval '6 hours', quote_price = 100`;
+      price = 130;
+      await client`truncate notification_budgets, price_poll_cursor`;
+      await anyPolling.scan();
+      const states = await client<
+        { state: string }[]
+      >`select state from price_alerts`;
+      expect(states.map((r) => r.state)).toEqual(['triggered', 'triggered']);
+      expect(await client`select 1 from notification_jobs`).toHaveLength(2);
+    } finally {
+      process.env.NOTIFICATION_ALERT_MINTS = mint;
+      delete process.env.NOTIFICATION_QUOTE_MAX_TRADE_AGE_SECONDS;
+      await client`delete from cached_stocks where asset_id = 'thin'`;
+      await client`update cached_stocks set expires_at = now() + interval '1 hour'`;
+    }
+  }, 60000);
 });
