@@ -947,6 +947,10 @@
     "review": "Tinjau izin"
   },
   "agent": {
+    "contextGeneral": "Percakapan umum",
+    "usePageContext": "Gunakan konteks halaman",
+    "viewContextHint": "Pesan berikutnya menyertakan halaman yang Anda lihat. Oren mengambil data terbaru saat diperlukan.",
+    "generalContextBody": "Pesan baru tidak menyertakan halaman yang Anda lihat. Pesan sebelumnya tetap ada dalam percakapan ini.",
     "resize": "Ubah ukuran obrolan Oren",
     "ask": "Tanya Oren",
     "proposes": "Oren mengusulkan. Dompet Anda menyetujui.",

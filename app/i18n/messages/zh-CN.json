@@ -947,6 +947,10 @@
     "review": "查看权限"
   },
   "agent": {
+    "contextGeneral": "常规对话",
+    "usePageContext": "使用页面上下文",
+    "viewContextHint": "下一条消息会包含你正在浏览的页面。Oren 会按需获取最新数据。",
+    "generalContextBody": "新消息不会包含你正在浏览的页面。先前的消息仍保留在此对话中。",
     "resize": "调整 Oren 聊天面板大小",
     "ask": "询问 Oren",
     "proposes": "Oren 提议，你的钱包批准。",

@@ -947,6 +947,10 @@
     "review": "Review permission"
   },
   "agent": {
+    "contextGeneral": "General conversation",
+    "usePageContext": "Use page context",
+    "viewContextHint": "Your next message includes the page you are viewing. Oren fetches live data when needed.",
+    "generalContextBody": "New messages do not include the page you are viewing. Earlier messages remain in this conversation.",
     "resize": "Resize Oren chat",
     "ask": "Ask Oren",
     "proposes": "Oren proposes. Your wallet approves.",

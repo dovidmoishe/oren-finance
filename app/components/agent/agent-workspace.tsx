@@ -20,7 +20,7 @@ export function AgentContextCard({
   ticker,
   className,
 }: {
-  context: AgentPageContext;
+  context?: AgentPageContext;
   ticker?: string;
   className?: string;
 }) {
@@ -35,7 +35,7 @@ export function AgentContextCard({
       <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">{t("agent.pageContext")}</p>
       <p className="mt-2 font-display text-xl font-semibold">{t(...contextLabelKey(context, ticker))}</p>
       <p className="mt-2 text-sm leading-6 text-muted">
-        {t("agent.pageContextBody")}
+        {t(context ? "agent.pageContextBody" : "agent.generalContextBody")}
       </p>
     </section>
   );
@@ -51,7 +51,7 @@ export function AgentArtifactRail({
   onNavigate,
 }: {
   artifacts: AgentArtifact[];
-  context: AgentPageContext;
+  context?: AgentPageContext;
   ticker?: string;
   onReviewQuote: (quote: QuoteResponse) => void;
   onReviewBasket: (basket: BasketResponse) => void;
@@ -117,7 +117,7 @@ export function AgentWorkspace({
   messages: AgentDisplayMessage[];
   prompts: string[];
   error?: string;
-  context: AgentPageContext;
+  context?: AgentPageContext;
   ticker?: string;
   railArtifacts: AgentArtifact[];
   composer: string;

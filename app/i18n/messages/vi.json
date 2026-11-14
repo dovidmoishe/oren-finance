@@ -947,6 +947,10 @@
     "review": "Xem xét quyền"
   },
   "agent": {
+    "contextGeneral": "Trò chuyện chung",
+    "usePageContext": "Dùng ngữ cảnh trang",
+    "viewContextHint": "Tin nhắn tiếp theo bao gồm trang bạn đang xem. Oren lấy dữ liệu mới khi cần.",
+    "generalContextBody": "Tin nhắn mới không bao gồm trang bạn đang xem. Các tin nhắn trước vẫn còn trong cuộc trò chuyện này.",
     "resize": "Đổi kích thước cuộc trò chuyện Oren",
     "ask": "Hỏi Oren",
     "proposes": "Oren đề xuất. Ví của bạn phê duyệt.",

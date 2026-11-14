@@ -947,6 +947,10 @@
     "review": "檢視權限"
   },
   "agent": {
+    "contextGeneral": "一般對話",
+    "usePageContext": "使用頁面情境",
+    "viewContextHint": "下一則訊息會包含你正在瀏覽的頁面。Oren 會視需要取得最新資料。",
+    "generalContextBody": "新訊息不會包含你正在瀏覽的頁面。先前的訊息仍保留在此對話中。",
     "resize": "調整 Oren 聊天面板大小",
     "ask": "詢問 Oren",
     "proposes": "Oren 提議，你的錢包核准。",

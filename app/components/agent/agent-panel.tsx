@@ -24,7 +24,8 @@ import {
   AgentConversationThread,
   ConversationHistory,
 } from './agent-conversation';
-import { contextLabelKey, pageContext, promptSuggestions } from './agent-utils';
+import { contextTicker, pageContext, promptSuggestions } from './agent-utils';
+import { AgentViewContext } from './agent-view-context';
 import { AgentWorkspace, latestAssistantArtifacts } from './agent-workspace';
 import { useT } from "@/i18n/i18n";
 
@@ -72,6 +73,7 @@ export function AgentPanel() {
   const retry = useAgentStore((state) => state.retry);
   const [composer, setComposer] = useState('');
   const [showHistory, setShowHistory] = useState(false);
+  const [usePageContext, setUsePageContext] = useState(true);
   const [reviewQuote, setReviewQuote] = useState<QuoteResponse>();
   const [reviewBasket, setReviewBasket] = useState<BasketResponse>();
   const [reviewLimitOrder, setReviewLimitOrder] = useState<LimitOrderProposal>();
@@ -83,9 +85,11 @@ export function AgentPanel() {
   const reviewOriginRef = useRef<HTMLElement | null>(null);
   const shouldFollowRef = useRef(true);
   const context = useMemo(() => pageContext(pathname), [pathname]);
+  const activeContext = usePageContext ? context : undefined;
+  const ticker = contextTicker(activeContext, selectedStock);
   const prompts = useMemo(
-    () => promptSuggestions(context, selectedStock?.ticker),
-    [context, selectedStock?.ticker],
+    () => promptSuggestions(activeContext, ticker),
+    [activeContext, ticker],
   );
   const railArtifacts = useMemo(() => latestAssistantArtifacts(messages), [messages]);
   const logoState = useMemo((): OrenLogoState => {
@@ -181,7 +185,7 @@ export function AgentPanel() {
     if (!walletAddress || !value.trim()) return;
     setComposer('');
     shouldFollowRef.current = true;
-    await sendMessage(value, walletAddress, context);
+    await sendMessage(value, walletAddress, activeContext);
   };
 
   const openQuoteReview = (quote: QuoteResponse) => {
@@ -233,11 +237,6 @@ export function AgentPanel() {
               <div className="flex flex-wrap items-center gap-2">
                 <h2 className="truncate font-display font-semibold">Oren</h2>
                 {isSending ? <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-positive" /> : null}
-                {expanded ? (
-                  <span className="hidden rounded-full bg-panel-subtle px-2.5 py-1 text-[10px] font-semibold text-muted lg:inline">
-                    {t(...contextLabelKey(context, selectedStock?.ticker))}
-                  </span>
-                ) : null}
               </div>
               <p className="truncate text-xs text-muted">
                 {isSending ? t("agent.working") : t("agent.tagline")}
@@ -282,6 +281,8 @@ export function AgentPanel() {
           </div>
         </header>
 
+        <AgentViewContext context={context} enabled={usePageContext} onToggle={() => setUsePageContext((value) => !value)} ticker={ticker} />
+
         {showHistory ? (
           <ConversationHistory
             activeThreadId={threadId}
@@ -299,7 +300,7 @@ export function AgentPanel() {
             composer={composer}
             composerRef={composerRef}
             connected={connected}
-            context={context}
+            context={activeContext}
             error={error}
             isLoadingHistory={isLoadingHistory}
             isSending={isSending}
@@ -318,7 +319,7 @@ export function AgentPanel() {
             railArtifacts={railArtifacts}
             scrollRef={scrollRef}
             shouldFollowRef={shouldFollowRef}
-            ticker={selectedStock?.ticker}
+            ticker={ticker}
           />
         ) : (
           <>
