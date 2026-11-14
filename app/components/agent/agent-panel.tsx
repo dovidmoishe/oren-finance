@@ -25,7 +25,6 @@ import {
   ConversationHistory,
 } from './agent-conversation';
 import { contextTicker, pageContext, promptSuggestions } from './agent-utils';
-import { AgentViewContext } from './agent-view-context';
 import { AgentWorkspace, latestAssistantArtifacts } from './agent-workspace';
 import { useT } from "@/i18n/i18n";
 
@@ -73,7 +72,6 @@ export function AgentPanel() {
   const retry = useAgentStore((state) => state.retry);
   const [composer, setComposer] = useState('');
   const [showHistory, setShowHistory] = useState(false);
-  const [usePageContext, setUsePageContext] = useState(true);
   const [reviewQuote, setReviewQuote] = useState<QuoteResponse>();
   const [reviewBasket, setReviewBasket] = useState<BasketResponse>();
   const [reviewLimitOrder, setReviewLimitOrder] = useState<LimitOrderProposal>();
@@ -85,11 +83,10 @@ export function AgentPanel() {
   const reviewOriginRef = useRef<HTMLElement | null>(null);
   const shouldFollowRef = useRef(true);
   const context = useMemo(() => pageContext(pathname), [pathname]);
-  const activeContext = usePageContext ? context : undefined;
-  const ticker = contextTicker(activeContext, selectedStock);
+  const ticker = contextTicker(context, selectedStock);
   const prompts = useMemo(
-    () => promptSuggestions(activeContext, ticker),
-    [activeContext, ticker],
+    () => promptSuggestions(context, ticker),
+    [context, ticker],
   );
   const railArtifacts = useMemo(() => latestAssistantArtifacts(messages), [messages]);
   const logoState = useMemo((): OrenLogoState => {
@@ -185,7 +182,7 @@ export function AgentPanel() {
     if (!walletAddress || !value.trim()) return;
     setComposer('');
     shouldFollowRef.current = true;
-    await sendMessage(value, walletAddress, activeContext);
+    await sendMessage(value, walletAddress, context);
   };
 
   const openQuoteReview = (quote: QuoteResponse) => {
@@ -281,8 +278,6 @@ export function AgentPanel() {
           </div>
         </header>
 
-        <AgentViewContext context={context} enabled={usePageContext} onToggle={() => setUsePageContext((value) => !value)} ticker={ticker} />
-
         {showHistory ? (
           <ConversationHistory
             activeThreadId={threadId}
@@ -300,7 +295,7 @@ export function AgentPanel() {
             composer={composer}
             composerRef={composerRef}
             connected={connected}
-            context={activeContext}
+            context={context}
             error={error}
             isLoadingHistory={isLoadingHistory}
             isSending={isSending}

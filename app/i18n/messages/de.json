@@ -955,8 +955,6 @@
   },
   "agent": {
     "contextGeneral": "Allgemeines Gespräch",
-    "usePageContext": "Seitenkontext verwenden",
-    "viewContextHint": "Deine nächste Nachricht enthält die aktuell geöffnete Seite. Oren ruft bei Bedarf aktuelle Daten ab.",
     "generalContextBody": "Neue Nachrichten enthalten die aktuell geöffnete Seite nicht. Frühere Nachrichten bleiben in diesem Gespräch.",
     "resize": "Größe des Oren-Chats ändern",
     "ask": "Oren fragen",

@@ -955,8 +955,6 @@
   },
   "agent": {
     "contextGeneral": "Conversation générale",
-    "usePageContext": "Utiliser le contexte de la page",
-    "viewContextHint": "Votre prochain message inclut la page consultée. Oren récupère les données à jour si nécessaire.",
     "generalContextBody": "Les nouveaux messages ne contiennent pas la page consultée. Les messages précédents restent dans cette conversation.",
     "resize": "Redimensionner le chat Oren",
     "ask": "Demander à Oren",

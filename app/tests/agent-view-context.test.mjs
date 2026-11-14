@@ -66,7 +66,6 @@ function panelFixture() {
     '@/components/ui/interface-icon': {}, '@/components/brand/oren-logo': { OrenLogo: 'logo' },
     '@/store': { useAgentStore: select => select(state), useStockStore: select => select(stock), usePortfolioStore: select => select({}) },
     './agent-utils': utils,
-    './agent-view-context': { AgentViewContext: 'view-context' },
     './agent-action-review': { AgentActionReview: 'review' },
     './agent-conversation': { AgentConversationThread: 'conversation', AgentComposer: 'composer', ConversationHistory: 'history' },
     './agent-workspace': { AgentWorkspace: 'workspace', latestAssistantArtifacts: () => [] },
@@ -74,32 +73,30 @@ function panelFixture() {
   return { requests, state, stock, navigate: value => { pathname = value; }, render() { cursor = 0; return AgentPanel(); } };
 }
 
-test('docked and expanded copilot submit the current page and respect the context switch', async () => {
+test('docked and expanded copilot automatically submit the current page across navigation', async () => {
   const f = panelFixture();
   let tree = f.render();
-  assert.equal(find(tree, 'view-context').props.ticker, 'AAPL');
+  assert.ok(find(tree, 'conversation').props.prompts.some(prompt => prompt.includes('AAPL')));
   await find(tree, 'conversation').props.onPrompt('Explain this stock');
   assert.equal(f.requests.at(-1)[2].assetId, 'aapl');
 
   f.navigate('/app/stocks/nvda');
   tree = f.render();
-  assert.equal(find(tree, 'view-context').props.ticker, undefined);
   assert.ok(find(tree, 'conversation').props.prompts.every(prompt => !prompt.includes('AAPL')));
   await find(tree, 'conversation').props.onPrompt('What about this one?');
   assert.equal(f.requests.at(-1)[2].assetId, 'nvda');
   assert.equal(f.requests[0][2].assetId, 'aapl');
 
-  find(tree, 'view-context').props.onToggle();
   f.state.expanded = true;
   tree = f.render();
-  assert.equal(find(tree, 'workspace').props.context, undefined);
-  await find(tree, 'workspace').props.onPrompt('General question');
-  assert.equal(f.requests.at(-1)[2], undefined);
+  assert.equal(find(tree, 'workspace').props.context.assetId, 'nvda');
+  assert.equal(find(tree, 'workspace').props.ticker, undefined);
+  await find(tree, 'workspace').props.onPrompt('Analyze this stock');
+  assert.equal(f.requests.at(-1)[2].assetId, 'nvda');
 
-  find(tree, 'view-context').props.onToggle();
   f.navigate('/app/settings/connections');
   tree = f.render();
-  assert.equal(find(tree, 'view-context').props.context, undefined);
+  assert.equal(find(tree, 'workspace').props.context, undefined);
   await find(tree, 'workspace').props.onPrompt('Help me');
   assert.equal(f.requests.at(-1)[2], undefined);
 });
