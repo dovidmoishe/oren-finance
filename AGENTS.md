@@ -55,4 +55,6 @@ See **Active phase** at the top of [`docs/api-build-board.md`](docs/api-build-bo
 
 - For product launch films and motion design in the Oren Drip style, use [the Continuous Product Motion skill](.agents/skills/continuous-product-motion/SKILL.md). It includes camera, UI, pacing, audio and delivery guidance plus a bundled visual benchmark.
 
+- For social graphics and Codex image prompts in the approved Oren style, use [the brand graphics skill](.agents/skills/brand-graphics/SKILL.md). The style guide is [brand.md](.agents/skills/brand-graphics/brand.md), with the approved example beside it.
+
 - Next.js rules for `app/` may also appear in [`app/AGENTS.md`](app/AGENTS.md). Follow both: root board + app Next guidance.
