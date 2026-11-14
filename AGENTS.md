@@ -49,7 +49,7 @@ See **Active phase** at the top of [`docs/api-build-board.md`](docs/api-build-bo
 
 - Use Tailwind CSS v4 utilities in JSX for first-party web and docs styling. Reuse Tailwind theme tokens and use responsive, state, and accessibility variants for conditional styles. Do not add CSS Modules, standalone vanilla CSS, or static inline styles. Keep custom CSS in the Tailwind entry points or their imports only when necessary, such as keyframes, browser-specific behavior, and third-party integration overrides. Use inline styles for values computed at runtime when classes cannot represent them.
 
-- Use named icons from `lucide-react` for general interface icons. Sidebar icons use the shared `AnimatedIcons` components with `motion/react`, hover and keyboard-focus feedback, and reduced-motion support. Preserve original brand logos, product illustrations and data charts as their own visuals.
+- Use named icons from `lucide-react` for interface icons across the website, including arrows, controls, status indicators, and social links. Use Lucide React instead of Hugeicons for new or updated interface icons. Sidebar icons use the shared `AnimatedIcons` components with `motion/react`, hover and keyboard-focus feedback, and reduced-motion support. Preserve original brand logos, product illustrations and data charts as their own visuals.
 
 - For release notes and changelog publishing, use [the Oren changelog skill](.agents/skills/oren-changelog/SKILL.md). Entries live in `app/content/changelog/`; films follow the existing separately deployed media workflow.
 
