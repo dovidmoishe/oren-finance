@@ -126,7 +126,7 @@ export function MarketChart({
 }: MarketChartProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
-  const seriesRef = useRef<ISeriesApi<"Line" | "Candlestick", Time> | null>(null);
+  const seriesRef = useRef<ISeriesApi<"Area" | "Candlestick", Time> | null>(null);
   const [tooltip, setTooltip] = useState<{ x: number; y: number; value: string; date: string } | null>(null);
   const [libraryFailed, setLibraryFailed] = useState(false);
   const canUseCandles = candleData.length > 0;
@@ -145,30 +145,30 @@ export function MarketChart({
 
     let disposed = false;
     let dispose: (() => void) | undefined;
-    void loadChartLibrary().then(({ CandlestickSeries, ColorType, CrosshairMode, LineSeries, LineStyle, createChart }) => {
+    void loadChartLibrary().then(({ AreaSeries, CandlestickSeries, ColorType, CrosshairMode, LineType, LineStyle, createChart, createSeriesMarkers }) => {
       if (disposed) return;
       setLibraryFailed(false);
       const chart = createChart(container, {
         autoSize: true,
         layout: {
           background: { color: "transparent", type: ColorType.Solid },
-          textColor: "#b7b7b0",
+          textColor: "#85857e",
           fontFamily: getComputedStyle(container).getPropertyValue("--font-oren-sans").trim(),
         },
         grid: {
-          horzLines: { color: "#eeeeea", style: LineStyle.Dotted },
-          vertLines: { color: "#f5f5f2", style: LineStyle.Dotted },
+          horzLines: { color: "#e7e7e2", style: LineStyle.Dotted },
+          vertLines: { visible: false },
         },
         rightPriceScale: {
           borderVisible: false,
           entireTextOnly: true,
-          scaleMargins: { top: 0.08, bottom: 0.08 },
+          scaleMargins: { top: 0.14, bottom: 0.12 },
         },
         timeScale: {
           borderVisible: false,
-          timeVisible: true,
+          timeVisible: activeRange === "24H",
           secondsVisible: false,
-          rightOffset: 4,
+          rightOffsetPixels: 16,
           barSpacing: 8,
         },
         crosshair: {
@@ -194,15 +194,29 @@ export function MarketChart({
         series.setData(candleSeriesData);
         seriesRef.current = series;
       } else {
-        const series = chart.addSeries(LineSeries, {
-          color: "#65625d",
+        const series = chart.addSeries(AreaSeries, {
+          lineColor: "#353531",
           lineWidth: 2,
+          lineType: LineType.Curved,
+          topColor: "rgba(92, 89, 108, 0.18)",
+          bottomColor: "rgba(92, 89, 108, 0)",
           lastValueVisible: false,
-          priceLineVisible: true,
-          priceLineColor: "#c9c9c2",
-          priceLineStyle: LineStyle.Dashed,
+          priceLineVisible: false,
+          crosshairMarkerRadius: 5,
+          crosshairMarkerBackgroundColor: "#353531",
+          crosshairMarkerBorderColor: "#ffffff",
+          crosshairMarkerBorderWidth: 2,
         });
         series.setData(lineSeriesData);
+        const latest = lineSeriesData.at(-1);
+        if (latest) createSeriesMarkers(series, [{
+          time: latest.time,
+          position: "atPriceMiddle",
+          price: latest.value,
+          shape: "circle",
+          color: "#353531",
+          size: 0.55,
+        }], { autoScale: false });
         seriesRef.current = series;
       }
 
@@ -257,7 +271,7 @@ export function MarketChart({
       disposed = true;
       dispose?.();
     };
-  }, [candleSeriesData, effectiveMode, error, hasData, lineSeriesData, loading, locale, timeZone]);
+  }, [activeRange, candleSeriesData, effectiveMode, error, hasData, lineSeriesData, loading, locale, timeZone]);
 
   return (
     <section className={cn("flex flex-col rounded-[24px] border border-border bg-panel shadow-[0_18px_60px_rgba(23,23,23,0.025)]", compact ? "p-3" : "p-[var(--app-card-padding,1.5rem)]", className)}>
@@ -273,7 +287,7 @@ export function MarketChart({
         </div>
       </div>}
 
-      <div className={cn("relative", compact ? "mt-3 h-[180px] min-h-[160px] flex-1 sm:h-[200px] sm:min-h-[180px]" : "mt-[var(--app-chart-gap,2rem)] h-[var(--app-chart-height,430px)] min-h-[var(--app-chart-min-height,340px)]")}>
+      <div className={cn("relative", compact ? "mt-4 h-[220px] min-h-[200px] flex-1 sm:h-[260px] sm:min-h-[240px]" : "mt-[var(--app-chart-gap,2rem)] h-[var(--app-chart-height,430px)] min-h-[var(--app-chart-min-height,340px)]")}>
         {loading ? (
           <div className="flex h-full items-center justify-center">
             <LoadingState label={t("common.loadingChart")} />

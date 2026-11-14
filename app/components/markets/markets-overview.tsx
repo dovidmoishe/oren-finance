@@ -3,7 +3,7 @@
 import { Search as SearchIcon } from "lucide-react";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { Button, Skeleton, cn, formatCompactCurrency, formatCurrency, formatPercent } from "@/components/ui";
 import { getStockChart } from "@/services";
 import { useMarketStore } from "@/store";
@@ -47,19 +47,34 @@ function buildSparklinePoints(candles: MarketCandle[]) {
 
   const min = Math.min(...closes);
   const max = Math.max(...closes);
-  const spread = Math.max(max - min, 0.000001);
-
-  return closes
-    .map((value, index) => {
-      const x = 2 + (index / (closes.length - 1)) * 124;
-      const y = 4 + ((max - value) / spread) * 24;
-      return `${x.toFixed(1)},${y.toFixed(1)}`;
-    })
-    .join(" ");
+  const spread = max - min;
+  const points = closes.map((value, index) => ({
+    x: 4 + (index / (closes.length - 1)) * 120,
+    y: spread === 0 ? 18 : 5 + ((max - value) / spread) * 26,
+  }));
+  const slopes = points.slice(1).map((point, index) =>
+    (point.y - points[index].y) / (point.x - points[index].x));
+  // Monotone cubic interpolation rounds the joins without inventing new highs/lows.
+  const tangents = points.map((_, index) => {
+    if (index === 0) return slopes[0];
+    if (index === points.length - 1) return slopes.at(-1)!;
+    const before = slopes[index - 1];
+    const after = slopes[index];
+    return before * after <= 0 ? 0 : 2 * before * after / (before + after);
+  });
+  let line = `M ${points[0].x},${points[0].y}`;
+  for (let index = 1; index < points.length; index += 1) {
+    const start = points[index - 1];
+    const end = points[index];
+    const third = (end.x - start.x) / 3;
+    line += ` C ${start.x + third},${start.y + tangents[index - 1] * third} ${end.x - third},${end.y - tangents[index] * third} ${end.x},${end.y}`;
+  }
+  return { line, area: `${line} L 124,40 L 4,40 Z`, last: points.at(-1)! };
 }
 
 function Sparkline({ stock }: { stock: StockSummary }) {
   const t = useT();
+  const gradientId = useId();
   const cacheKey = `${stock.assetId}:1D`;
   const [candles, setCandles] = useState<MarketCandle[] | undefined>(() => sparklineCache.get(cacheKey));
 
@@ -100,26 +115,32 @@ function Sparkline({ stock }: { stock: StockSummary }) {
   const first = candles.find((candle) => Number.isFinite(candle.close))?.close ?? 0;
   const last = [...candles].reverse().find((candle) => Number.isFinite(candle.close))?.close ?? first;
   const positive = last >= first;
-  const lastPoint = points.split(" ").at(-1);
-  const [lastX = "126", lastY = "16"] = lastPoint?.split(",") ?? [];
 
   return (
     <svg
       aria-label={t("markets.sparklineLabel", { ticker: stock.ticker })}
-      className={cn("h-7 w-full max-w-28", positive ? "text-positive" : "text-negative")}
+      className={cn("h-9 w-full max-w-28", positive ? "text-positive" : "text-negative")}
       preserveAspectRatio="none"
-      viewBox="0 0 128 32"
+      role="img"
+      viewBox="0 0 128 40"
     >
-      <polyline
+      <defs>
+        <linearGradient id={gradientId} x1="0" x2="0" y1="0" y2="1">
+          <stop offset="0%" stopColor="currentColor" stopOpacity="0.18" />
+          <stop offset="100%" stopColor="currentColor" stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      <path d={points.area} fill={`url(#${gradientId})`} />
+      <path
+        d={points.line}
         fill="none"
-        points={points}
         stroke="currentColor"
         strokeLinecap="round"
         strokeLinejoin="round"
         strokeWidth="2"
         vectorEffect="non-scaling-stroke"
       />
-      <circle cx={lastX} cy={lastY} fill="currentColor" r="3" />
+      <circle cx={points.last.x} cy={points.last.y} fill="currentColor" r="3" />
     </svg>
   );
 }
