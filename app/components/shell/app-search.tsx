@@ -48,7 +48,7 @@ export function AppSearch({ dialog }: { dialog: RefObject<HTMLDialogElement | nu
   return (
     <dialog
       aria-label={t("markets.searchLabel")}
-      className="mx-auto mt-[min(12dvh,6rem)] max-h-[76dvh] w-[calc(100%-1.5rem)] max-w-lg overflow-y-auto rounded-2xl border border-border bg-panel p-0 text-foreground shadow-xl backdrop:bg-black/25"
+      className="mx-auto mt-[min(12dvh,6rem)] max-h-[76dvh] w-[calc(100%-1.5rem)] max-w-lg overflow-y-auto rounded-2xl border border-border bg-panel p-0 text-foreground shadow-xl has-[input:focus-visible]:border-[#b4a5da] backdrop:bg-black/25"
       onClick={(event) => {
         if (event.target !== event.currentTarget) return;
         const rect = event.currentTarget.getBoundingClientRect();
@@ -67,7 +67,7 @@ export function AppSearch({ dialog }: { dialog: RefObject<HTMLDialogElement | nu
         <SearchIcon aria-hidden="true" className="shrink-0 text-muted" size={19} strokeWidth={1.7} />
         <input
           aria-label={t("markets.searchLabel")}
-          className="h-10 min-w-0 flex-1 rounded-md px-1 text-base placeholder:text-muted focus-visible:outline-2 focus-visible:outline-focus"
+          className="h-10 min-w-0 flex-1 rounded-md px-1 text-base outline-hidden placeholder:text-muted"
           maxLength={100}
           onChange={(event) => setQuery(event.target.value)}
           placeholder={t("markets.searchPlaceholder")}
