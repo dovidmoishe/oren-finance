@@ -7,7 +7,11 @@ import { renderBriefEmail, type BriefEmailFacts } from './brief-email';
 import { NotificationJobs, type Job } from './jobs';
 import { formatAlertPrice } from './quotes';
 import { BRIEF_GRACE_MS, briefEmailSlots } from './schedule';
-import { alertUserAllowed, notificationSettings } from './settings';
+import {
+  alertMintAllowed,
+  alertUserAllowed,
+  notificationSettings,
+} from './settings';
 
 export function unsubscribeToken(id: string, secret: string) {
   return `${id}.${createHmac('sha256', secret).update(`notifications-v1-${id}`).digest('base64url')}`;
@@ -82,7 +86,7 @@ export class NotificationDelivery {
     if (
       !(brief ? config.briefs : config.alerts) ||
       !allowed ||
-      (!brief && !config.alertMints.has(job.payload.mint as string)) ||
+      (!brief && !alertMintAllowed(job.payload.mint as string, config)) ||
       !config.origin ||
       !config.apiOrigin ||
       !config.secret ||

@@ -20,7 +20,11 @@ import {
   providerQuote,
   type Quote,
 } from './quotes';
-import { alertUserAllowed, notificationSettings } from './settings';
+import {
+  alertMintAllowed,
+  alertUserAllowed,
+  notificationSettings,
+} from './settings';
 
 type Alert = {
   id: string;
@@ -87,13 +91,13 @@ export class PriceAlerts {
         ? await this.db.execute<{ mint: string }>(sql`
       select item->>'mint' as mint from cached_stocks
       cross join lateral jsonb_array_elements(alert_variants) item
-      where asset_id = ${assetId} and category = 'equity' and expires_at > now()`)
+      where asset_id = ${assetId} and category = 'equity'`)
         : [];
     return {
       enabled,
       variants: variants
         .map(({ mint }) => mint)
-        .filter((mint) => config.alertMints.has(mint)),
+        .filter((mint) => alertMintAllowed(mint, config)),
       alerts: rows.map(toResponse),
     };
   }
@@ -107,14 +111,14 @@ export class PriceAlerts {
     if (!(await this.jobs.budget(`create-alert-${userId}`, 10)))
       throw new HttpException('Too many alert requests', 429);
     const alert = parseAlert(body);
-    if (!config.alertMints.has(alert.mint))
+    if (!alertMintAllowed(alert.mint, config))
       throw new BadRequestException('This variant is not available for alerts');
     // An alert whose target is already met would never cross and so never fire.
     const snapshot = await this.tokens
       .getMarketSnapshots([alert.mint])
       .catch((): TokensMarketSnapshotRaw[] => []);
     const quote = snapshot
-      .map((row) => providerQuote(row, new Date()))
+      .map((row) => providerQuote(row, new Date(), config.quoteMaxTradeAgeMs))
       .find((q) => q?.mint === alert.mint);
     if (
       quote &&
@@ -139,7 +143,7 @@ export class PriceAlerts {
       }>(sql`
         select ticker, item->>'symbol' as symbol from cached_stocks
         cross join lateral jsonb_array_elements(alert_variants) item
-        where asset_id = ${alert.assetId} and category = 'equity' and expires_at > now()
+        where asset_id = ${alert.assetId} and category = 'equity'
           and item->>'mint' = ${alert.mint} limit 1`);
       if (!variant)
         throw new BadRequestException(
@@ -208,10 +212,12 @@ export class PricePolling {
           [...config.pilotUsers].map((id) => sql`${id}`),
           sql`, `,
         );
-    const eligibleMints = sql.join(
-      [...config.alertMints].map((mint) => sql`${mint}`),
-      sql`, `,
-    );
+    const eligibleMints = config.alertAllMints
+      ? null
+      : sql.join(
+          [...config.alertMints].map((mint) => sql`${mint}`),
+          sql`, `,
+        );
     const startedAt = new Date();
     const deadline = startedAt.getTime() + 25_000;
     await this.jobs.db.transaction(async (tx) => {
@@ -226,7 +232,7 @@ export class PricePolling {
       while (Date.now() < deadline) {
         const batch = await tx.execute<{ mint: string }>(sql`
           select a.mint from price_alerts a left join price_poll_cursor p on p.mint = a.mint
-          where a.state = 'active' ${users ? sql`and a.user_id in (${users})` : sql``} and a.mint in (${eligibleMints})
+          where a.state = 'active' ${users ? sql`and a.user_id in (${users})` : sql``} ${eligibleMints ? sql`and a.mint in (${eligibleMints})` : sql``}
             and (p.polled_at is null or p.polled_at < ${startedAt.toISOString()})
           group by a.mint, p.polled_at order by p.polled_at nulls first, a.mint limit 250`);
         if (
@@ -247,7 +253,7 @@ export class PricePolling {
         const now = new Date();
         const quotes = new Map<string, Quote>();
         for (const row of raw) {
-          const quote = providerQuote(row, now);
+          const quote = providerQuote(row, now, config.quoteMaxTradeAgeMs);
           if (
             quote &&
             mints.has(quote.mint) &&

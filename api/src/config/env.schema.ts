@@ -115,7 +115,10 @@ export interface AppEnv {
    */
   PRICE_ALERTS_PUBLIC?: string;
   TOKENS_ALERT_TIMESTAMPS_VERIFIED?: string;
+  /** Comma-separated mints, or "*" for every tradable catalog variant. */
   NOTIFICATION_ALERT_MINTS?: string;
+  /** Seconds a last trade may age before a quote is ignored. Default 120. */
+  NOTIFICATION_QUOTE_MAX_TRADE_AGE_SECONDS?: string;
   NOTIFICATION_REDIS_URL?: string;
   NOTIFICATION_APP_ORIGIN?: string;
   NOTIFICATION_API_ORIGIN?: string;
@@ -449,6 +452,10 @@ export function validateEnv(env: EnvSource = process.env): AppEnv {
       'TOKENS_ALERT_TIMESTAMPS_VERIFIED',
     ),
     NOTIFICATION_ALERT_MINTS: readEnv(env, 'NOTIFICATION_ALERT_MINTS'),
+    NOTIFICATION_QUOTE_MAX_TRADE_AGE_SECONDS: readEnv(
+      env,
+      'NOTIFICATION_QUOTE_MAX_TRADE_AGE_SECONDS',
+    ),
     NOTIFICATION_REDIS_URL: readEnv(env, 'NOTIFICATION_REDIS_URL'),
     NOTIFICATION_APP_ORIGIN: readEnv(env, 'NOTIFICATION_APP_ORIGIN'),
     NOTIFICATION_API_ORIGIN: readEnv(env, 'NOTIFICATION_API_ORIGIN'),
