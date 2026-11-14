@@ -1,7 +1,15 @@
 'use client';
 
-import { Add01Icon, Cancel01Icon, HistoryIcon, ArrowExpand01Icon, ArrowShrink01Icon } from '@hugeicons/core-free-icons';
-import { HugeiconsIcon, type IconSvgElement } from '@hugeicons/react';
+import {
+  Plus as PlusIcon,
+  X as XIcon,
+  History as HistoryIcon,
+  Expand as ExpandGlyph,
+  Shrink as ShrinkIcon,
+  type LucideIcon,
+} from "lucide-react";
+import { InterfaceIcon } from "@/components/ui/interface-icon";
+
 import { useWallet } from '@solana/wallet-adapter-react';
 import { usePathname } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -20,19 +28,19 @@ import { contextLabelKey, pageContext, promptSuggestions } from './agent-utils';
 import { AgentWorkspace, latestAssistantArtifacts } from './agent-workspace';
 import { useT } from "@/i18n/i18n";
 
-function Icon({ icon, size = 18, className }: { icon: IconSvgElement; size?: number; className?: string }) {
-  return <HugeiconsIcon className={className} color="currentColor" icon={icon} size={size} strokeWidth={1.8} />;
+function Icon({ icon, size = 18, className }: { icon: LucideIcon; size?: number; className?: string }) {
+  return <InterfaceIcon className={className} color="currentColor" icon={icon} size={size} strokeWidth={1.8} />;
 }
 
 function ExpandIcon({ size = 17 }: { size?: number }) {
   return (
-    <HugeiconsIcon icon={ArrowExpand01Icon} size={size} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className="shrink-0" />
+    <ExpandGlyph size={size} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className="shrink-0" />
   );
 }
 
 function CollapseIcon({ size = 17 }: { size?: number }) {
   return (
-    <HugeiconsIcon icon={ArrowShrink01Icon} size={size} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className="shrink-0" />
+    <ShrinkIcon size={size} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className="shrink-0" />
   );
 }
 
@@ -256,7 +264,7 @@ export function AgentPanel() {
               size="icon"
               variant="ghost"
             >
-              <Icon icon={Add01Icon} size={18} />
+              <Icon icon={PlusIcon} size={18} />
             </Button>
             <div className="hidden lg:block">
               <Button
@@ -269,7 +277,7 @@ export function AgentPanel() {
               </Button>
             </div>
             <Button aria-label={t("agent.close")} onClick={closePanel} size="icon" variant="ghost">
-              <Icon icon={Cancel01Icon} size={18} />
+              <Icon icon={XIcon} size={18} />
             </Button>
           </div>
         </header>

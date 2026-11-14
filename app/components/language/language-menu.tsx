@@ -1,7 +1,7 @@
 "use client";
 
-import { Globe02Icon, Tick02Icon } from "@hugeicons/core-free-icons";
-import { HugeiconsIcon } from "@hugeicons/react";
+import { Globe as GlobeIcon, Check as CheckIcon } from "lucide-react";
+
 import { useRouter } from "next/navigation";
 import { useId, useRef } from "react";
 import { cn } from "@/components/ui";
@@ -41,7 +41,7 @@ export function LanguageMenu() {
         title={t("language.title")}
         type="button"
       >
-        <HugeiconsIcon aria-hidden="true" color="currentColor" icon={Globe02Icon} size={20} strokeWidth={1.6} />
+        <GlobeIcon aria-hidden="true" color="currentColor" size={20} strokeWidth={1.6} />
       </button>
       <div aria-label={t("language.title")} className="oren-account-menu" id={id} onBeforeToggle={onBeforeToggle} onToggle={onToggle} popover="auto" ref={menu} role="menu">
         <div className="oren-account-menu-surface w-56 overflow-hidden rounded-2xl border border-border bg-panel p-1.5 text-foreground shadow-xl">
@@ -66,7 +66,7 @@ export function LanguageMenu() {
                 type="button"
               >
                 <span className="flex-1">{option.name}</span>
-                {selected ? <HugeiconsIcon aria-hidden="true" color="currentColor" icon={Tick02Icon} size={16} strokeWidth={2} /> : null}
+                {selected ? <CheckIcon aria-hidden="true" color="currentColor" size={16} strokeWidth={2} /> : null}
               </button>
             );
           })}

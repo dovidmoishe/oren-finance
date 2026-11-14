@@ -1,15 +1,17 @@
 'use client';
 
 import {
-  Activity01Icon,
-  ArrowUpRight01Icon,
-  Briefcase01Icon,
-  ChartLineData01Icon,
-  Clock01Icon,
-  CoinsSwapIcon,
-  SafeIcon,
-} from '@hugeicons/core-free-icons';
-import { HugeiconsIcon, type IconSvgElement } from '@hugeicons/react';
+  Activity as ActivityIcon,
+  ArrowUpRight as ArrowUpRightIcon,
+  BriefcaseBusiness as BriefcaseBusinessIcon,
+  ChartLine as ChartLineIcon,
+  Clock as ClockIcon,
+  ArrowLeftRight as ArrowLeftRightIcon,
+  Vault as VaultIcon,
+  type LucideIcon,
+} from "lucide-react";
+import { InterfaceIcon } from "@/components/ui/interface-icon";
+
 import Link from 'next/link';
 import { useEffect } from 'react';
 import type {
@@ -107,7 +109,7 @@ function AgentArtifactCard({
     case 'portfolio': {
       const portfolio = artifact.data;
       return (
-        <ArtifactShell icon={Briefcase01Icon} label="Portfolio" tone="pink">
+        <ArtifactShell icon={BriefcaseBusinessIcon} label="Portfolio" tone="pink">
           <p className="font-display text-2xl font-semibold">
             {formatCurrency(portfolio.totalValueUsd, locale)}
           </p>
@@ -136,7 +138,7 @@ function AgentArtifactCard({
     case 'stock': {
       const stock = artifact.data;
       return (
-        <ArtifactShell icon={ChartLineData01Icon} label="Stock snapshot" tone="plain">
+        <ArtifactShell icon={ChartLineIcon} label="Stock snapshot" tone="plain">
           <div className="flex items-center justify-between gap-3">
             <div>
               <p className="font-display text-xl font-semibold">{stock.ticker}</p>
@@ -158,7 +160,7 @@ function AgentArtifactCard({
             href={`/app/stocks/${stock.assetId}`}
             onClick={onNavigate}
           >
-            Open stock <HugeiconsIcon icon={ArrowUpRight01Icon} size={13} strokeWidth={1.8} />
+            Open stock <ArrowUpRightIcon size={13} strokeWidth={1.8} />
           </Link>
         </ArtifactShell>
       );
@@ -166,7 +168,7 @@ function AgentArtifactCard({
     case 'analysis': {
       const analysis = artifact.data;
       return (
-        <ArtifactShell icon={ChartLineData01Icon} label="Oren analysis" tone="lavender">
+        <ArtifactShell icon={ChartLineIcon} label="Oren analysis" tone="lavender">
           <div>
             <p className="font-display text-xl font-semibold">{analysis.ticker}</p>
             <p className="mt-1 text-xs capitalize text-muted">
@@ -220,7 +222,7 @@ function AgentArtifactCard({
       const change = quote?.change24hPct;
       const observedAt = new Date(context.source.observedAt);
       return (
-        <ArtifactShell icon={Activity01Icon} label="Bitget Reality" tone="plain">
+        <ArtifactShell icon={ActivityIcon} label="Bitget Reality" tone="plain">
           <div className="flex items-start justify-between gap-3">
             <div>
               <p className="font-display text-xl font-semibold">
@@ -286,7 +288,7 @@ function AgentArtifactCard({
     }
     case 'opportunities':
       return (
-        <ArtifactShell icon={ChartLineData01Icon} label="Top opportunities" tone="yellow">
+        <ArtifactShell icon={ChartLineIcon} label="Top opportunities" tone="yellow">
           <div className="space-y-2">
             {artifact.data.slice(0, 5).map((stock, index) => (
               <Link
@@ -306,7 +308,7 @@ function AgentArtifactCard({
       return <QuoteArtifact key={artifact.data.id} onReview={onReviewQuote} quote={artifact.data} />;
     case 'limit_order':
       return (
-        <ArtifactShell icon={CoinsSwapIcon} label="Limit order proposal" tone="lavender">
+        <ArtifactShell icon={ArrowLeftRightIcon} label="Limit order proposal" tone="lavender">
           <div className="flex items-end justify-between gap-3">
             <div>
               <p className="text-xs uppercase tracking-[0.12em] text-muted capitalize">
@@ -345,7 +347,7 @@ function AgentArtifactCard({
       );
     case 'limit_orders':
       return (
-        <ArtifactShell icon={Clock01Icon} label="Limit orders" tone="plain">
+        <ArtifactShell icon={ClockIcon} label="Limit orders" tone="plain">
           {artifact.data.length === 0 ? (
             <p className="text-xs text-muted">No open limit orders for this wallet.</p>
           ) : (
@@ -372,7 +374,7 @@ function AgentArtifactCard({
       );
     case 'copy_portfolio_proposal':
       return (
-        <ArtifactShell icon={Briefcase01Icon} label="Copy portfolio" tone="lavender">
+        <ArtifactShell icon={BriefcaseBusinessIcon} label="Copy portfolio" tone="lavender">
           <div className="flex items-end justify-between gap-3">
             <div>
               <p className="text-xs text-muted">Copying {artifact.data.source.displayName}</p>
@@ -398,7 +400,7 @@ function AgentArtifactCard({
       );
     case 'trading_calendar':
       return (
-        <ArtifactShell icon={ChartLineData01Icon} label="Trading calendar" tone="yellow">
+        <ArtifactShell icon={ChartLineIcon} label="Trading calendar" tone="yellow">
           <div className="flex items-end justify-between gap-3">
             <div>
               <p className="text-xs text-muted">{artifact.data.range.month ?? `${artifact.data.range.start} to ${artifact.data.range.end}`}</p>
@@ -411,13 +413,13 @@ function AgentArtifactCard({
             </span>
           </div>
           <Link className="mt-4 inline-flex items-center gap-1 text-xs font-semibold" href="/app/calendar">
-            Open calendar <HugeiconsIcon icon={ArrowUpRight01Icon} size={13} strokeWidth={1.8} />
+            Open calendar <ArrowUpRightIcon size={13} strokeWidth={1.8} />
           </Link>
         </ArtifactShell>
       );
     case 'trading_calendar_day':
       return (
-        <ArtifactShell icon={Activity01Icon} label="Calendar day" tone="plain">
+        <ArtifactShell icon={ActivityIcon} label="Calendar day" tone="plain">
           <div className="flex items-end justify-between gap-3">
             <div>
               <p className="text-xs text-muted">{artifact.data.date}</p>
@@ -444,7 +446,7 @@ function AgentArtifactCard({
         (a, b) => new Date(a.unlockAt).getTime() - new Date(b.unlockAt).getTime(),
       )[0];
       return (
-        <ArtifactShell icon={SafeIcon} label="Vault" tone="lavender">
+        <ArtifactShell icon={VaultIcon} label="Vault" tone="lavender">
           <p className="font-display text-2xl font-semibold">{formatCurrency(artifact.data.totalLockedValueUsd, locale)}</p>
           <p className="mt-1 text-xs text-muted">
             {artifact.data.positions.length} locked position{artifact.data.positions.length === 1 ? '' : 's'}
@@ -461,7 +463,7 @@ case 'prepared_swap':
     case 'prepared_lock':
     case 'prepared_unlock':
       return (
-        <ArtifactShell icon={SafeIcon} label="Prepared action" tone="plain">
+        <ArtifactShell icon={VaultIcon} label="Prepared action" tone="plain">
           <p className="text-sm font-semibold">Wallet review required</p>
           <p className="mt-1 text-xs leading-5 text-muted">
             Oren prepared unsigned transaction data. A fresh review artifact is required before anything can be signed.
@@ -505,7 +507,7 @@ function QuoteArtifact({
       : quote;
 
   return (
-    <ArtifactShell icon={CoinsSwapIcon} label="Executable quote" tone="yellow">
+    <ArtifactShell icon={ArrowLeftRightIcon} label="Executable quote" tone="yellow">
       <div className="flex items-end justify-between gap-3">
         <div>
           <p className="text-xs uppercase tracking-[0.12em] text-muted">{liveQuote.side}</p>
@@ -545,7 +547,7 @@ function QuoteArtifact({
           onClick={() => void refreshQuote()}
           variant="secondary"
         >
-          <HugeiconsIcon icon={Clock01Icon} size={15} strokeWidth={1.8} />
+          <ClockIcon size={15} strokeWidth={1.8} />
           Retry quote refresh
         </Button>
       ) : (
@@ -555,8 +557,8 @@ function QuoteArtifact({
           onClick={() => onReview(liveQuote)}
           variant="primary"
         >
-          <HugeiconsIcon
-            icon={isRefreshingQuote || expired ? Clock01Icon : CoinsSwapIcon}
+          <InterfaceIcon
+            icon={isRefreshingQuote || expired ? ClockIcon : ArrowLeftRightIcon}
             size={15}
             strokeWidth={1.8}
           />
@@ -573,7 +575,7 @@ function ArtifactShell({
   tone,
   children,
 }: {
-  icon: IconSvgElement;
+  icon: LucideIcon;
   label: string;
   tone: 'plain' | 'pink' | 'yellow' | 'lavender';
   children: React.ReactNode;
@@ -589,7 +591,7 @@ function ArtifactShell({
       )}
     >
       <div className="mb-3 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">
-        <HugeiconsIcon icon={icon} size={13} strokeWidth={1.8} />
+        <InterfaceIcon icon={icon} size={13} strokeWidth={1.8} />
         {label}
       </div>
       {children}

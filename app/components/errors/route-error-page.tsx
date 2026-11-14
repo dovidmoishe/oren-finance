@@ -1,7 +1,7 @@
 "use client";
 
-import { ArrowLeft01Icon, RefreshCwIcon } from "@hugeicons/core-free-icons";
-import { HugeiconsIcon } from "@hugeicons/react";
+import { ChevronLeft as ChevronLeftIcon, RefreshCw as RefreshCwIcon } from "lucide-react";
+
 import Link from "next/link";
 import { OrenLogo } from "@/components/brand/oren-logo";
 import { Button } from "@/components/ui";
@@ -38,12 +38,12 @@ export function RouteErrorPage({
             <div className="mt-9 flex flex-wrap gap-3">
               {reset ? (
                 <Button className="h-12 rounded-full px-6" onClick={reset} variant="primary">
-                  <HugeiconsIcon color="currentColor" icon={RefreshCwIcon} size={17} strokeWidth={1.8} />
+                  <RefreshCwIcon color="currentColor" size={17} strokeWidth={1.8} />
                   Try again
                 </Button>
               ) : null}
               <Button className="h-12 rounded-full px-6" href="/app" variant="secondary">
-                <HugeiconsIcon color="currentColor" icon={ArrowLeft01Icon} size={17} strokeWidth={1.8} />
+                <ChevronLeftIcon color="currentColor" size={17} strokeWidth={1.8} />
                 Back to dashboard
               </Button>
             </div>

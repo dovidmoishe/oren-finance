@@ -3,8 +3,14 @@
 import { financialExecutionEnabled } from "@/services/environment";
 import { formatQuotedRoute } from "@/services/route-label";
 
-import { AlertCircleIcon, CoinsSwapIcon, Loading03Icon, Wallet02Icon, ArrowUpDownIcon } from "@hugeicons/core-free-icons";
-import { HugeiconsIcon } from "@hugeicons/react";
+import {
+  CircleAlert as CircleAlertIcon,
+  ArrowLeftRight as ArrowLeftRightIcon,
+  LoaderCircle as LoaderCircleIcon,
+  WalletCards as WalletCardsIcon,
+  ArrowUpDown as ArrowUpDownIcon,
+} from "lucide-react";
+
 import { useWallet } from "@solana/wallet-adapter-react";
 import { useOrenAuth } from "@/components/auth/auth-context";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
@@ -502,7 +508,7 @@ export function StockTradeTicket({ stock, limitZones, onConfirmed }: StockTradeT
           </div>
 
           <button aria-label={side === "buy" ? t("ticket.switchToSell") : t("ticket.switchToBuy")} className="absolute left-1/2 top-[calc(50%-16px)] z-10 grid h-8 w-8 -translate-x-1/2 place-items-center rounded-full border-4 border-background bg-panel shadow-sm hover:bg-panel-subtle focus-visible:outline-2 focus-visible:outline-offset-2" onClick={() => handleSideChange(side === "buy" ? "sell" : "buy")} type="button">
-            <HugeiconsIcon icon={ArrowUpDownIcon} size={20} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className="inline-block shrink-0 align-middle" />
+            <ArrowUpDownIcon size={20} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className="inline-block shrink-0 align-middle" />
           </button>
 
           <div className="rounded-[16px] border border-border bg-panel-subtle p-2.5">
@@ -601,7 +607,7 @@ export function StockTradeTicket({ stock, limitZones, onConfirmed }: StockTradeT
 
           {blockingError || displayedError || limitError ? (
             <div className="mt-3 flex gap-2 rounded-[16px] border border-red-200 bg-red-50 p-3 text-xs leading-5 text-red-900">
-              <HugeiconsIcon className="mt-0.5 shrink-0" color="currentColor" icon={AlertCircleIcon} size={14} strokeWidth={1.8} />
+              <CircleAlertIcon className="mt-0.5 shrink-0" color="currentColor" size={14} strokeWidth={1.8} />
               <span>
                 {liveRouteUnavailable && orderMode === "market"
                   ? t("ticket.noLiveRouteDetail", { ticker: stock.ticker })
@@ -667,17 +673,17 @@ export function StockTradeTicket({ stock, limitZones, onConfirmed }: StockTradeT
           >
             {isLoading || isRefreshingQuote || limitBusy ? (
               <>
-                <HugeiconsIcon className="animate-spin" color="currentColor" icon={Loading03Icon} size={16} strokeWidth={1.8} />
+                <LoaderCircleIcon className="animate-spin" color="currentColor" size={16} strokeWidth={1.8} />
                 {limitBusy ? t("ticket.buildingLimit") : isRefreshingQuote ? t("ticket.updatingQuote") : t("ticket.loadingQuote")}
               </>
             ) : !connected ? (
               <>
-                <HugeiconsIcon color="currentColor" icon={Wallet02Icon} size={16} strokeWidth={1.8} />
+                <WalletCardsIcon color="currentColor" size={16} strokeWidth={1.8} />
                 {ctaLabel}
               </>
             ) : (
               <>
-                <HugeiconsIcon color="currentColor" icon={CoinsSwapIcon} size={16} strokeWidth={1.8} />
+                <ArrowLeftRightIcon color="currentColor" size={16} strokeWidth={1.8} />
                 {ctaLabel}
               </>
             )}

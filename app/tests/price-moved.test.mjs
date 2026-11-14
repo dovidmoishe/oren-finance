@@ -64,8 +64,8 @@ function loadReview() {
     '@/components/ui': ui,
     '@/services/price-moved': priceMoved,
     '@/services/environment': { financialExecutionEnabled: true },
-    '@hugeicons/core-free-icons': {},
-    '@hugeicons/react': { HugeiconsIcon: () => null },
+    'lucide-react': new Proxy({}, { get: () => () => null }),
+    '@/components/ui/interface-icon': { InterfaceIcon: () => null },
   });
   return { PriceMovedReview, buttons };
 }

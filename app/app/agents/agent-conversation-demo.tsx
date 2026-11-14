@@ -1,8 +1,8 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { RefreshIcon } from '@hugeicons/core-free-icons';
-import { HugeiconsIcon } from '@hugeicons/react';
+import { RefreshCcw as RefreshCcwIcon } from "lucide-react";
+
 import { OrenLogo } from '@/components/brand/oren-logo';
 
 export function AgentConversationDemo() {
@@ -46,7 +46,7 @@ export function AgentConversationDemo() {
       {!reduced && <button type="button" className="agents-demo-control" onClick={() => {
         if (beat === 4) { setBeat(0); setPlaying(true); }
         else setPlaying(value => !value);
-      }}><HugeiconsIcon icon={RefreshIcon} size={14} aria-hidden="true" />{beat === 4 ? 'Replay' : playing ? 'Pause' : 'Play'}</button>}
+      }}><RefreshCcwIcon size={14} aria-hidden="true" />{beat === 4 ? 'Replay' : playing ? 'Pause' : 'Play'}</button>}
     </div>
     <div className="agents-transcript" aria-hidden="true">
       <div className={reveal(beat >= 1)}><div className={`t-stagger-line agents-user-message`}>Buy $5 of NVIDIA.</div></div>

@@ -1,7 +1,7 @@
 "use client";
 
-import { Add01Icon, MinusSignIcon } from '@hugeicons/core-free-icons';
-import { HugeiconsIcon } from '@hugeicons/react';
+import { Plus as PlusIcon, Minus as MinusIcon } from "lucide-react";
+
 import { TechnicalBriefPanel } from "@/components/stock/technical-brief-panel";
 import { formatCurrency, formatNumber, formatPercent, formatRelativeTime } from "@/components/ui/utils";
 import type { NewsItem, StockAnalysis, StockDetail } from "@/types";
@@ -83,7 +83,7 @@ export function StockMarketOutlook({ stock, analysis, news }: {
         <details className="group border-t border-border">
           <summary className="flex cursor-pointer list-none items-center justify-between gap-3 py-4 text-xs font-medium focus-visible:rounded focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-foreground [&::-webkit-details-marker]:hidden">
             <span><span className="group-open:hidden">{t("stock.viewDetails")}</span><span className="hidden group-open:inline">{t("stock.hideDetails")}</span></span>
-            <span aria-hidden className="text-base font-normal text-muted"><span className="group-open:hidden"><HugeiconsIcon icon={Add01Icon} size={16} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className="inline-block shrink-0 align-middle" /></span><span className="hidden group-open:inline"><HugeiconsIcon icon={MinusSignIcon} size={16} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className="inline-block shrink-0 align-middle" /></span></span>
+            <span aria-hidden className="text-base font-normal text-muted"><span className="group-open:hidden"><PlusIcon size={16} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className="inline-block shrink-0 align-middle" /></span><span className="hidden group-open:inline"><MinusIcon size={16} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className="inline-block shrink-0 align-middle" /></span></span>
           </summary>
           <div className="space-y-5 pb-5">
             {analysis.summary ? <p className="max-w-3xl text-sm leading-6 text-muted">{analysis.summary}</p> : null}

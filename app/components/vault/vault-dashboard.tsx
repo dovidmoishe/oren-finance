@@ -3,13 +3,13 @@
 import { financialExecutionEnabled } from "@/services/environment";
 
 import {
-  AlertCircleIcon,
-  Calendar03Icon,
-  Clock01Icon,
-  RefreshCwIcon,
-  SafeIcon,
-} from "@hugeicons/core-free-icons";
-import { HugeiconsIcon } from "@hugeicons/react";
+  CircleAlert as CircleAlertIcon,
+  Calendar as CalendarIcon,
+  Clock as ClockIcon,
+  RefreshCw as RefreshCwIcon,
+  Vault as VaultIcon,
+} from "lucide-react";
+
 import { useEffect, useMemo, useState } from "react";
 import { useOrenAuth } from "@/components/auth/auth-context";
 import { RestoreActions, restoreBlocked } from "@/components/auth/restore-actions";
@@ -224,10 +224,9 @@ export function VaultDashboard() {
           }}
           variant="secondary"
         >
-          <HugeiconsIcon
+          <RefreshCwIcon
             className={cn(isLoading && "animate-spin")}
             color="currentColor"
-            icon={RefreshCwIcon}
             size={16}
             strokeWidth={1.8}
           />
@@ -238,7 +237,7 @@ export function VaultDashboard() {
       {!programLive ? (
         <div className="rounded-[20px] border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
           <div className="flex gap-3">
-            <HugeiconsIcon className="mt-0.5 shrink-0" color="currentColor" icon={SafeIcon} size={18} strokeWidth={1.8} />
+            <VaultIcon className="mt-0.5 shrink-0" color="currentColor" size={18} strokeWidth={1.8} />
             <div>
               <p className="font-semibold">{t("vault.offlineTitle")}</p>
               <p className="mt-1 leading-6 text-amber-900/85">
@@ -260,7 +259,7 @@ export function VaultDashboard() {
       {formError ? (
         <div className="rounded-[18px] border border-red-200 bg-red-50 p-4 text-sm text-red-900">
           <div className="flex gap-3">
-            <HugeiconsIcon className="mt-0.5 shrink-0" color="currentColor" icon={AlertCircleIcon} size={16} strokeWidth={1.8} />
+            <CircleAlertIcon className="mt-0.5 shrink-0" color="currentColor" size={16} strokeWidth={1.8} />
             <p>{formError}</p>
           </div>
         </div>
@@ -315,7 +314,7 @@ export function VaultDashboard() {
                   {formatNumber(position.quantity, locale)} · {formatCurrency(position.valueUsd, locale)}
                 </p>
                 <p className="mt-1 flex items-center gap-1.5 text-xs text-muted">
-                  <HugeiconsIcon color="currentColor" icon={Calendar03Icon} size={12} strokeWidth={1.8} />
+                  <CalendarIcon color="currentColor" size={12} strokeWidth={1.8} />
                   {formatDate(position.unlockAt, locale, timeZone, t("common.notUpdated"))}
                 </p>
               </div>
@@ -398,16 +397,15 @@ export function VaultDashboard() {
                 </div>
 
                 <Button className="h-12 w-full rounded-[16px]" disabled={!financialExecutionEnabled} onClick={openLockReview} variant="primary">
-                  <HugeiconsIcon color="currentColor" icon={SafeIcon} size={16} strokeWidth={1.8} />
+                  <VaultIcon color="currentColor" size={16} strokeWidth={1.8} />
                   {t("vault.reviewLock")}
                 </Button>
 
                 {!programLive ? (
                   <p className="flex items-start gap-2 text-xs leading-5 text-muted">
-                    <HugeiconsIcon
+                    <ClockIcon
                       className="mt-0.5 shrink-0"
                       color="currentColor"
-                      icon={Clock01Icon}
                       size={14}
                       strokeWidth={1.8}
                     />

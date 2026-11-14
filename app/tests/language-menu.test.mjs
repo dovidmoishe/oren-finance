@@ -105,8 +105,8 @@ test("a language row commits on pointerdown when the click never arrives", async
       if (id === "react") return require("react");
       if (id === "@/hooks/use-anchored-popover") return load("../hooks/use-anchored-popover.ts", { require });
       if (id === "next/navigation") return { useRouter: () => ({ refresh: () => { refreshes += 1; } }) };
-      if (id === "@hugeicons/core-free-icons") return { Globe02Icon: {}, Tick02Icon: {} };
-      if (id === "@hugeicons/react") return { HugeiconsIcon: () => null };
+      if (id === "lucide-react") return new Proxy({}, { get: () => () => null });
+      if (id === "@/components/ui/interface-icon") return { InterfaceIcon: () => null };
       if (id === "@/components/ui") return { cn: (...parts) => parts.filter(Boolean).join(" ") };
       if (id === "@/i18n/i18n") return { useI18n: () => ({ locale: "en", t: (key) => key }) };
       if (id === "@/i18n/locale-sync") return { rememberLocale: (locale) => remembered.push(locale) };

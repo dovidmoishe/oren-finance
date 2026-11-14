@@ -1,7 +1,7 @@
 "use client";
 
-import { ArrowLeft01Icon, RefreshCwIcon } from "@hugeicons/core-free-icons";
-import { HugeiconsIcon } from "@hugeicons/react";
+import { ChevronLeft as ChevronLeftIcon, RefreshCw as RefreshCwIcon } from "lucide-react";
+
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { MarketChart, type MarketChartMode, type MarketChartRange } from "@/components/charts";
@@ -91,14 +91,14 @@ export function StockDetail({ assetId }: { assetId: string }) {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-3">
           <Link className="inline-flex shrink-0 items-center gap-1.5 text-xs text-muted hover:text-foreground" href="/app/markets">
-            <HugeiconsIcon color="currentColor" icon={ArrowLeft01Icon} size={14} strokeWidth={1.8} />
+            <ChevronLeftIcon color="currentColor" size={14} strokeWidth={1.8} />
             {t("stock.back")}
           </Link>
           <span aria-hidden className="text-border-strong">/</span>
           <h1 className="truncate font-display text-base font-semibold">{stock.name} <span className="ml-1 font-mono text-xs font-normal text-muted">${stock.ticker}</span></h1>
         </div>
         <Button aria-label={t("stock.refresh")} className="h-8 w-8" disabled={isLoading} onClick={() => void loadStock(assetId, rangeMap[range])} size="icon" variant="ghost">
-          <HugeiconsIcon className={cn(isLoading && "animate-spin")} color="currentColor" icon={RefreshCwIcon} size={15} strokeWidth={1.8} />
+          <RefreshCwIcon className={cn(isLoading && "animate-spin")} color="currentColor" size={15} strokeWidth={1.8} />
         </Button>
       </div>
 

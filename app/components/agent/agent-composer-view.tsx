@@ -1,8 +1,8 @@
 'use client';
 
 import type { RefObject } from 'react';
-import { ArrowUp02Icon, StopCircleIcon } from '@hugeicons/core-free-icons';
-import { HugeiconsIcon } from '@hugeicons/react';
+import { ArrowUp as ArrowUpIcon, CircleStop as CircleStopIcon } from "lucide-react";
+
 import { Button } from '@/components/ui';
 import { useT } from "@/i18n/i18n";
 
@@ -56,7 +56,7 @@ export function AgentComposerView({
               size="icon"
               variant="secondary"
             >
-              <HugeiconsIcon color="currentColor" icon={StopCircleIcon} size={16} strokeWidth={1.8} />
+              <CircleStopIcon color="currentColor" size={16} strokeWidth={1.8} />
             </Button>
           ) : (
             <Button
@@ -67,7 +67,7 @@ export function AgentComposerView({
               size="icon"
               variant="primary"
             >
-              <HugeiconsIcon color="currentColor" icon={ArrowUp02Icon} size={16} strokeWidth={1.8} />
+              <ArrowUpIcon color="currentColor" size={16} strokeWidth={1.8} />
             </Button>
           )}
         </div>

@@ -1,8 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ArrowLeft01Icon, ArrowUpRight01Icon, Link01Icon, Shield01Icon } from "@hugeicons/core-free-icons";
-import { HugeiconsIcon } from "@hugeicons/react";
+import {
+  ChevronLeft as ChevronLeftIcon,
+  ArrowUpRight as ArrowUpRightIcon,
+  Link as LinkIcon,
+  Shield as ShieldIcon,
+} from "lucide-react";
+
 import Link from "next/link";
 import { useOrenAuth } from "@/components/auth/auth-context";
 import { Button, formatDate } from "@/components/ui";
@@ -82,19 +87,19 @@ function ConnectionsContent({ connectionUid }: { connectionUid?: string }) {
 
   return (
     <div className="mx-auto max-w-4xl pb-16 pt-3 sm:pt-7">
-      <Link href="/app" className="inline-flex items-center gap-1.5 text-sm text-muted hover:text-foreground"><HugeiconsIcon icon={ArrowLeft01Icon} size={16} aria-hidden="true" /> {t("connections.back")}</Link>
+      <Link href="/app" className="inline-flex items-center gap-1.5 text-sm text-muted hover:text-foreground"><ChevronLeftIcon size={16} aria-hidden="true" /> {t("connections.back")}</Link>
       <div className="mb-8 mt-7 flex flex-wrap items-start justify-between gap-5">
         <div>
           <h1 className="font-display text-3xl font-semibold tracking-tight sm:text-4xl">{t("connections.title")}</h1>
           <p className="mt-3 max-w-lg text-sm leading-relaxed text-muted">{t("connections.intro")}</p>
         </div>
-        <Button href="/agents" size="sm">{t("connections.connect")} <HugeiconsIcon icon={ArrowUpRight01Icon} size={15} aria-hidden="true" /></Button>
+        <Button href="/agents" size="sm">{t("connections.connect")} <ArrowUpRightIcon size={15} aria-hidden="true" /></Button>
       </div>
       {!ready ? (
         <div className="rounded-2xl border border-border bg-panel p-8 text-sm text-muted" role="status">{t("connections.loadingAccount")}</div>
       ) : !authenticated ? (
         <section className="rounded-2xl border border-border bg-panel px-6 py-10 sm:px-10">
-          <HugeiconsIcon icon={Shield01Icon} size={28} className="text-muted" aria-hidden="true" />
+          <ShieldIcon size={28} className="text-muted" aria-hidden="true" />
           <h2 className="mt-5 text-xl font-semibold">{t("connections.controlTitle")}</h2>
           <p className="mt-2 max-w-md text-sm leading-relaxed text-muted">{t("connections.controlBody")}</p>
           <Button className="mt-6" variant="primary" onClick={open} disabled={!configured}>{t("connections.signIn")}</Button>
@@ -112,10 +117,10 @@ function ConnectionsContent({ connectionUid }: { connectionUid?: string }) {
               <div className="p-6"><p className="text-sm text-red-700" role="alert">{result.error}</p><Button className="mt-4" size="sm" onClick={() => { setResult({ connections: [], loading: true }); setAttempt(current => current + 1); }}>{t("connections.tryAgain")}</Button></div>
             ) : result.connections.length === 0 ? (
               <div className="px-6 py-10 text-center sm:py-14">
-                <span className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-background text-muted"><HugeiconsIcon icon={Link01Icon} size={24} aria-hidden="true" /></span>
+                <span className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-background text-muted"><LinkIcon size={24} aria-hidden="true" /></span>
                 <h3 className="mt-4 text-base font-semibold">{t("connections.firstTitle")}</h3>
                 <p className="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-muted">{t("connections.firstBody")}</p>
-                <Button href="/agents" className="mt-5" size="sm">{t("connections.setupGuide")} <HugeiconsIcon icon={ArrowUpRight01Icon} size={15} aria-hidden="true" /></Button>
+                <Button href="/agents" className="mt-5" size="sm">{t("connections.setupGuide")} <ArrowUpRightIcon size={15} aria-hidden="true" /></Button>
               </div>
             ) : (
               <ul className="divide-y divide-border">
@@ -138,7 +143,7 @@ function ConnectionsContent({ connectionUid }: { connectionUid?: string }) {
           </section>
           {revokeError && <p className="mt-4 text-sm text-red-700" role="alert">{revokeError}</p>}
           {notice && <p className="mt-4 text-sm" role="status">{notice}</p>}
-          <p className="mt-5 flex items-start gap-2 px-1 text-xs leading-relaxed text-muted"><HugeiconsIcon icon={Shield01Icon} className="mt-0.5 shrink-0" size={15} aria-hidden="true" />{t("connections.separateNote")}</p>
+          <p className="mt-5 flex items-start gap-2 px-1 text-xs leading-relaxed text-muted"><ShieldIcon className="mt-0.5 shrink-0" size={15} aria-hidden="true" />{t("connections.separateNote")}</p>
         </>
       )}
     </div>

@@ -1,6 +1,11 @@
 
-import { ArrowDown02Icon, ArrowUpRight01Icon, ArrowRight02Icon } from '@hugeicons/core-free-icons';
-import { HugeiconsIcon } from '@hugeicons/react';
+import {
+  ArrowDown as ArrowDownIcon,
+  ArrowUpRight as ArrowUpRightIcon,
+  ArrowRight as ArrowRightIcon,
+} from "lucide-react";
+import { InterfaceIcon } from "@/components/ui/interface-icon";
+
 
 /** Original vector scenes, rather than a generic icon set. */
 export function TokenArt({ kind }: { kind: "access" | "benefits" | "burn" }) {
@@ -46,5 +51,5 @@ export function TokenArt({ kind }: { kind: "access" | "benefits" | "burn" }) {
 }
 
 export function ArrowIcon({ direction = "right" }: { direction?: "right" | "down" | "diagonal" }) {
-  return <HugeiconsIcon icon={direction === "down" ? ArrowDown02Icon : direction === "diagonal" ? ArrowUpRight01Icon : ArrowRight02Icon} size={18} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className="inline-block shrink-0 align-middle" />;
+  return <InterfaceIcon icon={direction === "down" ? ArrowDownIcon : direction === "diagonal" ? ArrowUpRightIcon : ArrowRightIcon} size={18} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className="inline-block shrink-0 align-middle" />;
 }

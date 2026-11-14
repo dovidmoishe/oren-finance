@@ -3,14 +3,15 @@ import test from 'node:test';
 import { createRequire } from 'node:module';
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { chunkFiles, listDefaultLintFiles } from '../scripts/lint-bounded.mjs';
 
-const appRoot = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
+const appRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 test('bounded lint chunks are a partition of the default eslint file set', async () => {
   const files = await listDefaultLintFiles(appRoot);
   assert.ok(files.length > 10);
-  assert.ok(files.some(file => file.endsWith('tests/lint-bounded.test.mjs')));
+  assert.ok(files.some(file => file.endsWith(path.join('tests', 'lint-bounded.test.mjs'))));
   assert.ok(files.every(file => !file.includes(`${path.sep}node_modules${path.sep}`)));
   assert.ok(files.every(file => !file.includes(`${path.sep}.next${path.sep}`)));
   const chunks = chunkFiles(files);

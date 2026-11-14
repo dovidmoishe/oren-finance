@@ -1,10 +1,7 @@
 "use client";
 
-import {
-  ChartCandlestickIcon,
-  ChartLineData01Icon,
-} from "@hugeicons/core-free-icons";
-import { HugeiconsIcon } from "@hugeicons/react";
+import { ChartCandlestick as ChartCandlestickIcon, ChartLine as ChartLineIcon } from "lucide-react";
+
 import type {
   CandlestickData,
   IChartApi,
@@ -314,7 +311,7 @@ export function MarketChart({
             title={t("common.lineChart")}
             variant={effectiveMode === "line" ? "secondary" : "ghost"}
           >
-            <HugeiconsIcon color="currentColor" icon={ChartLineData01Icon} size={16} strokeWidth={1.8} />
+            <ChartLineIcon color="currentColor" size={16} strokeWidth={1.8} />
           </Button>
           <Button
             aria-label={t("common.candleMode")}
@@ -324,7 +321,7 @@ export function MarketChart({
             title={canUseCandles ? t("common.candleChart") : t("common.candlesNeedOhlc")}
             variant={effectiveMode === "candles" ? "secondary" : "ghost"}
           >
-            <HugeiconsIcon color="currentColor" icon={ChartCandlestickIcon} size={16} strokeWidth={1.8} />
+            <ChartCandlestickIcon color="currentColor" size={16} strokeWidth={1.8} />
           </Button>
         </div>}
       </div>

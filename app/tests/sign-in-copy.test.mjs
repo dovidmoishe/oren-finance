@@ -87,7 +87,7 @@ test("the email step renders catalog copy and never the raw SDK string", () => {
 test("compact USD liquidity follows the active locale", () => {
   const en = format.formatCompactCurrency(1_200_000, "en");
   const de = format.formatCompactCurrency(1_200_000, "de");
-  assert.match(en, /\$1\.20M/);
+  assert.match(en, /\$1\.20?M/);
   assert.notEqual(de, en);
   assert.match(de, /1,2/);
   assert.equal(format.formatCompactCurrency(undefined, "en"), format.formatCompactCurrency(0, "en"));

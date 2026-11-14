@@ -26,8 +26,8 @@ function loadComponent(path, mocks = {}) {
       t: (key, values = {}) => key.split('.').reduce((value, part) => value[part], messages)
         .replace(/\{(\w+)\}/g, (_, name) => String(values[name])),
     }) };
-    if (id === '@hugeicons/react') return { HugeiconsIcon: () => null };
-    if (id === '@hugeicons/core-free-icons') return {};
+    if (id === '@/components/ui/interface-icon') return { InterfaceIcon: () => null };
+    if (id === 'lucide-react') return new Proxy({}, { get: () => () => null });
     return require(id);
   } });
   return exports;

@@ -1,8 +1,9 @@
 'use client';
 
 import { useEffect, useId, useState } from 'react';
-import { Copy01Icon, Tick02Icon } from '@hugeicons/core-free-icons';
-import { HugeiconsIcon } from '@hugeicons/react';
+import { Copy as CopyIcon, Check as CheckIcon } from "lucide-react";
+import { InterfaceIcon } from "@/components/ui/interface-icon";
+
 import { AGENT_CLIENTS, AgentLogo, isAgentClient, type AgentClient } from './agent-clients';
 
 const PRODUCTION_MCP_URL = 'https://api.oren.finance/mcp';
@@ -30,7 +31,7 @@ function CodeBlock({ label, code }: { label: string; code: string }) {
     <div className="agents-code-bar">
       <span>{label}</span>
       <button aria-label={copied ? 'Copied' : `Copy ${label.toLowerCase()}`} className="agents-copy" onClick={() => void copy()} type="button">
-        <HugeiconsIcon icon={copied ? Tick02Icon : Copy01Icon} size={15} aria-hidden="true" />
+        <InterfaceIcon icon={copied ? CheckIcon : CopyIcon} size={15} aria-hidden="true" />
         {copied ? 'Copied' : 'Copy'}
       </button>
     </div>

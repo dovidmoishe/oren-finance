@@ -1,6 +1,8 @@
 
-import { NewTwitterIcon, ArrowUpRight01Icon, TelegramIcon, ArrowUp02Icon } from '@hugeicons/core-free-icons';
-import { HugeiconsIcon } from '@hugeicons/react';
+import { ArrowUpRight as ArrowUpRightIcon, ArrowUp as ArrowUpIcon } from "lucide-react";
+import { NewTwitterIcon, TelegramIcon } from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react";
+
 import Link from "next/link";
 import Image from "next/image";
 import { OrenLogo } from "@/components/brand/oren-logo";
@@ -38,8 +40,8 @@ export function LandingFooter() {
           <Link href="/" className="inline-flex min-h-[36px] w-fit items-center gap-[10px] text-[15px] font-semibold tracking-[.16em] text-[#3c382f] at-most-700:text-[14px]" aria-label="Oren home"><span className="flex" aria-hidden="true"><OrenLogo size={30} /></span><span>OREN</span></Link>
           <p className="mt-[16px] max-w-[245px] text-pretty text-[13px] leading-[1.8] at-most-700:mt-[12px] at-most-700:text-[12px]">AI-powered trading for tokenized stocks on Solana.</p>
           <div className="flex flex-wrap gap-x-[24px]">
-            <a className={socialLinkClass} href="https://x.com/orenfinance_" target="_blank" rel="noopener noreferrer" aria-label="Follow Oren on X (opens in a new tab)"><span aria-hidden="true"><HugeiconsIcon icon={NewTwitterIcon} size={16} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className="inline-block shrink-0 align-middle" /></span> Follow on X <span aria-hidden="true"><HugeiconsIcon icon={ArrowUpRight01Icon} size={16} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className="inline-block shrink-0 align-middle" /></span></a>
-            <a className={socialLinkClass} href="https://t.me/orendotfinance" target="_blank" rel="noopener noreferrer" aria-label="Join Oren on Telegram (opens in a new tab)"><HugeiconsIcon icon={TelegramIcon} size={16} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className="inline-block shrink-0 align-middle" /> Telegram <span aria-hidden="true"><HugeiconsIcon icon={ArrowUpRight01Icon} size={16} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className="inline-block shrink-0 align-middle" /></span></a>
+            <a className={socialLinkClass} href="https://x.com/orenfinance_" target="_blank" rel="noopener noreferrer" aria-label="Follow Oren on X (opens in a new tab)"><span aria-hidden="true"><HugeiconsIcon icon={NewTwitterIcon} size={16} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className="inline-block shrink-0 align-middle" /></span> Follow on X <span aria-hidden="true"><ArrowUpRightIcon size={16} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className="inline-block shrink-0 align-middle" /></span></a>
+            <a className={socialLinkClass} href="https://t.me/orendotfinance" target="_blank" rel="noopener noreferrer" aria-label="Join Oren on Telegram (opens in a new tab)"><HugeiconsIcon icon={TelegramIcon} size={16} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className="inline-block shrink-0 align-middle" /> Telegram <span aria-hidden="true"><ArrowUpRightIcon size={16} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className="inline-block shrink-0 align-middle" /></span></a>
           </div>
         </div>
         <nav className="grid grid-cols-3 gap-[42px] at-most-1023:gap-[24px] at-most-700:gap-[18px]" aria-label="Footer navigation">
@@ -55,7 +57,7 @@ export function LandingFooter() {
         <p>© {new Date().getFullYear()} Oren</p>
         <div className="flex items-center gap-[36px] at-most-700:justify-between at-most-700:gap-[20px] at-most-700:mt-[12px]">
           <span className="inline-flex items-center gap-[7px] whitespace-nowrap">Built on <Image className="h-[12px] w-[15px] flex-none object-contain" src="/integrations/solana.svg" alt="" width={15} height={12} /><span>Solana</span></span>
-          <a href="#top" className="inline-flex items-center justify-center gap-[9px] min-h-[36px] text-[#7d7263] at-most-700:min-h-[40px]">Back to top <HugeiconsIcon icon={ArrowUp02Icon} size={14} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className="inline-block shrink-0 align-middle" /></a>
+          <a href="#top" className="inline-flex items-center justify-center gap-[9px] min-h-[36px] text-[#7d7263] at-most-700:min-h-[40px]">Back to top <ArrowUpIcon size={14} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className="inline-block shrink-0 align-middle" /></a>
         </div>
       </div>
     </div>

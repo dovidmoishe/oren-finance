@@ -1,7 +1,8 @@
 "use client";
 
-import { Add01Icon, ViewIcon, ViewOffIcon } from "@hugeicons/core-free-icons";
-import { HugeiconsIcon } from "@hugeicons/react";
+import { Plus as PlusIcon, Eye as EyeIcon, EyeOff as EyeOffIcon } from "lucide-react";
+import { InterfaceIcon } from "@/components/ui/interface-icon";
+
 import { Button, cn, formatCurrency } from "@/components/ui";
 import { useI18n } from "@/i18n/i18n";
 import type { PortfolioSummary } from "@/types";
@@ -90,7 +91,7 @@ export function PortfolioSummaryCard({ portfolio, hidden, onToggleHidden, onDepo
               title={t(hidden ? "portfolio.showBalances" : "portfolio.hideBalances")}
               type="button"
             >
-              <HugeiconsIcon aria-hidden="true" icon={hidden ? ViewOffIcon : ViewIcon} size={16} strokeWidth={1.7} />
+              <InterfaceIcon aria-hidden="true" icon={hidden ? EyeOffIcon : EyeIcon} size={16} strokeWidth={1.7} />
             </button>
           </div>
           <p className="break-words font-display mt-3 text-[clamp(1.85rem,5.6cqi,3.5rem)] leading-[1.1] font-medium tracking-[-0.06em] tabular-nums">{hidden ? masked : formatCurrency(portfolio.totalValueUsd, locale)}</p>
@@ -102,7 +103,7 @@ export function PortfolioSummaryCard({ portfolio, hidden, onToggleHidden, onDepo
           )}
         </div>
         <Button className="rounded-xl shadow-[0_3px_8px_rgb(23_23_23/.12)]" onClick={onDeposit} size="md" variant="primary">
-          <HugeiconsIcon aria-hidden="true" icon={Add01Icon} size={16} strokeWidth={1.8} />
+          <PlusIcon aria-hidden="true" size={16} strokeWidth={1.8} />
           {t("account.deposit")}
         </Button>
       </div>

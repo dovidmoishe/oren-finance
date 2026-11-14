@@ -1,15 +1,21 @@
 "use client";
 
-import { CancelCircleIcon, CheckmarkCircle01Icon, InformationCircleIcon } from "@hugeicons/core-free-icons";
-import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
+import {
+  CircleX as CircleXIcon,
+  CircleCheck as CircleCheckIcon,
+  Info as InfoIcon,
+  type LucideIcon,
+} from "lucide-react";
+import { InterfaceIcon } from "@/components/ui/interface-icon";
+
 import { cn } from "./utils";
 
 type ToastTone = "info" | "success" | "error";
 
-const icons: Record<ToastTone, IconSvgElement> = {
-  info: InformationCircleIcon,
-  success: CheckmarkCircle01Icon,
-  error: CancelCircleIcon,
+const icons: Record<ToastTone, LucideIcon> = {
+  info: InfoIcon,
+  success: CircleCheckIcon,
+  error: CircleXIcon,
 };
 
 const tones: Record<ToastTone, string> = {
@@ -30,7 +36,7 @@ export function Toast({
   return (
     <div className={cn("rounded-lg border p-4 text-sm shadow-sm", tones[tone])}>
       <div className="flex gap-3">
-        <HugeiconsIcon className="mt-0.5 shrink-0" color="currentColor" icon={icons[tone]} size={16} strokeWidth={1.8} />
+        <InterfaceIcon className="mt-0.5 shrink-0" color="currentColor" icon={icons[tone]} size={16} strokeWidth={1.8} />
         <div>
           <p className="font-medium">{title}</p>
           {description ? <p className="mt-1 opacity-75">{description}</p> : null}

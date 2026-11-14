@@ -1,7 +1,7 @@
 "use client";
 
-import { AlertCircleIcon, ArrowRight01Icon } from "@hugeicons/core-free-icons";
-import { HugeiconsIcon } from "@hugeicons/react";
+import { CircleAlert as CircleAlertIcon, ChevronRight as ChevronRightIcon } from "lucide-react";
+
 import { Button, Toast, formatNumber } from "@/components/ui";
 import { priceMovedChangePercent } from "@/services/price-moved";
 import { routeVenueLabel } from "@/services/route-label";
@@ -84,7 +84,7 @@ export function PriceMovedReview({ details, onAccept, onCancel, disabled }: Pric
               {t("review.cancel")}
             </Button>
             <Button className="h-12 rounded-[16px]" disabled={disabled} onClick={() => onAccept(alternative)} variant="primary">
-              <HugeiconsIcon color="currentColor" icon={ArrowRight01Icon} size={16} strokeWidth={1.8} />
+              <ChevronRightIcon color="currentColor" size={16} strokeWidth={1.8} />
               {t("review.reviewNewQuote")}
             </Button>
           </div>
@@ -92,7 +92,7 @@ export function PriceMovedReview({ details, onAccept, onCancel, disabled }: Pric
       ) : (
         <>
           <div className="flex items-start gap-2 text-sm text-muted">
-            <HugeiconsIcon className="mt-0.5 shrink-0" color="currentColor" icon={AlertCircleIcon} size={14} strokeWidth={1.8} />
+            <CircleAlertIcon className="mt-0.5 shrink-0" color="currentColor" size={14} strokeWidth={1.8} />
             <span>{t("review.noAlternative")}</span>
           </div>
           <Button className="h-12 w-full rounded-[16px]" disabled={disabled} onClick={onCancel} variant="secondary">

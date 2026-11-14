@@ -1,7 +1,7 @@
 "use client";
 
-import { Cancel01Icon, Search01Icon } from "@hugeicons/core-free-icons";
-import { HugeiconsIcon } from "@hugeicons/react";
+import { X as XIcon, Search as SearchIcon } from "lucide-react";
+
 import Link from "next/link";
 import { useEffect, useState, type RefObject } from "react";
 import { useT } from "@/i18n/i18n";
@@ -64,7 +64,7 @@ export function AppSearch({ dialog }: { dialog: RefObject<HTMLDialogElement | nu
       ref={dialog}
     >
       <div className="flex items-center gap-2.5 p-3 sm:px-4">
-        <HugeiconsIcon aria-hidden="true" className="shrink-0 text-muted" icon={Search01Icon} size={19} strokeWidth={1.7} />
+        <SearchIcon aria-hidden="true" className="shrink-0 text-muted" size={19} strokeWidth={1.7} />
         <input
           aria-label={t("markets.searchLabel")}
           className="h-10 min-w-0 flex-1 rounded-md px-1 text-base placeholder:text-muted focus-visible:outline-2 focus-visible:outline-focus"
@@ -75,7 +75,7 @@ export function AppSearch({ dialog }: { dialog: RefObject<HTMLDialogElement | nu
           value={query}
         />
         <button aria-label={t("common.close")} className="grid size-9 shrink-0 place-items-center rounded-full text-muted hover:bg-panel-subtle focus-visible:outline-2 focus-visible:outline-focus" onClick={() => dialog.current?.close()} type="button">
-          <HugeiconsIcon aria-hidden="true" icon={Cancel01Icon} size={17} strokeWidth={1.7} />
+          <XIcon aria-hidden="true" size={17} strokeWidth={1.7} />
         </button>
       </div>
       {term && (

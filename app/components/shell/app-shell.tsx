@@ -1,11 +1,14 @@
 "use client";
 
 import {
-  Calendar01Icon, ChartNoAxesCombinedIcon, ExchangeDollarIcon, LockKeyholeIcon,
-  MarketAnalysisIcon, Menu01Icon, PanelLeftCloseIcon, PanelLeftOpenIcon,
-  Search01Icon, Settings01Icon, TrophyIcon,
-} from "@hugeicons/core-free-icons";
-import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
+  Menu as MenuIcon,
+  PanelLeftClose as PanelLeftCloseIcon,
+  PanelLeftOpen as PanelLeftOpenIcon,
+  Search as SearchIcon,
+  type LucideIcon,
+} from "lucide-react";
+import { InterfaceIcon } from "@/components/ui/interface-icon";
+
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -18,29 +21,30 @@ import { useT, type MessageKey } from "@/i18n/i18n";
 import { useAgentStore } from "@/store";
 import { AccountMenu } from "./account-menu";
 import { AppSearch } from "./app-search";
+import { NavigationLink } from "./navigation-link";
+import type { NavigationIconName } from "./AnimatedIcons";
 import { CopilotResizeHandle, MAX_COPILOT_WIDTH, MIN_COPILOT_WIDTH } from "./copilot-resize-handle";
 
 const AgentPanel = dynamic(() => import("@/components/agent/agent-panel").then((mod) => mod.AgentPanel), { ssr: false });
 const DepositModal = dynamic(() => import("@/components/portfolio/deposit-dashboard").then((mod) => mod.DepositModal), { ssr: false });
 
-const portfolio = { href: "/app", label: "nav.portfolio", icon: MarketAnalysisIcon } as const;
-const markets = { href: "/app/markets", label: "nav.markets", icon: ChartNoAxesCombinedIcon } as const;
-const settings = { href: "/app/settings/connections", label: "nav.settings", icon: Settings01Icon } as const;
-const navigation: { href: string; label: MessageKey; icon: IconSvgElement }[] = [
+const portfolio = { href: "/app", label: "nav.portfolio", icon: "portfolio" } as const;
+const markets = { href: "/app/markets", label: "nav.markets", icon: "markets" } as const;
+const settings = { href: "/app/settings/connections", label: "nav.settings", icon: "settings" } as const;
+const navigation: { href: string; label: MessageKey; icon: NavigationIconName }[] = [
   portfolio,
   markets,
-  { href: "/app/activity", label: "common.activityTitle", icon: ExchangeDollarIcon },
-  { href: "/app/vault", label: "nav.vault", icon: LockKeyholeIcon },
-  { href: "/app/calendar", label: "calendar.title", icon: Calendar01Icon },
-  { href: "/app/leaderboard", label: "nav.leaderboard", icon: TrophyIcon },
+  { href: "/app/activity", label: "common.activityTitle", icon: "activity" },
+  { href: "/app/vault", label: "nav.vault", icon: "vault" },
+  { href: "/app/calendar", label: "calendar.title", icon: "calendar" },
+  { href: "/app/leaderboard", label: "nav.leaderboard", icon: "leaderboard" },
 ];
 
 const headerButton = "inline-flex h-10 shrink-0 items-center justify-center rounded-full text-muted hover:bg-panel-subtle hover:text-foreground focus-visible:outline-2 focus-visible:outline-focus lg:h-9 pointer-coarse:h-11";
 const iconButton = cn(headerButton, "w-10 lg:w-9 pointer-coarse:w-11");
-const navRow = "flex min-h-11 items-center gap-3 rounded-xl px-3.5 text-sm hover:bg-black/[0.035] hover:text-foreground focus-visible:outline-2 focus-visible:outline-focus pointer-coarse:min-h-11";
 
-function Icon({ icon, size = 18 }: { icon: IconSvgElement; size?: number }) {
-  return <HugeiconsIcon aria-hidden="true" className="shrink-0" icon={icon} size={size} strokeWidth={1.7} />;
+function Icon({ icon, size = 18 }: { icon: LucideIcon; size?: number }) {
+  return <InterfaceIcon aria-hidden="true" className="shrink-0" icon={icon} size={size} strokeWidth={1.7} />;
 }
 
 export function AppShell({ children }: { children: React.ReactNode }) {
@@ -104,19 +108,16 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const docked = agentOpen && !agentExpanded;
 
   function navigationLink(item: (typeof navigation)[number], compact = false) {
-    const isActive = item.href === active?.href;
     return (
-      <Link
-        aria-current={isActive ? "page" : undefined}
-        className={cn(navRow, isActive ? "bg-panel font-semibold text-foreground shadow-[0_2px_8px_rgb(23_23_23/.05)] ring-1 ring-border/70 [&>svg]:text-[#7160b8]" : "font-medium text-muted", compact && "justify-center px-0")}
+      <NavigationLink
+        active={item.href === active?.href}
+        compact={compact}
         href={item.href}
+        icon={item.icon}
         key={item.href}
-        onClick={() => mobileMenu.current?.hidePopover()}
-        title={compact ? t(item.label) : undefined}
-      >
-        <HugeiconsIcon aria-hidden="true" className="shrink-0" icon={item.icon} size={19} strokeWidth={isActive ? 2.2 : 1.65} />
-        <span className={compact ? "sr-only" : undefined}>{t(item.label)}</span>
-      </Link>
+        label={t(item.label)}
+        onNavigate={() => mobileMenu.current?.hidePopover()}
+      />
     );
   }
 
@@ -147,7 +148,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           "mb-4 flex min-h-9 items-center gap-2 rounded-lg border border-border bg-panel text-start text-sm text-muted shadow-xs hover:border-border-strong hover:text-foreground focus-visible:outline-2 focus-visible:outline-focus",
           collapsed ? "justify-center" : "px-2.5",
         )} onClick={() => search.current?.showModal()} title={t("markets.searchLabel")} type="button">
-          <Icon icon={Search01Icon} size={16} />
+          <Icon icon={SearchIcon} size={16} />
           {!collapsed && <><span className="flex-1">{t("nav.search")}</span><kbd className="rounded bg-panel-subtle px-1.5 font-mono text-xs">/</kbd></>}
         </button>
         <nav aria-label={t("nav.navigation")} className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto p-0.5">
@@ -158,7 +159,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
       <div className={cn("min-h-dvh min-w-0 bg-panel lg:col-start-2 lg:row-start-1 lg:min-h-[calc(100dvh-1.5rem)] lg:rounded-[22px] lg:border lg:border-border/80 lg:shadow-[0_4px_24px_rgb(23_23_23/.025)]", agentOpen && agentExpanded && "lg:hidden")}>
         <header ref={header} className="sticky top-0 z-30 flex min-h-[var(--app-nav-height)] items-center gap-1.5 border-b border-border/70 bg-panel px-2.5 sm:gap-2.5 sm:px-5 lg:rounded-t-[22px] lg:border-b-0">
-          <button aria-label={t("nav.navigation")} className={cn(iconButton, "lg:hidden")} popoverTarget={menuId} type="button"><Icon icon={Menu01Icon} size={20} /></button>
+          <button aria-label={t("nav.navigation")} className={cn(iconButton, "lg:hidden")} popoverTarget={menuId} type="button"><Icon icon={MenuIcon} size={20} /></button>
           <div className="fixed inset-x-2 top-[var(--app-header-bottom)] bottom-auto m-0 max-h-[calc(100dvh-var(--app-nav-height)-1rem)] overflow-y-auto rounded-xl border border-border bg-panel p-2 text-foreground shadow-xl lg:hidden" id={menuId} popover="auto" ref={mobileMenu}>
             <nav aria-label={t("nav.navigation")} className="grid gap-1">
               {navigation.map((item) => navigationLink(item))}
@@ -169,7 +170,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             ? <h1 className="min-w-0 flex-1 truncate font-display text-[1.2rem] font-bold tracking-tight sm:text-[1.25rem]">{title}</h1>
             : <span className="min-w-0 flex-1 truncate font-display text-[1.2rem] font-bold tracking-tight sm:text-[1.25rem]">{title}</span>}
           <div aria-label={t("nav.yourAccount")} className="flex min-w-0 items-center gap-0.5 sm:gap-2">
-            <button aria-haspopup="dialog" aria-label={t("markets.searchLabel")} className={cn(iconButton, "lg:hidden")} onClick={() => search.current?.showModal()} type="button"><Icon icon={Search01Icon} /></button>
+            <button aria-haspopup="dialog" aria-label={t("markets.searchLabel")} className={cn(iconButton, "lg:hidden")} onClick={() => search.current?.showModal()} type="button"><Icon icon={SearchIcon} /></button>
             <LanguageMenu />
             <button
               aria-controls="oren-agent-panel"

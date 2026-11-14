@@ -1,8 +1,8 @@
 "use client";
 
 import { useId, useState } from "react";
-import { HugeiconsIcon } from "@hugeicons/react";
-import { ArrowRight01Icon, InformationCircleIcon, Shield01Icon } from "@hugeicons/core-free-icons";
+import { ChevronRight as ChevronRightIcon, Info as InfoIcon, Shield as ShieldIcon } from "lucide-react";
+
 import type { GrantSettings } from "@/services/mcp-grant-authorization";
 import { grantDurationOptions, parseGrantSettings, type GrantDraft, type GrantSpendLimits } from "@/services/mcp-grant-settings";
 import { useI18n } from "@/i18n/i18n";
@@ -74,7 +74,7 @@ export function TradeGrantEditor({ sellAvailable, maxDurationHours, untilRevoked
           </label>}
         </div>
         <div className="trade-grant-summary">
-          <HugeiconsIcon icon={Shield01Icon} size={20} strokeWidth={1.6} aria-hidden="true" />
+          <ShieldIcon size={20} strokeWidth={1.6} aria-hidden="true" />
           <div><strong>{t("grant.summaryTitle")}</strong><p>{t("grant.summaryBody")}</p></div>
         </div>
         <p className="trade-grant-caption">{t("grant.noSigners")}</p>
@@ -85,11 +85,11 @@ export function TradeGrantEditor({ sellAvailable, maxDurationHours, untilRevoked
         </details>
         <label className="trade-grant-checkbox"><input type="checkbox" checked={acknowledged} onChange={event => setAcknowledged(event.target.checked)} /><span>{sellAvailable ? t("grant.ackBuySell") : t("grant.ackBuy")}</span></label>
       </fieldset>
-      {!signerConfigured && <p className="trade-grant-warning" role="alert"><HugeiconsIcon icon={InformationCircleIcon} size={18} aria-hidden="true" /><span>{t("grant.setupUnavailable")}</span></p>}
+      {!signerConfigured && <p className="trade-grant-warning" role="alert"><InfoIcon size={18} aria-hidden="true" /><span>{t("grant.setupUnavailable")}</span></p>}
       {error && <p className="trade-grant-error" role="alert">{error}</p>}
       <div className="trade-grant-footer">
         <span>{t("grant.reviewNext")}</span>
-        <button className="trade-grant-primary" type="submit" disabled={busy || !acknowledged || !signerConfigured}>{busy ? t("grant.preparing") : t("grant.review")}<HugeiconsIcon icon={ArrowRight01Icon} size={16} aria-hidden="true" /></button>
+        <button className="trade-grant-primary" type="submit" disabled={busy || !acknowledged || !signerConfigured}>{busy ? t("grant.preparing") : t("grant.review")}<ChevronRightIcon size={16} aria-hidden="true" /></button>
       </div>
     </form>
   );

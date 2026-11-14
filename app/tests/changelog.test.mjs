@@ -116,8 +116,8 @@ test('real loader and route hide drafts from production params, metadata and pag
       if (id === '@/content/changelog') return data;
       if (id === '@/content/changelog/model.mjs') return model;
       if (id === 'next/navigation') return {notFound: () => {throw new Error('404');}};
-      if (id === '@hugeicons/core-free-icons') return {};
-      if (id === '@hugeicons/react') return {HugeiconsIcon: () => null};
+      if (id === 'lucide-react') return new Proxy({}, { get: () => () => null });
+      if (id === '@/components/ui/interface-icon') return {InterfaceIcon: () => null};
       if (id === 'react/jsx-runtime') return {jsx: () => ({}), jsxs: () => ({})};
       if (id === 'next/link' || id.includes('changelog-entry') || id.endsWith('.css')) return {};
       throw new Error(`Unexpected route import ${id}`);

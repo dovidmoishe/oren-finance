@@ -24,8 +24,9 @@ function load(path, states, mocks = {}) {
     if (id === '@/components/ui') return { Button: ({ children, size, variant, ...props }) => React.createElement('button', props, children), formatDate: (value) => String(value ?? "") };
     if (id === 'next/link') return { default: ({ children, ...props }) => React.createElement('a', props, children) };
     if (id.endsWith('.module.css')) return { default: {} };
-    if (id === '@hugeicons/react') return { HugeiconsIcon: () => null };
-    if (id === '@hugeicons/core-free-icons' || id === '@/services/mcp-grant-authorization') return {};
+    if (id === '@/components/ui/interface-icon') return { InterfaceIcon: () => null };
+    if (id === 'lucide-react') return new Proxy({}, { get: () => () => null });
+    if (id === '@/services/mcp-grant-authorization') return {};
     if (id === './trade-grant-editor') return { TradeGrantEditor: () => React.createElement('form', { 'data-editor': true }) };
     if (id === './connection-next-step') return { ConnectionNextStep: () => null };
     return require(id);

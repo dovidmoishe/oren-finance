@@ -1,7 +1,11 @@
 "use client";
 
-import { ArrowDown01Icon, ArrowRight01Icon, RefreshCwIcon } from "@hugeicons/core-free-icons";
-import { HugeiconsIcon } from "@hugeicons/react";
+import {
+  ChevronDown as ChevronDownIcon,
+  ChevronRight as ChevronRightIcon,
+  RefreshCw as RefreshCwIcon,
+} from "lucide-react";
+
 import Link from "next/link";
 import { Fragment, useId, useState, type ReactNode } from "react";
 import {
@@ -73,13 +77,13 @@ function PositionsTable({ positions, hidden }: { positions: PortfolioPosition[];
           ];
           return (
             <Fragment key={position.assetId}>
-              <TableRow className="hover:bg-panel-subtle/60">
+              <TableRow className="hover:bg-accent-lavender/10 focus-within:bg-accent-lavender/10">
                 <TableCell className={cell}>
                   <Link className="flex min-w-0 items-center gap-2 rounded focus-visible:outline-2 focus-visible:outline-focus sm:gap-2.5" href={"/app/stocks/" + encodeURIComponent(position.assetId)}>
                     <PositionLogo position={position} />
                     <span className="min-w-0">
                       <span className="block truncate text-xs font-semibold sm:text-sm" title={position.name}>{position.name}</span>
-                      <span className="mt-0.5 block truncate text-[11px] text-muted">{position.ticker}</span>
+                      <span className="mt-0.5 block truncate text-xs text-muted">{position.ticker}</span>
                     </span>
                   </Link>
                 </TableCell>
@@ -96,7 +100,7 @@ function PositionsTable({ positions, hidden }: { positions: PortfolioPosition[];
                     onClick={() => setExpandedAsset(open ? undefined : position.assetId)}
                     type="button"
                   >
-                    <HugeiconsIcon aria-hidden="true" className={open ? "rotate-180" : undefined} icon={ArrowDown01Icon} size={15} strokeWidth={1.8} />
+                    <ChevronDownIcon aria-hidden="true" className={open ? "rotate-180" : undefined} size={15} strokeWidth={1.8} />
                   </button>
                 </TableCell>
               </TableRow>
@@ -136,7 +140,7 @@ function RecentActivityTable({ activity, hidden }: { activity: PortfolioActivity
         {activity.slice(0, 6).map((item) => {
           const timestamp = formatDateTime(item.occurredAt, locale, timeZone, t("common.unknown"));
           return (
-            <TableRow className="hover:bg-panel-subtle/60" key={item.id}>
+            <TableRow className="hover:bg-accent-lavender/10 focus-within:bg-accent-lavender/10" key={item.id}>
               <TableCell className={cn(cell, desktopCell, "text-xs text-muted")}>{timestamp}</TableCell>
               <TableCell className={cell}>
                 <span className="block truncate font-semibold">{item.ticker ?? t(activityLabels[item.type])}</span>
@@ -185,7 +189,7 @@ export function PortfolioTables({ positions, activity, allocation, history, hidd
               aria-pressed={id === section}
               className={cn(
                 "min-h-10 shrink-0 whitespace-nowrap rounded-lg px-1.5 text-xs font-medium focus-visible:outline-2 focus-visible:outline-focus @lg:px-4 @lg:text-sm",
-                id === section ? "bg-panel text-foreground shadow-[0_1px_4px_rgb(23_23_23/.08)]" : "text-muted hover:bg-panel/60 hover:text-foreground",
+                id === section ? "bg-panel text-[#6652b3] shadow-[0_1px_4px_rgb(23_23_23/.08)]" : "text-muted hover:bg-panel/60 hover:text-foreground",
               )}
               key={id}
               onClick={() => setSection(id)}
@@ -198,11 +202,11 @@ export function PortfolioTables({ positions, activity, allocation, history, hidd
         {section === "activity" ? (
           <Link className={toolbarButton} href="/app/activity">
             {t("portfolio.viewAll")}
-            <HugeiconsIcon aria-hidden="true" icon={ArrowRight01Icon} size={14} strokeWidth={1.8} />
+            <ChevronRightIcon aria-hidden="true" size={14} strokeWidth={1.8} />
           </Link>
         ) : (
           <button aria-label={t("portfolio.refresh")} className={toolbarButton} disabled={isLoading} onClick={onRefresh} title={t("portfolio.refresh")} type="button">
-            <HugeiconsIcon aria-hidden="true" className={isLoading ? "motion-safe:animate-spin" : undefined} icon={RefreshCwIcon} size={15} strokeWidth={1.8} />
+            <RefreshCwIcon aria-hidden="true" className={isLoading ? "motion-safe:animate-spin" : undefined} size={15} strokeWidth={1.8} />
           </button>
         )}
       </div>

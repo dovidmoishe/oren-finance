@@ -1,6 +1,7 @@
 "use client";
-import { Cancel01Icon, Tick02Icon, Copy01Icon } from '@hugeicons/core-free-icons';
-import { HugeiconsIcon } from '@hugeicons/react';
+import { X as XIcon, Check as CheckIcon, Copy as CopyIcon } from "lucide-react";
+import { InterfaceIcon } from "@/components/ui/interface-icon";
+
 
 
 import QRCode from "qrcode";
@@ -32,7 +33,7 @@ export function DepositModal() {
     const rect = event.currentTarget.getBoundingClientRect();
     if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) auth.closeDeposit();
   }} ref={dialog}>
-    <div className="flex items-center justify-between gap-4"><h2 className="font-display text-xl font-semibold" id="deposit-title">{t("deposit.title")}</h2><button aria-label={t("deposit.close")} className="grid h-8 w-8 place-items-center rounded-full text-xl text-muted hover:bg-background" onClick={auth.closeDeposit} type="button"><HugeiconsIcon icon={Cancel01Icon} size={16} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className="inline-block shrink-0 align-middle" /></button></div>
+    <div className="flex items-center justify-between gap-4"><h2 className="font-display text-xl font-semibold" id="deposit-title">{t("deposit.title")}</h2><button aria-label={t("deposit.close")} className="grid h-8 w-8 place-items-center rounded-full text-xl text-muted hover:bg-background" onClick={auth.closeDeposit} type="button"><XIcon size={16} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className="inline-block shrink-0 align-middle" /></button></div>
     {auth.depositOpen && <div className="mt-5">
       {!auth.authenticated ? <div><p className="text-sm text-muted">{t("deposit.signInPrompt")}</p><Button className="mt-4" onClick={() => { auth.closeDeposit(); auth.open(); }}>{t("deposit.signIn")}</Button></div>
         : !auth.address ? <div role="status"><p className="text-sm text-muted">{auth.error ? t("deposit.walletMoment") : t("deposit.preparingWallet")}</p>{auth.error && <><p className="mt-2 text-sm text-red-700" role="alert">{auth.error}</p><Button className="mt-4" disabled={auth.busy} onClick={() => void auth.createWallet()}>{t("deposit.retryWallet")}</Button></>}</div>
@@ -68,7 +69,7 @@ function DepositAddress({ wallet, getAccessToken }: { wallet: string; getAccessT
       try { await navigator.clipboard.writeText(wallet); setCopied(true); setCopyError(false); }
       catch { setCopyError(true); }
     }}>
-      <HugeiconsIcon icon={copied ? Tick02Icon : Copy01Icon} size={18} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className="inline-block shrink-0 align-middle" />
+      <InterfaceIcon icon={copied ? CheckIcon : CopyIcon} size={18} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className="inline-block shrink-0 align-middle" />
     </Button>
     </div>
     <span aria-live="polite" className="sr-only">{copied ? t("deposit.copied") : ""}</span>

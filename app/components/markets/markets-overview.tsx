@@ -1,7 +1,7 @@
 "use client";
 
-import { Search01Icon } from "@hugeicons/core-free-icons";
-import { HugeiconsIcon } from "@hugeicons/react";
+import { Search as SearchIcon } from "lucide-react";
+
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Button, Skeleton, cn, formatCompactCurrency, formatCurrency, formatPercent } from "@/components/ui";
@@ -243,7 +243,7 @@ export function MarketsOverview() {
     <div className="mx-auto max-w-[1320px] space-y-5 pb-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <label className="flex min-h-11 w-full items-center gap-2 rounded-xl border border-border bg-panel px-3.5 focus-within:border-border-strong @lg:max-w-80">
-          <HugeiconsIcon aria-hidden="true" className="shrink-0 text-muted" icon={Search01Icon} size={17} strokeWidth={1.8} />
+          <SearchIcon aria-hidden="true" className="shrink-0 text-muted" size={17} strokeWidth={1.8} />
           <span className="sr-only">{t("markets.searchLabel")}</span>
           <input
             className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted"

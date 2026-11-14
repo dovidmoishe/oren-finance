@@ -2,8 +2,8 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { usePathname } from 'next/navigation';
-import { Cancel01Icon } from '@hugeicons/core-free-icons';
-import { HugeiconsIcon } from '@hugeicons/react';
+import { X as XIcon } from "lucide-react";
+
 import { useOrenAuth } from '@/components/auth/auth-context';
 import { Button, formatDate } from '@/components/ui';
 import { listFeedback, submitFeedback } from '@/services/feedback-service';
@@ -43,7 +43,7 @@ export function FeedbackModal({ onClose }: { onClose: () => void }) {
     const rect = event.currentTarget.getBoundingClientRect();
     if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) onClose();
   }}>
-    <div className="flex items-center justify-between gap-4"><h2 id="feedback-title" className="font-display text-xl font-semibold">{t("feedback.title")}</h2><button aria-label={t("feedback.close")} className="grid h-8 w-8 place-items-center rounded-full text-muted hover:bg-background" type="button" onClick={onClose}><HugeiconsIcon icon={Cancel01Icon} size={16} aria-hidden="true" /></button></div>
+    <div className="flex items-center justify-between gap-4"><h2 id="feedback-title" className="font-display text-xl font-semibold">{t("feedback.title")}</h2><button aria-label={t("feedback.close")} className="grid h-8 w-8 place-items-center rounded-full text-muted hover:bg-background" type="button" onClick={onClose}><XIcon size={16} aria-hidden="true" /></button></div>
     <p className="mt-2 text-sm leading-6 text-muted">{t("feedback.intro")}</p>
     {!auth.ready ? <p className="mt-6 text-sm" role="status">{t("feedback.loadingAccount")}</p>
       : !auth.authenticated ? <Button className="mt-6" onClick={auth.open}>{t("feedback.signIn")}</Button>
