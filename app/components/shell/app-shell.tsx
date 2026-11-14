@@ -11,6 +11,7 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { OrenLogo } from "@/components/brand/oren-logo";
+import { useOrenAuth } from "@/components/auth/auth-context";
 import { AccountMenu } from "./account-menu";
 import { LanguageMenu } from "@/components/language/language-menu";
 import { useT, type MessageKey } from "@/i18n/i18n";
@@ -35,6 +36,7 @@ function Icon({ icon, className, size = 18 }: { icon: IconSvgElement; className?
 }
 
 export function AppShell({ children }: { children: React.ReactNode }) {
+  const { depositOpen } = useOrenAuth();
   const pathname = usePathname();
   const t = useT();
   const agentOpen = useAgentStore((state) => state.panelOpen && state.hydrated);
@@ -86,7 +88,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         {children}
       </main>
       <AgentPanel />
-      <DepositModal />
+      {depositOpen ? <DepositModal /> : null}
       {!agentOpen ? (
         <div className="pointer-events-none fixed inset-x-0 bottom-5 z-[100] px-4 sm:px-6">
           <div className="mx-auto flex max-w-[1540px] justify-end">
