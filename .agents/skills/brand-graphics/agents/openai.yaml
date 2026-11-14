@@ -1,0 +1,4 @@
+interface:
+  display_name: "Oren brand graphics"
+  short_description: "Social graphics in the approved Oren style"
+  default_prompt: "Use $brand-graphics to write a 16:9 Oren social graphic in the approved style: Instrument Sans, sage payoff line, official mascot inside one idea, and the review checklist before handoff."
