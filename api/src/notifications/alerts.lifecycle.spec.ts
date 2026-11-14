@@ -163,4 +163,49 @@ run('price alert life cycle with disposable Postgres', () => {
     await jobs.sweep();
     expect((await rows()).every((r) => r.state === 'canceled')).toBe(true);
   }, 60000);
+
+  it('evaluates every user while alerts are public and only the pilot otherwise', async () => {
+    await client`truncate price_alerts, notification_jobs, notification_budgets, price_poll_cursor`;
+    const outsider = 'did:privy:public';
+    process.env.PRICE_ALERTS_PUBLIC = 'true';
+    try {
+      price = 100;
+      const created = await alerts.create(outsider, true, body('above', '120'));
+      expect(created.target).toBe('120.00');
+      await client`update price_alerts set created_at = now() - interval '1 day',
+        quote_at = now() - interval '6 hours', quote_price = 100 where user_id = ${outsider}`;
+      price = 130;
+      await scan();
+      const [fired] =
+        await client`select state from price_alerts where user_id = ${outsider}`;
+      expect(fired.state).toBe('triggered');
+
+      delete process.env.PRICE_ALERTS_PUBLIC;
+      await client`truncate price_alerts, notification_jobs, notification_budgets, price_poll_cursor`;
+      await client`insert into price_alerts
+        (user_id, asset_id, ticker, variant, mint, direction, target, created_at, quote_at, quote_price)
+        values (${outsider}, 'nvda', 'NVDA', 'NVDAx', ${mint}, 'above', 110,
+          now() - interval '1 day', now() - interval '6 hours', 100)`;
+      price = 100;
+      await alerts.create(user, true, body('above', '140'));
+      await client`update price_alerts set created_at = now() - interval '1 day',
+        quote_at = now() - interval '6 hours', quote_price = 100 where user_id = ${user}`;
+      price = 150;
+      await scan();
+      const states = await client<
+        { user_id: string; state: string }[]
+      >`select user_id, state from price_alerts`;
+      expect(states.find((row) => row.user_id === outsider)?.state).toBe(
+        'active',
+      );
+      expect(states.find((row) => row.user_id === user)?.state).toBe(
+        'triggered',
+      );
+      const queued =
+        await client`select user_id from notification_jobs where kind = 'alert-email'`;
+      expect(queued).toEqual([{ user_id: user }]);
+    } finally {
+      delete process.env.PRICE_ALERTS_PUBLIC;
+    }
+  }, 60000);
 });

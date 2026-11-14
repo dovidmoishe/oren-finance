@@ -59,6 +59,26 @@ export function crossed(
     : previous.price > target && current.price <= target;
 }
 
+/**
+ * Show a USD alert price without the numeric(24,8) trailing zeros.
+ * Amounts of at least one cent keep two decimal places; smaller prices keep
+ * the significant digits, up to the stored scale of eight.
+ */
+export function formatAlertPrice(value: string | number): string {
+  const text =
+    typeof value === 'number'
+      ? Number.isFinite(value)
+        ? value.toFixed(8)
+        : String(value)
+      : value.trim();
+  const match = /^(\d+)(?:\.(\d+))?$/.exec(text);
+  if (!match) return text;
+  const whole = match[1].replace(/^0+(?=\d)/, '') || '0';
+  const fraction = (match[2] ?? '').replace(/0+$/, '');
+  if (fraction.length <= 2) return `${whole}.${fraction.padEnd(2, '0')}`;
+  return `${whole}.${fraction}`;
+}
+
 /** True when the price already satisfies the alert, so it could never "cross". */
 export function alreadyPast(
   direction: 'above' | 'below',

@@ -1,9 +1,21 @@
 import { normalizeMarketSnapshots } from '../tokens/market-snapshots';
 import { calculatePnl, priceMoves, type Valuation } from './brief-math';
-import { alreadyPast, crossed, providerQuote } from './quotes';
+import {
+  alertEmail,
+  NotificationDelivery,
+  unsubscribeJobId,
+  unsubscribeToken,
+} from './delivery';
+import {
+  alreadyPast,
+  crossed,
+  formatAlertPrice,
+  providerQuote,
+} from './quotes';
 import { nextBrief } from './schedule';
-import { notificationSettings } from './settings';
-import { unsubscribeJobId, unsubscribeToken } from './delivery';
+import { alertUserAllowed, notificationSettings } from './settings';
+import { NotificationUnsubscribeController } from './unsubscribe.controller';
+import { notificationWorkerStartup } from './worker';
 
 jest.mock('@privy-io/node', () => ({ PrivyClient: jest.fn() }));
 
@@ -167,5 +179,231 @@ describe('notification rules', () => {
         TOKENS_ALERT_TIMESTAMPS_VERIFIED: 'true',
       }).alerts,
     ).toBe(true);
+    expect(notificationSettings(fixture).alertsPublic).toBe(false);
+    expect(
+      notificationSettings({ ...fixture, PRICE_ALERTS_PUBLIC: 'true' })
+        .alertsPublic,
+    ).toBe(true);
+  });
+
+  it('opens alert membership without opening morning briefs', () => {
+    const config = notificationSettings(alertRuntime());
+    expect(config.alertsPublic).toBe(false);
+    expect(alertUserAllowed('pilot-user', config)).toBe(true);
+    expect(alertUserAllowed('other', config)).toBe(false);
+    const open = notificationSettings(
+      alertRuntime({
+        PRICE_ALERTS_PUBLIC: 'true',
+        NOTIFICATION_PILOT_USERS: '',
+      }),
+    );
+    expect(alertUserAllowed('other', open)).toBe(true);
+    expect(open.briefs).toBe(false);
+    expect(
+      notificationSettings(
+        alertRuntime({
+          PRICE_ALERTS_PUBLIC: 'true',
+          MORNING_BRIEF_ENABLED: 'true',
+          NOTIFICATION_PILOT_USERS: 'pilot-user',
+        }),
+      ).briefs,
+    ).toBe(true);
+  });
+
+  it('requires pilot accounts only for briefs and private alerts', () => {
+    expect(
+      notificationWorkerStartup(
+        notificationSettings(
+          alertRuntime({
+            PRICE_ALERTS_ENABLED: 'false',
+            MORNING_BRIEF_ENABLED: 'false',
+            NOTIFICATION_PILOT_USERS: '',
+            NOTIFICATION_REDIS_URL: '',
+          }),
+        ),
+      ),
+    ).toBe('idle');
+    expect(
+      notificationWorkerStartup(
+        notificationSettings(
+          alertRuntime({
+            PRICE_ALERTS_PUBLIC: 'true',
+            NOTIFICATION_PILOT_USERS: '',
+          }),
+        ),
+      ),
+    ).toBe('ready');
+    expect(() =>
+      notificationWorkerStartup(
+        notificationSettings(
+          alertRuntime({
+            PRICE_ALERTS_PUBLIC: 'false',
+            NOTIFICATION_PILOT_USERS: '',
+          }),
+        ),
+      ),
+    ).toThrow(/pilot accounts/);
+    expect(() =>
+      notificationWorkerStartup(
+        notificationSettings(
+          alertRuntime({
+            PRICE_ALERTS_PUBLIC: 'true',
+            MORNING_BRIEF_ENABLED: 'true',
+            NOTIFICATION_PILOT_USERS: '',
+          }),
+        ),
+      ),
+    ).toThrow(/pilot accounts/);
+    expect(() =>
+      notificationWorkerStartup(
+        notificationSettings(
+          alertRuntime({
+            PRICE_ALERTS_PUBLIC: 'true',
+            NOTIFICATION_PILOT_USERS: '',
+            NOTIFICATION_REDIS_URL: '',
+          }),
+        ),
+      ),
+    ).toThrow(/provider budgets/);
+    expect(
+      notificationWorkerStartup(notificationSettings(alertRuntime())),
+    ).toBe('ready');
+  });
+
+  it('formats stored alert prices and keeps brief delivery on the pilot list', async () => {
+    expect(formatAlertPrice('120.00000000')).toBe('120.00');
+    expect(formatAlertPrice('120.50000000')).toBe('120.50');
+    expect(formatAlertPrice('120.12340000')).toBe('120.1234');
+    expect(formatAlertPrice('0.00012300')).toBe('0.000123');
+    expect(formatAlertPrice(130.5)).toBe('130.50');
+    const copy = alertEmail(
+      {
+        ticker: 'NVDA',
+        variant: 'NVDAx',
+        mint: alertMint,
+        price: 130.5,
+        quoteAt: '2026-11-14T15:00:00.000Z',
+        direction: 'above',
+        target: '120.00000000',
+        assetId: 'nvda',
+      },
+      'https://oren.example',
+      'https://api.oren.example/stop',
+    );
+    expect(copy.text).toContain('above 120.00 USD');
+    expect(copy.text).toContain('130.50 USD');
+    expect(copy.text).not.toContain('00000000');
+
+    const saved = {
+      ...process.env,
+    };
+    Object.assign(process.env, alertRuntime());
+    const update = jest.fn();
+    const budget = jest.fn().mockResolvedValue(false);
+    const defer = jest.fn();
+    const delivery = new NotificationDelivery(
+      {
+        update,
+        budget,
+        defer,
+        pending: jest.fn().mockResolvedValue([]),
+      } as never,
+      {} as never,
+      {} as never,
+    );
+    const alert = alertJob('other');
+    try {
+      await delivery.send(alert);
+      expect(update).toHaveBeenCalledWith(alert, 'canceled');
+      expect(budget).not.toHaveBeenCalled();
+
+      process.env.PRICE_ALERTS_PUBLIC = 'true';
+      update.mockClear();
+      await delivery.send(alert);
+      expect(update).not.toHaveBeenCalled();
+      expect(budget).toHaveBeenCalled();
+      expect(defer).toHaveBeenCalledWith(alert);
+
+      process.env.MORNING_BRIEF_ENABLED = 'true';
+      process.env.NOTIFICATION_PILOT_USERS = 'pilot-user';
+      update.mockClear();
+      budget.mockClear();
+      const brief = {
+        ...alert,
+        user_id: 'other',
+        kind: 'brief-email' as const,
+        payload: {
+          scheduled: new Date().toISOString(),
+          stories: [],
+          moves: [],
+        },
+      };
+      await delivery.send(brief);
+      expect(update).toHaveBeenCalledWith(brief, 'canceled');
+      expect(budget).not.toHaveBeenCalled();
+    } finally {
+      process.env = saved;
+    }
+  });
+
+  it('confirms an unsubscribe with an html page', async () => {
+    const subscription = jest
+      .fn()
+      .mockResolvedValueOnce('alert-email')
+      .mockResolvedValueOnce(null);
+    const controller = new NotificationUnsubscribeController({
+      subscription,
+    } as never);
+    const page = await controller.stop('token');
+    expect(page).toContain('<!doctype html>');
+    expect(page).toContain('You are unsubscribed');
+    expect(page).toContain('price alert');
+    expect(page.startsWith('<!doctype html>')).toBe(true);
+    expect(subscription).toHaveBeenCalledWith('token', true);
+    await expect(controller.stop('missing')).rejects.toMatchObject({
+      status: 404,
+    });
   });
 });
+
+const alertMint = 'NVDAVuiB7hwd3m5Wa1JuHNovPaPG6BH1QNztbKFxNjv';
+
+function alertRuntime(overrides: Record<string, string> = {}) {
+  return {
+    DEPLOYMENT_ENV: 'test',
+    NOTIFICATION_FIXTURE_MODE: 'false',
+    NOTIFICATION_APP_ORIGIN: 'https://oren.example',
+    NOTIFICATION_API_ORIGIN: 'https://api.oren.example',
+    NOTIFICATION_UNSUBSCRIBE_SECRET: 's'.repeat(32),
+    NOTIFICATION_ALERT_MINTS: alertMint,
+    NOTIFICATION_TOKENS_PER_MINUTE: '10',
+    NOTIFICATION_EMAIL_PER_MINUTE: '10',
+    NOTIFICATION_REDIS_URL: 'redis://127.0.0.1:6379',
+    PRICE_ALERTS_ENABLED: 'true',
+    TOKENS_ALERT_TIMESTAMPS_VERIFIED: 'true',
+    MORNING_BRIEF_ENABLED: 'false',
+    NOTIFICATION_PILOT_USERS: 'pilot-user',
+    ...overrides,
+  };
+}
+
+function alertJob(userId: string) {
+  return {
+    id: 'c1bdb5a5-22d1-43ac-b125-c30466655829',
+    user_id: userId,
+    kind: 'alert-email' as const,
+    attempts: 0,
+    lease_token: 'lease',
+    logical_key: 'alert-1',
+    payload: {
+      mint: alertMint,
+      ticker: 'NVDA',
+      variant: 'NVDAx',
+      price: 130.5,
+      quoteAt: '2026-11-14T15:00:00.000Z',
+      direction: 'above',
+      target: '120.00000000',
+      assetId: 'nvda',
+    },
+  };
+}

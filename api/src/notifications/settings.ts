@@ -32,6 +32,8 @@ export function notificationSettings(env = process.env) {
     enabled,
     briefs: enabled && env.MORNING_BRIEF_ENABLED === 'true',
     alerts,
+    /** Price alerts ignore the pilot allowlist. Morning briefs never do. */
+    alertsPublic: env.PRICE_ALERTS_PUBLIC === 'true',
     alertMints,
     fixture,
     fixtureRecipient,
@@ -48,6 +50,13 @@ export function notificationSettings(env = process.env) {
         .filter(Boolean),
     ),
   };
+}
+
+export function alertUserAllowed(
+  userId: string,
+  config = notificationSettings(),
+) {
+  return config.alertsPublic || config.pilotUsers.has(userId);
 }
 
 function positive(value: string | undefined) {

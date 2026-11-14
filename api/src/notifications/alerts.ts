@@ -13,8 +13,14 @@ import type { Database } from '../database/database.provider';
 import { TokensService } from '../tokens/tokens.service';
 import type { TokensMarketSnapshotRaw } from '../tokens/tokens.types';
 import { insertJob, NotificationJobs } from './jobs';
-import { alreadyPast, crossed, providerQuote, type Quote } from './quotes';
-import { notificationSettings } from './settings';
+import {
+  alreadyPast,
+  crossed,
+  formatAlertPrice,
+  providerQuote,
+  type Quote,
+} from './quotes';
+import { alertUserAllowed, notificationSettings } from './settings';
 
 type Alert = {
   id: string;
@@ -70,7 +76,8 @@ export class PriceAlerts {
 
   async list(userId: string, eligible: boolean, assetId?: string) {
     const config = notificationSettings();
-    const enabled = eligible && config.alerts && config.pilotUsers.has(userId);
+    const enabled =
+      eligible && config.alerts && alertUserAllowed(userId, config);
     const rows = await this.db.execute<Alert>(sql`select * from price_alerts
       where user_id = ${userId} and state in ('active','triggered','failed')
       ${assetId ? sql`and asset_id = ${assetId}` : sql``}
@@ -93,7 +100,7 @@ export class PriceAlerts {
 
   async create(userId: string, eligible: boolean, body: unknown) {
     const config = notificationSettings();
-    if (!config.alerts || !config.pilotUsers.has(userId))
+    if (!config.alerts || !alertUserAllowed(userId, config))
       throw new ServiceUnavailableException('Price alerts are unavailable');
     if (!eligible)
       throw new BadRequestException('A verified email is required');
@@ -175,7 +182,7 @@ function toResponse(alert: Alert) {
     ticker: alert.ticker,
     variant: alert.variant,
     direction: alert.direction,
-    target: alert.target,
+    target: formatAlertPrice(alert.target),
     state: alert.state,
   };
 }
@@ -191,12 +198,16 @@ export class PricePolling {
 
   async scan() {
     const config = notificationSettings();
-    if (!config.alerts || !config.tokensPerMinute || !config.pilotUsers.size)
-      return;
-    const users = sql.join(
-      [...config.pilotUsers].map((id) => sql`${id}`),
-      sql`, `,
-    );
+    if (!config.alerts || !config.tokensPerMinute) return;
+    // Public alerts cover every rule. The pilot list applies only while
+    // PRICE_ALERTS_PUBLIC is off.
+    if (!config.alertsPublic && !config.pilotUsers.size) return;
+    const users = config.alertsPublic
+      ? null
+      : sql.join(
+          [...config.pilotUsers].map((id) => sql`${id}`),
+          sql`, `,
+        );
     const eligibleMints = sql.join(
       [...config.alertMints].map((mint) => sql`${mint}`),
       sql`, `,
@@ -215,7 +226,7 @@ export class PricePolling {
       while (Date.now() < deadline) {
         const batch = await tx.execute<{ mint: string }>(sql`
           select a.mint from price_alerts a left join price_poll_cursor p on p.mint = a.mint
-          where a.state = 'active' and a.user_id in (${users}) and a.mint in (${eligibleMints})
+          where a.state = 'active' ${users ? sql`and a.user_id in (${users})` : sql``} and a.mint in (${eligibleMints})
             and (p.polled_at is null or p.polled_at < ${startedAt.toISOString()})
           group by a.mint, p.polled_at order by p.polled_at nulls first, a.mint limit 250`);
         if (
@@ -251,7 +262,7 @@ export class PricePolling {
           if (!current) continue;
           const rules =
             await tx.execute<Alert>(sql`select * from price_alerts where mint = ${mint}
-            and state = 'active' and user_id in (${users}) order by id for update`);
+            and state = 'active' ${users ? sql`and user_id in (${users})` : sql``} order by id for update`);
           for (const rule of rules) {
             if (
               current.at < new Date(rule.created_at) ||

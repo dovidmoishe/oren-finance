@@ -24,6 +24,27 @@ const lanes = {
 type Lane = keyof typeof lanes;
 const outboxLanes: Kind[] = ['alert-email', 'brief-email', 'brief'];
 
+/** Idle when both features are off. Pilot accounts are required for briefs and for private alerts. */
+export function notificationWorkerStartup(
+  config: ReturnType<typeof notificationSettings>,
+): 'idle' | 'ready' {
+  if (!config.briefs && !config.alerts) return 'idle';
+  const needsPilot = config.briefs || (config.alerts && !config.alertsPublic);
+  if (
+    !config.redisUrl ||
+    !config.tokensPerMinute ||
+    !config.emailPerMinute ||
+    (needsPilot && !config.pilotUsers.size)
+  ) {
+    throw new Error(
+      needsPilot
+        ? 'Notification Redis, provider budgets and pilot accounts are required'
+        : 'Notification Redis and provider budgets are required',
+    );
+  }
+  return 'ready';
+}
+
 @Injectable()
 export class NotificationWorker
   implements OnApplicationBootstrap, OnModuleDestroy
@@ -45,21 +66,15 @@ export class NotificationWorker
 
   onApplicationBootstrap() {
     const config = notificationSettings();
-    if (!config.briefs && !config.alerts) {
+    if (notificationWorkerStartup(config) === 'idle') {
       this.logger.log('Notification features are disabled');
       // A disabled process should not enter a restart loop under Compose.
+      // `restart: unless-stopped` would restart a clean exit, so stay up.
       this.timer = setInterval(() => {}, 60_000);
       return;
     }
-    if (
-      !config.redisUrl ||
-      !config.tokensPerMinute ||
-      !config.emailPerMinute ||
-      !config.pilotUsers.size
-    ) {
-      throw new Error(
-        'Notification Redis, provider budgets and pilot accounts are required',
-      );
+    if (!config.redisUrl) {
+      throw new Error('Notification Redis and provider budgets are required');
     }
     const producer = new Redis(config.redisUrl, {
       maxRetriesPerRequest: 1,

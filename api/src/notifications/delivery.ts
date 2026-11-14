@@ -5,8 +5,9 @@ import { PrivyWalletAuth } from '../auth/privy-wallet-auth';
 import { SenviokEmailService } from '../senviok/senviok.service';
 import { renderBriefEmail, type BriefEmailFacts } from './brief-email';
 import { NotificationJobs, type Job } from './jobs';
+import { formatAlertPrice } from './quotes';
 import { BRIEF_GRACE_MS } from './schedule';
-import { notificationSettings } from './settings';
+import { alertUserAllowed, notificationSettings } from './settings';
 
 export function unsubscribeToken(id: string, secret: string) {
   return `${id}.${createHmac('sha256', secret).update(`notifications-v1-${id}`).digest('base64url')}`;
@@ -32,23 +33,33 @@ function render(job: Job, app: string, api: string, secret: string) {
       stop,
     );
   }
-  const { ticker, variant, mint, price, quoteAt, direction, target, assetId } =
-    job.payload as {
-      ticker: string;
-      variant: string;
-      mint: string;
-      price: number;
-      quoteAt: string;
-      direction: string;
-      target: string;
-      assetId: string;
-    };
+  return alertEmail(job.payload as AlertEmailFacts, app, stop);
+}
+
+type AlertEmailFacts = {
+  ticker: string;
+  variant: string;
+  mint: string;
+  price: number | string;
+  quoteAt: string;
+  direction: string;
+  target: number | string;
+  assetId: string;
+};
+
+export function alertEmail(
+  payload: AlertEmailFacts,
+  app: string,
+  stop: string,
+) {
+  const price = formatAlertPrice(payload.price);
+  const target = formatAlertPrice(payload.target);
   return {
-    subject: `Oren price alert · ${ticker}`,
+    subject: `Oren price alert · ${payload.ticker}`,
     text: [
-      `${variant} (${mint}) reached your ${direction} ${target} USD alert.`,
-      `Tokens.xyz price: ${price} USD at ${quoteAt}.`,
-      `View stock: ${app}/app/stocks/${encodeURIComponent(assetId)}`,
+      `${payload.variant} (${payload.mint}) reached your ${payload.direction} ${target} USD alert.`,
+      `Tokens.xyz price: ${price} USD at ${payload.quoteAt}.`,
+      `View stock: ${app}/app/stocks/${encodeURIComponent(payload.assetId)}`,
       `Stop price-alert emails: ${stop}`,
     ].join('\n\n'),
   };
@@ -67,9 +78,12 @@ export class NotificationDelivery {
   async send(job: Job) {
     const config = notificationSettings();
     const brief = job.kind === 'brief-email';
+    const allowed = brief
+      ? config.pilotUsers.has(job.user_id)
+      : alertUserAllowed(job.user_id, config);
     if (
       !(brief ? config.briefs : config.alerts) ||
-      !config.pilotUsers.has(job.user_id) ||
+      !allowed ||
       (!brief && !config.alertMints.has(job.payload.mint as string)) ||
       !config.origin ||
       !config.apiOrigin ||

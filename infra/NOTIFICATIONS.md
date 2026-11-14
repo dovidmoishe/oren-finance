@@ -24,22 +24,36 @@ with the preview stack's normal flags and env. Refresh the preview API service
 if its environment file changed. Preview is always fixture mode and records
 a fixture acceptance in Postgres without sending email.
 
-## Production pilot
+## Production
 
-Apply the release migration first. Place notification settings in
+Apply the release migration first. The production deploy enables the
+`notifications` Compose profile, so `notification-redis` and
+`notification-worker` start with the API. Place notification settings in
 `.env.notifications` and use the same immutable API image for the API and
-worker. Explicitly enable the profile with the release environment and start
-`notification-redis` and `notification-worker`. Configure a verified Senviok
-sender, a unique unsubscribe secret, both HTTPS origins, provider budgets,
-and the allowlisted Privy IDs. Budget the snapshot requests below the Tokens
-quota so existing API traffic has headroom. Begin with Morning Brief only.
+worker. Configure a verified Senviok sender, a unique unsubscribe secret,
+both HTTPS origins, and both provider budgets. Budget the snapshot requests
+below the Tokens quota so existing API traffic has headroom.
 
-Price alerts require both `PRICE_ALERTS_ENABLED` and
-`TOKENS_ALERT_TIMESTAMPS_VERIFIED`. Set them only after the feed contract,
-price timestamps, coverage, and rate/load checks pass on the pilot mints.
-List only those confirmed mints in `NOTIFICATION_ALERT_MINTS`. An empty
-allowlist keeps the alert pilot disabled.
-Missing, stale, or out-of-order quotes never fire an alert.
+Morning Brief stays limited to `NOTIFICATION_PILOT_USERS`. Leave
+`MORNING_BRIEF_ENABLED` unset until those Privy IDs are listed. An empty
+pilot list is valid while Morning Brief is off.
+
+Price alerts stay off until both `PRICE_ALERTS_ENABLED` and
+`TOKENS_ALERT_TIMESTAMPS_VERIFIED` are true. Set them only after the feed
+contract, price timestamps, coverage, and rate/load checks pass. List only
+the confirmed mints in `NOTIFICATION_ALERT_MINTS`. An empty allowlist keeps
+alerts disabled. Missing, stale, or out-of-order quotes never fire an alert.
+
+`PRICE_ALERTS_PUBLIC` defaults to false, which keeps alerts on the pilot
+allowlist. Set it to `true` to let every signed-in user with a verified
+email create and receive price alerts. The worker then does not need
+`NOTIFICATION_PILOT_USERS` unless Morning Brief is also enabled.
+
+When both features are off, the worker process stays idle. It does not open
+a queue or send mail. Compose restarts a process that exits
+(`restart: unless-stopped`), so the idle worker stays running instead of
+exiting. The worker still refuses to start when Morning Brief is on, or
+when alerts are on and not public, and the pilot list is empty.
 
 ## Operations
 

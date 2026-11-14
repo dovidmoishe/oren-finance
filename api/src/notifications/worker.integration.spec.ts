@@ -251,6 +251,54 @@ run('notification jobs with disposable Postgres and Redis', () => {
     );
     expect(limits.filter(Boolean)).toHaveLength(10);
   }, 60_000);
+
+  it('starts public alerts with an empty pilot list and still requires one for briefs', async () => {
+    const previous = {
+      MORNING_BRIEF_ENABLED: process.env.MORNING_BRIEF_ENABLED,
+      PRICE_ALERTS_ENABLED: process.env.PRICE_ALERTS_ENABLED,
+      PRICE_ALERTS_PUBLIC: process.env.PRICE_ALERTS_PUBLIC,
+      NOTIFICATION_PILOT_USERS: process.env.NOTIFICATION_PILOT_USERS,
+    };
+    let started: NotificationWorker | undefined;
+    const polling = {
+      scan: jest.fn().mockResolvedValue(undefined),
+    } as unknown as PricePolling;
+    const workerFor = () =>
+      new NotificationWorker(
+        jobs,
+        {} as MorningBrief,
+        {} as NotificationDelivery,
+        polling,
+      );
+    try {
+      process.env.MORNING_BRIEF_ENABLED = 'false';
+      process.env.PRICE_ALERTS_ENABLED = 'true';
+      process.env.PRICE_ALERTS_PUBLIC = 'true';
+      process.env.NOTIFICATION_PILOT_USERS = '';
+      const running = workerFor();
+      started = running;
+      expect(() => running.onApplicationBootstrap()).not.toThrow();
+      await running.onModuleDestroy();
+      started = undefined;
+
+      process.env.PRICE_ALERTS_PUBLIC = 'false';
+      expect(() => workerFor().onApplicationBootstrap()).toThrow(
+        /pilot accounts/,
+      );
+
+      process.env.PRICE_ALERTS_PUBLIC = 'true';
+      process.env.MORNING_BRIEF_ENABLED = 'true';
+      expect(() => workerFor().onApplicationBootstrap()).toThrow(
+        /pilot accounts/,
+      );
+    } finally {
+      if (started) await started.onModuleDestroy();
+      for (const [key, value] of Object.entries(previous)) {
+        if (value === undefined) delete process.env[key];
+        else process.env[key] = value;
+      }
+    }
+  }, 20_000);
 });
 
 async function waitFor(check: () => Promise<boolean>) {
