@@ -29,28 +29,32 @@ export class AlchemyService implements AlchemyProvider {
     }));
   }
 
-  async getTokenAccounts(wallet: string): Promise<TokenAccount[]> {
+  async getTokenAccounts(wallet: string, options?: { strict?: boolean; includeEmpty?: boolean }): Promise<TokenAccount[]> {
     const result = await this.client.call<{
       value?: AlchemyTokenAccountRaw[];
     }>('getTokenAccountsByOwner', [
       wallet,
       { programId: 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA' },
-      { encoding: 'jsonParsed' },
+      { encoding: 'jsonParsed', ...(options?.strict ? { commitment: 'finalized' } : {}) },
     ]);
 
+    if (options?.strict && !Array.isArray(result?.value)) throw new Error('Incomplete token accounts');
     const value = result?.value ?? [];
     const accounts: TokenAccount[] = [];
 
     for (const item of value) {
       const info = item.account?.data?.parsed?.info;
       const tokenAmount = info?.tokenAmount;
-      if (!info?.mint || !tokenAmount) continue;
+      if (!info?.mint || !tokenAmount) {
+        if (options?.strict) throw new Error('Incomplete token account');
+        continue;
+      }
       const amount = Number(tokenAmount.amount ?? 0);
       const decimals = tokenAmount.decimals ?? 0;
       const uiAmount =
         tokenAmount.uiAmount ??
         (decimals > 0 ? amount / 10 ** decimals : amount);
-      if (!uiAmount || uiAmount <= 0) continue;
+      if (!options?.includeEmpty && (!uiAmount || uiAmount <= 0)) continue;
       accounts.push({
         address: item.pubkey ?? '',
         mint: info.mint,
@@ -69,18 +73,22 @@ export class AlchemyService implements AlchemyProvider {
       }>('getTokenAccountsByOwner', [
         wallet,
         { programId: 'TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb' },
-        { encoding: 'jsonParsed' },
+        { encoding: 'jsonParsed', ...(options?.strict ? { commitment: 'finalized' } : {}) },
       ]);
+      if (options?.strict && !Array.isArray(result2022?.value)) throw new Error('Incomplete token accounts');
       for (const item of result2022?.value ?? []) {
         const info = item.account?.data?.parsed?.info;
         const tokenAmount = info?.tokenAmount;
-        if (!info?.mint || !tokenAmount) continue;
+        if (!info?.mint || !tokenAmount) {
+          if (options?.strict) throw new Error('Incomplete token account');
+          continue;
+        }
         const amount = Number(tokenAmount.amount ?? 0);
         const decimals = tokenAmount.decimals ?? 0;
         const uiAmount =
           tokenAmount.uiAmount ??
           (decimals > 0 ? amount / 10 ** decimals : amount);
-        if (!uiAmount || uiAmount <= 0) continue;
+        if (!options?.includeEmpty && (!uiAmount || uiAmount <= 0)) continue;
         accounts.push({
           address: item.pubkey ?? '',
           mint: info.mint,
@@ -91,8 +99,8 @@ export class AlchemyService implements AlchemyProvider {
           programId: 'TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb',
         });
       }
-    } catch {
-      // Token-2022 optional
+    } catch (error) {
+      if (options?.strict) throw error;
     }
 
     return accounts;
@@ -100,12 +108,13 @@ export class AlchemyService implements AlchemyProvider {
 
   async getTransactionHistory(
     wallet: string,
-    options?: { limit?: number; before?: string },
+    options?: { limit?: number; before?: string; finalized?: boolean },
   ): Promise<WalletTransaction[]> {
     const params: unknown[] = [
       wallet,
       {
         limit: options?.limit ?? 20,
+        ...(options?.finalized ? { commitment: 'finalized' } : {}),
         ...(options?.before ? { before: options.before } : {}),
       },
     ];

@@ -46,6 +46,8 @@ services:
       - .env
       - path: .env.api
         required: false
+      - path: .env.notifications
+        required: false
     depends_on:
       db:
         condition: service_healthy
@@ -58,6 +60,48 @@ services:
       retries: 8
       start_period: 20s
     networks: [oren, signer-api, signer-db]
+
+  notification-redis:
+    profiles: [notifications]
+    image: redis:7.4-alpine
+    command: [redis-server, --appendonly, 'yes', --maxmemory, 96mb, --maxmemory-policy, noeviction]
+    volumes: [notification_data:/data]
+    networks: [notifications]
+    mem_limit: 160m
+    restart: unless-stopped
+    healthcheck:
+      test: [CMD, redis-cli, ping]
+      interval: 10s
+      timeout: 5s
+      retries: 8
+
+  notification-worker:
+    profiles: [notifications]
+    image: ${OREN_API_IMAGE:-ghcr.io/${GHCR_OWNER:?set GHCR_OWNER in .release.env}/oren-api:${IMAGE_TAG:?set IMAGE_TAG in .release.env}}
+    command: [node, dist/src/notifications/main]
+    env_file:
+      - .env
+      - path: .env.api
+        required: false
+      - path: .env.notifications
+        required: false
+    environment:
+      DEPLOYMENT_ENV: production
+      COMMIT_SHA: ${IMAGE_TAG}
+      NOTIFICATION_REDIS_URL: redis://notification-redis:6379
+      SIGNER_GATE_PRIVATE_KEY: ''
+      MCP_DELEGATED_TRADES_ENABLED: 'false'
+      MCP_OAUTH_ENABLED: 'false'
+    networks: [oren, notifications]
+    mem_limit: 384m
+    restart: unless-stopped
+    stop_grace_period: 45s
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    depends_on:
+      db: {condition: service_healthy}
+      api-migrate: {condition: service_completed_successfully}
+      notification-redis: {condition: service_healthy}
 
   signer-gate:
     profiles: [delegated-trades]
@@ -138,6 +182,8 @@ services:
     networks: [oren]
 
 networks:
+  notifications:
+    internal: true
   preview-edge:
     external: true
   oren:
@@ -150,6 +196,7 @@ networks:
     driver: bridge
 
 volumes:
+  notification_data:
   postgres_data:
   caddy_data:
   caddy_config:

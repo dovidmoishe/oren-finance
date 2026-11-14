@@ -190,7 +190,7 @@ jobs:
       - name: Activate immutable release
         run: |
           ssh -p "${VPS_PORT:-22}" -o StrictHostKeyChecking=yes "$VPS_USER@$VPS_HOST" \
-            "cd /opt/oren && if [ -f .env.signer-gate ]; then export COMPOSE_PROFILES=delegated-trades; fi && printf 'GHCR_OWNER=%s\\nIMAGE_TAG=%s\\nOREN_API_IMAGE=%s\\nOREN_APP_IMAGE=%s\\n' '$GHCR_OWNER' '$IMAGE_TAG' '$OREN_API_IMAGE' '$OREN_APP_IMAGE' > .release.env && docker compose --env-file .env --env-file .release.env -f deploy.yml pull && docker logout ghcr.io && docker compose --env-file .env --env-file .release.env -f deploy.yml up -d --wait --wait-timeout 180 --remove-orphans && if [ -f infra/preview/connect-caddy.sh ]; then bash infra/preview/connect-caddy.sh; fi && docker compose --env-file .env --env-file .release.env -f deploy.yml exec -T caddy caddy reload --config /etc/caddy/Caddyfile"
+            "cd /opt/oren && if [ -f .env.signer-gate ]; then export COMPOSE_PROFILES=delegated-trades,notifications; else export COMPOSE_PROFILES=notifications; fi && printf 'GHCR_OWNER=%s\\nIMAGE_TAG=%s\\nOREN_API_IMAGE=%s\\nOREN_APP_IMAGE=%s\\n' '$GHCR_OWNER' '$IMAGE_TAG' '$OREN_API_IMAGE' '$OREN_APP_IMAGE' > .release.env && docker compose --env-file .env --env-file .release.env -f deploy.yml pull && docker logout ghcr.io && docker compose --env-file .env --env-file .release.env -f deploy.yml up -d --wait --wait-timeout 180 --remove-orphans && if [ -f infra/preview/connect-caddy.sh ]; then bash infra/preview/connect-caddy.sh; fi && docker compose --env-file .env --env-file .release.env -f deploy.yml exec -T caddy caddy reload --config /etc/caddy/Caddyfile"
 
       - name: Verify public production endpoints
         env:

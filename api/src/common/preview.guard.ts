@@ -19,6 +19,11 @@ export class PreviewGuard implements CanActivate {
       return true;
     }
     if (request.method === 'OPTIONS') return true;
+    if (request.method === 'PUT' && path === '/api/me/preferences') return true;
+    if (request.method === 'DELETE' && /^\/api\/me\/price-alerts\/[\da-f-]+$/i.test(path)) return true;
+    if (request.method === 'POST' && (
+      path === '/api/me/price-alerts' || /^\/api\/notifications\/unsubscribe\/[\w.-]+$/.test(path)
+    )) return true;
     if (
       request.method === 'POST' &&
       [

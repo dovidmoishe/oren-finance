@@ -14,6 +14,7 @@ export interface OrenAuth {
   /** Privy loaded, but it did not become ready before the restore window. */
   restoreTimedOut?: boolean;
   busy: boolean;
+  userId?: string;
   email?: string;
   walletPreparing: boolean;
   depositOpen: boolean;

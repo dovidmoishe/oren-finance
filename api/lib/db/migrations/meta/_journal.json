@@ -120,6 +120,41 @@
       "breakpoints": true,
       "tag": "0016_mcp_custom_spend_limits",
       "idx": 16
+    },
+    {
+      "version": "7",
+      "when": 1794528000001,
+      "breakpoints": true,
+      "tag": "0017_user_preferences",
+      "idx": 17
+    },
+    {
+      "version": "7",
+      "when": 1794528000002,
+      "breakpoints": true,
+      "tag": "0018_cached_stock_sectors",
+      "idx": 18
+    },
+    {
+      "version": "7",
+      "when": 1794528000003,
+      "breakpoints": true,
+      "tag": "0019_notifications",
+      "idx": 19
+    },
+    {
+      "version": "7",
+      "when": 1794528000004,
+      "breakpoints": true,
+      "tag": "0020_price_alert_failed",
+      "idx": 20
+    },
+    {
+      "version": "7",
+      "when": 1794528000005,
+      "breakpoints": true,
+      "tag": "0021_runtime_table_grants",
+      "idx": 21
     }
   ]
 }

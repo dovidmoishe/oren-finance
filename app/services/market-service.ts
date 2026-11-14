@@ -1,4 +1,5 @@
 import { apiRequest } from "./api-client";
+import type { SectorId } from "./preferences-service";
 import type { ChartRange, MarketCandle, NewsItem, StockAnalysis, StockDetail, StockSummary, StocksPage } from "@/types";
 
 interface ApiStockSummary {
@@ -86,6 +87,27 @@ export function getStockNews(assetId: string) {
       id: item.id ?? `${assetId}-${item.publishedAt}-${index}`,
     })),
   );
+}
+
+type ForYouState = "no_preferences" | "no_matches" | "ready";
+export type MarketForYouResult = {
+  state: ForYouState;
+  items: Array<StockSummary & { sectorId: SectorId }>;
+};
+
+export async function getMarketForYou(getAccessToken: () => Promise<string | null>, signal: AbortSignal): Promise<MarketForYouResult> {
+  const token = await getAccessToken();
+  signal.throwIfAborted();
+  if (!token) throw new Error("Sign in to see personalized stocks");
+  const result = await apiRequest<{ state: ForYouState; items: Array<ApiStockSummary & { sectorId: SectorId }> }>("/markets/for-you", {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: "no-store",
+    signal,
+  });
+  return {
+    state: result.state,
+    items: result.items.map((stock) => ({ ...mapStockSummary(stock), sectorId: stock.sectorId })),
+  };
 }
 
 export function getTrendingStocks() {

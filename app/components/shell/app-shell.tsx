@@ -13,6 +13,7 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useId, useRef, useState, type CSSProperties } from "react";
+import { useOrenAuth } from "@/components/auth/auth-context";
 import { OrenLogo } from "@/components/brand/oren-logo";
 import { LanguageMenu } from "@/components/language/language-menu";
 import { PendingApprovalNotice } from "@/components/trading/pending-approval-notice";
@@ -48,6 +49,7 @@ function Icon({ icon, size = 18 }: { icon: LucideIcon; size?: number }) {
 }
 
 export function AppShell({ children }: { children: React.ReactNode }) {
+  const { depositOpen } = useOrenAuth();
   const pathname = usePathname();
   const t = useT();
   const agentOpen = useAgentStore((state) => state.panelOpen && state.hydrated);
@@ -207,7 +209,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <AgentPanel />
       </div>
       <AppSearch dialog={search} />
-      <DepositModal />
+      {depositOpen ? <DepositModal /> : null}
     </div>
   );
 }

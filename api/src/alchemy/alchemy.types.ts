@@ -92,6 +92,7 @@ export interface AlchemyParsedTransaction {
   transaction?: {
     message?: {
       accountKeys?: Array<{ pubkey?: string; signer?: boolean } | string>;
+      instructions?: Array<{ program?: string; programId?: string; parsed?: { type?: string; info?: Record<string, unknown> } }>;
     };
   };
   meta?: {
