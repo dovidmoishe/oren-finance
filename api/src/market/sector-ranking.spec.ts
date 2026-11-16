@@ -1,5 +1,6 @@
 import { resolveStockSector } from '../tokens/stock-sectors';
 import { rankSectorMatches, type SectorCandidate } from './sector-ranking';
+import { isInterestId, isSectorId } from '../../types/sectors';
 
 describe('For You sectors', () => {
   it('normalizes provider labels and uses only verified asset IDs as fallbacks', () => {
@@ -14,6 +15,54 @@ describe('For You sectors', () => {
       'informationTechnology',
     );
     expect(resolveStockSector('unknown', 'Other')).toBeNull();
+  });
+
+  it('keeps themes distinct from standard sectors', () => {
+    expect(isInterestId('artificialIntelligence')).toBe(true);
+    expect(isSectorId('artificialIntelligence')).toBe(false);
+    expect(resolveStockSector('unknown', 'Artificial Intelligence')).toBeNull();
+    expect(isInterestId('trending')).toBe(false);
+  });
+
+  it('balances overlapping themes without duplicating or losing stocks', () => {
+    const candidates: SectorCandidate[] = [
+      {
+        id: 'nvidia',
+        sortRank: 0,
+        sectorId: 'informationTechnology',
+        interestId: 'artificialIntelligence',
+      },
+      {
+        id: 'nvidia',
+        sortRank: 0,
+        sectorId: 'informationTechnology',
+        interestId: 'semiconductors',
+      },
+      {
+        id: 'microsoft',
+        sortRank: 1,
+        sectorId: 'informationTechnology',
+        interestId: 'artificialIntelligence',
+      },
+      { id: 'amd', sortRank: 2, sectorId: null, interestId: 'semiconductors' },
+      {
+        id: 'alphabet',
+        sortRank: 3,
+        sectorId: 'communicationServices',
+        interestId: 'artificialIntelligence',
+      },
+      { id: 'tsmc', sortRank: 4, sectorId: null, interestId: 'semiconductors' },
+    ];
+    expect(rankSectorMatches(candidates).map(({ id }) => id)).toEqual([
+      'nvidia',
+      'amd',
+      'microsoft',
+      'tsmc',
+      'alphabet',
+    ]);
+    expect(rankSectorMatches(candidates, 2)).toHaveLength(2);
+    expect(rankSectorMatches([])).toEqual([]);
+    expect(candidates).toHaveLength(6);
   });
 
   it('fills six slots in sector rounds, breaks ties by asset ID and skips duplicates', () => {

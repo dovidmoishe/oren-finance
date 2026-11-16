@@ -1,6 +1,6 @@
 import { BadRequestException } from '@nestjs/common';
 
-import { isSectorId, sectorIds } from '../../types/sectors';
+import { isInterestId, interestIds } from '../../types/sectors';
 
 const fields = new Set([
   'sectors',
@@ -21,8 +21,8 @@ export function parsePreferences(body: unknown) {
     body as Record<string, unknown>;
   if (
     !Array.isArray(sectors) ||
-    sectors.length > sectorIds.length ||
-    !sectors.every(isSectorId) ||
+    sectors.length > interestIds.length ||
+    !sectors.every(isInterestId) ||
     new Set(sectors).size !== sectors.length
   ) {
     throw new BadRequestException('Invalid sectors');

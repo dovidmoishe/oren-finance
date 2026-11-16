@@ -10,7 +10,7 @@ import type {
   EquitySummary,
   MarketForYouResponse,
 } from '../../types/equity';
-import type { SectorId } from '../../types/sectors';
+import type { InterestId } from '../../types/sectors';
 import type { ChartRange, ChartSeries, MarketMover } from '../../types/market';
 import { STOCK_CATALOG_TTL_MS } from '../config/constants';
 import { StockCatalogRepository } from '../tokens/stock-catalog.repository';
@@ -56,7 +56,7 @@ export class MarketService implements OnApplicationBootstrap {
     );
   }
 
-  async getForYou(sectors: SectorId[]): Promise<MarketForYouResponse> {
+  async getForYou(sectors: InterestId[]): Promise<MarketForYouResponse> {
     if (sectors.length === 0) return { state: 'no_preferences', items: [] };
 
     const catalog = await this.catalog
@@ -72,7 +72,7 @@ export class MarketService implements OnApplicationBootstrap {
       );
 
     const items = rankSectorMatches(catalog.items).map(
-      ({ stock, sectorId }) => ({ ...stock, sectorId }),
+      ({ stock, sectorId, interestId }) => ({ ...stock, sectorId, interestId }),
     );
     return items.length
       ? { state: 'ready', items }

@@ -3,6 +3,7 @@ import { drizzle } from 'drizzle-orm/pg-proxy';
 import type { PrivyWalletAuth } from '../auth/privy-wallet-auth';
 import type { Database } from '../database/database.provider';
 import { PreferencesController } from './preferences.controller';
+import { interestIds } from '../../types/sectors';
 
 jest.mock('@privy-io/node', () => ({ PrivyClient: jest.fn() }));
 
@@ -49,10 +50,12 @@ describe('account preferences', () => {
     expect(await controller.get(alice)).toEqual({
       preferences: null,
       emailEligible: true,
+      supportedInterests: interestIds,
     });
     expect(await controller.put(draft, alice)).toEqual({
       preferences: draft,
       emailEligible: true,
+      supportedInterests: interestIds,
     });
     const update = {
       ...draft,
@@ -64,10 +67,26 @@ describe('account preferences', () => {
     expect(await controller.get(alice)).toEqual({
       preferences: update,
       emailEligible: true,
+      supportedInterests: interestIds,
     });
     expect(await controller.get('Bearer bob')).toEqual({
       preferences: null,
       emailEligible: false,
+      supportedInterests: interestIds,
+    });
+  });
+
+  it('round-trips sector and theme selections without changing existing opt-ins', async () => {
+    const { controller } = setup();
+    const preferences = {
+      ...draft,
+      sectors: ['artificialIntelligence', 'semiconductors', 'energy'],
+    };
+    await controller.put(preferences, 'Bearer alice');
+    expect(await controller.get('Bearer alice')).toEqual({
+      preferences,
+      emailEligible: true,
+      supportedInterests: interestIds,
     });
   });
 
@@ -88,6 +107,8 @@ describe('account preferences', () => {
   it.each([
     { sectors: ['crypto'] },
     { sectors: ['energy', 'energy'] },
+    { sectors: ['artificialIntelligence', 'artificialIntelligence'] },
+    { sectors: ['artificialIntelligence', 'madeUpTheme'] },
     { morningBrief: 'true' },
     { briefTime: '24:00' },
     { timeZone: '+01:00' },

@@ -146,7 +146,11 @@ export class MorningBrief {
             ?.items ?? [];
         const ranked = [...candidates].sort((a, b) => a.sortRank - b.sortRank);
         for (const sector of sectors) {
-          const top = ranked.find((candidate) => candidate.sectorId === sector);
+          const top = ranked.find(
+            (candidate) =>
+              (candidate.interestId ?? candidate.sectorId) === sector &&
+              !assetIds.includes(candidate.id),
+          );
           if (top && assetIds.length < 6) assetIds.push(top.id);
         }
       }

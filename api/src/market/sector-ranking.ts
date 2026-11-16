@@ -1,8 +1,9 @@
-import type { SectorId } from '../../types/sectors';
+import type { InterestId, SectorId } from '../../types/sectors';
 
 export interface SectorCandidate {
   id: string;
-  sectorId: SectorId;
+  sectorId: SectorId | null;
+  interestId?: InterestId;
   sortRank: number;
 }
 
@@ -14,21 +15,31 @@ export function rankSectorMatches<T extends SectorCandidate>(
     (a, b) =>
       a.sortRank - b.sortRank || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0),
   );
-  const groups = new Map<SectorId, T[]>();
+  const groups = new Map<InterestId, T[]>();
   const seen = new Set<string>();
   for (const item of ordered) {
-    if (seen.has(item.id)) continue;
-    seen.add(item.id);
-    const group = groups.get(item.sectorId) ?? [];
+    const interest = item.interestId ?? item.sectorId;
+    if (!interest) continue;
+    const group = groups.get(interest) ?? [];
     group.push(item);
-    groups.set(item.sectorId, group);
+    groups.set(interest, group);
   }
   const results: T[] = [];
-  for (let round = 0; results.length < Math.min(seen.size, limit); round++) {
+  // Scan within each interest so overlapping themes cannot consume a slot twice
+  // or hide a unique candidate behind an already-selected company.
+  while (results.length < limit) {
+    let added = false;
     for (const group of groups.values()) {
-      if (group[round]) results.push(group[round]);
+      let candidate = group.shift();
+      while (candidate && seen.has(candidate.id)) candidate = group.shift();
+      if (candidate) {
+        seen.add(candidate.id);
+        results.push(candidate);
+        added = true;
+      }
       if (results.length === limit) break;
     }
+    if (!added) break;
   }
   return results;
 }
