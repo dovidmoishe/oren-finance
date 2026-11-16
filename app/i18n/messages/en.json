@@ -8,11 +8,12 @@
   },
   "marketForYou": {
     "title": "For You",
-    "chooseDetail": "Choose sectors to see stocks that match your interests.",
-    "choose": "Choose sectors",
-    "empty": "No stocks match your selected sectors yet.",
-    "edit": "Edit sectors",
-    "error": "Couldn’t load your picks."
+    "chooseDetail": "Follow sectors and themes to discover stocks that fit your interests.",
+    "choose": "Choose interests",
+    "empty": "No stocks match your selected interests yet.",
+    "edit": "Edit interests",
+    "error": "Couldn’t load your picks.",
+    "match": "Matches your interests"
   },
   "priceAlerts": {
     "title": "Price alerts",
@@ -33,7 +34,7 @@
   "preferences": {
     "title": "Preferences",
     "followTitle": "What do you follow?",
-    "followDetail": "Pick sectors to help Oren tailor your market recommendations.",
+    "followDetail": "Choose sectors and themes to tailor your market recommendations.",
     "emailTitle": "What should Oren email you about?",
     "morningBrief": "Morning Brief",
     "morningBriefDetail": "A daily look at your portfolio and news that matters to you.",
@@ -67,6 +68,20 @@
       "materials": "Materials",
       "realEstate": "Real Estate",
       "utilities": "Utilities"
+    },
+    "structureDetail": "Choose a whole sector or related themes. Themes can span several sectors.",
+    "relatedThemes": "Related themes",
+    "themesSoon": "Theme preferences are coming soon. You can follow sectors now.",
+    "selectedCount": "{count} selected",
+    "themes": {
+      "artificialIntelligence": "Artificial intelligence",
+      "semiconductors": "Semiconductors",
+      "cybersecurity": "Cybersecurity",
+      "cloudComputing": "Cloud computing",
+      "robotics": "Robotics & automation",
+      "cleanEnergy": "Clean energy",
+      "fintech": "Fintech",
+      "spaceAndDefense": "Space & defense"
     }
   },
   "language": {

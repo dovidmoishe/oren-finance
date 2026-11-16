@@ -1,12 +1,11 @@
 "use client";
 
-import { Cancel01Icon } from "@hugeicons/core-free-icons";
-import { HugeiconsIcon } from "@hugeicons/react";
+import { X } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { EmailChoices, SectorChoices } from "@/components/settings/preference-fields";
 import { Button } from "@/components/ui";
 import { useT } from "@/i18n/i18n";
-import { defaultPreferences, requestPreferences, type Preferences } from "@/services/preferences-service";
+import { defaultPreferences, requestPreferences, sectorIds, type InterestId, type Preferences } from "@/services/preferences-service";
 
 export function PersonalizationDialog({ getAccessToken, onFinish }: {
   getAccessToken: () => Promise<string | null>;
@@ -20,6 +19,15 @@ export function PersonalizationDialog({ getAccessToken, onFinish }: {
   const [draft, setDraft] = useState(defaultPreferences);
   const [saving, setSaving] = useState(false);
   const [failed, setFailed] = useState(false);
+  const [availableInterests, setAvailableInterests] = useState<readonly InterestId[]>(sectorIds);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    void requestPreferences(getAccessToken, controller.signal).then(({ supportedInterests }) => {
+      if (!controller.signal.aborted) setAvailableInterests(supportedInterests ?? sectorIds);
+    }).catch(() => { /* Standard sectors remain available with older APIs. */ });
+    return () => controller.abort();
+  }, [getAccessToken]);
 
   useLayoutEffect(() => {
     const element = dialog.current;
@@ -71,14 +79,14 @@ export function PersonalizationDialog({ getAccessToken, onFinish }: {
           {t(step === "sectors" ? "preferences.followTitle" : "preferences.emailTitle")}
         </h2>
         <Button type="button" variant="ghost" size="icon" aria-label={t("common.close")} disabled={saving} onClick={finish}>
-          <HugeiconsIcon icon={Cancel01Icon} size={18} aria-hidden="true" />
+          <X size={18} aria-hidden="true" />
         </Button>
       </div>
 
       {step === "sectors" ? (
         <>
           <p className="mb-4 text-sm text-muted">{t("preferences.followDetail")}</p>
-          <SectorChoices value={draft.sectors} onChange={(sectors) => setDraft({ ...draft, sectors })} />
+          <SectorChoices value={draft.sectors} availableInterests={availableInterests} onChange={(sectors) => setDraft({ ...draft, sectors })} />
           <div className="mt-6 flex flex-wrap justify-end gap-2">
             <Button type="button" variant="ghost" onClick={() => {
               setDraft({ ...draft, sectors: [] });

@@ -8,11 +8,12 @@
   },
   "marketForYou": {
     "title": "Für Sie",
-    "chooseDetail": "Wählen Sie Branchen aus, um passende Aktien zu entdecken.",
-    "choose": "Branchen wählen",
-    "empty": "Für Ihre gewählten Branchen gibt es noch keine passenden Aktien.",
-    "edit": "Branchen bearbeiten",
-    "error": "Ihre Vorschläge konnten nicht geladen werden."
+    "chooseDetail": "Entdecke Aktien passend zu deinen Sektoren und Themen.",
+    "choose": "Interessen wählen",
+    "empty": "Noch keine Aktien für deine Interessen gefunden.",
+    "edit": "Interessen bearbeiten",
+    "error": "Ihre Vorschläge konnten nicht geladen werden.",
+    "match": "Passt zu deinen Interessen"
   },
   "priceAlerts": {
     "title": "Preisalarme",
@@ -33,7 +34,7 @@
   "preferences": {
     "title": "Einstellungen",
     "followTitle": "Welche Branchen verfolgen Sie?",
-    "followDetail": "Wählen Sie Branchen für personalisierte Marktempfehlungen.",
+    "followDetail": "Wähle Sektoren und Themen für passende Marktempfehlungen.",
     "emailTitle": "Welche E-Mails möchten Sie erhalten?",
     "morningBrief": "Morgenüberblick",
     "morningBriefDetail": "Ein täglicher Überblick über Ihr Portfolio und relevante Nachrichten.",
@@ -67,6 +68,20 @@
       "materials": "Grundstoffe",
       "realEstate": "Immobilien",
       "utilities": "Versorger"
+    },
+    "structureDetail": "Wähle einen ganzen Sektor oder verwandte Themen. Themen können mehrere Sektoren umfassen.",
+    "relatedThemes": "Verwandte Themen",
+    "themesSoon": "Themen folgen bald. Du kannst jetzt Sektoren auswählen.",
+    "selectedCount": "{count} ausgewählt",
+    "themes": {
+      "artificialIntelligence": "Künstliche Intelligenz",
+      "semiconductors": "Halbleiter",
+      "cybersecurity": "Cybersicherheit",
+      "cloudComputing": "Cloud-Computing",
+      "robotics": "Robotik & Automatisierung",
+      "cleanEnergy": "Saubere Energie",
+      "fintech": "Fintech",
+      "spaceAndDefense": "Raumfahrt & Verteidigung"
     }
   },
   "language": {

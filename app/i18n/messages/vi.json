@@ -8,11 +8,12 @@
   },
   "marketForYou": {
     "title": "Dành cho bạn",
-    "chooseDetail": "Chọn ngành để xem cổ phiếu phù hợp với sở thích của bạn.",
-    "choose": "Chọn ngành",
-    "empty": "Chưa có cổ phiếu phù hợp với các ngành bạn chọn.",
-    "edit": "Chỉnh sửa ngành",
-    "error": "Không thể tải đề xuất của bạn."
+    "chooseDetail": "Theo dõi ngành và chủ đề để khám phá cổ phiếu phù hợp với bạn.",
+    "choose": "Chọn sở thích",
+    "empty": "Chưa có cổ phiếu phù hợp với sở thích đã chọn.",
+    "edit": "Sửa sở thích",
+    "error": "Không thể tải đề xuất của bạn.",
+    "match": "Phù hợp với sở thích của bạn"
   },
   "priceAlerts": {
     "title": "Cảnh báo giá",
@@ -33,7 +34,7 @@
   "preferences": {
     "title": "Tùy chọn",
     "followTitle": "Bạn theo dõi ngành nào?",
-    "followDetail": "Chọn ngành để Oren cá nhân hóa đề xuất thị trường cho bạn.",
+    "followDetail": "Chọn ngành và chủ đề để cá nhân hóa gợi ý thị trường.",
     "emailTitle": "Bạn muốn nhận email gì?",
     "morningBrief": "Bản tin buổi sáng",
     "morningBriefDetail": "Tổng quan hằng ngày về danh mục và tin tức liên quan đến bạn.",
@@ -67,6 +68,20 @@
       "materials": "Vật liệu",
       "realEstate": "Bất động sản",
       "utilities": "Tiện ích"
+    },
+    "structureDetail": "Chọn toàn bộ ngành hoặc các chủ đề liên quan. Một chủ đề có thể trải rộng nhiều ngành.",
+    "relatedThemes": "Chủ đề liên quan",
+    "themesSoon": "Tùy chọn chủ đề sẽ sớm có mặt. Bạn có thể theo dõi ngành ngay bây giờ.",
+    "selectedCount": "Đã chọn {count}",
+    "themes": {
+      "artificialIntelligence": "Trí tuệ nhân tạo",
+      "semiconductors": "Chất bán dẫn",
+      "cybersecurity": "An ninh mạng",
+      "cloudComputing": "Điện toán đám mây",
+      "robotics": "Robot & tự động hóa",
+      "cleanEnergy": "Năng lượng sạch",
+      "fintech": "Công nghệ tài chính",
+      "spaceAndDefense": "Vũ trụ & quốc phòng"
     }
   },
   "language": {

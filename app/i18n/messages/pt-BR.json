@@ -8,11 +8,12 @@
   },
   "marketForYou": {
     "title": "Para você",
-    "chooseDetail": "Escolha setores para ver ações que combinam com seus interesses.",
-    "choose": "Escolher setores",
-    "empty": "Ainda não há ações nos setores selecionados.",
-    "edit": "Editar setores",
-    "error": "Não foi possível carregar suas sugestões."
+    "chooseDetail": "Siga setores e temas para descobrir ações que combinam com seus interesses.",
+    "choose": "Escolher interesses",
+    "empty": "Nenhuma ação corresponde aos seus interesses ainda.",
+    "edit": "Editar interesses",
+    "error": "Não foi possível carregar suas sugestões.",
+    "match": "Combina com seus interesses"
   },
   "priceAlerts": {
     "title": "Alertas de preço",
@@ -33,7 +34,7 @@
   "preferences": {
     "title": "Preferências",
     "followTitle": "Quais setores você acompanha?",
-    "followDetail": "Escolha setores para personalizar suas recomendações de mercado.",
+    "followDetail": "Escolha setores e temas para personalizar suas recomendações de mercado.",
     "emailTitle": "Quais e-mails você quer receber?",
     "morningBrief": "Resumo da manhã",
     "morningBriefDetail": "Uma visão diária da sua carteira e das notícias relevantes para você.",
@@ -67,6 +68,20 @@
       "materials": "Materiais",
       "realEstate": "Imobiliário",
       "utilities": "Serviços de utilidade pública"
+    },
+    "structureDetail": "Escolha um setor inteiro ou temas relacionados. Os temas podem abranger vários setores.",
+    "relatedThemes": "Temas relacionados",
+    "themesSoon": "As preferências de temas chegarão em breve. Você já pode seguir setores.",
+    "selectedCount": "{count} selecionados",
+    "themes": {
+      "artificialIntelligence": "Inteligência artificial",
+      "semiconductors": "Semicondutores",
+      "cybersecurity": "Cibersegurança",
+      "cloudComputing": "Computação em nuvem",
+      "robotics": "Robótica e automação",
+      "cleanEnergy": "Energia limpa",
+      "fintech": "Fintech",
+      "spaceAndDefense": "Espaço e defesa"
     }
   },
   "language": {

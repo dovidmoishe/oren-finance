@@ -7,6 +7,7 @@ import { Button } from "@/components/ui";
 import { useT } from "@/i18n/i18n";
 import { getMarketForYou, type MarketForYouResult } from "@/services/market-service";
 import { MarketStockLogo } from "./market-stock-logo";
+import { interestLabelKey } from "@/services/preferences-service";
 
 export function MarketForYou() {
   const auth = useOrenAuth();
@@ -74,7 +75,7 @@ function ForYouSection({ getAccessToken }: { getAccessToken: () => Promise<strin
                 <MarketStockLogo stock={stock} />
                 <span className="min-w-0">
                   <span className="block truncate text-sm"><strong>{stock.ticker}</strong> <span className="text-muted">{stock.name}</span></span>
-                  <span className="block truncate text-xs text-muted">{t(`preferences.sectors.${stock.sectorId}`)}</span>
+                  <span className="block truncate text-xs text-muted">{t(interestLabelKey(stock.interestId ?? stock.sectorId))}</span>
                 </span>
               </Link>
             </li>

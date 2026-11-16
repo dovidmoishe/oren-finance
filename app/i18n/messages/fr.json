@@ -8,11 +8,12 @@
   },
   "marketForYou": {
     "title": "Pour vous",
-    "chooseDetail": "Choisissez des secteurs pour découvrir des actions qui vous intéressent.",
-    "choose": "Choisir des secteurs",
-    "empty": "Aucune action ne correspond encore à vos secteurs.",
-    "edit": "Modifier les secteurs",
-    "error": "Impossible de charger vos suggestions."
+    "chooseDetail": "Suivez des secteurs et des thèmes pour découvrir des actions qui vous intéressent.",
+    "choose": "Choisir mes intérêts",
+    "empty": "Aucune action ne correspond encore à vos intérêts.",
+    "edit": "Modifier mes intérêts",
+    "error": "Impossible de charger vos suggestions.",
+    "match": "Correspond à vos intérêts"
   },
   "priceAlerts": {
     "title": "Alertes de prix",
@@ -33,7 +34,7 @@
   "preferences": {
     "title": "Préférences",
     "followTitle": "Quels secteurs suivez-vous ?",
-    "followDetail": "Choisissez les secteurs qui vous intéressent pour personnaliser vos recommandations.",
+    "followDetail": "Choisissez des secteurs et des thèmes pour personnaliser vos recommandations.",
     "emailTitle": "Quels e-mails souhaitez-vous recevoir ?",
     "morningBrief": "Brief du matin",
     "morningBriefDetail": "Un point quotidien sur votre portefeuille et les actualités qui vous concernent.",
@@ -67,6 +68,20 @@
       "materials": "Matériaux",
       "realEstate": "Immobilier",
       "utilities": "Services aux collectivités"
+    },
+    "structureDetail": "Choisissez un secteur entier ou des thèmes associés. Un thème peut couvrir plusieurs secteurs.",
+    "relatedThemes": "Thèmes associés",
+    "themesSoon": "Les thèmes seront bientôt disponibles. Vous pouvez déjà suivre des secteurs.",
+    "selectedCount": "{count} sélectionnés",
+    "themes": {
+      "artificialIntelligence": "Intelligence artificielle",
+      "semiconductors": "Semi-conducteurs",
+      "cybersecurity": "Cybersécurité",
+      "cloudComputing": "Cloud computing",
+      "robotics": "Robotique et automatisation",
+      "cleanEnergy": "Énergie propre",
+      "fintech": "Fintech",
+      "spaceAndDefense": "Spatial et défense"
     }
   },
   "language": {

@@ -8,11 +8,12 @@
   },
   "marketForYou": {
     "title": "为你推荐",
-    "chooseDetail": "选择行业，查看与你兴趣匹配的股票。",
-    "choose": "选择行业",
-    "empty": "暂时没有符合所选行业的股票。",
-    "edit": "编辑行业",
-    "error": "无法加载推荐。"
+    "chooseDetail": "关注行业和主题，发现符合你兴趣的股票。",
+    "choose": "选择兴趣",
+    "empty": "暂时没有符合你所选兴趣的股票。",
+    "edit": "编辑兴趣",
+    "error": "无法加载推荐。",
+    "match": "符合你的兴趣"
   },
   "priceAlerts": {
     "title": "价格提醒",
@@ -33,7 +34,7 @@
   "preferences": {
     "title": "偏好设置",
     "followTitle": "你关注哪些行业？",
-    "followDetail": "选择感兴趣的行业，Oren 将为你提供个性化市场推荐。",
+    "followDetail": "选择行业和主题，定制你的市场推荐。",
     "emailTitle": "你希望 Oren 发送哪些邮件？",
     "morningBrief": "早间简报",
     "morningBriefDetail": "每日了解你的投资组合及与你相关的新闻。",
@@ -67,6 +68,20 @@
       "materials": "材料",
       "realEstate": "房地产",
       "utilities": "公用事业"
+    },
+    "structureDetail": "选择整个行业或相关主题。主题可以涵盖多个行业。",
+    "relatedThemes": "相关主题",
+    "themesSoon": "主题偏好即将推出。你现在可以先关注行业。",
+    "selectedCount": "已选择 {count} 项",
+    "themes": {
+      "artificialIntelligence": "人工智能",
+      "semiconductors": "半导体",
+      "cybersecurity": "网络安全",
+      "cloudComputing": "云计算",
+      "robotics": "机器人与自动化",
+      "cleanEnergy": "清洁能源",
+      "fintech": "金融科技",
+      "spaceAndDefense": "航天与国防"
     }
   },
   "language": {

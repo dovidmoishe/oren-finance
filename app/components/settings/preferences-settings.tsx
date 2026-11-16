@@ -5,7 +5,7 @@ import { useOrenAuth } from "@/components/auth/auth-context";
 import { RestoreActions, restoreBlocked } from "@/components/auth/restore-actions";
 import { Button } from "@/components/ui";
 import { useT } from "@/i18n/i18n";
-import { defaultPreferences, requestPreferences, type Preferences } from "@/services/preferences-service";
+import { defaultPreferences, requestPreferences, sectorIds, type InterestId, type Preferences } from "@/services/preferences-service";
 import { EmailChoices, SectorChoices } from "./preference-fields";
 
 export function PreferencesSettings() {
@@ -33,6 +33,7 @@ function PreferencesForm({ getAccessToken }: {
   const t = useT();
   const [draft, setDraft] = useState<Preferences>();
   const [eligible, setEligible] = useState(false);
+  const [availableInterests, setAvailableInterests] = useState<readonly InterestId[]>(sectorIds);
   const [loadAttempt, setLoadAttempt] = useState(0);
   const [loadFailed, setLoadFailed] = useState(false);
   const [status, setStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
@@ -44,10 +45,11 @@ function PreferencesForm({ getAccessToken }: {
   useEffect(() => {
     const controller = new AbortController();
     request.current = controller;
-    void requestPreferences(tokenProvider.current, controller.signal).then(({ preferences, emailEligible }) => {
+    void requestPreferences(tokenProvider.current, controller.signal).then(({ preferences, emailEligible, supportedInterests }) => {
       if (controller.signal.aborted) return;
       setDraft(preferences ?? defaultPreferences());
       setEligible(emailEligible);
+      setAvailableInterests(supportedInterests ?? sectorIds);
     }).catch(() => {
       if (!controller.signal.aborted) setLoadFailed(true);
     }).finally(() => {
@@ -103,7 +105,7 @@ function PreferencesForm({ getAccessToken }: {
       <fieldset disabled={status === "saving"} className="space-y-5">
         <fieldset className="space-y-2">
           <legend className="font-semibold">{t("preferences.followTitle")}</legend>
-          <SectorChoices value={draft.sectors} onChange={(sectors) => edit({ ...draft, sectors })} />
+          <SectorChoices value={draft.sectors} availableInterests={availableInterests} onChange={(sectors) => edit({ ...draft, sectors })} />
         </fieldset>
         <fieldset className="space-y-2">
           <legend className="font-semibold">{t("preferences.emailTitle")}</legend>

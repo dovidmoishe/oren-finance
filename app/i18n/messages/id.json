@@ -8,11 +8,12 @@
   },
   "marketForYou": {
     "title": "Untuk Anda",
-    "chooseDetail": "Pilih sektor untuk melihat saham yang sesuai dengan minat Anda.",
-    "choose": "Pilih sektor",
-    "empty": "Belum ada saham yang cocok dengan sektor pilihan Anda.",
-    "edit": "Ubah sektor",
-    "error": "Saran Anda tidak dapat dimuat."
+    "chooseDetail": "Ikuti sektor dan tema untuk menemukan saham sesuai minat Anda.",
+    "choose": "Pilih minat",
+    "empty": "Belum ada saham yang sesuai dengan minat Anda.",
+    "edit": "Edit minat",
+    "error": "Saran Anda tidak dapat dimuat.",
+    "match": "Sesuai minat Anda"
   },
   "priceAlerts": {
     "title": "Peringatan harga",
@@ -33,7 +34,7 @@
   "preferences": {
     "title": "Preferensi",
     "followTitle": "Sektor apa yang Anda ikuti?",
-    "followDetail": "Pilih sektor agar Oren dapat menyesuaikan rekomendasi pasar Anda.",
+    "followDetail": "Pilih sektor dan tema untuk menyesuaikan rekomendasi pasar.",
     "emailTitle": "Email apa yang ingin Anda terima?",
     "morningBrief": "Ringkasan pagi",
     "morningBriefDetail": "Tinjauan harian atas portofolio dan berita yang relevan bagi Anda.",
@@ -67,6 +68,20 @@
       "materials": "Bahan baku",
       "realEstate": "Real estat",
       "utilities": "Utilitas"
+    },
+    "structureDetail": "Pilih seluruh sektor atau tema terkait. Tema dapat mencakup beberapa sektor.",
+    "relatedThemes": "Tema terkait",
+    "themesSoon": "Preferensi tema segera hadir. Anda sudah bisa mengikuti sektor.",
+    "selectedCount": "{count} dipilih",
+    "themes": {
+      "artificialIntelligence": "Kecerdasan buatan",
+      "semiconductors": "Semikonduktor",
+      "cybersecurity": "Keamanan siber",
+      "cloudComputing": "Komputasi awan",
+      "robotics": "Robotika & otomatisasi",
+      "cleanEnergy": "Energi bersih",
+      "fintech": "Fintech",
+      "spaceAndDefense": "Antariksa & pertahanan"
     }
   },
   "language": {
