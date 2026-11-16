@@ -76,6 +76,7 @@ test('scroll observer attaches after initial rows mount and rearms for subsequen
   react,'@/store':{useMarketStore:select=>select(state)},'@/services':{},'@/components/ui':{cn:()=>'',formatCurrency:()=>'',formatPercent:()=>'',formatCompactCurrency:()=>''},
   'next/link':{default:'a'},'@/components/ui/interface-icon':{},'lucide-react':new Proxy({}, { get: () => () => null }),
   './market-for-you':{MarketForYou:()=>null},
+  './market-stock-logo':{MarketStockLogo:()=>null},
  },{IntersectionObserver:Observer,window:{},process:{env:{NEXT_PUBLIC_DEPLOYMENT_ENV:'preview'}}});
  const render=()=>{cursor=0;MarketsOverview();while(effects.length)effects.shift()();};
  render(); assert.equal(observers.length,0);

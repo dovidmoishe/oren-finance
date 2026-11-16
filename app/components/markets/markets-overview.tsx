@@ -10,34 +10,11 @@ import { useMarketStore } from "@/store";
 import type { MarketCandle, StockSummary } from "@/types";
 import { useI18n, useT } from "@/i18n/i18n";
 import { MarketForYou } from "./market-for-you";
+import { MarketStockLogo } from "./market-stock-logo";
 
 const sparklineCache = new Map<string, MarketCandle[]>();
 
 const marketColumns = "grid grid-cols-[minmax(0,1fr)_4.75rem_4.25rem] items-center gap-2.5 px-3 @lg:grid-cols-[minmax(0,1fr)_minmax(5.5rem,0.55fr)_minmax(4rem,0.5fr)_minmax(5rem,0.55fr)] @3xl:grid-cols-[minmax(0,1fr)_minmax(5.5rem,0.55fr)_minmax(4rem,0.5fr)_minmax(6rem,0.65fr)_minmax(5rem,0.55fr)] @lg:gap-4 @lg:px-4";
-
-function StockLogo({ stock }: { stock: StockSummary }) {
-  const t = useT();
-  const [failed, setFailed] = useState(false);
-
-  if (stock.logoUrl && !failed) {
-    return (
-      // eslint-disable-next-line @next/next/no-img-element
-      <img
-        alt={t("markets.logoAlt", { name: stock.name })}
-        className="size-8 shrink-0 rounded-full object-contain"
-        loading="lazy"
-        onError={() => setFailed(true)}
-        src={normalizeLogoUrl(stock.logoUrl)}
-      />
-    );
-  }
-
-  return (
-    <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-panel-subtle text-[10px] font-semibold">
-      {stock.ticker.slice(0, 2)}
-    </div>
-  );
-}
 
 function buildSparklinePoints(candles: MarketCandle[]) {
   const closes = candles
@@ -146,16 +123,6 @@ function Sparkline({ stock }: { stock: StockSummary }) {
   );
 }
 
-function normalizeLogoUrl(url: string) {
-  if (url.startsWith("ipfs://")) {
-    return `https://ipfs.io/ipfs/${url.slice("ipfs://".length)}`;
-  }
-  if (url.startsWith("//")) {
-    return `https:${url}`;
-  }
-  return url;
-}
-
 function StockRow({ stock }: { stock: StockSummary }) {
   const { locale } = useI18n();
   const change = stock.change24hPct;
@@ -167,7 +134,7 @@ function StockRow({ stock }: { stock: StockSummary }) {
       prefetch={false}
     >
       <div className="flex min-w-0 items-center gap-2.5">
-        <StockLogo stock={stock} />
+        <MarketStockLogo stock={stock} />
         <div className="min-w-0">
           <span className="block truncate font-semibold" title={stock.name}>{stock.name}</span>
           <span className="block truncate text-xs text-muted">{stock.ticker}</span>
