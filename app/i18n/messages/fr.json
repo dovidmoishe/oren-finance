@@ -69,7 +69,7 @@
       "realEstate": "Immobilier",
       "utilities": "Services aux collectivités"
     },
-    "structureDetail": "Choisissez un secteur entier ou des thèmes associés. Un thème peut couvrir plusieurs secteurs.",
+    "structureDetail": "Suivez un secteur ou utilisez sa flèche pour explorer les thèmes associés.",
     "relatedThemes": "Thèmes associés",
     "themesSoon": "Les thèmes seront bientôt disponibles. Vous pouvez déjà suivre des secteurs.",
     "selectedCount": "{count} sélectionnés",

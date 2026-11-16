@@ -69,7 +69,7 @@
       "realEstate": "Real Estate",
       "utilities": "Utilities"
     },
-    "structureDetail": "Choose a whole sector or related themes. Themes can span several sectors.",
+    "structureDetail": "Follow a sector, or use its arrow to explore related themes.",
     "relatedThemes": "Related themes",
     "themesSoon": "Theme preferences are coming soon. You can follow sectors now.",
     "selectedCount": "{count} selected",

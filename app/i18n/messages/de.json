@@ -69,7 +69,7 @@
       "realEstate": "Immobilien",
       "utilities": "Versorger"
     },
-    "structureDetail": "Wähle einen ganzen Sektor oder verwandte Themen. Themen können mehrere Sektoren umfassen.",
+    "structureDetail": "Folge einem Sektor oder öffne über den Pfeil die verwandten Themen.",
     "relatedThemes": "Verwandte Themen",
     "themesSoon": "Themen folgen bald. Du kannst jetzt Sektoren auswählen.",
     "selectedCount": "{count} ausgewählt",

@@ -4,7 +4,6 @@ import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import vm from 'node:vm';
 import ts from 'typescript';
-import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 
 const require = createRequire(import.meta.url);
@@ -19,9 +18,20 @@ function compile(file, mocks = {}) {
 
 const preferences = compile('../services/preferences-service.ts', { './api-client': {} });
 const taxonomy = compile('../../api/types/sectors.ts');
-const { SectorChoices } = compile('../components/settings/preference-fields.tsx', {
-  '@/services/preferences-service': preferences,
-});
+function choices(props) {
+  let expanded;
+  const { SectorChoices } = compile('../components/settings/preference-fields.tsx', {
+    '@/services/preferences-service': preferences,
+    react: {
+      useId: () => 'interest-test',
+      useState(initial) {
+        expanded ??= initial();
+        return [expanded, next => { expanded = typeof next === 'function' ? next(expanded) : next; }];
+      },
+    },
+  });
+  return () => SectorChoices(props);
+}
 
 function buttons(element) {
   if (!element || typeof element !== 'object') return [];
@@ -38,27 +48,42 @@ test('web and api expose the same sector and theme identifiers', () => {
 
 test('technology groups related themes while preserving independent selections', () => {
   let next;
-  const tree = SectorChoices({ value: ['artificialIntelligence'], availableInterests: preferences.interestIds, onChange: value => { next = value; } });
-  const choices = buttons(tree);
+  const tree = choices({ value: ['artificialIntelligence'], availableInterests: preferences.interestIds, onChange: value => { next = value; } })();
+  const options = buttons(tree).filter(button => 'aria-pressed' in button.props);
   const html = renderToStaticMarkup(tree);
-  assert.equal(choices.length, 19);
+  assert.equal(options.length, 19);
   assert.ok(html.indexOf('Information Technology') < html.indexOf('Artificial intelligence'));
-  assert.ok(html.includes('Related themes'));
-  assert.equal(choices[0].props['aria-pressed'], false);
-  choices[0].props.onClick();
+  assert.equal(options[0].props['aria-pressed'], false);
+  options[0].props.onClick();
   assert.deepEqual([...next], ['artificialIntelligence', 'informationTechnology']);
-  choices[1].props.onClick();
+  options[1].props.onClick();
   assert.deepEqual([...next], []);
 });
 
 test('older APIs keep standard sectors usable and disable unsupported themes', () => {
-  const tree = SectorChoices({ value: [], onChange: () => {} });
-  const choices = buttons(tree);
-  assert.equal(choices.filter(choice => choice.props.disabled).length, 8);
-  assert.equal(choices.filter(choice => !choice.props.disabled).length, 11);
+  const tree = choices({ value: [], onChange: () => {} })();
+  const options = buttons(tree).filter(button => 'aria-pressed' in button.props);
+  assert.equal(options.filter(choice => choice.props.disabled).length, 8);
+  assert.equal(options.filter(choice => !choice.props.disabled).length, 11);
   assert.ok(renderToStaticMarkup(tree).includes('Theme preferences are coming soon'));
-  const enabled = renderToStaticMarkup(createElement(SectorChoices, { value: [], availableInterests: preferences.interestIds, onChange: () => {} }));
+  const enabled = renderToStaticMarkup(choices({ value: [], availableInterests: preferences.interestIds, onChange: () => {} })());
   assert.ok(!enabled.includes('Theme preferences are coming soon'));
+});
+
+test('theme disclosure is separate from selection and hides closed controls from keyboard navigation', () => {
+  const changes = [];
+  const render = choices({ value: [], availableInterests: preferences.interestIds, onChange: value => changes.push(value) });
+  const disclosure = tree => buttons(tree).find(button => button.props['aria-controls'] === 'interest-test-informationTechnology');
+  const initial = render();
+  assert.equal(disclosure(initial).props['aria-expanded'], false);
+  assert.match(renderToStaticMarkup(initial), /id="interest-test-informationTechnology"[^>]*aria-hidden="true"[^>]*inert=""/);
+  disclosure(initial).props.onClick();
+  const opened = render();
+  assert.equal(disclosure(opened).props['aria-expanded'], true);
+  assert.match(renderToStaticMarkup(opened), /id="interest-test-informationTechnology"[^>]*aria-hidden="false"/);
+  assert.equal(changes.length, 0);
+  disclosure(opened).props.onClick();
+  assert.equal(disclosure(render()).props['aria-expanded'], false);
 });
 
 test('recommendations display the matched theme and accept existing sector responses', async () => {

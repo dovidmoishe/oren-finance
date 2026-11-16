@@ -69,7 +69,7 @@
       "realEstate": "房地产",
       "utilities": "公用事业"
     },
-    "structureDetail": "选择整个行业或相关主题。主题可以涵盖多个行业。",
+    "structureDetail": "关注一个行业，或点击箭头查看相关主题。",
     "relatedThemes": "相关主题",
     "themesSoon": "主题偏好即将推出。你现在可以先关注行业。",
     "selectedCount": "已选择 {count} 项",

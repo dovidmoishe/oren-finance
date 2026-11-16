@@ -69,7 +69,7 @@
       "realEstate": "Imobiliário",
       "utilities": "Serviços de utilidade pública"
     },
-    "structureDetail": "Escolha um setor inteiro ou temas relacionados. Os temas podem abranger vários setores.",
+    "structureDetail": "Siga um setor ou use a seta para explorar temas relacionados.",
     "relatedThemes": "Temas relacionados",
     "themesSoon": "As preferências de temas chegarão em breve. Você já pode seguir setores.",
     "selectedCount": "{count} selecionados",
