@@ -26,8 +26,8 @@ function loadComponent(path, mocks = {}) {
       t: (key, values = {}) => key.split('.').reduce((value, part) => value[part], messages)
         .replace(/\{(\w+)\}/g, (_, name) => String(values[name])),
     }) };
-    if (id === '@hugeicons/react') return { HugeiconsIcon: () => null };
-    if (id === '@hugeicons/core-free-icons') return {};
+    if (id === '@/components/ui/interface-icon') return { InterfaceIcon: () => null };
+    if (id === 'lucide-react') return new Proxy({}, { get: () => () => null });
     return require(id);
   } });
   return exports;
@@ -89,6 +89,6 @@ test('legacy settings redirects and the app page preserve only a valid pending i
     await LegacyPage({ searchParams });
     assert.equal(redirects.at(-1), mcpEnrollmentLinks(connection).settings);
     const page = await AppPage({ searchParams });
-    assert.equal(page.props.children.props.connectionUid, connection === 'pending_42' ? connection : undefined);
+    assert.equal(page.props.connectionUid, connection === 'pending_42' ? connection : undefined);
   }
 });

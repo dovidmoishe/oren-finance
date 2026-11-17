@@ -452,7 +452,7 @@ export function PrivySession({ children }: { children: React.ReactNode }) {
           <dialog
             ref={dialog}
             aria-label={t("auth.title")}
-            className="m-auto w-[calc(100%-2rem)] max-w-md rounded-2xl border border-border bg-panel p-6 text-foreground shadow-xl backdrop:bg-black/30"
+            className="m-auto w-[calc(100%-2rem)] max-w-md rounded-2xl border border-border bg-panel p-6 text-foreground shadow-xl backdrop:bg-scrim/30"
             onCancel={() => setVisible(false)}
             onClose={() => setVisible(false)}
           >

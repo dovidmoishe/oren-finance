@@ -1,7 +1,11 @@
 "use client";
 
-import { ArrowLeft01Icon, ArrowRight01Icon, RefreshCwIcon } from "@hugeicons/core-free-icons";
-import { HugeiconsIcon } from "@hugeicons/react";
+import {
+  ChevronLeft as ChevronLeftIcon,
+  ChevronRight as ChevronRightIcon,
+  RefreshCw as RefreshCwIcon,
+} from "lucide-react";
+
 import { useEffect, useMemo, useState } from "react";
 import { useOrenAuth } from "@/components/auth/auth-context";
 import { RestoreActions, restoreBlocked } from "@/components/auth/restore-actions";
@@ -55,10 +59,10 @@ function dayClass(day: TradingCalendarDaySummary, maxMove: number) {
   if (!day.hasData) return "bg-panel-subtle text-muted";
   const intensity = Math.min(1, Math.abs(day.pnlUsd) / Math.max(maxMove, 1));
   if (day.pnlUsd > 0) {
-    return intensity > 0.66 ? "bg-positive text-white" : intensity > 0.33 ? "bg-[#b9f3d4]" : "bg-[#e0f8eb]";
+    return intensity > 0.66 ? "bg-heat-up-3 text-heat-foreground" : intensity > 0.33 ? "bg-heat-up-2" : "bg-heat-up-1";
   }
   if (day.pnlUsd < 0) {
-    return intensity > 0.66 ? "bg-negative text-white" : intensity > 0.33 ? "bg-[#ffc3c7]" : "bg-[#ffe4e6]";
+    return intensity > 0.66 ? "bg-heat-down-3 text-heat-foreground" : intensity > 0.33 ? "bg-heat-down-2" : "bg-heat-down-1";
   }
   return "bg-panel text-foreground";
 }
@@ -169,7 +173,7 @@ export function TradingCalendar() {
           <p className="mt-2 max-w-2xl text-sm text-muted">{t("calendar.intro")}</p>
         </div>
         <Button disabled={isLoading || !wallet} onClick={() => wallet && loadCalendar(wallet, { month, timeZone })} variant="secondary">
-          <HugeiconsIcon className={cn(isLoading && "animate-spin")} color="currentColor" icon={RefreshCwIcon} size={16} strokeWidth={1.8} />
+          <RefreshCwIcon className={cn(isLoading && "animate-spin")} color="currentColor" size={16} strokeWidth={1.8} />
           {t("calendar.refresh")}
         </Button>
       </div>
@@ -191,10 +195,10 @@ export function TradingCalendar() {
             </div>
             <div className="flex items-center gap-2">
               <Button aria-label={t("calendar.previousMonth")} onClick={() => setMonth((value) => shiftMonth(value, -1))} size="icon" variant="ghost">
-                <HugeiconsIcon color="currentColor" icon={ArrowLeft01Icon} size={18} strokeWidth={1.8} />
+                <ChevronLeftIcon color="currentColor" size={18} strokeWidth={1.8} />
               </Button>
               <Button aria-label={t("calendar.nextMonth")} onClick={() => setMonth((value) => shiftMonth(value, 1))} size="icon" variant="ghost">
-                <HugeiconsIcon color="currentColor" icon={ArrowRight01Icon} size={18} strokeWidth={1.8} />
+                <ChevronRightIcon color="currentColor" size={18} strokeWidth={1.8} />
               </Button>
             </div>
           </CardHeader>

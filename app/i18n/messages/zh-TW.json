@@ -1,11 +1,19 @@
 {
+  "settings": {
+    "intro": "在同一處管理帳戶、偏好設定及已連結的代理。",
+    "account": "帳戶",
+    "accountDetail": "管理登入資訊、錢包及語言。",
+    "walletPending": "沒有可用錢包",
+    "signInDetail": "登入以管理帳戶。"
+  },
   "marketForYou": {
     "title": "為你推薦",
-    "chooseDetail": "選擇產業，查看符合你興趣的股票。",
-    "choose": "選擇產業",
-    "empty": "目前沒有符合所選產業的股票。",
-    "edit": "編輯產業",
-    "error": "無法載入推薦。"
+    "chooseDetail": "關注產業和主題，探索符合你興趣的股票。",
+    "choose": "選擇興趣",
+    "empty": "暫時沒有符合你所選興趣的股票。",
+    "edit": "編輯興趣",
+    "error": "無法載入推薦。",
+    "match": "符合你的興趣"
   },
   "priceAlerts": {
     "title": "價格提醒",
@@ -26,7 +34,7 @@
   "preferences": {
     "title": "偏好設定",
     "followTitle": "你關注哪些產業？",
-    "followDetail": "選擇感興趣的產業，讓 Oren 提供個人化市場推薦。",
+    "followDetail": "選擇產業和主題，量身打造你的市場推薦。",
     "emailTitle": "你希望 Oren 寄送哪些郵件？",
     "morningBrief": "早間簡報",
     "morningBriefDetail": "每天掌握你的投資組合及與你相關的新聞。",
@@ -60,6 +68,20 @@
       "materials": "材料",
       "realEstate": "房地產",
       "utilities": "公用事業"
+    },
+    "structureDetail": "關注一個產業，或點擊箭頭查看相關主題。",
+    "relatedThemes": "相關主題",
+    "themesSoon": "主題偏好即將推出。你現在可以先關注產業。",
+    "selectedCount": "已選擇 {count} 項",
+    "themes": {
+      "artificialIntelligence": "人工智慧",
+      "semiconductors": "半導體",
+      "cybersecurity": "網路安全",
+      "cloudComputing": "雲端運算",
+      "robotics": "機器人與自動化",
+      "cleanEnergy": "潔淨能源",
+      "fintech": "金融科技",
+      "spaceAndDefense": "航太與國防"
     }
   },
   "language": {
@@ -67,6 +89,14 @@
     "title": "語言"
   },
   "nav": {
+    "portfolio": "投資組合",
+    "markets": "市場",
+    "settings": "設定",
+    "navigation": "導覽",
+    "skipToContent": "跳至內容",
+    "expandSidebar": "展開側欄",
+    "collapseSidebar": "收合側欄",
+    "search": "搜尋",
     "dashboard": "儀表板",
     "market": "市場",
     "leaderboard": "排行榜",
@@ -146,6 +176,18 @@
     "empty": "目前沒有股票。"
   },
   "portfolio": {
+    "totalValue": "總價值",
+    "assetCount": "{count, plural, other {# 項資產}}",
+    "allocation": "資產分布",
+    "otherAssets": "其他資產",
+    "hideBalances": "隱藏餘額",
+    "showBalances": "顯示餘額",
+    "valueHistory": "價值歷史",
+    "snapshotChange": "較上次快照",
+    "recentActivity": "近期活動",
+    "colDate": "日期",
+    "col24h": "24 小時漲跌",
+    "positionDetails": "詳細資料",
     "logoAlt": "{name} 標誌",
     "thisWeek": "本週",
     "roiTitle": "投資報酬",
@@ -927,6 +969,9 @@
     "review": "檢視權限"
   },
   "agent": {
+    "contextGeneral": "一般對話",
+    "generalContextBody": "新訊息不會包含你正在瀏覽的頁面。先前的訊息仍保留在此對話中。",
+    "resize": "調整 Oren 聊天面板大小",
     "ask": "詢問 Oren",
     "proposes": "Oren 提議，你的錢包核准。",
     "stop": "停止回覆",
@@ -1020,5 +1065,12 @@
     "intro": "以快照為基礎的績效紀錄，對應你在 Oren 觀察到的投資組合。",
     "refresh": "重新整理",
     "closeValue": "{value} 收盤"
+  },
+  "theme": {
+    "change": "變更主題",
+    "title": "主題",
+    "system": "跟隨系統",
+    "light": "淺色",
+    "dark": "深色"
   }
 }

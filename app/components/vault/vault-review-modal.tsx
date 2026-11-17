@@ -1,13 +1,14 @@
 "use client";
 
 import {
-  AlertCircleIcon,
-  CheckmarkCircle01Icon,
-  Clock01Icon,
-  SafeIcon,
-  Wallet02Icon,
-} from "@hugeicons/core-free-icons";
-import { HugeiconsIcon } from "@hugeicons/react";
+  CircleAlert as CircleAlertIcon,
+  CircleCheck as CircleCheckIcon,
+  Clock as ClockIcon,
+  Vault as VaultIcon,
+  WalletCards as WalletCardsIcon,
+} from "lucide-react";
+import { InterfaceIcon } from "@/components/ui/interface-icon";
+
 import { Button, Modal, Toast, formatCurrency, formatDate, formatNumber } from "@/components/ui";
 import { useI18n } from "@/i18n/i18n";
 
@@ -91,12 +92,12 @@ export function VaultReviewModal({
           </div>
 
           {!programLive ? (
-            <div className="rounded-[18px] border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
+            <div className="rounded-[18px] border border-warning-border bg-warning-surface p-4 text-sm text-warning">
               <div className="flex gap-3">
-                <HugeiconsIcon className="mt-0.5 shrink-0" color="currentColor" icon={SafeIcon} size={16} strokeWidth={1.8} />
+                <VaultIcon className="mt-0.5 shrink-0" color="currentColor" size={16} strokeWidth={1.8} />
                 <div>
                   <p className="font-semibold">{t("vaultReview.offlineTitle")}</p>
-                  <p className="mt-1 text-amber-900/80">
+                  <p className="mt-1 text-warning/80">
                     {t("vaultReview.offlineBody")}
                   </p>
                 </div>
@@ -107,18 +108,18 @@ export function VaultReviewModal({
           {error ? <Toast title={t("vaultReview.error")} description={error} tone="error" /> : null}
 
           <Button className="h-12 w-full rounded-[16px]" disabled variant="primary">
-            <HugeiconsIcon color="currentColor" icon={programLive ? Wallet02Icon : Clock01Icon} size={16} strokeWidth={1.8} />
+            <InterfaceIcon color="currentColor" icon={programLive ? WalletCardsIcon : ClockIcon} size={16} strokeWidth={1.8} />
             {programLive ? t("vaultReview.reviewSign") : t("vaultReview.signingUnavailable")}
           </Button>
 
           {!programLive ? (
             <p className="flex items-start gap-2 text-xs leading-5 text-muted">
-              <HugeiconsIcon className="mt-0.5 shrink-0" color="currentColor" icon={AlertCircleIcon} size={14} strokeWidth={1.8} />
+              <CircleAlertIcon className="mt-0.5 shrink-0" color="currentColor" size={14} strokeWidth={1.8} />
               {t("vaultReview.offlineFooter")}
             </p>
           ) : (
             <p className="flex items-start gap-2 text-xs leading-5 text-muted">
-              <HugeiconsIcon className="mt-0.5 shrink-0" color="currentColor" icon={CheckmarkCircle01Icon} size={14} strokeWidth={1.8} />
+              <CircleCheckIcon className="mt-0.5 shrink-0" color="currentColor" size={14} strokeWidth={1.8} />
               {t("vaultReview.liveFooter")}
             </p>
           )}

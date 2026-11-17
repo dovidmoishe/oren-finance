@@ -432,7 +432,7 @@ describe('notification rules', () => {
     }
   });
 
-  it('builds a morning brief for an opted-in user who is not on the pilot list', async () => {
+  it('uses unique theme and sector news assets for an opted-in user outside the pilot list', async () => {
     const saved = { ...process.env };
     Object.assign(process.env, alertRuntime(), {
       MORNING_BRIEF_ENABLED: 'true',
@@ -441,6 +441,35 @@ describe('notification rules', () => {
     const identity = jest
       .fn()
       .mockResolvedValue({ email: 'person@example.com', wallet: null });
+    const getRecentNews = jest.fn().mockResolvedValue([]);
+    const findSectorCandidates = jest.fn().mockResolvedValue({
+      items: [
+        {
+          id: 'nvidia',
+          sortRank: 0,
+          sectorId: 'informationTechnology',
+          interestId: 'artificialIntelligence',
+        },
+        {
+          id: 'nvidia',
+          sortRank: 0,
+          sectorId: 'informationTechnology',
+          interestId: 'semiconductors',
+        },
+        {
+          id: 'amd',
+          sortRank: 1,
+          sectorId: 'informationTechnology',
+          interestId: 'semiconductors',
+        },
+        {
+          id: 'exxon-mobil',
+          sortRank: 2,
+          sectorId: 'energy',
+          interestId: 'energy',
+        },
+      ],
+    });
     const brief = new MorningBrief(
       {
         scheduleFor: jest.fn().mockResolvedValue({
@@ -454,10 +483,18 @@ describe('notification rules', () => {
       { getNotificationIdentity: identity } as never,
       {} as never,
       {} as never,
-      {} as never,
-      { getSectors: jest.fn().mockResolvedValue([]) } as never,
-      { getRecentNews: jest.fn().mockResolvedValue([]) } as never,
-      null as never,
+      { findSectorCandidates } as never,
+      {
+        getSectors: jest
+          .fn()
+          .mockResolvedValue([
+            'artificialIntelligence',
+            'semiconductors',
+            'energy',
+          ]),
+      } as never,
+      { getRecentNews } as never,
+      null,
       { OPENAI_MODEL: 'gpt-5-mini' } as never,
     );
     try {
@@ -476,6 +513,10 @@ describe('notification rules', () => {
         },
       });
       expect(identity).toHaveBeenCalledWith('someone-else', null);
+      expect(getRecentNews).toHaveBeenCalledWith(
+        ['nvidia', 'amd', 'exxon-mobil'],
+        { limitPerAsset: 2 },
+      );
     } finally {
       process.env = saved;
     }

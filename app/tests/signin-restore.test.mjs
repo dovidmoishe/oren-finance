@@ -345,6 +345,8 @@ function dashboardRequire(auth) {
     if (id === "react" || id === "react/jsx-runtime") return require(id);
     if (id === "@/i18n/i18n") return require(id);
     if (id === "@/components/ui") return ui;
+    if (id === "@/components/brand/oren-logo") return { OrenLogo: () => null };
+    if (id === "@/hooks/use-anchored-popover") return loadModule("../hooks/use-anchored-popover.ts", sandboxRequire);
     if (id === "@/components/auth/auth-context" || id === "./auth-context") return { useOrenAuth: () => auth };
     if (id === "@/components/auth/restore-actions") {
       restoreModule ??= loadModule("../components/auth/restore-actions.tsx", sandboxRequire);
@@ -356,14 +358,16 @@ function dashboardRequire(auth) {
       useVaultStore: (select) => select(storeState),
     };
     if (id === "@/hooks/use-portfolio-refresh") return { usePortfolioRefresh: () => async () => {} };
-    if (id === "@/components/charts/market-chart") return { MarketChart: () => null };
+    if (id === "./portfolio-skeleton") return { PortfolioSkeleton: () => null };
+    if (id === "./portfolio-summary-card") return { PortfolioSummaryCard: () => null };
+    if (id === "./portfolio-tables") return { PortfolioTables: () => null };
     if (id === "@/components/portfolio/activity-list") return { ActivityList: () => null };
     if (id === "@/services/environment") return { financialExecutionEnabled: false };
     if (id === "./vault-review-modal") return { VaultReviewModal: () => null };
     if (id === "next/link") return { default: ({ children }) => createElement("a", null, children) };
     if (id === "next/dynamic") return { default: () => () => null };
-    if (id === "@hugeicons/core-free-icons") return {};
-    if (id === "@hugeicons/react") return { HugeiconsIcon: () => null };
+    if (id === "lucide-react") return new Proxy({}, { get: () => () => null });
+    if (id === "@/components/ui/interface-icon") return { InterfaceIcon: () => null };
     throw new Error(`unexpected import ${id}`);
   }
   return sandboxRequire;

@@ -1,11 +1,19 @@
 {
+  "settings": {
+    "intro": "Your account, preferences, and connected agents in one place.",
+    "account": "Account",
+    "accountDetail": "Manage your sign-in details, wallet, and language.",
+    "walletPending": "No active wallet",
+    "signInDetail": "Sign in to manage your account."
+  },
   "marketForYou": {
     "title": "For You",
-    "chooseDetail": "Choose sectors to see stocks that match your interests.",
-    "choose": "Choose sectors",
-    "empty": "No stocks match your selected sectors yet.",
-    "edit": "Edit sectors",
-    "error": "Couldn’t load your picks."
+    "chooseDetail": "Follow sectors and themes to discover stocks that fit your interests.",
+    "choose": "Choose interests",
+    "empty": "No stocks match your selected interests yet.",
+    "edit": "Edit interests",
+    "error": "Couldn’t load your picks.",
+    "match": "Matches your interests"
   },
   "priceAlerts": {
     "title": "Price alerts",
@@ -26,7 +34,7 @@
   "preferences": {
     "title": "Preferences",
     "followTitle": "What do you follow?",
-    "followDetail": "Pick sectors to help Oren tailor your market recommendations.",
+    "followDetail": "Choose sectors and themes to tailor your market recommendations.",
     "emailTitle": "What should Oren email you about?",
     "morningBrief": "Morning Brief",
     "morningBriefDetail": "A daily look at your portfolio and news that matters to you.",
@@ -60,6 +68,20 @@
       "materials": "Materials",
       "realEstate": "Real Estate",
       "utilities": "Utilities"
+    },
+    "structureDetail": "Follow a sector, or use its arrow to explore related themes.",
+    "relatedThemes": "Related themes",
+    "themesSoon": "Theme preferences are coming soon. You can follow sectors now.",
+    "selectedCount": "{count} selected",
+    "themes": {
+      "artificialIntelligence": "Artificial intelligence",
+      "semiconductors": "Semiconductors",
+      "cybersecurity": "Cybersecurity",
+      "cloudComputing": "Cloud computing",
+      "robotics": "Robotics & automation",
+      "cleanEnergy": "Clean energy",
+      "fintech": "Fintech",
+      "spaceAndDefense": "Space & defense"
     }
   },
   "language": {
@@ -67,6 +89,14 @@
     "title": "Language"
   },
   "nav": {
+    "portfolio": "Portfolio",
+    "markets": "Markets",
+    "settings": "Settings",
+    "navigation": "Navigation",
+    "skipToContent": "Skip to content",
+    "expandSidebar": "Expand sidebar",
+    "collapseSidebar": "Collapse sidebar",
+    "search": "Search",
     "dashboard": "Dashboard",
     "market": "Market",
     "leaderboard": "Leaderboard",
@@ -146,6 +176,18 @@
     "empty": "No stocks yet."
   },
   "portfolio": {
+    "totalValue": "Total value",
+    "assetCount": "{count, plural, one {# asset} other {# assets}}",
+    "allocation": "Asset allocation",
+    "otherAssets": "Other assets",
+    "hideBalances": "Hide balances",
+    "showBalances": "Show balances",
+    "valueHistory": "Value history",
+    "snapshotChange": "Since last snapshot",
+    "recentActivity": "Recent activity",
+    "colDate": "Date",
+    "col24h": "24h change",
+    "positionDetails": "Details",
     "logoAlt": "{name} logo",
     "thisWeek": "This week",
     "roiTitle": "Return on Investment",
@@ -927,6 +969,9 @@
     "review": "Review permission"
   },
   "agent": {
+    "contextGeneral": "General conversation",
+    "generalContextBody": "New messages do not include the page you are viewing. Earlier messages remain in this conversation.",
+    "resize": "Resize Oren chat",
     "ask": "Ask Oren",
     "proposes": "Oren proposes. Your wallet approves.",
     "stop": "Stop response",
@@ -1020,5 +1065,12 @@
     "intro": "Snapshot-based performance memory for your Oren-observed portfolio.",
     "refresh": "Refresh",
     "closeValue": "{value} close"
+  },
+  "theme": {
+    "change": "Change theme",
+    "title": "Theme",
+    "system": "System",
+    "light": "Light",
+    "dark": "Dark"
   }
 }

@@ -1,11 +1,19 @@
 {
+  "settings": {
+    "intro": "Dein Konto, deine Einstellungen und verbundenen Agenten an einem Ort.",
+    "account": "Konto",
+    "accountDetail": "Verwalte deine Anmeldedaten, Wallet und Sprache.",
+    "walletPending": "Keine aktive Wallet",
+    "signInDetail": "Melde dich an, um dein Konto zu verwalten."
+  },
   "marketForYou": {
     "title": "Für Sie",
-    "chooseDetail": "Wählen Sie Branchen aus, um passende Aktien zu entdecken.",
-    "choose": "Branchen wählen",
-    "empty": "Für Ihre gewählten Branchen gibt es noch keine passenden Aktien.",
-    "edit": "Branchen bearbeiten",
-    "error": "Ihre Vorschläge konnten nicht geladen werden."
+    "chooseDetail": "Entdecke Aktien passend zu deinen Sektoren und Themen.",
+    "choose": "Interessen wählen",
+    "empty": "Noch keine Aktien für deine Interessen gefunden.",
+    "edit": "Interessen bearbeiten",
+    "error": "Ihre Vorschläge konnten nicht geladen werden.",
+    "match": "Passt zu deinen Interessen"
   },
   "priceAlerts": {
     "title": "Preisalarme",
@@ -26,7 +34,7 @@
   "preferences": {
     "title": "Einstellungen",
     "followTitle": "Welche Branchen verfolgen Sie?",
-    "followDetail": "Wählen Sie Branchen für personalisierte Marktempfehlungen.",
+    "followDetail": "Wähle Sektoren und Themen für passende Marktempfehlungen.",
     "emailTitle": "Welche E-Mails möchten Sie erhalten?",
     "morningBrief": "Morgenüberblick",
     "morningBriefDetail": "Ein täglicher Überblick über Ihr Portfolio und relevante Nachrichten.",
@@ -60,6 +68,20 @@
       "materials": "Grundstoffe",
       "realEstate": "Immobilien",
       "utilities": "Versorger"
+    },
+    "structureDetail": "Folge einem Sektor oder öffne über den Pfeil die verwandten Themen.",
+    "relatedThemes": "Verwandte Themen",
+    "themesSoon": "Themen folgen bald. Du kannst jetzt Sektoren auswählen.",
+    "selectedCount": "{count} ausgewählt",
+    "themes": {
+      "artificialIntelligence": "Künstliche Intelligenz",
+      "semiconductors": "Halbleiter",
+      "cybersecurity": "Cybersicherheit",
+      "cloudComputing": "Cloud-Computing",
+      "robotics": "Robotik & Automatisierung",
+      "cleanEnergy": "Saubere Energie",
+      "fintech": "Fintech",
+      "spaceAndDefense": "Raumfahrt & Verteidigung"
     }
   },
   "language": {
@@ -67,6 +89,14 @@
     "title": "Sprache"
   },
   "nav": {
+    "portfolio": "Portfolio",
+    "markets": "Märkte",
+    "settings": "Einstellungen",
+    "navigation": "Navigation",
+    "skipToContent": "Zum Inhalt springen",
+    "expandSidebar": "Seitenleiste einblenden",
+    "collapseSidebar": "Seitenleiste einklappen",
+    "search": "Suchen",
     "dashboard": "Dashboard",
     "market": "Markt",
     "leaderboard": "Rangliste",
@@ -146,6 +176,18 @@
     "empty": "Noch keine Aktien."
   },
   "portfolio": {
+    "totalValue": "Gesamtwert",
+    "assetCount": "{count, plural, one {# Vermögenswert} other {# Vermögenswerte}}",
+    "allocation": "Vermögensverteilung",
+    "otherAssets": "Weitere Vermögenswerte",
+    "hideBalances": "Beträge ausblenden",
+    "showBalances": "Beträge anzeigen",
+    "valueHistory": "Wertverlauf",
+    "snapshotChange": "Seit letzter Erfassung",
+    "recentActivity": "Letzte Aktivitäten",
+    "colDate": "Datum",
+    "col24h": "24-Std.-Änderung",
+    "positionDetails": "Details",
     "logoAlt": "Logo von {name}",
     "thisWeek": "Diese Woche",
     "roiTitle": "Kapitalrendite",
@@ -927,6 +969,9 @@
     "review": "Berechtigung prüfen"
   },
   "agent": {
+    "contextGeneral": "Allgemeines Gespräch",
+    "generalContextBody": "Neue Nachrichten enthalten die aktuell geöffnete Seite nicht. Frühere Nachrichten bleiben in diesem Gespräch.",
+    "resize": "Größe des Oren-Chats ändern",
     "ask": "Oren fragen",
     "proposes": "Oren schlägt vor. Deine Wallet genehmigt.",
     "stop": "Antwort stoppen",
@@ -1020,5 +1065,12 @@
     "intro": "Performance aus Momentaufnahmen für dein von Oren beobachtetes Portfolio.",
     "refresh": "Aktualisieren",
     "closeValue": "{value} Schluss"
+  },
+  "theme": {
+    "change": "Design ändern",
+    "title": "Design",
+    "system": "System",
+    "light": "Hell",
+    "dark": "Dunkel"
   }
 }

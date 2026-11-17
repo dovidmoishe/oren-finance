@@ -1,7 +1,7 @@
 
-import { ArrowUpRight01Icon } from '@hugeicons/core-free-icons';
+import { ArrowUpRight as ArrowUpRightIcon } from "lucide-react";
 import { landingHeroClasses } from "@/components/landing/landing-hero-classes";
-import { HugeiconsIcon } from '@hugeicons/react';
+
 import Link from "next/link";
 import { AgentClientLinks } from "./agents/agent-clients";
 import { LaunchArrow } from "@/components/landing/launch-arrow";
@@ -53,7 +53,7 @@ export default function Home() {
               <ButtonLink className="h-12 rounded-full px-5 text-[14px] font-medium" href="/app" id="launch-oren-cta" variant="primary">
                 Launch Oren <LaunchArrow />
               </ButtonLink>
-              <Link className="landing-market-link" href="/app/markets">Explore markets <span aria-hidden><HugeiconsIcon icon={ArrowUpRight01Icon} size={16} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className="inline-block shrink-0 align-middle" /></span></Link>
+              <Link className="landing-market-link" href="/app/markets">Explore markets <span aria-hidden><ArrowUpRightIcon size={16} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className="inline-block shrink-0 align-middle" /></span></Link>
             </div>
           </div>
           <div className="relative grid place-items-center isolate min-w-0 h-[320px] at-most-1023:h-[330px] at-most-767:h-[235px] at-most-767:mt-[5px]">

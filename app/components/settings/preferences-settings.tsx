@@ -2,24 +2,27 @@
 
 import { useEffect, useLayoutEffect, useRef, useState, type FormEvent } from "react";
 import { useOrenAuth } from "@/components/auth/auth-context";
+import { RestoreActions, restoreBlocked } from "@/components/auth/restore-actions";
 import { Button } from "@/components/ui";
 import { useT } from "@/i18n/i18n";
-import { defaultPreferences, requestPreferences, type Preferences } from "@/services/preferences-service";
+import { defaultPreferences, requestPreferences, sectorIds, type InterestId, type Preferences } from "@/services/preferences-service";
 import { EmailChoices, SectorChoices } from "./preference-fields";
 
 export function PreferencesSettings() {
   const auth = useOrenAuth();
   const t = useT();
   return (
-    <section className="mx-auto max-w-xl rounded-3xl border border-border bg-panel p-5 sm:p-7">
-      <h1 className="mb-5 font-display text-2xl font-semibold">{t("preferences.title")}</h1>
-      {!auth.ready ? (
-        <p role="status">{t("account.loading")}</p>
-      ) : auth.authenticated && auth.userId ? (
-        <PreferencesForm key={auth.userId} getAccessToken={auth.getAccessToken} />
-      ) : (
-        <Button type="button" variant="primary" disabled={!auth.configured} onClick={auth.open}>{t("account.signIn")}</Button>
-      )}
+    <section aria-labelledby="settings-preferences-title" className="space-y-4">
+      <div><h2 className="font-display text-xl font-semibold" id="settings-preferences-title">{t("preferences.title")}</h2><p className="mt-1 text-sm leading-6 text-muted">{t("preferences.followDetail")}</p></div>
+      <div className="rounded-2xl border border-border p-4 @lg:p-5">
+        {restoreBlocked(auth) ? <RestoreActions signInLabel={t("account.signIn")} /> : !auth.ready ? (
+          <p role="status">{t("account.loading")}</p>
+        ) : auth.authenticated && auth.userId ? (
+          <PreferencesForm key={auth.userId} getAccessToken={auth.getAccessToken} />
+        ) : (
+          <Button type="button" variant="primary" disabled={!auth.configured} onClick={auth.open}>{t("account.signIn")}</Button>
+        )}
+      </div>
     </section>
   );
 }
@@ -30,6 +33,7 @@ function PreferencesForm({ getAccessToken }: {
   const t = useT();
   const [draft, setDraft] = useState<Preferences>();
   const [eligible, setEligible] = useState(false);
+  const [availableInterests, setAvailableInterests] = useState<readonly InterestId[]>(sectorIds);
   const [loadAttempt, setLoadAttempt] = useState(0);
   const [loadFailed, setLoadFailed] = useState(false);
   const [status, setStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
@@ -41,10 +45,11 @@ function PreferencesForm({ getAccessToken }: {
   useEffect(() => {
     const controller = new AbortController();
     request.current = controller;
-    void requestPreferences(tokenProvider.current, controller.signal).then(({ preferences, emailEligible }) => {
+    void requestPreferences(tokenProvider.current, controller.signal).then(({ preferences, emailEligible, supportedInterests }) => {
       if (controller.signal.aborted) return;
       setDraft(preferences ?? defaultPreferences());
       setEligible(emailEligible);
+      setAvailableInterests(supportedInterests ?? sectorIds);
     }).catch(() => {
       if (!controller.signal.aborted) setLoadFailed(true);
     }).finally(() => {
@@ -100,7 +105,7 @@ function PreferencesForm({ getAccessToken }: {
       <fieldset disabled={status === "saving"} className="space-y-5">
         <fieldset className="space-y-2">
           <legend className="font-semibold">{t("preferences.followTitle")}</legend>
-          <SectorChoices value={draft.sectors} onChange={(sectors) => edit({ ...draft, sectors })} />
+          <SectorChoices value={draft.sectors} availableInterests={availableInterests} onChange={(sectors) => edit({ ...draft, sectors })} />
         </fieldset>
         <fieldset className="space-y-2">
           <legend className="font-semibold">{t("preferences.emailTitle")}</legend>

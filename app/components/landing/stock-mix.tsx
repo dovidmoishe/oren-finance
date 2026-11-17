@@ -1,8 +1,12 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ArrowLeft01Icon, RefreshIcon, ArrowUpRight01Icon } from "@hugeicons/core-free-icons";
-import { HugeiconsIcon } from "@hugeicons/react";
+import {
+  ChevronLeft as ChevronLeftIcon,
+  RefreshCcw as RefreshCcwIcon,
+  ArrowUpRight as ArrowUpRightIcon,
+} from "lucide-react";
+
 import { OrenLogo } from "@/components/brand/oren-logo";
 import { AgentComposerView } from "@/components/agent/agent-composer-view";
 import { BasketProposal } from "@/components/trading/basket-proposal";
@@ -71,22 +75,22 @@ export function StockMix() {
         <header className="h-[62px] flex items-center justify-between gap-[20px] [padding:0_24px] [border-bottom:1px_solid_var(--border)] at-most-1023:[padding:0_19px] at-most-700:h-[54px] at-most-700:gap-[8px] at-most-700:[padding:0_14px]">
           <span className="flex items-center gap-[8px] font-semibold text-[15px] at-most-700:text-[14px]"><OrenLogo size={26} className="h-[26px] w-[26px]" />Oren</span>
           <span className="text-[#8b8981] text-[11px] at-most-700:hidden">Agent workspace</span>
-          <div className="flex items-center gap-[10px] at-most-700:gap-[4px]"><span className="text-[#959087] text-[10px]">Demo</span><Button aria-label="Reset Stock mix demo" onClick={reset} variant="ghost" size="icon"><HugeiconsIcon icon={RefreshIcon} size={16} strokeWidth={1.8} /></Button></div>
+          <div className="flex items-center gap-[10px] at-most-700:gap-[4px]"><span className="text-[#959087] text-[10px]">Demo</span><Button aria-label="Reset Stock mix demo" onClick={reset} variant="ghost" size="icon"><RefreshCcwIcon size={16} strokeWidth={1.8} /></Button></div>
         </header>
         <div className="grid grid-cols-[minmax(0,_1.12fr)_minmax(0,_1fr)] at-most-700:grid-cols-[1fr]">
           <div className="flex flex-col min-w-0 min-h-[558px] at-most-700:min-h-[460px]">
             <div className="[flex:1] [padding:27px_28px_24px] at-most-1023:[padding:24px_20px] at-most-700:[padding:22px_18px_20px]">
               <p className="mb-[32px] text-[#aaa59a] text-[10px] at-most-700:mb-[23px]">Building your stock mix</p>
               <div className="w-fit max-w-[90%] ml-auto [border-radius:20px_20px_7px_20px] [padding:12px_16px] bg-foreground text-white text-[13px] leading-[1.7] [overflow-wrap:anywhere] at-most-700:max-w-[95%] at-most-700:text-[12px]">{question}</div>
-              <div className="stock-mix-response"><span className="stock-mix-agent-identity"><OrenLogo size={25} className="h-[25px] w-[25px]" /><strong>Oren</strong></span><p aria-live="polite"><span key={`${question}:${answer}`} className="reveal-reply">{answer}</span></p><button type="button" className="inline-block [border:1px_solid_var(--border)] bg-panel-subtle rounded-[20px] [padding:4px_9px] text-[10px]! text-muted cursor-pointer" aria-label="View stock mix proposal" onClick={() => reviewRef.current?.scrollIntoView({ block: "start" })}>Stock mix · {basket.allocations.length} stocks <HugeiconsIcon icon={ArrowUpRight01Icon} size={16} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className="inline-block shrink-0 align-middle" /></button></div>
+              <div className="stock-mix-response"><span className="stock-mix-agent-identity"><OrenLogo size={25} className="h-[25px] w-[25px]" /><strong>Oren</strong></span><p aria-live="polite"><span key={`${question}:${answer}`} className="reveal-reply">{answer}</span></p><button type="button" className="inline-block [border:1px_solid_var(--border)] bg-panel-subtle rounded-[20px] [padding:4px_9px] text-[10px]! text-muted cursor-pointer" aria-label="View stock mix proposal" onClick={() => reviewRef.current?.scrollIntoView({ block: "start" })}>Stock mix · {basket.allocations.length} stocks <ArrowUpRightIcon size={16} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className="inline-block shrink-0 align-middle" /></button></div>
             </div>
-            <div className="stock-mix-suggestions" aria-label="Try a sample request">{prompts.map((prompt) => <button type="button" key={prompt} onClick={() => submit(prompt)}>{prompt}<span aria-hidden><HugeiconsIcon icon={ArrowUpRight01Icon} size={16} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className="inline-block shrink-0 align-middle" /></span></button>)}</div>
+            <div className="stock-mix-suggestions" aria-label="Try a sample request">{prompts.map((prompt) => <button type="button" key={prompt} onClick={() => submit(prompt)}>{prompt}<span aria-hidden><ArrowUpRightIcon size={16} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className="inline-block shrink-0 align-middle" /></span></button>)}</div>
             <AgentComposerView connected isSending={false} composer={composer} composerRef={composerRef} placeholder="Try “Add Tesla” or “Use $500”…" onComposerChange={(value) => setComposer(value.slice(0, 180))} onSubmit={() => submit(composer)} onStop={() => {}} />
           </div>
           <aside className="min-w-0 [border-left:1px_solid_var(--border)] bg-[#fafaf8] [padding:19px_22px_24px] at-most-1023:[padding:18px_16px_22px] at-most-700:[border-left:0] at-most-700:[border-top:1px_solid_var(--border)] at-most-700:[padding:18px_14px_22px]" aria-label="Stock mix working set">
-            <div className="stock-mix-working-heading"><h3 ref={reviewRef} tabIndex={review ? -1 : undefined}>{review ? "Review your mix" : "Working set"}</h3>{review ? <Button size="sm" variant="ghost" onClick={() => { setReview(false); composerRef.current?.focus(); }}><HugeiconsIcon icon={ArrowLeft01Icon} size={13} />Back</Button> : <span>1 proposal</span>}</div>
+            <div className="stock-mix-working-heading"><h3 ref={reviewRef} tabIndex={review ? -1 : undefined}>{review ? "Review your mix" : "Working set"}</h3>{review ? <Button size="sm" variant="ghost" onClick={() => { setReview(false); composerRef.current?.focus(); }}><ChevronLeftIcon size={13} />Back</Button> : <span>1 proposal</span>}</div>
             <div className="stock-mix-result reveal-result" key={`${review}:${budget}:${holdings.map((holding) => `${holding.symbol}-${holding.weight}`).join(",")}`}>
-              {review ? <><BasketReview basket={basket} /><ButtonLink href="/app" className="mt-4 h-10 w-full rounded-[12px]" variant="primary">Open Oren <HugeiconsIcon icon={ArrowUpRight01Icon} size={16} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className="inline-block shrink-0 align-middle" /></ButtonLink></> : <BasketProposal basket={basket} onReview={() => setReview(true)} />}
+              {review ? <><BasketReview basket={basket} /><ButtonLink href="/app" className="mt-4 h-10 w-full rounded-[12px]" variant="primary">Open Oren <ArrowUpRightIcon size={16} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className="inline-block shrink-0 align-middle" /></ButtonLink></> : <BasketProposal basket={basket} onReview={() => setReview(true)} />}
             </div>
           </aside>
         </div>

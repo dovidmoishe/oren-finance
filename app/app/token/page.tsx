@@ -1,7 +1,7 @@
 
-import { Add01Icon } from '@hugeicons/core-free-icons';
+import { Plus as PlusIcon } from "lucide-react";
 import { landingHeroClasses } from "@/components/landing/landing-hero-classes";
-import { HugeiconsIcon } from '@hugeicons/react';
+
 import type { Metadata } from "next";
 import Link from "next/link";
 import { OrenLogo } from "@/components/brand/oren-logo";
@@ -101,7 +101,7 @@ export default function TokenPage() {
 
       <section className="token-section token-faq" id="token-faq" aria-labelledby="faq-heading">
         <h2 id="faq-heading">A little more clarity.</h2>
-        <div>{questions.map(([question, answer]) => <details key={question} className="token-question"><summary>{question}<HugeiconsIcon icon={Add01Icon} size={16} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className="inline-block shrink-0 align-middle" /></summary><p>{answer}</p></details>)}</div>
+        <div>{questions.map(([question, answer]) => <details key={question} className="token-question"><summary>{question}<PlusIcon size={16} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className="inline-block shrink-0 align-middle" /></summary><p>{answer}</p></details>)}</div>
       </section>
       <section className="token-closing" aria-labelledby="closing-heading"><h2 id="closing-heading">It starts with a useful product.</h2><ButtonLink className="h-12 rounded-full px-5 text-[14px] font-medium" href="/app" variant="primary">Launch Oren <ArrowIcon /></ButtonLink></section>
     </main>

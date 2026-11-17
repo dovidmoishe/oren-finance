@@ -2,8 +2,8 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { usePathname } from 'next/navigation';
-import { Cancel01Icon } from '@hugeicons/core-free-icons';
-import { HugeiconsIcon } from '@hugeicons/react';
+import { X as XIcon } from "lucide-react";
+
 import { useOrenAuth } from '@/components/auth/auth-context';
 import { Button, formatDate } from '@/components/ui';
 import { listFeedback, submitFeedback } from '@/services/feedback-service';
@@ -43,7 +43,7 @@ export function FeedbackModal({ onClose }: { onClose: () => void }) {
     const rect = event.currentTarget.getBoundingClientRect();
     if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) onClose();
   }}>
-    <div className="flex items-center justify-between gap-4"><h2 id="feedback-title" className="font-display text-xl font-semibold">{t("feedback.title")}</h2><button aria-label={t("feedback.close")} className="grid h-8 w-8 place-items-center rounded-full text-muted hover:bg-background" type="button" onClick={onClose}><HugeiconsIcon icon={Cancel01Icon} size={16} aria-hidden="true" /></button></div>
+    <div className="flex items-center justify-between gap-4"><h2 id="feedback-title" className="font-display text-xl font-semibold">{t("feedback.title")}</h2><button aria-label={t("feedback.close")} className="grid h-8 w-8 place-items-center rounded-full text-muted hover:bg-background" type="button" onClick={onClose}><XIcon size={16} aria-hidden="true" /></button></div>
     <p className="mt-2 text-sm leading-6 text-muted">{t("feedback.intro")}</p>
     {!auth.ready ? <p className="mt-6 text-sm" role="status">{t("feedback.loadingAccount")}</p>
       : !auth.authenticated ? <Button className="mt-6" onClick={auth.open}>{t("feedback.signIn")}</Button>
@@ -107,7 +107,7 @@ function FeedbackForm({ wallet }: { wallet: string }) {
       <label className="block text-sm font-medium">{t("feedback.subject")}<input className={`${inputClass} mt-2`} disabled={busy} maxLength={FEEDBACK_SUBJECT_MAX} value={subject} onChange={event => setSubject(event.target.value)} /></label>
       <label className="block text-sm font-medium">{t("feedback.message")}<textarea className={`${inputClass} mt-2 min-h-32 resize-y`} disabled={busy} maxLength={FEEDBACK_MESSAGE_MAX} value={message} onChange={event => setMessage(event.target.value)} placeholder={kind === 'bug' ? t("feedback.bugPlaceholder") : undefined} /></label>
       <p className="text-xs leading-5 text-muted">{t("feedback.safety")}</p>
-      {error ? <p role="alert" className="text-sm leading-6 text-red-700">{error}</p> : null}
+      {error ? <p role="alert" className="text-sm leading-6 text-error">{error}</p> : null}
       <Button className="w-full" variant="primary" disabled={busy} type="submit">{busy ? t("feedback.sending") : t("feedback.send")}</Button>
     </form>}
     <section className="mt-6 border-t border-border pt-4" aria-labelledby="feedback-history">
@@ -117,7 +117,7 @@ function FeedbackForm({ wallet }: { wallet: string }) {
         : <ul className="mt-2 divide-y divide-border">
           {tickets.map(ticket => <li key={ticket.id} className="flex items-center justify-between gap-3 py-2.5 text-sm">
             <div className="min-w-0"><p className="truncate font-medium">{ticket.subject}</p><p className="text-xs text-muted">{ticketReference(ticket.id)} · {formatDate(ticket.createdAt, locale, timeZone, t("common.notUpdated"))}</p></div>
-            <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-medium ${ticket.status === 'resolved' ? 'bg-green-50 text-green-800' : 'bg-background text-muted'}`}>{ticket.status === 'resolved' ? t("feedback.resolved") : t("feedback.open")}</span>
+            <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-medium ${ticket.status === 'resolved' ? 'bg-success-surface text-success' : 'bg-background text-muted'}`}>{ticket.status === 'resolved' ? t("feedback.resolved") : t("feedback.open")}</span>
           </li>)}
         </ul>}
     </section>

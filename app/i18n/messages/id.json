@@ -1,11 +1,19 @@
 {
+  "settings": {
+    "intro": "Akun, preferensi, dan agen terhubung Anda di satu tempat.",
+    "account": "Akun",
+    "accountDetail": "Kelola detail masuk, dompet, dan bahasa Anda.",
+    "walletPending": "Tidak ada dompet aktif",
+    "signInDetail": "Masuk untuk mengelola akun Anda."
+  },
   "marketForYou": {
     "title": "Untuk Anda",
-    "chooseDetail": "Pilih sektor untuk melihat saham yang sesuai dengan minat Anda.",
-    "choose": "Pilih sektor",
-    "empty": "Belum ada saham yang cocok dengan sektor pilihan Anda.",
-    "edit": "Ubah sektor",
-    "error": "Saran Anda tidak dapat dimuat."
+    "chooseDetail": "Ikuti sektor dan tema untuk menemukan saham sesuai minat Anda.",
+    "choose": "Pilih minat",
+    "empty": "Belum ada saham yang sesuai dengan minat Anda.",
+    "edit": "Edit minat",
+    "error": "Saran Anda tidak dapat dimuat.",
+    "match": "Sesuai minat Anda"
   },
   "priceAlerts": {
     "title": "Peringatan harga",
@@ -26,7 +34,7 @@
   "preferences": {
     "title": "Preferensi",
     "followTitle": "Sektor apa yang Anda ikuti?",
-    "followDetail": "Pilih sektor agar Oren dapat menyesuaikan rekomendasi pasar Anda.",
+    "followDetail": "Pilih sektor dan tema untuk menyesuaikan rekomendasi pasar.",
     "emailTitle": "Email apa yang ingin Anda terima?",
     "morningBrief": "Ringkasan pagi",
     "morningBriefDetail": "Tinjauan harian atas portofolio dan berita yang relevan bagi Anda.",
@@ -60,6 +68,20 @@
       "materials": "Bahan baku",
       "realEstate": "Real estat",
       "utilities": "Utilitas"
+    },
+    "structureDetail": "Ikuti sektor, atau gunakan panahnya untuk melihat tema terkait.",
+    "relatedThemes": "Tema terkait",
+    "themesSoon": "Preferensi tema segera hadir. Anda sudah bisa mengikuti sektor.",
+    "selectedCount": "{count} dipilih",
+    "themes": {
+      "artificialIntelligence": "Kecerdasan buatan",
+      "semiconductors": "Semikonduktor",
+      "cybersecurity": "Keamanan siber",
+      "cloudComputing": "Komputasi awan",
+      "robotics": "Robotika & otomatisasi",
+      "cleanEnergy": "Energi bersih",
+      "fintech": "Fintech",
+      "spaceAndDefense": "Antariksa & pertahanan"
     }
   },
   "language": {
@@ -67,6 +89,14 @@
     "title": "Bahasa"
   },
   "nav": {
+    "portfolio": "Portofolio",
+    "markets": "Pasar",
+    "settings": "Pengaturan",
+    "navigation": "Navigasi",
+    "skipToContent": "Lewati ke konten",
+    "expandSidebar": "Perluas bilah samping",
+    "collapseSidebar": "Ciutkan bilah samping",
+    "search": "Cari",
     "dashboard": "Dasbor",
     "market": "Pasar",
     "leaderboard": "Papan peringkat",
@@ -146,6 +176,18 @@
     "empty": "Belum ada saham."
   },
   "portfolio": {
+    "totalValue": "Nilai total",
+    "assetCount": "{count, plural, other {# aset}}",
+    "allocation": "Alokasi aset",
+    "otherAssets": "Aset lainnya",
+    "hideBalances": "Sembunyikan saldo",
+    "showBalances": "Tampilkan saldo",
+    "valueHistory": "Riwayat nilai",
+    "snapshotChange": "Sejak catatan terakhir",
+    "recentActivity": "Aktivitas terbaru",
+    "colDate": "Tanggal",
+    "col24h": "Perubahan 24 jam",
+    "positionDetails": "Detail",
     "logoAlt": "Logo {name}",
     "thisWeek": "Minggu ini",
     "roiTitle": "Imbal hasil investasi",
@@ -927,6 +969,9 @@
     "review": "Tinjau izin"
   },
   "agent": {
+    "contextGeneral": "Percakapan umum",
+    "generalContextBody": "Pesan baru tidak menyertakan halaman yang Anda lihat. Pesan sebelumnya tetap ada dalam percakapan ini.",
+    "resize": "Ubah ukuran obrolan Oren",
     "ask": "Tanya Oren",
     "proposes": "Oren mengusulkan. Dompet Anda menyetujui.",
     "stop": "Hentikan respons",
@@ -1020,5 +1065,12 @@
     "intro": "Catatan kinerja berbasis snapshot untuk portofolio yang diamati Oren.",
     "refresh": "Muat ulang",
     "closeValue": "{value} penutupan"
+  },
+  "theme": {
+    "change": "Ubah tema",
+    "title": "Tema",
+    "system": "Sistem",
+    "light": "Terang",
+    "dark": "Gelap"
   }
 }

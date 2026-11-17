@@ -4,8 +4,14 @@ import { useEffect, useState } from 'react';
 import { useOrenAuth } from '@/components/auth/auth-context';
 import Link from 'next/link';
 import Image from 'next/image';
-import { HugeiconsIcon } from '@hugeicons/react';
-import { ArrowRight01Icon, ChartLineData01Icon, Shield01Icon, Wallet01Icon, ComputerIcon } from '@hugeicons/core-free-icons';
+import {
+  ChevronRight as ChevronRightIcon,
+  ChartLine as ChartLineIcon,
+  Shield as ShieldIcon,
+  Wallet as WalletIcon,
+  Monitor as MonitorIcon,
+} from "lucide-react";
+
 import { OrenLogo } from '@/components/brand/oren-logo';
 import { mcpApiOrigin } from '@/services/mcp-api-origin';
 import { mcpConnector } from '@/services/mcp-connector';
@@ -133,7 +139,7 @@ function McpConnection({ uid }: { uid: string }) {
           <div className="mcp-connect-logo-tile"><OrenLogo size={52} /></div>
           <div className="mcp-connect-connector"><span /><span /><span /></div>
           <div className={`mcp-connect-logo-tile ${connector?.name === 'Claude' ? "mcp-connect-claude-tile" : ''}`}>
-            {connector ? <Image alt="" src={connector.logo} width={37} height={37} /> : <HugeiconsIcon icon={ComputerIcon} size={32} />}
+            {connector ? <Image alt="" src={connector.logo} width={37} height={37} /> : <MonitorIcon size={32} />}
           </div>
         </div>
         <header className="mcp-connect-heading">
@@ -144,15 +150,15 @@ function McpConnection({ uid }: { uid: string }) {
         {details && <>
           <div className="[margin-top:26px] [padding-top:4px] [border-top:1px_solid_var(--border)]">
             {scopes.includes('oren.read') && <div className="mcp-connect-permission">
-              <HugeiconsIcon icon={ChartLineData01Icon} size={20} />
+              <ChartLineIcon size={20} />
               <div><h3>View your portfolio and market data</h3></div>
             </div>}
             {scopes.includes('oren.trade.prepare') && <div className="mcp-connect-permission">
-              <HugeiconsIcon icon={Wallet01Icon} size={20} />
+              <WalletIcon size={20} />
               <div><h3>Prepare trades for your review</h3></div>
             </div>}
             {requestsExecute && <div className="mcp-connect-permission">
-              <HugeiconsIcon icon={Shield01Icon} size={20} />
+              <ShieldIcon size={20} />
               <div><h3>Place trades within your limits</h3></div>
             </div>}
             {!requestsExecute && <p className="mcp-connect-review-note">Trades need your review and signature in Oren.</p>}
@@ -199,12 +205,12 @@ function McpConnection({ uid }: { uid: string }) {
       {!auth.authenticated ? (
         <button className="mcp-connect-primary" disabled={unavailable || !details || !auth.configured || !auth.ready} onClick={auth.open} type="button">
           {auth.ready ? 'Sign in to Oren' : 'Loading sign-in…'}
-          <HugeiconsIcon icon={ArrowRight01Icon} size={18} />
+          <ChevronRightIcon size={18} />
         </button>
       ) : (
         <button className="mcp-connect-primary" disabled={unavailable || !details || !auth.address || busy || (needsNativeConsent && !allowNativeClient) || (requestsExecute && (!allowExecute || !delegation?.enabled || !delegation.delegationId))} onClick={() => void authorize()} type="button">
           {busy ? 'Connecting…' : auth.address ? (connector ? `Connect to ${appName}` : 'Allow connection') : 'Getting your account ready…'}
-          {!busy && <HugeiconsIcon icon={ArrowRight01Icon} size={18} />}
+          {!busy && <ChevronRightIcon size={18} />}
         </button>
       )}
       {!auth.authenticated && <p className="mcp-connect-sign-in-note">We’ll email you a sign-in code.</p>}

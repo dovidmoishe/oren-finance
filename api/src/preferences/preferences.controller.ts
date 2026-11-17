@@ -15,6 +15,7 @@ import type { Database } from '../database/database.provider';
 import { userPreferences } from '../database/schema';
 import { nextBrief } from '../notifications/schedule';
 import { parsePreferences } from './preferences';
+import { interestIds } from '../../types/sectors';
 
 const fields = {
   sectors: userPreferences.sectors,
@@ -40,7 +41,11 @@ export class PreferencesController {
       .select(fields)
       .from(userPreferences)
       .where(eq(userPreferences.userId, userId));
-    return { preferences: preferences ?? null, emailEligible: Boolean(email) };
+    return {
+      preferences: preferences ?? null,
+      emailEligible: Boolean(email),
+      supportedInterests: interestIds,
+    };
   }
 
   @Put()
@@ -72,6 +77,10 @@ export class PreferencesController {
         },
       })
       .returning(fields);
-    return { preferences: saved, emailEligible: Boolean(email) };
+    return {
+      preferences: saved,
+      emailEligible: Boolean(email),
+      supportedInterests: interestIds,
+    };
   }
 }

@@ -1,13 +1,14 @@
 "use client";
 
 import {
-  CancelCircleIcon,
-  CheckmarkCircle01Icon,
-  Clock01Icon,
-  Loading03Icon,
-  PauseCircleIcon,
-} from "@hugeicons/core-free-icons";
-import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
+  CircleX as CircleXIcon,
+  CircleCheck as CircleCheckIcon,
+  Clock as ClockIcon,
+  LoaderCircle as LoaderCircleIcon,
+  CirclePause as CirclePauseIcon,
+  type LucideIcon,
+} from "lucide-react";
+
 import { Card, CardContent, CardHeader, cn, formatCurrency, formatNumber } from "@/components/ui";
 import type { BasketExecutionProgress, BasketLegStatus, BasketResponse } from "@/types";
 import { StockLogo } from "@/components/stock/stock-logo";
@@ -29,23 +30,23 @@ const statusCopy: Record<BasketLegStatus, MessageKey> = {
   skipped: "basket.skipped",
 };
 
-const statusIcon: Record<BasketLegStatus, IconSvgElement> = {
-  waiting: Clock01Icon,
-  quoting: Loading03Icon,
-  awaiting_signature: Clock01Icon,
-  submitted: Loading03Icon,
-  confirmed: CheckmarkCircle01Icon,
-  failed: CancelCircleIcon,
-  skipped: PauseCircleIcon,
+const statusIcon: Record<BasketLegStatus, LucideIcon> = {
+  waiting: ClockIcon,
+  quoting: LoaderCircleIcon,
+  awaiting_signature: ClockIcon,
+  submitted: LoaderCircleIcon,
+  confirmed: CircleCheckIcon,
+  failed: CircleXIcon,
+  skipped: CirclePauseIcon,
 };
 
 const statusTone: Record<BasketLegStatus, string> = {
   waiting: "border-border bg-panel-subtle text-muted",
-  quoting: "border-yellow-200 bg-yellow-50 text-yellow-900",
-  awaiting_signature: "border-yellow-200 bg-yellow-50 text-yellow-900",
-  submitted: "border-yellow-200 bg-yellow-50 text-yellow-900",
-  confirmed: "border-green-200 bg-green-50 text-green-900",
-  failed: "border-red-200 bg-red-50 text-red-900",
+  quoting: "border-warning-border bg-warning-surface text-warning",
+  awaiting_signature: "border-warning-border bg-warning-surface text-warning",
+  submitted: "border-warning-border bg-warning-surface text-warning",
+  confirmed: "border-success-border bg-success-surface text-success",
+  failed: "border-error-border bg-error-surface text-error",
   skipped: "border-border bg-panel-subtle text-muted",
 };
 
@@ -109,14 +110,14 @@ export function BasketReview({ basket, progress }: BasketReviewProps) {
                   <div className="text-right">
                     <p className="font-mono text-sm font-semibold">{formatCurrency(allocation.amountUsd, locale)}</p>
                     <div className={cn("mt-2 inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[11px] font-semibold", statusTone[status])}>
-                      <HugeiconsIcon className={status === "quoting" || status === "submitted" ? "animate-spin" : undefined} color="currentColor" icon={Icon} size={12} strokeWidth={1.8} />
+                      <Icon className={status === "quoting" || status === "submitted" ? "animate-spin" : undefined} color="currentColor" size={12} strokeWidth={1.8} />
                       {t(statusCopy[status])}
                     </div>
                   </div>
                 </div>
 
                 {allocation.rationale ? <p className="mt-3 text-sm leading-6 text-muted">{allocation.rationale}</p> : null}
-                {leg?.error ? <p className="mt-3 rounded-[12px] bg-red-50 p-3 text-xs leading-5 text-red-900">{leg.error}</p> : null}
+                {leg?.error ? <p className="mt-3 rounded-[12px] bg-error-surface p-3 text-xs leading-5 text-error">{leg.error}</p> : null}
               </article>
             );
           })}

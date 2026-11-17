@@ -4,12 +4,12 @@ import { financialExecutionEnabled } from "@/services/environment";
 import { routeVenueLabel } from "@/services/route-label";
 
 import {
-  AlertCircleIcon,
-  CheckmarkCircle01Icon,
-  Clock01Icon,
-  Wallet02Icon,
-} from "@hugeicons/core-free-icons";
-import { HugeiconsIcon } from "@hugeicons/react";
+  CircleAlert as CircleAlertIcon,
+  CircleCheck as CircleCheckIcon,
+  Clock as ClockIcon,
+  WalletCards as WalletCardsIcon,
+} from "lucide-react";
+
 import { Button, Modal, Toast, formatCurrency, formatDateTime, formatNumber } from "@/components/ui";
 import type { LimitOrderProposal } from "@/types";
 import type { TradeFlowStatus } from "@/hooks/use-quote-execution";
@@ -90,9 +90,9 @@ export function LimitOrderReviewModal({
           {error ? <Toast title={t("review.limitError")} description={error} tone="error" /> : null}
 
           {confirmation ? (
-            <div className="rounded-[18px] border border-green-200 bg-green-50 p-4 text-sm text-green-900">
+            <div className="rounded-[18px] border border-success-border bg-success-surface p-4 text-sm text-success">
               <div className="flex items-start gap-3">
-                <HugeiconsIcon className="mt-0.5 shrink-0" color="currentColor" icon={CheckmarkCircle01Icon} size={16} strokeWidth={1.8} />
+                <CircleCheckIcon className="mt-0.5 shrink-0" color="currentColor" size={16} strokeWidth={1.8} />
                 <div>
                   <p className="font-semibold">{t("review.limitOpened")}</p>
                   {route ? <p className="mt-1 text-xs font-medium">{t("review.routedThrough", { route })}</p> : null}
@@ -111,24 +111,24 @@ export function LimitOrderReviewModal({
           <Button className="h-12 w-full rounded-[16px]" disabled={!financialExecutionEnabled || signDisabled} onClick={() => review.approval && void onSign(review.approval.id)} variant="primary">
             {isBusy ? (
               <>
-                <HugeiconsIcon className="animate-spin" color="currentColor" icon={Clock01Icon} size={16} strokeWidth={1.8} />
+                <ClockIcon className="animate-spin" color="currentColor" size={16} strokeWidth={1.8} />
                 {status === "preparing" ? t("review.preparingShort") : status === "signing" ? t("review.approvingOrder") : t("review.confirming")}
               </>
             ) : confirmed ? (
               <>
-                <HugeiconsIcon color="currentColor" icon={CheckmarkCircle01Icon} size={16} strokeWidth={1.8} />
+                <CircleCheckIcon color="currentColor" size={16} strokeWidth={1.8} />
                 {t("review.orderOpened")}
               </>
             ) : (
               <>
-                <HugeiconsIcon color="currentColor" icon={Wallet02Icon} size={16} strokeWidth={1.8} />
+                <WalletCardsIcon color="currentColor" size={16} strokeWidth={1.8} />
                 {review.loading ? t("review.preparingOrder") : status === 'submitted' ? t("review.submittedConfirming") : t("review.confirmLimit")}
               </>
             )}
           </Button>
 
           <p className="text-center text-[11px] leading-4 text-muted">
-            <HugeiconsIcon className="mr-1 inline" color="currentColor" icon={AlertCircleIcon} size={12} strokeWidth={1.8} />
+            <CircleAlertIcon className="mr-1 inline" color="currentColor" size={12} strokeWidth={1.8} />
             {t("review.triggerNote")}
           </p>
         </div>

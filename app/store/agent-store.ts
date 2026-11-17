@@ -61,10 +61,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
     activeController = undefined;
 
     const panelPreference = readPanelPreference(walletAddress);
-    const panelOpen = panelPreference
-      ? panelPreference.open
-      : typeof window !== "undefined" &&
-        window.matchMedia("(min-width: 1024px)").matches;
+    const panelOpen = panelPreference?.open ?? false;
     if (!panelPreference) writePanelPreference(walletAddress, panelOpen);
 
     if (!walletAddress) {

@@ -1,11 +1,19 @@
 {
+  "settings": {
+    "intro": "Votre compte, vos préférences et vos agents connectés au même endroit.",
+    "account": "Compte",
+    "accountDetail": "Gérez vos informations de connexion, votre portefeuille et votre langue.",
+    "walletPending": "Aucun portefeuille actif",
+    "signInDetail": "Connectez-vous pour gérer votre compte."
+  },
   "marketForYou": {
     "title": "Pour vous",
-    "chooseDetail": "Choisissez des secteurs pour découvrir des actions qui vous intéressent.",
-    "choose": "Choisir des secteurs",
-    "empty": "Aucune action ne correspond encore à vos secteurs.",
-    "edit": "Modifier les secteurs",
-    "error": "Impossible de charger vos suggestions."
+    "chooseDetail": "Suivez des secteurs et des thèmes pour découvrir des actions qui vous intéressent.",
+    "choose": "Choisir mes intérêts",
+    "empty": "Aucune action ne correspond encore à vos intérêts.",
+    "edit": "Modifier mes intérêts",
+    "error": "Impossible de charger vos suggestions.",
+    "match": "Correspond à vos intérêts"
   },
   "priceAlerts": {
     "title": "Alertes de prix",
@@ -26,7 +34,7 @@
   "preferences": {
     "title": "Préférences",
     "followTitle": "Quels secteurs suivez-vous ?",
-    "followDetail": "Choisissez les secteurs qui vous intéressent pour personnaliser vos recommandations.",
+    "followDetail": "Choisissez des secteurs et des thèmes pour personnaliser vos recommandations.",
     "emailTitle": "Quels e-mails souhaitez-vous recevoir ?",
     "morningBrief": "Brief du matin",
     "morningBriefDetail": "Un point quotidien sur votre portefeuille et les actualités qui vous concernent.",
@@ -60,6 +68,20 @@
       "materials": "Matériaux",
       "realEstate": "Immobilier",
       "utilities": "Services aux collectivités"
+    },
+    "structureDetail": "Suivez un secteur ou utilisez sa flèche pour explorer les thèmes associés.",
+    "relatedThemes": "Thèmes associés",
+    "themesSoon": "Les thèmes seront bientôt disponibles. Vous pouvez déjà suivre des secteurs.",
+    "selectedCount": "{count} sélectionnés",
+    "themes": {
+      "artificialIntelligence": "Intelligence artificielle",
+      "semiconductors": "Semi-conducteurs",
+      "cybersecurity": "Cybersécurité",
+      "cloudComputing": "Cloud computing",
+      "robotics": "Robotique et automatisation",
+      "cleanEnergy": "Énergie propre",
+      "fintech": "Fintech",
+      "spaceAndDefense": "Spatial et défense"
     }
   },
   "language": {
@@ -67,6 +89,14 @@
     "title": "Langue"
   },
   "nav": {
+    "portfolio": "Portefeuille",
+    "markets": "Marchés",
+    "settings": "Paramètres",
+    "navigation": "Navigation",
+    "skipToContent": "Aller au contenu",
+    "expandSidebar": "Développer la barre latérale",
+    "collapseSidebar": "Réduire la barre latérale",
+    "search": "Rechercher",
     "dashboard": "Tableau de bord",
     "market": "Marché",
     "leaderboard": "Classement",
@@ -146,6 +176,18 @@
     "empty": "Aucune action pour l’instant."
   },
   "portfolio": {
+    "totalValue": "Valeur totale",
+    "assetCount": "{count, plural, one {# actif} other {# actifs}}",
+    "allocation": "Répartition des actifs",
+    "otherAssets": "Autres actifs",
+    "hideBalances": "Masquer les soldes",
+    "showBalances": "Afficher les soldes",
+    "valueHistory": "Historique de la valeur",
+    "snapshotChange": "Depuis le dernier relevé",
+    "recentActivity": "Activité récente",
+    "colDate": "Date",
+    "col24h": "Variation sur 24 h",
+    "positionDetails": "Détails",
     "logoAlt": "Logo de {name}",
     "thisWeek": "Cette semaine",
     "roiTitle": "Retour sur investissement",
@@ -927,6 +969,9 @@
     "review": "Examiner l’autorisation"
   },
   "agent": {
+    "contextGeneral": "Conversation générale",
+    "generalContextBody": "Les nouveaux messages ne contiennent pas la page consultée. Les messages précédents restent dans cette conversation.",
+    "resize": "Redimensionner le chat Oren",
     "ask": "Demander à Oren",
     "proposes": "Oren propose. Votre wallet approuve.",
     "stop": "Arrêter la réponse",
@@ -1020,5 +1065,12 @@
     "intro": "Mémoire de performance basée sur des instantanés de votre portefeuille observé par Oren.",
     "refresh": "Actualiser",
     "closeValue": "{value} clôture"
+  },
+  "theme": {
+    "change": "Changer le thème",
+    "title": "Thème",
+    "system": "Système",
+    "light": "Clair",
+    "dark": "Sombre"
   }
 }

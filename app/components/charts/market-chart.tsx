@@ -1,10 +1,7 @@
 "use client";
 
-import {
-  ChartCandlestickIcon,
-  ChartLineData01Icon,
-} from "@hugeicons/core-free-icons";
-import { HugeiconsIcon } from "@hugeicons/react";
+import { ChartCandlestick as ChartCandlestickIcon, ChartLine as ChartLineIcon } from "lucide-react";
+
 import type {
   CandlestickData,
   IChartApi,
@@ -16,6 +13,7 @@ import type {
 } from "lightweight-charts";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Button, EmptyState, LoadingState, Tabs, cn, formatCurrency, formatDate, formatPercent } from "@/components/ui";
+import { THEME_CHANGE_EVENT } from "@/components/theme/theme-script";
 import { useI18n } from "@/i18n/i18n";
 
 // lightweight-charts is only needed once there is data to draw, so it loads on
@@ -52,7 +50,7 @@ interface MarketChartProps {
   ranges?: MarketChartRange[];
   activeRange: MarketChartRange;
   onRangeChange: (range: MarketChartRange) => void;
-  onModeChange: (mode: MarketChartMode) => void;
+  onModeChange?: (mode: MarketChartMode) => void;
   value?: number;
   changePct?: number;
   dateLabel?: string;
@@ -61,6 +59,7 @@ interface MarketChartProps {
   emptyDescription?: string;
   className?: string;
   compact?: boolean;
+  showSummary?: boolean;
 }
 
 function toTime(timestamp: string): UTCTimestamp {
@@ -124,10 +123,11 @@ export function MarketChart({
   emptyDescription,
   className,
   compact = false,
+  showSummary = true,
 }: MarketChartProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
-  const seriesRef = useRef<ISeriesApi<"Line" | "Candlestick", Time> | null>(null);
+  const seriesRef = useRef<ISeriesApi<"Area" | "Candlestick", Time> | null>(null);
   const [tooltip, setTooltip] = useState<{ x: number; y: number; value: string; date: string } | null>(null);
   const [libraryFailed, setLibraryFailed] = useState(false);
   const canUseCandles = candleData.length > 0;
@@ -146,36 +146,37 @@ export function MarketChart({
 
     let disposed = false;
     let dispose: (() => void) | undefined;
-    void loadChartLibrary().then(({ CandlestickSeries, ColorType, CrosshairMode, LineSeries, LineStyle, createChart }) => {
+    void loadChartLibrary().then(({ AreaSeries, CandlestickSeries, ColorType, CrosshairMode, LineType, LineStyle, createChart, createSeriesMarkers }) => {
       if (disposed) return;
       setLibraryFailed(false);
+      const color = (name: string) => getComputedStyle(container).getPropertyValue(`--${name}`).trim();
       const chart = createChart(container, {
         autoSize: true,
         layout: {
           background: { color: "transparent", type: ColorType.Solid },
-          textColor: "#b7b7b0",
-          fontFamily: "var(--font-oren-sans)",
+          textColor: color("chart-text"),
+          fontFamily: getComputedStyle(container).getPropertyValue("--font-oren-sans").trim(),
         },
         grid: {
-          horzLines: { color: "#eeeeea", style: LineStyle.Dotted },
-          vertLines: { color: "#f5f5f2", style: LineStyle.Dotted },
+          horzLines: { color: color("chart-grid"), style: LineStyle.Dotted },
+          vertLines: { visible: false },
         },
         rightPriceScale: {
           borderVisible: false,
           entireTextOnly: true,
-          scaleMargins: { top: 0.08, bottom: 0.08 },
+          scaleMargins: { top: 0.14, bottom: 0.12 },
         },
         timeScale: {
           borderVisible: false,
-          timeVisible: true,
+          timeVisible: activeRange === "24H",
           secondsVisible: false,
-          rightOffset: 4,
+          rightOffsetPixels: 16,
           barSpacing: 8,
         },
         crosshair: {
           mode: CrosshairMode.Magnet,
-          vertLine: { color: "#d6d6d0", labelVisible: false, style: LineStyle.Solid },
-          horzLine: { color: "#c9c9c2", labelVisible: false, style: LineStyle.Dashed },
+          vertLine: { color: color("chart-crosshair"), labelVisible: false, style: LineStyle.Solid },
+          horzLine: { color: color("chart-crosshair-soft"), labelVisible: false, style: LineStyle.Dashed },
         },
         handleScale: true,
         handleScroll: true,
@@ -183,30 +184,66 @@ export function MarketChart({
 
       chartRef.current = chart;
 
+      let updateSeriesColors: () => void;
       if (effectiveMode === "candles") {
         const series = chart.addSeries(CandlestickSeries, {
-          upColor: "#21c978",
-          downColor: "#ff4d4d",
-          borderUpColor: "#21c978",
-          borderDownColor: "#ff4d4d",
-          wickUpColor: "#21c978",
-          wickDownColor: "#ff4d4d",
+          upColor: color("chart-up"),
+          downColor: color("chart-down"),
+          borderUpColor: color("chart-up"),
+          borderDownColor: color("chart-down"),
+          wickUpColor: color("chart-up"),
+          wickDownColor: color("chart-down"),
+        });
+        updateSeriesColors = () => series.applyOptions({
+          upColor: color("chart-up"), downColor: color("chart-down"),
+          borderUpColor: color("chart-up"), borderDownColor: color("chart-down"),
+          wickUpColor: color("chart-up"), wickDownColor: color("chart-down"),
         });
         series.setData(candleSeriesData);
         seriesRef.current = series;
       } else {
-        const series = chart.addSeries(LineSeries, {
-          color: "#65625d",
+        const series = chart.addSeries(AreaSeries, {
+          lineColor: color("chart-line"),
           lineWidth: 2,
+          lineType: LineType.Curved,
+          topColor: `${color("chart-area")}2e`,
+          bottomColor: `${color("chart-area")}00`,
           lastValueVisible: false,
-          priceLineVisible: true,
-          priceLineColor: "#c9c9c2",
-          priceLineStyle: LineStyle.Dashed,
+          priceLineVisible: false,
+          crosshairMarkerRadius: 5,
+          crosshairMarkerBackgroundColor: color("chart-line"),
+          crosshairMarkerBorderColor: color("panel"),
+          crosshairMarkerBorderWidth: 2,
         });
         series.setData(lineSeriesData);
+        const latest = lineSeriesData.at(-1);
+        const marker = createSeriesMarkers(series, latest ? [{
+          time: latest.time,
+          position: "atPriceMiddle",
+          price: latest.value,
+          shape: "circle",
+          color: color("chart-line"),
+          size: 0.55,
+        }] : [], { autoScale: false });
+        updateSeriesColors = () => {
+          series.applyOptions({
+            lineColor: color("chart-line"), topColor: `${color("chart-area")}2e`, bottomColor: `${color("chart-area")}00`,
+            crosshairMarkerBackgroundColor: color("chart-line"), crosshairMarkerBorderColor: color("panel"),
+          });
+          if (latest) marker.setMarkers([{ time: latest.time, position: "atPriceMiddle", price: latest.value, shape: "circle", color: color("chart-line"), size: 0.55 }]);
+        };
         seriesRef.current = series;
       }
 
+      const updateColors = () => {
+        chart.applyOptions({
+          layout: { textColor: color("chart-text") },
+          grid: { horzLines: { color: color("chart-grid") } },
+          crosshair: { vertLine: { color: color("chart-crosshair") }, horzLine: { color: color("chart-crosshair-soft") } },
+        });
+        updateSeriesColors();
+      };
+      window.addEventListener(THEME_CHANGE_EVENT, updateColors);
       chart.timeScale().fitContent();
 
       const handleCrosshairMove = (param: MouseEventParams<Time>) => {
@@ -245,6 +282,7 @@ export function MarketChart({
       chart.subscribeCrosshairMove(handleCrosshairMove);
 
       dispose = () => {
+        window.removeEventListener(THEME_CHANGE_EVENT, updateColors);
         chart.unsubscribeCrosshairMove(handleCrosshairMove);
         chart.remove();
         chartRef.current = null;
@@ -258,13 +296,13 @@ export function MarketChart({
       disposed = true;
       dispose?.();
     };
-  }, [candleSeriesData, effectiveMode, error, hasData, lineSeriesData, loading, locale, timeZone]);
+  }, [activeRange, candleSeriesData, effectiveMode, error, hasData, lineSeriesData, loading, locale, timeZone]);
 
   return (
     <section className={cn("flex flex-col rounded-[24px] border border-border bg-panel shadow-[0_18px_60px_rgba(23,23,23,0.025)]", compact ? "p-3" : "p-[var(--app-card-padding,1.5rem)]", className)}>
-      <div className="flex shrink-0 flex-wrap items-start justify-between gap-4">
+      {showSummary && <div className="flex shrink-0 flex-wrap items-start justify-between gap-4">
         <div>
-          <p className={cn("font-display font-semibold tracking-normal", compact ? "text-3xl" : "text-6xl")}>{formatCurrency(value, locale)}</p>
+          <p className={cn("font-money font-semibold tabular-nums", compact ? "text-3xl" : "text-6xl")}>{formatCurrency(value, locale)}</p>
           <div className={cn("mt-1 flex items-center gap-3", compact ? "text-xs" : "text-sm")}>
             <span className={cn((changePct ?? 0) < 0 ? "text-negative" : "text-positive")}>
               {(changePct ?? 0) < 0 ? "▼" : "▲"} {formatPercent(changePct, locale)}
@@ -272,9 +310,9 @@ export function MarketChart({
             <span className="text-muted">{formattedDate}</span>
           </div>
         </div>
-      </div>
+      </div>}
 
-      <div className={cn("relative", compact ? "mt-3 h-[180px] min-h-[160px] flex-1 sm:h-[200px] sm:min-h-[180px]" : "mt-[var(--app-chart-gap,2rem)] h-[var(--app-chart-height,430px)] min-h-[var(--app-chart-min-height,340px)]")}>
+      <div className={cn("relative", compact ? "mt-4 h-[220px] min-h-[200px] flex-1 sm:h-[260px] sm:min-h-[240px]" : "mt-[var(--app-chart-gap,2rem)] h-[var(--app-chart-height,430px)] min-h-[var(--app-chart-min-height,340px)]")}>
         {loading ? (
           <div className="flex h-full items-center justify-center">
             <LoadingState label={t("common.loadingChart")} />
@@ -294,7 +332,7 @@ export function MarketChart({
                 className="pointer-events-none absolute rounded-[10px] border border-border bg-panel px-2.5 py-1.5 text-xs text-foreground shadow-sm"
                 style={{ left: Math.min(tooltip.x + 14, 340), top: Math.max(tooltip.y - 36, 0) }}
               >
-                <span className="font-medium">{tooltip.value}</span>
+                <span className="font-money font-medium tabular-nums">{tooltip.value}</span>
                 <span className="ml-2 text-muted">{tooltip.date}</span>
               </div>
             ) : null}
@@ -304,7 +342,7 @@ export function MarketChart({
 
       <div className={cn("flex shrink-0 flex-wrap items-center justify-between gap-3", compact ? "mt-3" : "mt-6")}>
         <Tabs ariaLabel={t("common.chartRange")} items={ranges} onValueChange={onRangeChange} value={activeRange} />
-        <div className="flex items-center gap-2 rounded-full bg-panel-subtle p-1">
+        {onModeChange && <div className="flex items-center gap-2 rounded-full bg-panel-subtle p-1">
           <Button
             aria-label={t("common.lineMode")}
             onClick={() => onModeChange("line")}
@@ -312,7 +350,7 @@ export function MarketChart({
             title={t("common.lineChart")}
             variant={effectiveMode === "line" ? "secondary" : "ghost"}
           >
-            <HugeiconsIcon color="currentColor" icon={ChartLineData01Icon} size={16} strokeWidth={1.8} />
+            <ChartLineIcon color="currentColor" size={16} strokeWidth={1.8} />
           </Button>
           <Button
             aria-label={t("common.candleMode")}
@@ -322,9 +360,9 @@ export function MarketChart({
             title={canUseCandles ? t("common.candleChart") : t("common.candlesNeedOhlc")}
             variant={effectiveMode === "candles" ? "secondary" : "ghost"}
           >
-            <HugeiconsIcon color="currentColor" icon={ChartCandlestickIcon} size={16} strokeWidth={1.8} />
+            <ChartCandlestickIcon color="currentColor" size={16} strokeWidth={1.8} />
           </Button>
-        </div>
+        </div>}
       </div>
     </section>
   );

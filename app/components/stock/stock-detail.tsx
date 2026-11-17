@@ -1,7 +1,7 @@
 "use client";
 
-import { ArrowLeft01Icon, RefreshCwIcon } from "@hugeicons/core-free-icons";
-import { HugeiconsIcon } from "@hugeicons/react";
+import { ChevronLeft as ChevronLeftIcon, RefreshCw as RefreshCwIcon } from "lucide-react";
+
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { MarketChart, type MarketChartMode, type MarketChartRange } from "@/components/charts";
@@ -31,7 +31,7 @@ function DetailSkeleton() {
   return (
     <div className="mx-auto max-w-[1360px] space-y-4 pb-12">
       <Skeleton className="h-8 w-48" />
-      <div className="grid items-stretch gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
+      <div className="grid items-stretch gap-4 @3xl:grid-cols-[minmax(0,1fr)_320px]">
         <Skeleton className="h-[320px]" />
         <Skeleton className="h-[320px]" />
       </div>
@@ -92,18 +92,18 @@ export function StockDetail({ assetId }: { assetId: string }) {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-3">
           <Link className="inline-flex shrink-0 items-center gap-1.5 text-xs text-muted hover:text-foreground" href="/app/markets">
-            <HugeiconsIcon color="currentColor" icon={ArrowLeft01Icon} size={14} strokeWidth={1.8} />
+            <ChevronLeftIcon color="currentColor" size={14} strokeWidth={1.8} />
             {t("stock.back")}
           </Link>
           <span aria-hidden className="text-border-strong">/</span>
           <h1 className="truncate font-display text-base font-semibold">{stock.name} <span className="ml-1 font-mono text-xs font-normal text-muted">${stock.ticker}</span></h1>
         </div>
         <Button aria-label={t("stock.refresh")} className="h-8 w-8" disabled={isLoading} onClick={() => void loadStock(assetId, rangeMap[range])} size="icon" variant="ghost">
-          <HugeiconsIcon className={cn(isLoading && "animate-spin")} color="currentColor" icon={RefreshCwIcon} size={15} strokeWidth={1.8} />
+          <RefreshCwIcon className={cn(isLoading && "animate-spin")} color="currentColor" size={15} strokeWidth={1.8} />
         </Button>
       </div>
 
-      <div className="grid items-stretch gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
+      <div className="grid items-stretch gap-4 @3xl:grid-cols-[minmax(0,1fr)_320px]">
         <MarketChart
           compact
           activeRange={range}

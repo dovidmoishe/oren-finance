@@ -1,11 +1,19 @@
 {
+  "settings": {
+    "intro": "在一处管理账户、偏好设置和已连接的智能体。",
+    "account": "账户",
+    "accountDetail": "管理登录信息、钱包和语言。",
+    "walletPending": "没有可用钱包",
+    "signInDetail": "登录以管理账户。"
+  },
   "marketForYou": {
     "title": "为你推荐",
-    "chooseDetail": "选择行业，查看与你兴趣匹配的股票。",
-    "choose": "选择行业",
-    "empty": "暂时没有符合所选行业的股票。",
-    "edit": "编辑行业",
-    "error": "无法加载推荐。"
+    "chooseDetail": "关注行业和主题，发现符合你兴趣的股票。",
+    "choose": "选择兴趣",
+    "empty": "暂时没有符合你所选兴趣的股票。",
+    "edit": "编辑兴趣",
+    "error": "无法加载推荐。",
+    "match": "符合你的兴趣"
   },
   "priceAlerts": {
     "title": "价格提醒",
@@ -26,7 +34,7 @@
   "preferences": {
     "title": "偏好设置",
     "followTitle": "你关注哪些行业？",
-    "followDetail": "选择感兴趣的行业，Oren 将为你提供个性化市场推荐。",
+    "followDetail": "选择行业和主题，定制你的市场推荐。",
     "emailTitle": "你希望 Oren 发送哪些邮件？",
     "morningBrief": "早间简报",
     "morningBriefDetail": "每日了解你的投资组合及与你相关的新闻。",
@@ -60,6 +68,20 @@
       "materials": "材料",
       "realEstate": "房地产",
       "utilities": "公用事业"
+    },
+    "structureDetail": "关注一个行业，或点击箭头查看相关主题。",
+    "relatedThemes": "相关主题",
+    "themesSoon": "主题偏好即将推出。你现在可以先关注行业。",
+    "selectedCount": "已选择 {count} 项",
+    "themes": {
+      "artificialIntelligence": "人工智能",
+      "semiconductors": "半导体",
+      "cybersecurity": "网络安全",
+      "cloudComputing": "云计算",
+      "robotics": "机器人与自动化",
+      "cleanEnergy": "清洁能源",
+      "fintech": "金融科技",
+      "spaceAndDefense": "航天与国防"
     }
   },
   "language": {
@@ -67,6 +89,14 @@
     "title": "语言"
   },
   "nav": {
+    "portfolio": "投资组合",
+    "markets": "市场",
+    "settings": "设置",
+    "navigation": "导航",
+    "skipToContent": "跳转至内容",
+    "expandSidebar": "展开侧栏",
+    "collapseSidebar": "收起侧栏",
+    "search": "搜索",
     "dashboard": "仪表盘",
     "market": "市场",
     "leaderboard": "排行榜",
@@ -146,6 +176,18 @@
     "empty": "暂无股票。"
   },
   "portfolio": {
+    "totalValue": "总价值",
+    "assetCount": "{count, plural, other {# 项资产}}",
+    "allocation": "资产分布",
+    "otherAssets": "其他资产",
+    "hideBalances": "隐藏余额",
+    "showBalances": "显示余额",
+    "valueHistory": "价值历史",
+    "snapshotChange": "较上次快照",
+    "recentActivity": "近期活动",
+    "colDate": "日期",
+    "col24h": "24 小时涨跌",
+    "positionDetails": "详情",
     "logoAlt": "{name} 标志",
     "thisWeek": "本周",
     "roiTitle": "投资回报",
@@ -927,6 +969,9 @@
     "review": "查看权限"
   },
   "agent": {
+    "contextGeneral": "常规对话",
+    "generalContextBody": "新消息不会包含你正在浏览的页面。先前的消息仍保留在此对话中。",
+    "resize": "调整 Oren 聊天面板大小",
     "ask": "询问 Oren",
     "proposes": "Oren 提议，你的钱包批准。",
     "stop": "停止回复",
@@ -1020,5 +1065,12 @@
     "intro": "基于快照的业绩记录，对应你在 Oren 观察到的投资组合。",
     "refresh": "刷新",
     "closeValue": "{value} 收盘"
+  },
+  "theme": {
+    "change": "更改主题",
+    "title": "主题",
+    "system": "跟随系统",
+    "light": "浅色",
+    "dark": "深色"
   }
 }

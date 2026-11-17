@@ -6,6 +6,8 @@ import { useOrenAuth } from "@/components/auth/auth-context";
 import { Button } from "@/components/ui";
 import { useT } from "@/i18n/i18n";
 import { getMarketForYou, type MarketForYouResult } from "@/services/market-service";
+import { MarketStockLogo } from "./market-stock-logo";
+import { interestLabelKey } from "@/services/preferences-service";
 
 export function MarketForYou() {
   const auth = useOrenAuth();
@@ -66,12 +68,15 @@ function ForYouSection({ getAccessToken }: { getAccessToken: () => Promise<strin
           {result.items.map((stock) => (
             <li key={stock.assetId} className="min-w-0">
               <Link
-                className="block rounded-xl border border-border px-3 py-2 hover:bg-panel-subtle focus-visible:outline-2 focus-visible:outline-offset-2"
+                className="flex items-center gap-3 rounded-xl border border-border px-3 py-3 hover:bg-panel-subtle focus-visible:outline-2 focus-visible:outline-offset-2"
                 href={`/app/stocks/${encodeURIComponent(stock.assetId)}`}
                 prefetch={false}
               >
-                <span className="block truncate text-sm"><strong>{stock.ticker}</strong> <span className="text-muted">{stock.name}</span></span>
-                <span className="text-xs text-muted">{t(`preferences.sectors.${stock.sectorId}`)}</span>
+                <MarketStockLogo stock={stock} />
+                <span className="min-w-0">
+                  <span className="block truncate text-sm"><strong>{stock.ticker}</strong> <span className="text-muted">{stock.name}</span></span>
+                  <span className="block truncate text-xs text-muted">{t(interestLabelKey(stock.interestId ?? stock.sectorId))}</span>
+                </span>
               </Link>
             </li>
           ))}

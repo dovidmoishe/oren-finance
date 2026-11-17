@@ -1,9 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ArrowLeft01Icon, ArrowUpRight01Icon, Link01Icon, Shield01Icon } from "@hugeicons/core-free-icons";
-import { HugeiconsIcon } from "@hugeicons/react";
-import Link from "next/link";
+import {
+  ArrowUpRight as ArrowUpRightIcon,
+  Link as LinkIcon,
+  Shield as ShieldIcon,
+} from "lucide-react";
+
 import { useOrenAuth } from "@/components/auth/auth-context";
 import { Button, formatDate } from "@/components/ui";
 import { mcpApiOrigin } from "@/services/mcp-api-origin";
@@ -81,20 +84,19 @@ function ConnectionsContent({ connectionUid }: { connectionUid?: string }) {
   }
 
   return (
-    <div className="mx-auto max-w-4xl pb-16 pt-3 sm:pt-7">
-      <Link href="/app" className="inline-flex items-center gap-1.5 text-sm text-muted hover:text-foreground"><HugeiconsIcon icon={ArrowLeft01Icon} size={16} aria-hidden="true" /> {t("connections.back")}</Link>
-      <div className="mb-8 mt-7 flex flex-wrap items-start justify-between gap-5">
+    <section aria-labelledby="settings-connections-title">
+      <div className="mb-5 flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="font-display text-3xl font-semibold tracking-tight sm:text-4xl">{t("connections.title")}</h1>
-          <p className="mt-3 max-w-lg text-sm leading-relaxed text-muted">{t("connections.intro")}</p>
+          <h2 className="font-display text-xl font-semibold" id="settings-connections-title">{t("connections.title")}</h2>
+          <p className="mt-1 max-w-lg text-sm leading-6 text-muted">{t("connections.intro")}</p>
         </div>
-        <Button href="/agents" size="sm">{t("connections.connect")} <HugeiconsIcon icon={ArrowUpRight01Icon} size={15} aria-hidden="true" /></Button>
+        <Button href="/agents" size="sm">{t("connections.connect")} <ArrowUpRightIcon size={15} aria-hidden="true" /></Button>
       </div>
       {!ready ? (
         <div className="rounded-2xl border border-border bg-panel p-8 text-sm text-muted" role="status">{t("connections.loadingAccount")}</div>
       ) : !authenticated ? (
         <section className="rounded-2xl border border-border bg-panel px-6 py-10 sm:px-10">
-          <HugeiconsIcon icon={Shield01Icon} size={28} className="text-muted" aria-hidden="true" />
+          <ShieldIcon size={28} className="text-muted" aria-hidden="true" />
           <h2 className="mt-5 text-xl font-semibold">{t("connections.controlTitle")}</h2>
           <p className="mt-2 max-w-md text-sm leading-relaxed text-muted">{t("connections.controlBody")}</p>
           <Button className="mt-6" variant="primary" onClick={open} disabled={!configured}>{t("connections.signIn")}</Button>
@@ -109,20 +111,20 @@ function ConnectionsContent({ connectionUid }: { connectionUid?: string }) {
               <p className="mt-1 text-sm text-muted">{email ? t("connections.connectionsFor", { email }) : t("connections.appsWithAccess")} {t("connections.revokeAnytime")}</p>
             </div>
             {!apiOrigin ? <p className="p-6 text-sm text-muted" role="status">{t("connections.unavailable")}</p> : result.loading ? <p className="p-6 text-sm text-muted" role="status">{t("connections.loading")}</p> : result.error ? (
-              <div className="p-6"><p className="text-sm text-red-700" role="alert">{result.error}</p><Button className="mt-4" size="sm" onClick={() => { setResult({ connections: [], loading: true }); setAttempt(current => current + 1); }}>{t("connections.tryAgain")}</Button></div>
+              <div className="p-6"><p className="text-sm text-error" role="alert">{result.error}</p><Button className="mt-4" size="sm" onClick={() => { setResult({ connections: [], loading: true }); setAttempt(current => current + 1); }}>{t("connections.tryAgain")}</Button></div>
             ) : result.connections.length === 0 ? (
               <div className="px-6 py-10 text-center sm:py-14">
-                <span className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-background text-muted"><HugeiconsIcon icon={Link01Icon} size={24} aria-hidden="true" /></span>
+                <span className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-background text-muted"><LinkIcon size={24} aria-hidden="true" /></span>
                 <h3 className="mt-4 text-base font-semibold">{t("connections.firstTitle")}</h3>
                 <p className="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-muted">{t("connections.firstBody")}</p>
-                <Button href="/agents" className="mt-5" size="sm">{t("connections.setupGuide")} <HugeiconsIcon icon={ArrowUpRight01Icon} size={15} aria-hidden="true" /></Button>
+                <Button href="/agents" className="mt-5" size="sm">{t("connections.setupGuide")} <ArrowUpRightIcon size={15} aria-hidden="true" /></Button>
               </div>
             ) : (
               <ul className="divide-y divide-border">
                 {result.connections.map((connection, index) => (
                   <li key={connection.grantId} className="p-5 sm:p-6">
                     <div className="flex flex-wrap items-start justify-between gap-4">
-                      <div className="flex min-w-0 items-center gap-3"><span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-border bg-white"><AgentClientLogo kind={connection.clientKind} size={24} /></span><div className="min-w-0"><h3 className="font-semibold">{agentClient(connection.clientKind)?.name ?? t("connections.connectionN", { n: index + 1 })}</h3><p className="mt-1 text-xs text-muted">{t("connections.connectedOn", { date: formatDate(connection.createdAt, locale, timeZone, t("common.notUpdated")) })}</p></div></div>
+                      <div className="flex min-w-0 items-center gap-3"><span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-border bg-asset-surface text-asset-foreground"><AgentClientLogo kind={connection.clientKind} size={24} /></span><div className="min-w-0"><h3 className="font-semibold">{agentClient(connection.clientKind)?.name ?? t("connections.connectionN", { n: index + 1 })}</h3><p className="mt-1 text-xs text-muted">{t("connections.connectedOn", { date: formatDate(connection.createdAt, locale, timeZone, t("common.notUpdated")) })}</p></div></div>
                       <span className="rounded-full border border-border bg-background px-3 py-1 text-xs font-medium">{t(ACCESS_LABEL[accessLevel(connection.scopes)])}</span>
                     </div>
                     {connection.nativeClient && <p className="mt-3 text-xs text-muted">{t("connections.localNote")}</p>}
@@ -136,11 +138,11 @@ function ConnectionsContent({ connectionUid }: { connectionUid?: string }) {
               </ul>
             )}
           </section>
-          {revokeError && <p className="mt-4 text-sm text-red-700" role="alert">{revokeError}</p>}
+          {revokeError && <p className="mt-4 text-sm text-error" role="alert">{revokeError}</p>}
           {notice && <p className="mt-4 text-sm" role="status">{notice}</p>}
-          <p className="mt-5 flex items-start gap-2 px-1 text-xs leading-relaxed text-muted"><HugeiconsIcon icon={Shield01Icon} className="mt-0.5 shrink-0" size={15} aria-hidden="true" />{t("connections.separateNote")}</p>
+          <p className="mt-5 flex items-start gap-2 px-1 text-xs leading-relaxed text-muted"><ShieldIcon className="mt-0.5 shrink-0" size={15} aria-hidden="true" />{t("connections.separateNote")}</p>
         </>
       )}
-    </div>
+    </section>
   );
 }

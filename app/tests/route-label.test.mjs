@@ -111,8 +111,8 @@ function ui() {
 }
 
 const icons = {
-  '@hugeicons/core-free-icons': {},
-  '@hugeicons/react': { HugeiconsIcon: () => null },
+  'lucide-react': new Proxy({}, { get: () => () => null }),
+  '@/components/ui/interface-icon': { InterfaceIcon: () => null },
 };
 
 function quote(provider) {

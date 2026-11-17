@@ -55,7 +55,7 @@ test('agents metadata keeps the production canonical url and a large summary car
     exports,
     require: (id) => {
       if (id === 'react/jsx-runtime') return { jsx: () => null, jsxs: () => null };
-      if (id.endsWith('.css') || id === 'next/link' || id.startsWith('@/') || id.startsWith('@hugeicons') || id.startsWith('./')) return {};
+      if (id.endsWith('.css') || id === 'next/link' || id.startsWith('@/') || id === 'lucide-react' || id.startsWith('./')) return {};
       throw new Error(`Unexpected import ${id}`);
     },
   });

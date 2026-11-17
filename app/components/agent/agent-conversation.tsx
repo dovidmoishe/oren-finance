@@ -1,13 +1,15 @@
 'use client';
 
 import {
-  CancelCircleIcon,
-  CheckmarkCircle01Icon,
-  Loading03Icon,
-  SparklesIcon,
-  Wallet02Icon,
-} from '@hugeicons/core-free-icons';
-import { HugeiconsIcon, type IconSvgElement } from '@hugeicons/react';
+  CircleX as CircleXIcon,
+  CircleCheck as CircleCheckIcon,
+  LoaderCircle as LoaderCircleIcon,
+  Sparkles as SparklesIcon,
+  WalletCards as WalletCardsIcon,
+  type LucideIcon,
+} from "lucide-react";
+import { InterfaceIcon } from "@/components/ui/interface-icon";
+
 import type { RefObject } from 'react';
 import type {
   AgentArtifactDensity,
@@ -26,8 +28,8 @@ import { toolLabel } from './agent-utils';
 import { AgentComposerView } from './agent-composer-view';
 import { useI18n, useT } from "@/i18n/i18n";
 
-function Icon({ icon, size = 18, className }: { icon: IconSvgElement; size?: number; className?: string }) {
-  return <HugeiconsIcon className={className} color="currentColor" icon={icon} size={size} strokeWidth={1.8} />;
+function Icon({ icon, size = 18, className }: { icon: LucideIcon; size?: number; className?: string }) {
+  return <InterfaceIcon className={className} color="currentColor" icon={icon} size={size} strokeWidth={1.8} />;
 }
 
 export function AgentMessage({
@@ -49,9 +51,9 @@ export function AgentMessage({
   if (message.role === 'user') {
     return (
       <div className="flex justify-end">
-        <div className="max-w-[86%] rounded-[20px] rounded-br-[7px] bg-foreground px-4 py-3 text-sm leading-6 text-white">
+        <div className="max-w-[86%] rounded-[20px] rounded-br-[7px] bg-primary px-4 py-3 text-sm leading-6 text-primary-foreground">
           {message.content}
-          {message.interrupted ? <p className="mt-2 text-[10px] text-white/55">{t("agent.interrupted")}</p> : null}
+          {message.interrupted ? <p className="mt-2 text-[10px] text-primary-foreground/75">{t("agent.interrupted")}</p> : null}
         </div>
       </div>
     );
@@ -91,7 +93,7 @@ function ToolTrace({ activities }: { activities: AgentToolActivity[] }) {
       <summary className="flex cursor-pointer list-none items-center gap-2 text-xs font-medium text-muted">
         <Icon
           className={running ? 'animate-spin' : ''}
-          icon={running ? Loading03Icon : CheckmarkCircle01Icon}
+          icon={running ? LoaderCircleIcon : CircleCheckIcon}
           size={13}
         />
         {running
@@ -111,10 +113,10 @@ function ToolTrace({ activities }: { activities: AgentToolActivity[] }) {
               className={activity.status === 'running' ? 'animate-spin' : ''}
               icon={
                 activity.status === 'failed'
-                  ? CancelCircleIcon
+                  ? CircleXIcon
                   : activity.status === 'running'
-                    ? Loading03Icon
-                    : CheckmarkCircle01Icon
+                    ? LoaderCircleIcon
+                    : CircleCheckIcon
               }
               size={12}
             />
@@ -139,10 +141,10 @@ export function EmptyConversation({
   const t = useT();
   return (
     <div className="flex min-h-full flex-col justify-center py-8">
-      <div className="grid h-12 w-12 place-items-center rounded-[18px] bg-accent-pink-soft">
+      <div className="grid h-12 w-12 place-items-center rounded-2xl bg-accent-lavender/30 text-brand">
         <Icon icon={SparklesIcon} size={21} />
       </div>
-      <h3 className="mt-5 font-display text-2xl font-semibold">{t("agent.emptyTitle")}</h3>
+      <h3 className="mt-5 font-display text-2xl leading-tight font-medium tracking-tight">{t("agent.emptyTitle")}</h3>
       <p className="mt-2 max-w-sm text-sm leading-6 text-muted">
         {t("agent.emptyBody")}
       </p>
@@ -166,16 +168,16 @@ export function DisconnectedState({ onConnect }: { onConnect: () => void }) {
   const auth = useOrenAuth();
   const t = useT();
   return (
-    <div className="flex h-full flex-col justify-center rounded-[24px] bg-accent-pink-soft p-6">
-      <div className="grid h-12 w-12 place-items-center rounded-[18px] bg-white">
-        <Icon icon={Wallet02Icon} size={20} />
+    <div className="flex h-full flex-col justify-center rounded-2xl bg-linear-to-b from-accent-lavender/20 via-panel to-panel p-4">
+      <div className="grid size-10 place-items-center rounded-xl border border-accent-lavender/60 bg-panel text-brand">
+        <Icon icon={WalletCardsIcon} size={20} />
       </div>
-      <h3 className="mt-5 font-display text-2xl font-semibold">{t("agent.disconnectedTitle")}</h3>
-      <p className="mt-2 text-sm leading-6 text-muted">
+      <h3 className="mt-3 font-display text-xl leading-snug font-medium tracking-tight">{t("agent.disconnectedTitle")}</h3>
+      <p className="mt-2 text-sm leading-relaxed text-muted">
         {auth.authenticated ? auth.error || t("agent.preparingWallet") : t("agent.signInBody")}
       </p>
-      {(!auth.authenticated || auth.error) && <Button className="mt-6 h-11 rounded-[15px]" onClick={auth.authenticated ? () => void auth.createWallet() : onConnect} variant="primary">
-        <Icon icon={Wallet02Icon} size={16} />
+      {(!auth.authenticated || auth.error) && <Button className="mt-5 min-h-9 self-start rounded-lg pointer-coarse:min-h-11" onClick={auth.authenticated ? () => void auth.createWallet() : onConnect} variant="primary">
+        <Icon icon={WalletCardsIcon} size={16} />
         {auth.authenticated ? t("agent.retryWallet") : t("agent.signIn")}
       </Button>}
     </div>
@@ -289,9 +291,9 @@ export function AgentConversationThread({
             />
           ))}
           {error ? (
-            <div className="rounded-[18px] border border-red-200 bg-red-50 p-3 text-xs leading-5 text-red-900">
+            <div className="rounded-[18px] border border-error-border bg-error-surface p-3 text-xs leading-5 text-error">
               <div className="flex items-start gap-2">
-                <Icon className="mt-0.5 shrink-0" icon={CancelCircleIcon} size={14} />
+                <Icon className="mt-0.5 shrink-0" icon={CircleXIcon} size={14} />
                 <span className="flex-1">{error}</span>
                 <button
                   className="font-semibold underline underline-offset-2"

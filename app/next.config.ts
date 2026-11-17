@@ -2,6 +2,7 @@ import type { NextConfig } from "next";
 import createNextIntlPlugin from "next-intl/plugin";
 
 const isDev = process.env.NODE_ENV !== "production";
+const devApiProxyUrl = isDev ? process.env.OREN_DEV_API_PROXY_URL?.replace(/\/+$/, "") : undefined;
 
 /** Origin of NEXT_PUBLIC_OREN_API_URL; previews use a relative path, already covered by 'self'. */
 function apiOrigin(): string | undefined {
@@ -62,6 +63,11 @@ const deploymentId = process.env.NEXT_PUBLIC_COMMIT_SHA?.trim();
 const nextConfig: NextConfig = {
   output: "standalone",
   ...(deploymentId ? { deploymentId } : {}),
+  async rewrites() {
+    return devApiProxyUrl
+      ? [{ source: "/api/:path*", destination: `${devApiProxyUrl}/:path*` }]
+      : [];
+  },
   async headers() {
     return [{ source: "/:path*", headers: [{ key: "Content-Security-Policy", value: contentSecurityPolicy }] }];
   },

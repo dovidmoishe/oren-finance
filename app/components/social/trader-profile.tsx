@@ -3,12 +3,12 @@
 import { financialExecutionEnabled } from "@/services/environment";
 
 import {
-  ArrowLeft01Icon,
-  Briefcase01Icon,
-  CoinsSwapIcon,
-  Loading03Icon,
-} from "@hugeicons/core-free-icons";
-import { HugeiconsIcon } from "@hugeicons/react";
+  ChevronLeft as ChevronLeftIcon,
+  BriefcaseBusiness as BriefcaseBusinessIcon,
+  ArrowLeftRight as ArrowLeftRightIcon,
+  LoaderCircle as LoaderCircleIcon,
+} from "lucide-react";
+
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { MarketChart, type MarketChartMode, type MarketChartRange } from "@/components/charts";
@@ -48,7 +48,7 @@ function TraderAvatar({ name, avatarUrl }: { name: string; avatarUrl?: string })
   }
 
   return (
-    <div className="grid h-14 w-14 shrink-0 place-items-center rounded-full bg-foreground font-display text-lg font-semibold text-white">
+    <div className="grid h-14 w-14 shrink-0 place-items-center rounded-full bg-primary font-display text-lg font-semibold text-primary-foreground">
       {name.slice(0, 2).toUpperCase()}
     </div>
   );
@@ -115,7 +115,7 @@ function CopyPortfolioDrawer({ slug }: { slug: string }) {
   return (
     <>
       <Button onClick={() => setOpen(true)} variant="primary">
-        <HugeiconsIcon color="currentColor" icon={CoinsSwapIcon} size={16} strokeWidth={1.8} />
+        <ArrowLeftRightIcon color="currentColor" size={16} strokeWidth={1.8} />
         {t("trader.copyPortfolio")}
       </Button>
       <Modal onClose={close} open={open} side="right" title={t("trader.copyPortfolio")}>
@@ -139,7 +139,7 @@ function CopyPortfolioDrawer({ slug }: { slug: string }) {
             </Button>
           </div>
 
-          {copyError ? <p className="rounded-[12px] bg-red-50 p-3 text-xs text-red-900">{copyError}</p> : null}
+          {copyError ? <p className="rounded-[12px] bg-error-surface p-3 text-xs text-error">{copyError}</p> : null}
 
           {proposal ? (
             <>
@@ -156,7 +156,7 @@ function CopyPortfolioDrawer({ slug }: { slug: string }) {
                   </div>
                 </div>
               ) : null}
-              {executionError ? <p className="rounded-[12px] bg-red-50 p-3 text-xs text-red-900">{executionError}</p> : null}
+              {executionError ? <p className="rounded-[12px] bg-error-surface p-3 text-xs text-error">{executionError}</p> : null}
               <Button
                 className="w-full"
                 disabled={!financialExecutionEnabled || !wallet || executionLoading}
@@ -164,7 +164,7 @@ function CopyPortfolioDrawer({ slug }: { slug: string }) {
                 variant="secondary"
               >
                 {executionLoading ? (
-                  <HugeiconsIcon className="animate-spin" color="currentColor" icon={Loading03Icon} size={15} strokeWidth={1.8} />
+                  <LoaderCircleIcon className="animate-spin" color="currentColor" size={15} strokeWidth={1.8} />
                 ) : null}
                 {t("trader.prepareQuotes")}
               </Button>
@@ -225,7 +225,7 @@ export function TraderProfile({ slug }: { slug: string }) {
   return (
     <div className="mx-auto max-w-[1540px] space-y-6 pb-20">
       <Link className="inline-flex items-center gap-2 text-sm text-muted hover:text-foreground" href="/app/leaderboard">
-        <HugeiconsIcon color="currentColor" icon={ArrowLeft01Icon} size={16} strokeWidth={1.8} />
+        <ChevronLeftIcon color="currentColor" size={16} strokeWidth={1.8} />
         {t("trader.back")}
       </Link>
 

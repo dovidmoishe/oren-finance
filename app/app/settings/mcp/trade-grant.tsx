@@ -1,8 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { HugeiconsIcon } from "@hugeicons/react";
-import { Shield01Icon } from "@hugeicons/core-free-icons";
+import { Shield as ShieldIcon } from "lucide-react";
+
 import { TradeGrantEditor } from "./trade-grant-editor";
 import { ConnectionNextStep } from "./connection-next-step";
 import { useOrenAuth } from "@/components/auth/auth-context";
@@ -243,7 +243,7 @@ export function TradeGrant({ connectionUid }: { connectionUid?: string }) {
   return (
     <section id="chat-trading" aria-labelledby="chat-trading-title" className="trade-grant-card">
       <div className="trade-grant-heading">
-        <span className="trade-grant-heading-icon"><HugeiconsIcon icon={Shield01Icon} size={22} strokeWidth={1.5} aria-hidden="true" /></span>
+        <span className="trade-grant-heading-icon"><ShieldIcon size={22} strokeWidth={1.5} aria-hidden="true" /></span>
         <div><h2 id="chat-trading-title">{t("grant.title")}</h2><p>{t("grant.intro")}</p></div>
       </div>
       {grant?.reenrollmentRequired && <p className="mt-4 text-sm">
@@ -323,7 +323,7 @@ export function TradeGrant({ connectionUid }: { connectionUid?: string }) {
             {t("grant.signerNote", { signer: pending.signerId, policy: pending.policyId })}
           </p>
           <button
-            className="mt-4 rounded-xl bg-foreground px-4 py-2 text-white disabled:opacity-50"
+            className="mt-4 rounded-xl bg-primary px-4 py-2 text-primary-foreground disabled:opacity-50"
             type="button"
             disabled={busy || pending.wallet !== auth.address}
             onClick={() => void addSigner()}
@@ -372,7 +372,7 @@ export function TradeGrant({ connectionUid }: { connectionUid?: string }) {
       {apiOrigin && !grant && !error && <p className="mt-4 text-sm text-muted" role="status">{t("grant.loading")}</p>}
       {grant?.enabled && <ConnectionNextStep uid={connectionUid} />}
       {errorText && (
-        <p className="mt-4 text-sm text-red-700" role="alert">
+        <p className="mt-4 text-sm text-error" role="alert">
           {errorText}
         </p>
       )}

@@ -1,11 +1,19 @@
 {
+  "settings": {
+    "intro": "Tài khoản, tùy chọn và các tác nhân đã kết nối ở cùng một nơi.",
+    "account": "Tài khoản",
+    "accountDetail": "Quản lý thông tin đăng nhập, ví và ngôn ngữ của bạn.",
+    "walletPending": "Không có ví đang hoạt động",
+    "signInDetail": "Đăng nhập để quản lý tài khoản."
+  },
   "marketForYou": {
     "title": "Dành cho bạn",
-    "chooseDetail": "Chọn ngành để xem cổ phiếu phù hợp với sở thích của bạn.",
-    "choose": "Chọn ngành",
-    "empty": "Chưa có cổ phiếu phù hợp với các ngành bạn chọn.",
-    "edit": "Chỉnh sửa ngành",
-    "error": "Không thể tải đề xuất của bạn."
+    "chooseDetail": "Theo dõi ngành và chủ đề để khám phá cổ phiếu phù hợp với bạn.",
+    "choose": "Chọn sở thích",
+    "empty": "Chưa có cổ phiếu phù hợp với sở thích đã chọn.",
+    "edit": "Sửa sở thích",
+    "error": "Không thể tải đề xuất của bạn.",
+    "match": "Phù hợp với sở thích của bạn"
   },
   "priceAlerts": {
     "title": "Cảnh báo giá",
@@ -26,7 +34,7 @@
   "preferences": {
     "title": "Tùy chọn",
     "followTitle": "Bạn theo dõi ngành nào?",
-    "followDetail": "Chọn ngành để Oren cá nhân hóa đề xuất thị trường cho bạn.",
+    "followDetail": "Chọn ngành và chủ đề để cá nhân hóa gợi ý thị trường.",
     "emailTitle": "Bạn muốn nhận email gì?",
     "morningBrief": "Bản tin buổi sáng",
     "morningBriefDetail": "Tổng quan hằng ngày về danh mục và tin tức liên quan đến bạn.",
@@ -60,6 +68,20 @@
       "materials": "Vật liệu",
       "realEstate": "Bất động sản",
       "utilities": "Tiện ích"
+    },
+    "structureDetail": "Theo dõi một ngành hoặc dùng mũi tên để khám phá các chủ đề liên quan.",
+    "relatedThemes": "Chủ đề liên quan",
+    "themesSoon": "Tùy chọn chủ đề sẽ sớm có mặt. Bạn có thể theo dõi ngành ngay bây giờ.",
+    "selectedCount": "Đã chọn {count}",
+    "themes": {
+      "artificialIntelligence": "Trí tuệ nhân tạo",
+      "semiconductors": "Chất bán dẫn",
+      "cybersecurity": "An ninh mạng",
+      "cloudComputing": "Điện toán đám mây",
+      "robotics": "Robot & tự động hóa",
+      "cleanEnergy": "Năng lượng sạch",
+      "fintech": "Công nghệ tài chính",
+      "spaceAndDefense": "Vũ trụ & quốc phòng"
     }
   },
   "language": {
@@ -67,6 +89,14 @@
     "title": "Ngôn ngữ"
   },
   "nav": {
+    "portfolio": "Danh mục",
+    "markets": "Thị trường",
+    "settings": "Cài đặt",
+    "navigation": "Điều hướng",
+    "skipToContent": "Chuyển đến nội dung",
+    "expandSidebar": "Mở rộng thanh bên",
+    "collapseSidebar": "Thu gọn thanh bên",
+    "search": "Tìm kiếm",
     "dashboard": "Tổng quan",
     "market": "Thị trường",
     "leaderboard": "Bảng xếp hạng",
@@ -146,6 +176,18 @@
     "empty": "Chưa có cổ phiếu nào."
   },
   "portfolio": {
+    "totalValue": "Tổng giá trị",
+    "assetCount": "{count, plural, other {# tài sản}}",
+    "allocation": "Phân bổ tài sản",
+    "otherAssets": "Tài sản khác",
+    "hideBalances": "Ẩn số dư",
+    "showBalances": "Hiện số dư",
+    "valueHistory": "Lịch sử giá trị",
+    "snapshotChange": "Kể từ lần ghi nhận trước",
+    "recentActivity": "Hoạt động gần đây",
+    "colDate": "Ngày",
+    "col24h": "Thay đổi 24 giờ",
+    "positionDetails": "Chi tiết",
     "logoAlt": "Logo {name}",
     "thisWeek": "Tuần này",
     "roiTitle": "Lợi nhuận đầu tư",
@@ -927,6 +969,9 @@
     "review": "Xem xét quyền"
   },
   "agent": {
+    "contextGeneral": "Trò chuyện chung",
+    "generalContextBody": "Tin nhắn mới không bao gồm trang bạn đang xem. Các tin nhắn trước vẫn còn trong cuộc trò chuyện này.",
+    "resize": "Đổi kích thước cuộc trò chuyện Oren",
     "ask": "Hỏi Oren",
     "proposes": "Oren đề xuất. Ví của bạn phê duyệt.",
     "stop": "Dừng phản hồi",
@@ -1020,5 +1065,12 @@
     "intro": "Bộ nhớ hiệu suất theo ảnh chụp cho danh mục được Oren ghi nhận.",
     "refresh": "Làm mới",
     "closeValue": "{value} đóng cửa"
+  },
+  "theme": {
+    "change": "Đổi giao diện",
+    "title": "Giao diện",
+    "system": "Hệ thống",
+    "light": "Sáng",
+    "dark": "Tối"
   }
 }

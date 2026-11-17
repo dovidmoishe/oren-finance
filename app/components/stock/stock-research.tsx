@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { ArrowRight, BookOpen, FileText, MessageSquareText, RefreshCw, ChartPie } from "lucide-react";
 import { useOrenAuth } from "@/components/auth/auth-context";
 import {
   getStockResearch,
@@ -14,6 +15,12 @@ import type {
   StockResearch,
 } from "@/types";
 import { MessageKeyError, useI18n, useShownMessage, shownFromUnknown, type MessageKey, type ShownMessage, type Translate } from "@/i18n/i18n";
+
+const researchFeatures = [
+  { icon: FileText, label: "research.filings" },
+  { icon: MessageSquareText, label: "research.writerViews" },
+  { icon: ChartPie, label: "research.orenRead" },
+] as const;
 
 export function StockResearchPanel({ assetId }: { assetId: string }) {
   const auth = useOrenAuth();
@@ -82,41 +89,48 @@ export function StockResearchPanel({ assetId }: { assetId: string }) {
   return (
     <section
       aria-labelledby="stock-research-title"
-      className="rounded-[20px] border border-border bg-panel p-5 sm:p-6"
+      className="@container/research rounded-2xl border border-border bg-linear-to-br from-accent-lavender/10 via-panel to-panel p-5 sm:p-6"
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h2
-            id="stock-research-title"
-            className="font-display text-lg font-semibold"
-          >
-            {t("research.title")}
-          </h2>
-          <p className="mt-1 text-xs text-muted">
-            {t("research.subtitle")}
-          </p>
+        <div className="flex items-start gap-3">
+          <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-accent-lavender/35 text-foreground"><BookOpen aria-hidden="true" size={18} strokeWidth={1.7} /></span>
+          <div>
+            <h2 id="stock-research-title" className="font-display text-base font-semibold">
+              {t("research.title")}
+            </h2>
+            <p className="mt-1 text-xs text-muted">
+              {t("research.subtitle")}
+            </p>
+          </div>
         </div>
-        <button
-          className="rounded-lg border border-border px-3 py-1.5 text-xs hover:bg-panel-subtle disabled:opacity-50"
-          disabled={loading || !wallet}
+        {wallet && <button
+          className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-border bg-panel px-3 text-xs font-medium hover:bg-panel-subtle focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus disabled:opacity-50"
+          disabled={loading}
           onClick={() => void refresh()}
           type="button"
         >
-          {loading ? t("research.refreshing") : t("research.refresh")}
-        </button>
+          <RefreshCw aria-hidden="true" className={loading ? "animate-spin motion-reduce:animate-none" : undefined} size={13} strokeWidth={1.7} />{loading ? t("research.refreshing") : t("research.refresh")}
+        </button>}
       </div>
-      {!wallet ? (
-        <p className="mt-5 text-sm text-muted">
-          {t("research.signedOut")}
-        </p>
+      {!wallet && (auth.ready === false || auth.authenticated) ? <p className="mt-5 text-sm text-muted" role="status">{t(auth.ready === false ? "account.loading" : "portfolio.preparingDescription")}</p> : !wallet ? (
+        <div className="mt-5 flex flex-col items-start justify-between gap-5 border-t border-border/70 pt-5 @2xl/research:flex-row @2xl/research:items-center">
+          <div className="min-w-0">
+            <p className="text-sm leading-6">{t("research.signedOut")}</p>
+            <ul className="mt-3 flex flex-wrap gap-x-4 gap-y-2 text-[11px] text-muted">
+              {researchFeatures.map(({ icon: Icon, label }) => <li className="flex items-center gap-1.5" key={label}><Icon aria-hidden="true" size={13} strokeWidth={1.6} />{t(label)}</li>)}
+            </ul>
+          </div>
+          <button className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-xl bg-foreground px-4 text-xs font-semibold text-panel hover:bg-foreground/85 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus disabled:opacity-50" disabled={auth.configured === false} onClick={auth.open} type="button">{t("account.signIn")}<ArrowRight aria-hidden="true" size={14} strokeWidth={1.7} /></button>
+        </div>
       ) : null}
+      {loading && !report && <div className="mt-5 rounded-xl bg-panel-subtle p-4 text-sm text-muted" role="status">{t("research.loading")}</div>}
       {errorText ? (
-        <p role="alert" className="mt-4 text-sm text-red-400">
+        <p role="alert" className="mt-4 text-sm text-negative">
           {errorText}
         </p>
       ) : null}
       {report ? (
-        <div className="mt-5 grid gap-4 lg:grid-cols-2">
+        <div className="mt-5 grid gap-4 @3xl/research:grid-cols-2">
           <article className="rounded-2xl border border-border bg-panel-subtle p-4">
             <h3 className="text-sm font-semibold">{t("research.orenRead")}</h3>
             <p className="mt-2 text-sm leading-6 text-muted">
@@ -210,7 +224,7 @@ export function StockResearchPanel({ assetId }: { assetId: string }) {
                       key={`${item.author}-${item.url}`}
                     >
                       <a
-                        className="text-sm font-medium text-sky-700 underline-offset-2 hover:underline"
+                        className="text-sm font-medium text-link underline-offset-2 hover:underline"
                         href={item.url}
                         onClick={recordSource}
                         rel="noopener noreferrer"
@@ -241,7 +255,7 @@ export function StockResearchPanel({ assetId }: { assetId: string }) {
               onOpenSource={recordSource}
             />
           ) : null}
-          <article className="rounded-2xl border border-border bg-panel-subtle p-4 lg:col-span-2">
+          <article className="rounded-2xl border border-border bg-panel-subtle p-4 @3xl/research:col-span-2">
             <h3 className="text-sm font-semibold">{t("research.disagreeTitle")}</h3>
             <p className="mt-2 text-sm leading-6 text-muted">
               {report.opinions.data?.disagreement
@@ -326,7 +340,7 @@ function CompanyFilings({
   const cards = data ? companyCards(t, data, locale, timeZone) : [];
   const filings = sourceFilings(t, data, locale, timeZone);
   return (
-    <article className="rounded-2xl border border-border bg-panel-subtle p-4 lg:col-span-2">
+    <article className="rounded-2xl border border-border bg-panel-subtle p-4 @3xl/research:col-span-2">
       <h3 className="text-sm font-semibold">{t("research.filings")}</h3>
       <p className="mt-2 text-xs text-muted">{t("research.filingsNote")}</p>
       {company.reason ? (

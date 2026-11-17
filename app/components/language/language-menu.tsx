@@ -1,7 +1,7 @@
 "use client";
 
-import { Globe02Icon, Tick02Icon } from "@hugeicons/core-free-icons";
-import { HugeiconsIcon } from "@hugeicons/react";
+import { Globe as GlobeIcon, Check as CheckIcon } from "lucide-react";
+
 import { useRouter } from "next/navigation";
 import { useId, useRef } from "react";
 import { cn } from "@/components/ui";
@@ -9,11 +9,12 @@ import { useI18n } from "@/i18n/i18n";
 import { rememberLocale } from "@/i18n/locale-sync";
 import { LOCALES, type Locale } from "@/i18n/locales";
 import { persistLocale } from "@/i18n/persist-locale";
+import { useAnchoredPopover } from "@/hooks/use-anchored-popover";
 
 /** Header globe button with a popover listing every supported language. */
 export function LanguageMenu() {
   const id = useId();
-  const menu = useRef<HTMLDivElement>(null);
+  const { trigger, menu, onBeforeToggle, onToggle } = useAnchoredPopover();
   const router = useRouter();
   const { locale, t } = useI18n();
   const chosenAt = useRef(0);
@@ -36,12 +37,13 @@ export function LanguageMenu() {
         aria-label={t("language.change")}
         className="grid h-[var(--app-control-icon,2.75rem)] w-[var(--app-control-icon,2.75rem)] place-items-center rounded-full text-muted transition-colors hover:bg-panel-subtle hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2"
         popoverTarget={id}
+        ref={trigger}
         title={t("language.title")}
         type="button"
       >
-        <HugeiconsIcon aria-hidden="true" color="currentColor" icon={Globe02Icon} size={20} strokeWidth={1.6} />
+        <GlobeIcon aria-hidden="true" color="currentColor" size={20} strokeWidth={1.6} />
       </button>
-      <div aria-label={t("language.title")} className="oren-account-menu" id={id} popover="auto" ref={menu} role="menu">
+      <div aria-label={t("language.title")} className="oren-account-menu" id={id} onBeforeToggle={onBeforeToggle} onToggle={onToggle} popover="auto" ref={menu} role="menu">
         <div className="oren-account-menu-surface w-56 overflow-hidden rounded-2xl border border-border bg-panel p-1.5 text-foreground shadow-xl">
           {LOCALES.map((option) => {
             const selected = locale === option.code;
@@ -64,7 +66,7 @@ export function LanguageMenu() {
                 type="button"
               >
                 <span className="flex-1">{option.name}</span>
-                {selected ? <HugeiconsIcon aria-hidden="true" color="currentColor" icon={Tick02Icon} size={16} strokeWidth={2} /> : null}
+                {selected ? <CheckIcon aria-hidden="true" color="currentColor" size={16} strokeWidth={2} /> : null}
               </button>
             );
           })}

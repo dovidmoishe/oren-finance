@@ -4,13 +4,13 @@ import { financialExecutionEnabled } from "@/services/environment";
 import { routeVenueLabel } from "@/services/route-label";
 
 import {
-  AlertCircleIcon,
-  CheckmarkCircle01Icon,
-  Clock01Icon,
-  Loading03Icon,
-  Wallet02Icon,
-} from "@hugeicons/core-free-icons";
-import { HugeiconsIcon } from "@hugeicons/react";
+  CircleAlert as CircleAlertIcon,
+  CircleCheck as CircleCheckIcon,
+  Clock as ClockIcon,
+  LoaderCircle as LoaderCircleIcon,
+  WalletCards as WalletCardsIcon,
+} from "lucide-react";
+
 import { useState } from "react";
 import { Button, Modal, Toast, formatCurrency, formatNumber } from "@/components/ui";
 import type { ExecutionStatus, QuoteResponse } from "@/types";
@@ -141,9 +141,9 @@ export function QuoteReviewModal({
           {review.expired && !signed ? <Toast title={t("review.approvalExpired")} description={t("review.approvalExpiredDescription")} tone="info" /> : null}
 
           {confirmation ? (
-            <div className="rounded-[18px] border border-green-200 bg-green-50 p-4 text-sm text-green-900">
+            <div className="rounded-[18px] border border-success-border bg-success-surface p-4 text-sm text-success">
               <div className="flex items-start gap-3">
-                <HugeiconsIcon className="mt-0.5 shrink-0" color="currentColor" icon={CheckmarkCircle01Icon} size={16} strokeWidth={1.8} />
+                <CircleCheckIcon className="mt-0.5 shrink-0" color="currentColor" size={16} strokeWidth={1.8} />
                 <div>
                   <p className="font-semibold">{t("review.tracking")}</p>
                   <p className="mt-1 text-xs opacity-75">{t("review.trackingDescription")}</p>
@@ -156,34 +156,34 @@ export function QuoteReviewModal({
 
           {refreshFailed && onRefreshQuote ? (
             <Button className="h-12 w-full rounded-[16px]" onClick={onRefreshQuote} variant="secondary">
-              <HugeiconsIcon color="currentColor" icon={AlertCircleIcon} size={16} strokeWidth={1.8} />
+              <CircleAlertIcon color="currentColor" size={16} strokeWidth={1.8} />
               {t("review.retryRefresh")}
             </Button>
           ) : (
             <Button className="h-12 w-full rounded-[16px]" disabled={!financialExecutionEnabled || signDisabled} onClick={() => review.approval && reviewQuote && void onSign(review.approval.id, reviewQuote)} variant="primary">
               {isBusy ? (
                 <>
-                  <HugeiconsIcon className="animate-spin" color="currentColor" icon={Clock01Icon} size={16} strokeWidth={1.8} />
+                  <ClockIcon className="animate-spin" color="currentColor" size={16} strokeWidth={1.8} />
                   {status === "preparing" ? t("review.preparingShort") : status === "signing" ? t("review.approvingTrade") : t("review.confirming")}
                 </>
               ) : status === "submitted" ? (
                 <>
-                  <HugeiconsIcon color="currentColor" icon={CheckmarkCircle01Icon} size={16} strokeWidth={1.8} />
+                  <CircleCheckIcon color="currentColor" size={16} strokeWidth={1.8} />
                   {t("review.submittedSyncing")}
                 </>
               ) : confirmed ? (
                 <>
-                  <HugeiconsIcon color="currentColor" icon={CheckmarkCircle01Icon} size={16} strokeWidth={1.8} />
+                  <CircleCheckIcon color="currentColor" size={16} strokeWidth={1.8} />
                   {t("review.confirmed")}
                 </>
               ) : waitingOnRefresh ? (
                 <>
-                  <HugeiconsIcon className="animate-spin" color="currentColor" icon={Loading03Icon} size={16} strokeWidth={1.8} />
+                  <LoaderCircleIcon className="animate-spin" color="currentColor" size={16} strokeWidth={1.8} />
                   {t("review.updatingQuote")}
                 </>
               ) : (
                 <>
-                  <HugeiconsIcon color="currentColor" icon={Wallet02Icon} size={16} strokeWidth={1.8} />
+                  <WalletCardsIcon color="currentColor" size={16} strokeWidth={1.8} />
                   {review.loading ? t("review.preparingTrade") : quote.side === "buy" ? t("review.confirmBuy") : t("review.confirmSell")}
                 </>
               )}

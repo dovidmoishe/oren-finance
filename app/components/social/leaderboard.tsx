@@ -1,11 +1,7 @@
 "use client";
 
-import {
-  ArrowUpRight01Icon,
-  Medal01Icon,
-  UserGroupIcon,
-} from "@hugeicons/core-free-icons";
-import { HugeiconsIcon } from "@hugeicons/react";
+import { ArrowUpRight as ArrowUpRightIcon, Medal as MedalIcon, Users as UsersIcon } from "lucide-react";
+
 import { useWallet } from "@solana/wallet-adapter-react";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
@@ -49,7 +45,7 @@ function TraderAvatar({ row }: { row: LeaderboardRow }) {
   }
 
   return (
-    <div className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-foreground font-display text-sm font-semibold text-white">
+    <div className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-primary font-display text-sm font-semibold text-primary-foreground">
       {row.displayName.slice(0, 2).toUpperCase()}
     </div>
   );
@@ -160,8 +156,8 @@ function PublishProfilePanel({ onPublished }: { onPublished: () => void }) {
           />
         </label>
         <p className="text-xs text-muted">{t("leaderboard.publicUrl", { url: `/leaderboard/${normalizedSlug || "trader"}` })}</p>
-        {error ? <p className="rounded-[12px] bg-red-50 p-3 text-xs text-red-900">{error}</p> : null}
-        {status ? <p className="rounded-[12px] bg-green-50 p-3 text-xs text-green-900">{status}</p> : null}
+        {error ? <p className="rounded-[12px] bg-error-surface p-3 text-xs text-error">{error}</p> : null}
+        {status ? <p className="rounded-[12px] bg-success-surface p-3 text-xs text-success">{status}</p> : null}
         <Button className="w-full" disabled={isSubmitting || !connected} onClick={handlePublish} variant="primary">
           {isSubmitting ? t("leaderboard.signing") : t("leaderboard.publish")}
         </Button>
@@ -218,7 +214,7 @@ export function Leaderboard() {
               <h2 className="font-display text-xl font-semibold">{t("leaderboard.topWallets")}</h2>
               <p className="mt-1 text-sm text-muted">{t("leaderboard.rankedBy", { timeframe })}</p>
             </div>
-            <HugeiconsIcon className="text-muted" color="currentColor" icon={Medal01Icon} size={22} strokeWidth={1.8} />
+            <MedalIcon className="text-muted" color="currentColor" size={22} strokeWidth={1.8} />
           </CardHeader>
 
           <div className="hidden overflow-x-auto md:block">
@@ -257,8 +253,8 @@ export function Leaderboard() {
           <Card>
             <CardContent>
               <div className="flex items-center gap-3">
-                <div className="grid h-11 w-11 place-items-center rounded-full bg-foreground text-white">
-                  <HugeiconsIcon color="currentColor" icon={UserGroupIcon} size={20} strokeWidth={1.8} />
+                <div className="grid h-11 w-11 place-items-center rounded-full bg-primary text-primary-foreground">
+                  <UsersIcon color="currentColor" size={20} strokeWidth={1.8} />
                 </div>
                 <div>
                   <p className="font-display text-lg font-semibold">{t("leaderboard.copyTitle")}</p>
@@ -309,7 +305,7 @@ function LeaderboardMobileRow({ row }: { row: LeaderboardRow }) {
             <p className="font-mono text-xs text-muted">{row.walletPreview}</p>
           </div>
         </div>
-        <HugeiconsIcon color="currentColor" icon={ArrowUpRight01Icon} size={17} strokeWidth={1.8} />
+        <ArrowUpRightIcon color="currentColor" size={17} strokeWidth={1.8} />
       </div>
       <div className="mt-4 grid grid-cols-2 gap-3 text-xs">
         <Metric label={t("leaderboard.pnl")} value={`${formatPercent(row.pnlPct, locale)} · ${formatCurrency(row.pnlUsd, locale)}`} />

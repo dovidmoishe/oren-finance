@@ -1,9 +1,10 @@
 "use client";
 
-import { Add01Icon, MinusSignIcon } from '@hugeicons/core-free-icons';
-import { HugeiconsIcon } from '@hugeicons/react';
+import { ArrowUpRight, ChartNoAxesCombined, ChevronDown, Newspaper, ShieldAlert, TrendingDown, TrendingUp, MoveRight } from "lucide-react";
+
 import { TechnicalBriefPanel } from "@/components/stock/technical-brief-panel";
-import { formatCurrency, formatNumber, formatPercent, formatRelativeTime } from "@/components/ui/utils";
+import { cn, formatCurrency, formatNumber, formatPercent, formatRelativeTime } from "@/components/ui/utils";
+import { filterStockNews } from "@/services/stock-news";
 import type { NewsItem, StockAnalysis, StockDetail } from "@/types";
 import { useI18n, type MessageKey, type MessageValues, type Translate } from "@/i18n/i18n";
 
@@ -43,51 +44,78 @@ export function StockMarketOutlook({ stock, analysis, news }: {
     ? t("stock.volatilityRisk", { percent: percent(t, locale, analysis.signals.volatility30d, false) })
     : undefined);
   const score = analysis?.opportunityScore;
+  const boundedScore = typeof score === "number" && Number.isFinite(score) ? Math.round(Math.min(100, Math.max(0, score))) : undefined;
+  const relevantNews = filterStockNews(news, stock).slice(0, 3);
+  const displayBrief = brief ? { ...brief, newsOverlay: brief.newsOverlay ? filterStockNews(brief.newsOverlay, stock) : undefined } : undefined;
+  const TrendIcon = brief?.regime === "uptrend" ? TrendingUp : brief?.regime === "downtrend" ? TrendingDown : MoveRight;
 
   return (
-    <section aria-labelledby="market-outlook-title" className="rounded-[20px] border border-border bg-panel px-5 sm:px-6">
-      <div className="py-5 sm:py-6">
-        <div className="flex flex-wrap items-center justify-between gap-x-5 gap-y-2">
+    <section aria-labelledby="market-outlook-title" className="@container/outlook overflow-hidden rounded-2xl border border-border bg-panel">
+      <header className="flex flex-wrap items-center justify-between gap-4 border-b border-border/70 px-5 py-4 @lg/outlook:px-6">
+        <div className="flex items-center gap-2.5">
+          <span className="grid size-8 place-items-center rounded-lg bg-panel-subtle text-muted"><ChartNoAxesCombined aria-hidden="true" size={17} strokeWidth={1.7} /></span>
           <h2 className="font-display text-base font-semibold" id="market-outlook-title">{t("stock.outlookTitle")}</h2>
-          {analysis ? (
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted">
-              {typeof score === "number" && Number.isFinite(score) ? (
-                <span>{t("stock.opportunity")} <span className="ml-1 font-mono font-medium text-foreground">{Math.round(Math.min(100, Math.max(0, score)))}<span className="font-normal text-muted"> / 100</span></span></span>
-              ) : null}
-              {analysis.riskLabel ? <span className="capitalize">{t("stock.riskLabel", { label: analysis.riskLabel })}</span> : null}
+        </div>
+        <div className="flex flex-wrap items-center gap-3">
+          {analysis?.riskLabel && <span className="rounded-full border border-border px-2.5 py-1 text-[11px] capitalize text-muted">{t("stock.riskLabel", { label: analysis.riskLabel })}</span>}
+          {boundedScore !== undefined && (
+            <div aria-label={t("stock.opportunity")} aria-valuemax={100} aria-valuemin={0} aria-valuenow={boundedScore} className="flex items-center gap-2.5 rounded-lg bg-panel-subtle px-3 py-2" role="meter">
+              <span className="text-[11px] text-muted">{t("stock.opportunity")}</span>
+              <span className="font-money text-sm font-semibold tabular-nums">{boundedScore}<span className="font-normal text-muted"> / 100</span></span>
+              <span aria-hidden="true" className="flex gap-0.5">
+                {Array.from({ length: 10 }, (_, index) => <span className={cn("h-3 w-1 rounded-full", index < Math.round(boundedScore / 10) ? "bg-foreground/75" : "bg-border")} key={index} />)}
+              </span>
             </div>
-          ) : null}
+          )}
+        </div>
+      </header>
+
+      <div className={cn("grid", relevantNews.length > 0 && "@3xl/outlook:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]")}>
+        <div className="min-w-0 p-5 @lg/outlook:p-6">
+          {analysis ? (
+            <>
+              <p className="max-w-2xl text-balance font-display text-lg font-medium leading-7 tracking-tight @lg/outlook:text-xl">{takeaway}</p>
+              <dl className="mt-5 grid grid-cols-3 divide-x divide-border rounded-xl border border-border bg-panel-subtle/50">
+                {[
+                  [t("stock.trend"), trend],
+                  [t("stock.momentum7d"), percent(t, locale, momentum)],
+                  [t("stock.volatility30d"), percent(t, locale, analysis.signals.volatility30d, false)],
+                ].map(([label, value]) => (
+                  <div className="min-w-0 px-3 py-3.5 @lg/outlook:px-4" key={label}>
+                    <dt className="text-[11px] leading-4 text-muted">{label}</dt>
+                    <dd className={cn("mt-2 flex items-center gap-1.5 text-sm font-medium", label !== t("stock.trend") && "font-money tabular-nums", label === t("stock.momentum7d") && hasMomentum && (momentum > 0 ? "text-positive" : momentum < 0 ? "text-negative" : "text-foreground"))}>
+                      {label === t("stock.trend") && <TrendIcon aria-hidden="true" className="hidden shrink-0 @lg/outlook:block" size={15} strokeWidth={1.8} />}<span className="min-w-0 break-words">{value}</span>
+                    </dd>
+                  </div>
+                ))}
+              </dl>
+              {risk ? <div className="mt-4 flex items-start gap-2.5 rounded-xl bg-panel-subtle px-3 py-3"><ShieldAlert aria-hidden="true" className="mt-0.5 shrink-0 text-muted" size={15} strokeWidth={1.7} /><p className="text-xs leading-5 text-muted"><span className="font-medium text-foreground">{t("stock.watchFor")}</span>{risk}</p></div> : null}
+            </>
+          ) : <p className="mt-3 text-sm text-muted">{t("stock.analysisUnavailable")}</p>}
         </div>
 
-        {analysis ? (
-          <>
-            <p className="mt-3 max-w-2xl text-sm leading-6 text-muted">{takeaway}</p>
-            <dl className="mt-5 grid grid-cols-3 gap-3 sm:max-w-xl sm:gap-8">
-              {[
-                [t("stock.trend"), trend],
-                [t("stock.momentum7d"), percent(t, locale, momentum)],
-                [t("stock.volatility30d"), percent(t, locale, analysis.signals.volatility30d, false)],
-              ].map(([label, value]) => (
-                <div key={label}>
-                  <dt className="text-xs text-muted">{label}</dt>
-                  <dd className="mt-1.5 text-sm font-medium tabular-nums">{value}</dd>
-                </div>
-              ))}
-            </dl>
-            {risk ? <p className="mt-5 max-w-2xl text-xs leading-5 text-muted"><span className="font-medium text-foreground">{t("stock.watchFor")}</span>{risk}</p> : null}
-          </>
-        ) : <p className="mt-3 text-sm text-muted">{t("stock.analysisUnavailable")}</p>}
+        <aside aria-labelledby="outlook-news-title" className={cn("min-w-0 border-t border-border/70 bg-panel-subtle/30", relevantNews.length ? "p-5 @lg/outlook:p-6 @3xl/outlook:border-s @3xl/outlook:border-t-0" : "flex flex-wrap items-center gap-x-3 gap-y-1 px-5 py-3 @lg/outlook:px-6")}>
+          <div className="flex items-center gap-2 text-muted"><Newspaper aria-hidden="true" size={16} strokeWidth={1.7} /><h3 className="text-xs font-medium text-foreground" id="outlook-news-title">{t("stock.latestNews")}</h3></div>
+          {relevantNews.length ? <div className="mt-3 divide-y divide-border">
+            {relevantNews.map((item) => (
+              <article className="py-3 first:pt-0 last:pb-0" key={item.id}>
+                <p className="mb-1.5 text-[11px] leading-4 text-muted">{item.source ?? t("stock.marketNews")} · {formatRelativeTime(item.publishedAt, locale, { justNow: t("common.justNow"), unknown: t("common.unknown") })}</p>
+                <h4 className="text-sm font-medium leading-6">{item.url && /^https?:\/\//i.test(item.url) ? <a className="group flex items-start gap-2 hover:underline focus-visible:rounded focus-visible:outline-2 focus-visible:outline-focus" href={item.url} rel="noopener noreferrer" target="_blank"><span className="min-w-0 flex-1">{item.headline}</span><ArrowUpRight aria-hidden="true" className="mt-1 shrink-0 text-muted group-hover:text-foreground" size={14} /></a> : item.headline}</h4>
+              </article>
+            ))}
+          </div> : <p className="text-xs leading-5 text-muted">{t("stock.noNews")}</p>}
+        </aside>
       </div>
 
       {analysis ? (
-        <details className="group border-t border-border">
-          <summary className="flex cursor-pointer list-none items-center justify-between gap-3 py-4 text-xs font-medium focus-visible:rounded focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-foreground [&::-webkit-details-marker]:hidden">
+        <details className="group border-t border-border px-5 @lg/outlook:px-6">
+          <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 py-3 text-xs font-medium text-muted hover:text-foreground focus-visible:rounded focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-foreground [&::-webkit-details-marker]:hidden">
             <span><span className="group-open:hidden">{t("stock.viewDetails")}</span><span className="hidden group-open:inline">{t("stock.hideDetails")}</span></span>
-            <span aria-hidden className="text-base font-normal text-muted"><span className="group-open:hidden"><HugeiconsIcon icon={Add01Icon} size={16} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className="inline-block shrink-0 align-middle" /></span><span className="hidden group-open:inline"><HugeiconsIcon icon={MinusSignIcon} size={16} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className="inline-block shrink-0 align-middle" /></span></span>
+            <ChevronDown aria-hidden="true" className="shrink-0 group-open:rotate-180" size={16} strokeWidth={1.7} />
           </summary>
           <div className="space-y-5 pb-5">
             {analysis.summary ? <p className="max-w-3xl text-sm leading-6 text-muted">{analysis.summary}</p> : null}
-            {brief ? <TechnicalBriefPanel brief={brief} /> : null}
+            {displayBrief ? <TechnicalBriefPanel brief={displayBrief} /> : null}
             <dl className="grid grid-cols-2 gap-x-6 gap-y-4 text-xs sm:grid-cols-3">
               {[
                 [t("stock.momentum30d"), percent(t, locale, analysis.signals.momentum30d)],
@@ -107,22 +135,6 @@ export function StockMarketOutlook({ stock, analysis, news }: {
         </details>
       ) : null}
 
-      <div className="border-t border-border py-4">
-        <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
-          <h3 className="text-xs font-medium">{t("stock.latestNews")}</h3>
-          {!news.length ? <p className="text-xs text-muted">{t("stock.noNews")}</p> : null}
-        </div>
-        {news.length ? (
-          <div className="mt-3 divide-y divide-border">
-            {news.slice(0, 3).map((item) => (
-              <article className="py-3 first:pt-0 last:pb-0" key={item.id}>
-                <p className="mb-1 text-xs text-muted">{item.source ?? t("stock.marketNews")} · {formatRelativeTime(item.publishedAt, locale, { justNow: t("common.justNow"), unknown: t("common.unknown") })}</p>
-                <h4 className="text-sm font-medium leading-5">{item.url ? <a className="hover:underline focus-visible:underline" href={item.url} rel="noreferrer" target="_blank">{item.headline}</a> : item.headline}</h4>
-              </article>
-            ))}
-          </div>
-        ) : null}
-      </div>
     </section>
   );
 }

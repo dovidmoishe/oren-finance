@@ -1,8 +1,8 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Cancel01Icon } from '@hugeicons/core-free-icons';
-import { HugeiconsIcon } from '@hugeicons/react';
+import { X as XIcon } from "lucide-react";
+
 import { useOrenAuth } from '@/components/auth/auth-context';
 import { Button } from '@/components/ui';
 import { stockLogos } from '@/components/stock/stock-logo-assets';
@@ -47,7 +47,7 @@ export function WithdrawalModal({ onClose }: { onClose: () => void }) {
     const rect = event.currentTarget.getBoundingClientRect();
     if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) onClose();
   }}>
-      <div className="flex items-center justify-between gap-4"><h2 id="transfer-title" className="font-display text-xl font-semibold">{t("transfer.title")}</h2><button aria-label={t("transfer.close")} className="grid h-8 w-8 place-items-center rounded-full text-muted hover:bg-background" type="button" onClick={onClose}><HugeiconsIcon icon={Cancel01Icon} size={16} aria-hidden="true" /></button></div>
+      <div className="flex items-center justify-between gap-4"><h2 id="transfer-title" className="font-display text-xl font-semibold">{t("transfer.title")}</h2><button aria-label={t("transfer.close")} className="grid h-8 w-8 place-items-center rounded-full text-muted hover:bg-background" type="button" onClick={onClose}><XIcon size={16} aria-hidden="true" /></button></div>
       <p className="mt-2 text-sm leading-6 text-muted">{t("transfer.intro")}</p>
       {!financialExecutionEnabled ? <p className="mt-6 text-sm" role="status">{t("transfer.disabledPreview")}</p>
         : !auth.ready ? <p className="mt-6 text-sm" role="status">{t("transfer.loadingAccount")}</p>
@@ -253,6 +253,6 @@ function WithdrawalForm({ wallet }: { wallet: string }) {
         </> : <Button className="w-full" onClick={() => { requestId.current = undefined; setApproval(undefined); setAmount(''); setChecked(false); setError(undefined); setStage('edit'); }}>{t("transfer.newTransfer")}</Button>}
       </>}
     </div> : null}
-    {errorText ? <p role="alert" className="mt-4 text-sm leading-6 text-red-700">{errorText}</p> : null}
+    {errorText ? <p role="alert" className="mt-4 text-sm leading-6 text-error">{errorText}</p> : null}
   </div>;
 }

@@ -4,9 +4,42 @@ import vm from 'node:vm';
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { Children, isValidElement } from 'react';
 import ts from 'typescript';
 
 const require = createRequire(import.meta.url);
+
+test('signed-out research offers sign-in and waits for session restoration before showing it', () => {
+  let opened = 0;
+  const auth = { ready: true, configured: true, authenticated: false, open: () => opened++, getAccessToken: async () => null };
+  const exports = {};
+  const code = ts.transpileModule(readFileSync(new URL('../components/stock/stock-research.tsx', import.meta.url), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX } }).outputText;
+  vm.runInNewContext(code, { exports, setTimeout, clearTimeout, require(id) {
+    if (id === 'react') return { useState: () => [undefined, () => {}], useRef: () => ({ current: 0 }), useEffect() {}, useCallback: fn => fn };
+    if (id === '@/components/auth/auth-context') return { useOrenAuth: () => auth };
+    if (id === '@/services/research-service') return {};
+    return require(id);
+  } });
+  function findButton(node) {
+    if (!isValidElement(node)) return;
+    if (node.type === 'button') return node;
+    for (const child of Children.toArray(node.props.children)) {
+      const found = findButton(child);
+      if (found) return found;
+    }
+  }
+  let tree = exports.StockResearchPanel({ assetId: 'nvda' });
+  const html = renderToStaticMarkup(tree);
+  assert.match(html, /Sign in to see portfolio-aware research/);
+  assert.doesNotMatch(html, /Refresh research/);
+  findButton(tree).props.onClick();
+  assert.equal(opened, 1);
+
+  auth.ready = false;
+  tree = exports.StockResearchPanel({ assetId: 'nvda' });
+  assert.equal(findButton(tree), undefined);
+  assert.match(renderToStaticMarkup(tree), /Loading account/);
+});
 
 test('stock research renders distinct evidence, sources, saved thesis and changes', () => {
   const report = {
@@ -35,8 +68,6 @@ test('stock research renders distinct evidence, sources, saved thesis and change
     assert.equal(html.includes(hidden), false, hidden);
   }
   assert.ok(html.includes('https://example.com/view'));
-  assert.ok(html.includes('lg:grid-cols-2'));
-  assert.ok(html.includes('lg:col-span-2'));
   assert.equal(html.includes('Company filings'), false);
 });
 

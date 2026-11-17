@@ -16,8 +16,31 @@ export const sectorIds = [
 
 export type SectorId = (typeof sectorIds)[number];
 
+export const themeIds = [
+  "artificialIntelligence", "semiconductors", "cybersecurity", "cloudComputing",
+  "robotics", "cleanEnergy", "fintech", "spaceAndDefense",
+] as const;
+export type ThemeId = (typeof themeIds)[number];
+export const interestIds = [...sectorIds, ...themeIds] as const;
+export type InterestId = (typeof interestIds)[number];
+
+export const sectorThemes: Partial<Record<SectorId, readonly ThemeId[]>> = {
+  informationTechnology: ["artificialIntelligence", "semiconductors", "cloudComputing", "cybersecurity", "robotics"],
+  energy: ["cleanEnergy"],
+  financials: ["fintech"],
+  industrials: ["spaceAndDefense"],
+};
+
+export function interestLabelKey(interest: InterestId | null) {
+  if (!interest) return "marketForYou.match";
+  return (themeIds as readonly string[]).includes(interest)
+    ? `preferences.themes.${interest as ThemeId}` as const
+    : `preferences.sectors.${interest as SectorId}` as const;
+}
+
 export interface Preferences {
-  sectors: SectorId[];
+  // Retain the API field name for existing account preferences.
+  sectors: InterestId[];
   morningBrief: boolean;
   breakingNews: boolean;
   briefTime: string;
@@ -27,6 +50,7 @@ export interface Preferences {
 interface PreferencesResponse {
   preferences: Preferences | null;
   emailEligible: boolean;
+  supportedInterests?: InterestId[];
 }
 
 export function defaultPreferences(): Preferences {

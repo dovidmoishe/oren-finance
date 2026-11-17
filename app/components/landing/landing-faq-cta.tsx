@@ -1,7 +1,9 @@
 "use client";
-import { ArrowRight02Icon, ArrowDown01Icon, ArrowUpRight01Icon } from '@hugeicons/core-free-icons';
-import { HugeiconsIcon } from '@hugeicons/react';
-
+import {
+  ArrowRight as ArrowRightIcon,
+  ChevronDown as ChevronDownIcon,
+  ArrowUpRight as ArrowUpRightIcon,
+} from "lucide-react";
 
 import Link from "next/link";
 import { useId, useRef, useState } from "react";
@@ -19,7 +21,7 @@ const questions = [
 ];
 
 function Arrow() {
-  return <HugeiconsIcon icon={ArrowRight02Icon} size={16} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className="inline-block shrink-0 align-middle" />;
+  return <ArrowRightIcon size={16} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className="inline-block shrink-0 align-middle" />;
 }
 
 export function LandingFaqCta() {
@@ -43,7 +45,7 @@ export function LandingFaqCta() {
             <h3>
               <button type="button" id={questionId} className="landing-faq-cta-question" aria-expanded={expanded} aria-controls={answerId} onClick={() => setOpen(current => current === index ? null : index)}>
                 <span>{item.question}</span>
-                <span className="accordion-chevron landing-faq-cta-chevron" aria-hidden="true"><HugeiconsIcon icon={ArrowDown01Icon} size={16} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className="inline-block shrink-0 align-middle" /></span>
+                <span className="accordion-chevron landing-faq-cta-chevron" aria-hidden="true"><ChevronDownIcon size={16} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className="inline-block shrink-0 align-middle" /></span>
               </button>
             </h3>
             <div id={answerId} className="accordion-panel" role="region" aria-labelledby={questionId} aria-hidden={!expanded} inert={!expanded}>
@@ -62,7 +64,7 @@ export function LandingFaqCta() {
           <p className="max-w-[295px] mt-[18px] text-[#85796a] text-[13px] leading-[1.8] text-pretty at-most-700:text-[12px] at-most-700:max-w-[270px]">Research a stock, build a mix, and review your next trade with Oren.</p>
           <div className="flex items-center flex-wrap gap-[21px] mt-[23px] at-most-1023:gap-[16px] at-most-700:gap-[17px]">
             <ButtonLink href="/app" id="closing-launch-cta" variant="primary" className="h-11 rounded-full px-5 text-[13px] font-medium">Launch Oren <Arrow /></ButtonLink>
-            <Link href="/app/markets" className="landing-faq-cta-market-link">Explore markets <span aria-hidden="true"><HugeiconsIcon icon={ArrowUpRight01Icon} size={16} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className="inline-block shrink-0 align-middle" /></span></Link>
+            <Link href="/app/markets" className="landing-faq-cta-market-link">Explore markets <span aria-hidden="true"><ArrowUpRightIcon size={16} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className="inline-block shrink-0 align-middle" /></span></Link>
           </div>
         </div>
         <div className="relative grid place-items-center h-[280px] at-most-700:h-[210px]" aria-hidden="true">

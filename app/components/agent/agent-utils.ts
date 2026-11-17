@@ -1,20 +1,34 @@
 import type { MessageKey, MessageValues } from '@/i18n/i18n';
 import type { AgentPageContext } from '@/types';
+import type { StockSummary } from '@/types/stock';
 
-export function pageContext(pathname: string): AgentPageContext {
-  const terminalPath = pathname.startsWith('/app') ? pathname.slice(4) || '/' : pathname;
-  if (terminalPath.startsWith('/stocks/')) {
-    return { page: 'stock', assetId: decodeURIComponent(terminalPath.split('/')[2] ?? '') };
+export function pageContext(pathname: string): AgentPageContext | undefined {
+  const terminalPath = pathname === '/app' || pathname.startsWith('/app/') ? pathname.slice(4) || '/' : pathname;
+  const stock = /^\/stocks\/([^/]+)\/?$/.exec(terminalPath);
+  if (stock) {
+    try {
+      return { page: 'stock', assetId: decodeURIComponent(stock[1]) };
+    } catch {
+      return undefined;
+    }
   }
-  if (terminalPath.startsWith('/calendar')) return { page: 'calendar' };
-  if (terminalPath.startsWith('/leaderboard')) return { page: 'leaderboard' };
-  if (terminalPath.startsWith('/markets')) return { page: 'markets' };
-  if (terminalPath.startsWith('/vault')) return { page: 'vault' };
-  if (terminalPath.startsWith('/activity')) return { page: 'activity' };
-  return { page: 'dashboard' };
+  if (terminalPath === '/calendar') return { page: 'calendar' };
+  if (terminalPath === '/leaderboard' || terminalPath.startsWith('/leaderboard/')) return { page: 'leaderboard' };
+  if (terminalPath === '/markets') return { page: 'markets' };
+  if (terminalPath === '/vault') return { page: 'vault' };
+  if (terminalPath === '/activity') return { page: 'activity' };
+  if (['/', '/portfolio', '/overview'].includes(terminalPath)) return { page: 'dashboard' };
+  // Settings and other non-investing pages have no supported API page context.
+  return undefined;
 }
 
-export function promptSuggestions(context: AgentPageContext, ticker?: string): string[] {
+/** The stock store can still contain the previous route while a new one loads. */
+export function contextTicker(context: AgentPageContext | undefined, stock?: Pick<StockSummary, 'assetId' | 'ticker'>): string | undefined {
+  return context?.page === 'stock' && stock && stock.assetId === context.assetId ? stock.ticker : undefined;
+}
+
+export function promptSuggestions(context?: AgentPageContext, ticker?: string): string[] {
+  if (!context) return ['What can Oren help me with?', 'Explain how trade approvals work', 'Help me understand portfolio risk'];
   switch (context.page) {
     case 'stock':
       return [
@@ -63,7 +77,8 @@ export function promptSuggestions(context: AgentPageContext, ticker?: string): s
 }
 
 /** Translation key (and values) naming the page Oren is looking at. */
-export function contextLabelKey(context: AgentPageContext, ticker?: string): [MessageKey, MessageValues?] {
+export function contextLabelKey(context?: AgentPageContext, ticker?: string): [MessageKey, MessageValues?] {
+  if (!context) return ['agent.contextGeneral'];
   switch (context.page) {
     case 'stock':
       return ticker ? ['agent.contextStock', { ticker }] : ['agent.contextStockGeneric'];

@@ -1,11 +1,19 @@
 {
+  "settings": {
+    "intro": "Sua conta, preferências e agentes conectados em um só lugar.",
+    "account": "Conta",
+    "accountDetail": "Gerencie seus dados de acesso, carteira e idioma.",
+    "walletPending": "Nenhuma carteira ativa",
+    "signInDetail": "Entre para gerenciar sua conta."
+  },
   "marketForYou": {
     "title": "Para você",
-    "chooseDetail": "Escolha setores para ver ações que combinam com seus interesses.",
-    "choose": "Escolher setores",
-    "empty": "Ainda não há ações nos setores selecionados.",
-    "edit": "Editar setores",
-    "error": "Não foi possível carregar suas sugestões."
+    "chooseDetail": "Siga setores e temas para descobrir ações que combinam com seus interesses.",
+    "choose": "Escolher interesses",
+    "empty": "Nenhuma ação corresponde aos seus interesses ainda.",
+    "edit": "Editar interesses",
+    "error": "Não foi possível carregar suas sugestões.",
+    "match": "Combina com seus interesses"
   },
   "priceAlerts": {
     "title": "Alertas de preço",
@@ -26,7 +34,7 @@
   "preferences": {
     "title": "Preferências",
     "followTitle": "Quais setores você acompanha?",
-    "followDetail": "Escolha setores para personalizar suas recomendações de mercado.",
+    "followDetail": "Escolha setores e temas para personalizar suas recomendações de mercado.",
     "emailTitle": "Quais e-mails você quer receber?",
     "morningBrief": "Resumo da manhã",
     "morningBriefDetail": "Uma visão diária da sua carteira e das notícias relevantes para você.",
@@ -60,6 +68,20 @@
       "materials": "Materiais",
       "realEstate": "Imobiliário",
       "utilities": "Serviços de utilidade pública"
+    },
+    "structureDetail": "Siga um setor ou use a seta para explorar temas relacionados.",
+    "relatedThemes": "Temas relacionados",
+    "themesSoon": "As preferências de temas chegarão em breve. Você já pode seguir setores.",
+    "selectedCount": "{count} selecionados",
+    "themes": {
+      "artificialIntelligence": "Inteligência artificial",
+      "semiconductors": "Semicondutores",
+      "cybersecurity": "Cibersegurança",
+      "cloudComputing": "Computação em nuvem",
+      "robotics": "Robótica e automação",
+      "cleanEnergy": "Energia limpa",
+      "fintech": "Fintech",
+      "spaceAndDefense": "Espaço e defesa"
     }
   },
   "language": {
@@ -67,6 +89,14 @@
     "title": "Idioma"
   },
   "nav": {
+    "portfolio": "Portfólio",
+    "markets": "Mercados",
+    "settings": "Configurações",
+    "navigation": "Navegação",
+    "skipToContent": "Ir para o conteúdo",
+    "expandSidebar": "Expandir barra lateral",
+    "collapseSidebar": "Recolher barra lateral",
+    "search": "Buscar",
     "dashboard": "Painel",
     "market": "Mercado",
     "leaderboard": "Ranking",
@@ -146,6 +176,18 @@
     "empty": "Nenhuma ação ainda."
   },
   "portfolio": {
+    "totalValue": "Valor total",
+    "assetCount": "{count, plural, one {# ativo} other {# ativos}}",
+    "allocation": "Alocação de ativos",
+    "otherAssets": "Outros ativos",
+    "hideBalances": "Ocultar saldos",
+    "showBalances": "Mostrar saldos",
+    "valueHistory": "Histórico de valor",
+    "snapshotChange": "Desde o último registro",
+    "recentActivity": "Atividade recente",
+    "colDate": "Data",
+    "col24h": "Variação em 24 h",
+    "positionDetails": "Detalhes",
     "logoAlt": "Logo de {name}",
     "thisWeek": "Esta semana",
     "roiTitle": "Retorno sobre investimento",
@@ -927,6 +969,9 @@
     "review": "Revisar permissão"
   },
   "agent": {
+    "contextGeneral": "Conversa geral",
+    "generalContextBody": "Novas mensagens não incluem a página que você está vendo. As mensagens anteriores continuam nesta conversa.",
+    "resize": "Redimensionar o chat do Oren",
     "ask": "Pergunte à Oren",
     "proposes": "A Oren propõe. Sua wallet aprova.",
     "stop": "Parar resposta",
@@ -1020,5 +1065,12 @@
     "intro": "Memória de desempenho baseada em snapshots da sua carteira observada pela Oren.",
     "refresh": "Atualizar",
     "closeValue": "{value} fechamento"
+  },
+  "theme": {
+    "change": "Alterar tema",
+    "title": "Tema",
+    "system": "Sistema",
+    "light": "Claro",
+    "dark": "Escuro"
   }
 }

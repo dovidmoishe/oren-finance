@@ -1,7 +1,12 @@
 "use client";
-import { Cursor01Icon, Search01Icon, ArrowUpRight01Icon, ArrowRight02Icon, Tick02Icon, ArrowUp02Icon } from '@hugeicons/core-free-icons';
-import { HugeiconsIcon } from '@hugeicons/react';
-
+import {
+  MousePointer2 as MousePointer2Icon,
+  Search as SearchIcon,
+  ArrowUpRight as ArrowUpRightIcon,
+  ArrowRight as ArrowRightIcon,
+  Check as CheckIcon,
+  ArrowUp as ArrowUpIcon,
+} from "lucide-react";
 
 import { useEffect, useId, useRef, useState } from "react";
 import Image from "next/image";
@@ -44,7 +49,7 @@ function StockMark({ stock }: { stock: typeof stocks[number] }) {
 }
 
 function DemoCursor({ clicking }: { clicking: boolean }) {
-  return <span aria-hidden className="walkthrough-cursor" data-clicking={clicking}><HugeiconsIcon icon={Cursor01Icon} size={23} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className="inline-block shrink-0 align-middle" /></span>;
+  return <span aria-hidden className="walkthrough-cursor" data-clicking={clicking}><MousePointer2Icon size={23} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className="inline-block shrink-0 align-middle" /></span>;
 }
 
 function PriceChart({ progress }: { progress: number }) {
@@ -125,7 +130,7 @@ export function ProductWalkthrough() {
           <div className="walkthrough-market-area">
             {step === 0 ? (
               <div className="walkthrough-scene" key="markets">
-                <div className="walkthrough-section-heading"><div><span className={walkthroughMutedClass}>Explore</span><h3>Market</h3></div><span className="walkthrough-search"><HugeiconsIcon icon={Search01Icon} size={16} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className="inline-block shrink-0 align-middle" /> <span>Search stocks</span></span></div>
+                <div className="walkthrough-section-heading"><div><span className={walkthroughMutedClass}>Explore</span><h3>Market</h3></div><span className="walkthrough-search"><SearchIcon size={16} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className="inline-block shrink-0 align-middle" /> <span>Search stocks</span></span></div>
                 <div className="walkthrough-highlights">
                   <div><span>Trending</span><strong><Image alt="NVIDIA logo" src={stockLogos.NVDA} width={24} height={24} className="rounded-full" />NVDA</strong><small>NVIDIA <b>+3.28%</b></small></div>
                   <div><span>Oren Opportunity</span><strong><Image alt="Microsoft logo" src={stockLogos.MSFT} width={24} height={24} className="rounded-full" />MSFT</strong><small>Microsoft <b>82 / 100</b></small></div>
@@ -138,7 +143,7 @@ export function ProductWalkthrough() {
                     {i === 0 && running && local > 2800 && <DemoCursor clicking={local > 5000} />}
                   </button>
                 ))}
-                <span className="flex justify-between [margin:18px_10px_0] text-[11px] text-[#8b8982]">Select NVIDIA to explore it <span aria-hidden><HugeiconsIcon icon={ArrowUpRight01Icon} size={16} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className="inline-block shrink-0 align-middle" /></span></span>
+                <span className="flex justify-between [margin:18px_10px_0] text-[11px] text-[#8b8982]">Select NVIDIA to explore it <span aria-hidden><ArrowUpRightIcon size={16} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className="inline-block shrink-0 align-middle" /></span></span>
               </div>
             ) : (
               <div className="walkthrough-scene" key="stock">
@@ -152,29 +157,29 @@ export function ProductWalkthrough() {
             )}
           </div>
           <aside className="walkthrough-agent-area">
-            <div className="walkthrough-agent-header"><OrenLogo size={26} className="h-[26px] w-[26px]" state={running && step === 2 && local < 2200 ? "thinking" : "idle"} /><strong>{step === 3 ? "Trade review" : "Oren Agent"}</strong><span><HugeiconsIcon icon={ArrowUpRight01Icon} size={16} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className="inline-block shrink-0 align-middle" /></span></div>
+            <div className="walkthrough-agent-header"><OrenLogo size={26} className="h-[26px] w-[26px]" state={running && step === 2 && local < 2200 ? "thinking" : "idle"} /><strong>{step === 3 ? "Trade review" : "Oren Agent"}</strong><span><ArrowUpRightIcon size={16} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className="inline-block shrink-0 align-middle" /></span></div>
             {step < 2 ? (
               <div className="walkthrough-agent-welcome walkthrough-scene" key="welcome">
                 <OrenLogo size={48} className="h-12 w-12" /><h4>What&apos;s on your mind?</h4><p>Ask about a stock or your portfolio.</p>
-                <button className="walkthrough-action-target" onClick={() => selectStep(2)}>What&apos;s happening with NVIDIA? <span><HugeiconsIcon icon={ArrowUpRight01Icon} size={16} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className="inline-block shrink-0 align-middle" /></span>{step === 1 && running && local > 2800 && <DemoCursor clicking={local > 5000} />}</button>
+                <button className="walkthrough-action-target" onClick={() => selectStep(2)}>What&apos;s happening with NVIDIA? <span><ArrowUpRightIcon size={16} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className="inline-block shrink-0 align-middle" /></span>{step === 1 && running && local > 2800 && <DemoCursor clicking={local > 5000} />}</button>
               </div>
             ) : step === 2 ? (
               <div className="walkthrough-conversation walkthrough-scene" key="conversation">
                 <p className="bg-[#eeece6] [border-radius:12px_12px_3px_12px] ml-[15px] p-[12px] text-[12px] leading-[1.6]">What&apos;s happening with NVIDIA?</p>
                 <div className="walkthrough-answer"><span className="text-[#878173] text-[10px]">Oren</span><p>{"NVIDIA is up 3.28% today. Momentum is positive, with moderate volatility over the past month.".slice(0, Math.floor(local / 20) + 1)}</p></div>
                 {local > 2300 && <div className="walkthrough-insight-card walkthrough-scene"><span>Portfolio context</span><p>NVIDIA is 18% of your holdings.</p><small>A $100 buy would bring it to 20%.</small></div>}
-                {local > 3600 && <button className="walkthrough-primary-button walkthrough-action-target" onClick={() => selectStep(3)}>Review a $100 buy <span><HugeiconsIcon icon={ArrowRight02Icon} size={16} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className="inline-block shrink-0 align-middle" /></span>{running && local > 4200 && <DemoCursor clicking={local > 5400} />}</button>}
+                {local > 3600 && <button className="walkthrough-primary-button walkthrough-action-target" onClick={() => selectStep(3)}>Review a $100 buy <span><ArrowRightIcon size={16} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className="inline-block shrink-0 align-middle" /></span>{running && local > 4200 && <DemoCursor clicking={local > 5400} />}</button>}
               </div>
             ) : (
               <div className="walkthrough-review walkthrough-scene" key="review">
                 <span className="flex items-center gap-[7px] text-[11px] text-[#918b80]"><Image alt="NVIDIA logo" src={stockLogos.NVDA} width={22} height={22} className="rounded-full" />Buy NVIDIA</span><strong className="walkthrough-trade-amount">$100<span>USDC</span></strong>
                 <dl><div><dt>You receive</dt><dd>≈ 0.5364 NVDA</dd></div><div><dt>Price</dt><dd>$186.42</dd></div><div><dt>Network</dt><dd>Solana</dd></div><div><dt>Estimated fee</dt><dd>$0.01</dd></div></dl>
-                <div className="walkthrough-review-notice"><span aria-hidden><HugeiconsIcon icon={Tick02Icon} size={16} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className="inline-block shrink-0 align-middle" /></span> You review every trade before it moves.</div>
-                <div className="flex justify-between [padding:12px_14px] rounded-[9px] bg-[#252521] text-white text-[11px]">Approve trade <span aria-hidden><HugeiconsIcon icon={ArrowRight02Icon} size={16} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className="inline-block shrink-0 align-middle" /></span></div>
+                <div className="walkthrough-review-notice"><span aria-hidden><CheckIcon size={16} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className="inline-block shrink-0 align-middle" /></span> You review every trade before it moves.</div>
+                <div className="flex justify-between [padding:12px_14px] rounded-[9px] bg-[#252521] text-white text-[11px]">Approve trade <span aria-hidden><ArrowRightIcon size={16} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className="inline-block shrink-0 align-middle" /></span></div>
                 <p className="text-[9px] text-[#999185] mt-[12px] text-center">Sample trade · No funds will move</p>
               </div>
             )}
-            {step < 3 && <div className="walkthrough-composer"><span>Ask Oren…</span><button aria-label="Show the Ask Oren demo step" onClick={() => selectStep(2)}><HugeiconsIcon icon={ArrowUp02Icon} size={16} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className="inline-block shrink-0 align-middle" /></button></div>}
+            {step < 3 && <div className="walkthrough-composer"><span>Ask Oren…</span><button aria-label="Show the Ask Oren demo step" onClick={() => selectStep(2)}><ArrowUpIcon size={16} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className="inline-block shrink-0 align-middle" /></button></div>}
           </aside>
         </div>
       </div></div>

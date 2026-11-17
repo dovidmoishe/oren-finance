@@ -30,9 +30,9 @@ export function LimitOrderToggle({ limit, limitFieldsId, onLimitChange }: {
       <input aria-controls={limitFieldsId} checked={limit} className="peer sr-only" onChange={(event) => onLimitChange(event.target.checked)} role="switch" type="checkbox" />
       <span
         aria-hidden
-        className="inline-flex h-[24px] w-[42px] rounded-full bg-border-strong p-[3px] transition-[background-color] duration-150 ease-[ease] peer-checked:bg-foreground peer-checked:[&>span]:translate-x-[18px] peer-focus-visible:outline-2 peer-focus-visible:outline-offset-[3px] peer-focus-visible:outline-foreground motion-reduce:transition-none"
+        className="inline-flex h-[24px] w-[42px] rounded-full bg-control-track p-[3px] transition-[background-color] duration-150 ease-[ease] peer-checked:bg-primary peer-checked:[&>span]:translate-x-[18px] peer-checked:[&>span]:bg-primary-foreground peer-focus-visible:outline-2 peer-focus-visible:outline-offset-[3px] peer-focus-visible:outline-focus motion-reduce:transition-none"
       >
-        <span className="size-[18px] rounded-full bg-white shadow-[0_1px_3px_rgb(0_0_0/.15)] transition-[translate] duration-[350ms] ease-[cubic-bezier(0.34,1.35,0.64,1)] motion-reduce:transition-none" />
+        <span className="size-[18px] rounded-full bg-control-thumb shadow-[0_1px_3px_rgb(0_0_0/.15)] transition-[translate] duration-[350ms] ease-[cubic-bezier(0.34,1.35,0.64,1)] motion-reduce:transition-none" />
       </span>
     </label>;
 }

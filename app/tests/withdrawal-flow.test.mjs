@@ -36,8 +36,8 @@ function fixture() {
     require(id) {
       if (id === 'react') return react;
       if (id === 'react/jsx-runtime') return { jsx, jsxs: jsx, Fragment: 'fragment' };
-      if (id === '@hugeicons/core-free-icons') return {};
-      if (id === '@hugeicons/react') return {};
+      if (id === 'lucide-react') return new Proxy({}, { get: () => () => null });
+      if (id === '@/components/ui/interface-icon') return {};
       if (id === '@/components/auth/auth-context') return { useOrenAuth: () => auth };
       if (id === '@/components/ui') return { Button: 'button' };
     if (id === '@/i18n/i18n') return englishI18n;

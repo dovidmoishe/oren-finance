@@ -32,8 +32,8 @@ function loadComponent(file) {
     if (id === './agent-markdown') return loadLocal('../components/agent/agent-markdown.ts');
     if (id === '@/components/ui') return { cn: (...values) => values.filter(Boolean).join(' ') };
     if (id === '@/components/auth/auth-context') return {};
-    if (id === '@hugeicons/core-free-icons') return {};
-    if (id === '@hugeicons/react') return { HugeiconsIcon: () => null };
+    if (id === 'lucide-react') return new Proxy({}, { get: () => () => null });
+    if (id === '@/components/ui/interface-icon') return { InterfaceIcon: () => null };
     if (id === 'react/jsx-runtime') return require('react/jsx-runtime');
     return require(id);
   } });
