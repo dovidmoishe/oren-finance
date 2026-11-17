@@ -111,7 +111,7 @@ function ConnectionsContent({ connectionUid }: { connectionUid?: string }) {
               <p className="mt-1 text-sm text-muted">{email ? t("connections.connectionsFor", { email }) : t("connections.appsWithAccess")} {t("connections.revokeAnytime")}</p>
             </div>
             {!apiOrigin ? <p className="p-6 text-sm text-muted" role="status">{t("connections.unavailable")}</p> : result.loading ? <p className="p-6 text-sm text-muted" role="status">{t("connections.loading")}</p> : result.error ? (
-              <div className="p-6"><p className="text-sm text-red-700" role="alert">{result.error}</p><Button className="mt-4" size="sm" onClick={() => { setResult({ connections: [], loading: true }); setAttempt(current => current + 1); }}>{t("connections.tryAgain")}</Button></div>
+              <div className="p-6"><p className="text-sm text-error" role="alert">{result.error}</p><Button className="mt-4" size="sm" onClick={() => { setResult({ connections: [], loading: true }); setAttempt(current => current + 1); }}>{t("connections.tryAgain")}</Button></div>
             ) : result.connections.length === 0 ? (
               <div className="px-6 py-10 text-center sm:py-14">
                 <span className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-background text-muted"><LinkIcon size={24} aria-hidden="true" /></span>
@@ -124,7 +124,7 @@ function ConnectionsContent({ connectionUid }: { connectionUid?: string }) {
                 {result.connections.map((connection, index) => (
                   <li key={connection.grantId} className="p-5 sm:p-6">
                     <div className="flex flex-wrap items-start justify-between gap-4">
-                      <div className="flex min-w-0 items-center gap-3"><span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-border bg-white"><AgentClientLogo kind={connection.clientKind} size={24} /></span><div className="min-w-0"><h3 className="font-semibold">{agentClient(connection.clientKind)?.name ?? t("connections.connectionN", { n: index + 1 })}</h3><p className="mt-1 text-xs text-muted">{t("connections.connectedOn", { date: formatDate(connection.createdAt, locale, timeZone, t("common.notUpdated")) })}</p></div></div>
+                      <div className="flex min-w-0 items-center gap-3"><span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-border bg-asset-surface text-asset-foreground"><AgentClientLogo kind={connection.clientKind} size={24} /></span><div className="min-w-0"><h3 className="font-semibold">{agentClient(connection.clientKind)?.name ?? t("connections.connectionN", { n: index + 1 })}</h3><p className="mt-1 text-xs text-muted">{t("connections.connectedOn", { date: formatDate(connection.createdAt, locale, timeZone, t("common.notUpdated")) })}</p></div></div>
                       <span className="rounded-full border border-border bg-background px-3 py-1 text-xs font-medium">{t(ACCESS_LABEL[accessLevel(connection.scopes)])}</span>
                     </div>
                     {connection.nativeClient && <p className="mt-3 text-xs text-muted">{t("connections.localNote")}</p>}
@@ -138,7 +138,7 @@ function ConnectionsContent({ connectionUid }: { connectionUid?: string }) {
               </ul>
             )}
           </section>
-          {revokeError && <p className="mt-4 text-sm text-red-700" role="alert">{revokeError}</p>}
+          {revokeError && <p className="mt-4 text-sm text-error" role="alert">{revokeError}</p>}
           {notice && <p className="mt-4 text-sm" role="status">{notice}</p>}
           <p className="mt-5 flex items-start gap-2 px-1 text-xs leading-relaxed text-muted"><ShieldIcon className="mt-0.5 shrink-0" size={15} aria-hidden="true" />{t("connections.separateNote")}</p>
         </>

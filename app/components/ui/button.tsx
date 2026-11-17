@@ -28,13 +28,13 @@ const baseClasses =
   "group relative inline-flex items-center justify-center overflow-hidden rounded-[12px] font-semibold in-[.oren-app]:rounded-lg in-[.oren-app]:font-medium in-[.oren-app]:shadow-none transition-[background-color,color,box-shadow,transform] duration-200 ease-out focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus disabled:pointer-events-none disabled:opacity-60";
 
 const variantClasses: Record<ButtonVariant, string> = {
-  white: "border border-border bg-white text-foreground shadow-sm hover:border-border-strong hover:bg-panel-subtle",
-  black: "bg-foreground text-white shadow-[0_10px_24px_rgba(23,23,23,0.12)] hover:bg-black/85",
-  blue: "bg-sky-600 text-white shadow-[0_10px_24px_rgba(2,132,199,0.24)] hover:bg-sky-700",
-  primary: "bg-foreground text-white shadow-[0_10px_24px_rgba(23,23,23,0.12)] hover:bg-black/85",
+  white: "border border-border bg-panel text-foreground shadow-sm hover:border-border-strong hover:bg-panel-subtle",
+  black: "bg-primary text-primary-foreground shadow-[0_10px_24px_rgba(23,23,23,0.12)] hover:bg-primary-hover",
+  blue: "bg-info-action text-info-action-foreground shadow-[0_10px_24px_rgba(2,132,199,0.24)] hover:bg-info-action-hover",
+  primary: "bg-primary text-primary-foreground shadow-[0_10px_24px_rgba(23,23,23,0.12)] hover:bg-primary-hover",
   secondary: "border border-border bg-panel text-foreground shadow-sm hover:border-border-strong hover:bg-panel-subtle",
   ghost: "text-muted hover:bg-panel-subtle hover:text-foreground",
-  danger: "bg-negative text-white shadow-sm hover:bg-red-500",
+  danger: "bg-danger text-danger-foreground shadow-sm hover:bg-danger-hover",
 };
 
 const sheenClasses: Record<ButtonVariant, string> = {

@@ -21,7 +21,7 @@ export function Modal({ open, title, children, onClose, side = "center" }: Modal
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex bg-black/25 p-4 backdrop-blur-sm">
+    <div className="fixed inset-0 z-50 flex bg-scrim/25 p-4 backdrop-blur-sm">
       <div
         className={cn(
           "relative max-h-full overflow-auto rounded-lg border border-border bg-panel shadow-xl",

@@ -1065,5 +1065,12 @@
     "intro": "Catatan kinerja berbasis snapshot untuk portofolio yang diamati Oren.",
     "refresh": "Muat ulang",
     "closeValue": "{value} penutupan"
+  },
+  "theme": {
+    "change": "Ubah tema",
+    "title": "Tema",
+    "system": "Sistem",
+    "light": "Terang",
+    "dark": "Gelap"
   }
 }

@@ -253,6 +253,6 @@ function WithdrawalForm({ wallet }: { wallet: string }) {
         </> : <Button className="w-full" onClick={() => { requestId.current = undefined; setApproval(undefined); setAmount(''); setChecked(false); setError(undefined); setStage('edit'); }}>{t("transfer.newTransfer")}</Button>}
       </>}
     </div> : null}
-    {errorText ? <p role="alert" className="mt-4 text-sm leading-6 text-red-700">{errorText}</p> : null}
+    {errorText ? <p role="alert" className="mt-4 text-sm leading-6 text-error">{errorText}</p> : null}
   </div>;
 }

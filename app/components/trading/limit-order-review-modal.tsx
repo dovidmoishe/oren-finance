@@ -90,7 +90,7 @@ export function LimitOrderReviewModal({
           {error ? <Toast title={t("review.limitError")} description={error} tone="error" /> : null}
 
           {confirmation ? (
-            <div className="rounded-[18px] border border-green-200 bg-green-50 p-4 text-sm text-green-900">
+            <div className="rounded-[18px] border border-success-border bg-success-surface p-4 text-sm text-success">
               <div className="flex items-start gap-3">
                 <CircleCheckIcon className="mt-0.5 shrink-0" color="currentColor" size={16} strokeWidth={1.8} />
                 <div>

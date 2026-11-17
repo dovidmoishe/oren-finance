@@ -42,11 +42,11 @@ const statusIcon: Record<BasketLegStatus, LucideIcon> = {
 
 const statusTone: Record<BasketLegStatus, string> = {
   waiting: "border-border bg-panel-subtle text-muted",
-  quoting: "border-yellow-200 bg-yellow-50 text-yellow-900",
-  awaiting_signature: "border-yellow-200 bg-yellow-50 text-yellow-900",
-  submitted: "border-yellow-200 bg-yellow-50 text-yellow-900",
-  confirmed: "border-green-200 bg-green-50 text-green-900",
-  failed: "border-red-200 bg-red-50 text-red-900",
+  quoting: "border-warning-border bg-warning-surface text-warning",
+  awaiting_signature: "border-warning-border bg-warning-surface text-warning",
+  submitted: "border-warning-border bg-warning-surface text-warning",
+  confirmed: "border-success-border bg-success-surface text-success",
+  failed: "border-error-border bg-error-surface text-error",
   skipped: "border-border bg-panel-subtle text-muted",
 };
 
@@ -117,7 +117,7 @@ export function BasketReview({ basket, progress }: BasketReviewProps) {
                 </div>
 
                 {allocation.rationale ? <p className="mt-3 text-sm leading-6 text-muted">{allocation.rationale}</p> : null}
-                {leg?.error ? <p className="mt-3 rounded-[12px] bg-red-50 p-3 text-xs leading-5 text-red-900">{leg.error}</p> : null}
+                {leg?.error ? <p className="mt-3 rounded-[12px] bg-error-surface p-3 text-xs leading-5 text-error">{leg.error}</p> : null}
               </article>
             );
           })}

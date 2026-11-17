@@ -92,12 +92,12 @@ export function VaultReviewModal({
           </div>
 
           {!programLive ? (
-            <div className="rounded-[18px] border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
+            <div className="rounded-[18px] border border-warning-border bg-warning-surface p-4 text-sm text-warning">
               <div className="flex gap-3">
                 <VaultIcon className="mt-0.5 shrink-0" color="currentColor" size={16} strokeWidth={1.8} />
                 <div>
                   <p className="font-semibold">{t("vaultReview.offlineTitle")}</p>
-                  <p className="mt-1 text-amber-900/80">
+                  <p className="mt-1 text-warning/80">
                     {t("vaultReview.offlineBody")}
                   </p>
                 </div>

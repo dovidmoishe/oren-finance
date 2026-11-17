@@ -1065,5 +1065,12 @@
     "intro": "Performance aus Momentaufnahmen für dein von Oren beobachtetes Portfolio.",
     "refresh": "Aktualisieren",
     "closeValue": "{value} Schluss"
+  },
+  "theme": {
+    "change": "Design ändern",
+    "title": "Design",
+    "system": "System",
+    "light": "Hell",
+    "dark": "Dunkel"
   }
 }

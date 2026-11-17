@@ -6,7 +6,7 @@ import {
 import { useT } from "@/i18n/i18n";
 
 const linkClass =
-  "text-sky-700 underline-offset-2 hover:underline focus-visible:underline focus-visible:outline-none";
+  "text-link underline-offset-2 hover:underline focus-visible:underline focus-visible:outline-none";
 
 export function AgentMessageBody({ content }: { content: string }) {
   const t = useT();

@@ -15,6 +15,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useId, useRef, useState, type CSSProperties } from "react";
 import { useOrenAuth } from "@/components/auth/auth-context";
 import { OrenLogo } from "@/components/brand/oren-logo";
+import { ThemeMenu } from "@/components/theme/theme-menu";
 import { LanguageMenu } from "@/components/language/language-menu";
 import { PendingApprovalNotice } from "@/components/trading/pending-approval-notice";
 import { cn } from "@/components/ui";
@@ -176,6 +177,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             : <span className="min-w-0 flex-1 truncate font-display text-[1.125rem] font-medium tracking-[-0.025em]">{title}</span>}
           <div aria-label={t("nav.yourAccount")} className="flex min-w-0 items-center gap-0.5 sm:gap-2">
             <button aria-haspopup="dialog" aria-label={t("markets.searchLabel")} className={cn(iconButton, "lg:hidden")} onClick={() => search.current?.showModal()} type="button"><Icon icon={SearchIcon} /></button>
+            <ThemeMenu />
             <LanguageMenu />
             <button
               aria-controls="oren-agent-panel"

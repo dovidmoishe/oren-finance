@@ -1065,5 +1065,12 @@
     "intro": "基于快照的业绩记录，对应你在 Oren 观察到的投资组合。",
     "refresh": "刷新",
     "closeValue": "{value} 收盘"
+  },
+  "theme": {
+    "change": "更改主题",
+    "title": "主题",
+    "system": "跟随系统",
+    "light": "浅色",
+    "dark": "深色"
   }
 }

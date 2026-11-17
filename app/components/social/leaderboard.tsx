@@ -45,7 +45,7 @@ function TraderAvatar({ row }: { row: LeaderboardRow }) {
   }
 
   return (
-    <div className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-foreground font-display text-sm font-semibold text-white">
+    <div className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-primary font-display text-sm font-semibold text-primary-foreground">
       {row.displayName.slice(0, 2).toUpperCase()}
     </div>
   );
@@ -156,8 +156,8 @@ function PublishProfilePanel({ onPublished }: { onPublished: () => void }) {
           />
         </label>
         <p className="text-xs text-muted">{t("leaderboard.publicUrl", { url: `/leaderboard/${normalizedSlug || "trader"}` })}</p>
-        {error ? <p className="rounded-[12px] bg-red-50 p-3 text-xs text-red-900">{error}</p> : null}
-        {status ? <p className="rounded-[12px] bg-green-50 p-3 text-xs text-green-900">{status}</p> : null}
+        {error ? <p className="rounded-[12px] bg-error-surface p-3 text-xs text-error">{error}</p> : null}
+        {status ? <p className="rounded-[12px] bg-success-surface p-3 text-xs text-success">{status}</p> : null}
         <Button className="w-full" disabled={isSubmitting || !connected} onClick={handlePublish} variant="primary">
           {isSubmitting ? t("leaderboard.signing") : t("leaderboard.publish")}
         </Button>
@@ -253,7 +253,7 @@ export function Leaderboard() {
           <Card>
             <CardContent>
               <div className="flex items-center gap-3">
-                <div className="grid h-11 w-11 place-items-center rounded-full bg-foreground text-white">
+                <div className="grid h-11 w-11 place-items-center rounded-full bg-primary text-primary-foreground">
                   <UsersIcon color="currentColor" size={20} strokeWidth={1.8} />
                 </div>
                 <div>

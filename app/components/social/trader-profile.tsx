@@ -48,7 +48,7 @@ function TraderAvatar({ name, avatarUrl }: { name: string; avatarUrl?: string })
   }
 
   return (
-    <div className="grid h-14 w-14 shrink-0 place-items-center rounded-full bg-foreground font-display text-lg font-semibold text-white">
+    <div className="grid h-14 w-14 shrink-0 place-items-center rounded-full bg-primary font-display text-lg font-semibold text-primary-foreground">
       {name.slice(0, 2).toUpperCase()}
     </div>
   );
@@ -139,7 +139,7 @@ function CopyPortfolioDrawer({ slug }: { slug: string }) {
             </Button>
           </div>
 
-          {copyError ? <p className="rounded-[12px] bg-red-50 p-3 text-xs text-red-900">{copyError}</p> : null}
+          {copyError ? <p className="rounded-[12px] bg-error-surface p-3 text-xs text-error">{copyError}</p> : null}
 
           {proposal ? (
             <>
@@ -156,7 +156,7 @@ function CopyPortfolioDrawer({ slug }: { slug: string }) {
                   </div>
                 </div>
               ) : null}
-              {executionError ? <p className="rounded-[12px] bg-red-50 p-3 text-xs text-red-900">{executionError}</p> : null}
+              {executionError ? <p className="rounded-[12px] bg-error-surface p-3 text-xs text-error">{executionError}</p> : null}
               <Button
                 className="w-full"
                 disabled={!financialExecutionEnabled || !wallet || executionLoading}

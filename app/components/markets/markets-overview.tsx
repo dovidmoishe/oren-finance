@@ -141,7 +141,7 @@ function StockRow({ stock }: { stock: StockSummary }) {
         </div>
       </div>
       <span className="text-end font-medium font-money tabular-nums">{stock.priceUsd === undefined ? "—" : formatCurrency(stock.priceUsd, locale)}</span>
-      <span className={cn("text-end font-medium font-money tabular-nums", change === undefined || change === 0 ? "text-muted" : change > 0 ? "text-[#16734a]" : "text-[#be3545]")}>
+      <span className={cn("text-end font-medium font-money tabular-nums", change === undefined || change === 0 ? "text-muted" : change > 0 ? "text-positive" : "text-negative")}>
         {change === undefined ? "—" : formatPercent(change, locale, change !== 0)}
       </span>
       <span className="hidden w-full max-w-28 justify-self-end @3xl:block"><Sparkline stock={stock} /></span>

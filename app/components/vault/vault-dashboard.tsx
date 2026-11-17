@@ -235,12 +235,12 @@ export function VaultDashboard() {
       </div>
 
       {!programLive ? (
-        <div className="rounded-[20px] border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
+        <div className="rounded-[20px] border border-warning-border bg-warning-surface p-4 text-sm text-warning">
           <div className="flex gap-3">
             <VaultIcon className="mt-0.5 shrink-0" color="currentColor" size={18} strokeWidth={1.8} />
             <div>
               <p className="font-semibold">{t("vault.offlineTitle")}</p>
-              <p className="mt-1 leading-6 text-amber-900/85">
+              <p className="mt-1 leading-6 text-warning/85">
                 {t("vault.offlineBody")}
               </p>
             </div>
@@ -257,7 +257,7 @@ export function VaultDashboard() {
       ) : null}
 
       {formError ? (
-        <div className="rounded-[18px] border border-red-200 bg-red-50 p-4 text-sm text-red-900">
+        <div className="rounded-[18px] border border-error-border bg-error-surface p-4 text-sm text-error">
           <div className="flex gap-3">
             <CircleAlertIcon className="mt-0.5 shrink-0" color="currentColor" size={16} strokeWidth={1.8} />
             <p>{formError}</p>
@@ -480,7 +480,7 @@ export function VaultDashboard() {
                           <span
                             className={cn(
                               "inline-flex rounded-full px-2.5 py-1 text-xs font-semibold",
-                              eligible ? "bg-green-100 text-green-900" : "bg-panel-subtle text-muted",
+                              eligible ? "bg-success-surface text-success" : "bg-panel-subtle text-muted",
                             )}
                           >
                             {eligible ? t("vault.eligible") : t("vault.locked")}

@@ -73,7 +73,7 @@ export function EmailLogin({ sendCode, loginWithCode }: Pick<UseLoginWithEmail, 
             aria-label={t("auth.emailLabel")}
             autoComplete="email"
             autoFocus
-            className="mt-2 w-full rounded-xl border border-border bg-white px-4 py-3 text-foreground"
+            className="mt-2 w-full rounded-xl border border-border bg-panel px-4 py-3 text-foreground"
             onChange={(event) => setEmail(event.target.value)}
             placeholder={t("auth.emailPlaceholder")}
             required
@@ -88,7 +88,7 @@ export function EmailLogin({ sendCode, loginWithCode }: Pick<UseLoginWithEmail, 
             aria-label={t("auth.codeLabel")}
             autoComplete="one-time-code"
             autoFocus
-            className="mt-2 w-full rounded-xl border border-border bg-white px-4 py-3 text-foreground"
+            className="mt-2 w-full rounded-xl border border-border bg-panel px-4 py-3 text-foreground"
             inputMode="numeric"
             onChange={(event) => setCode(event.target.value)}
             placeholder={t("auth.codePlaceholder")}
@@ -97,8 +97,8 @@ export function EmailLogin({ sendCode, loginWithCode }: Pick<UseLoginWithEmail, 
           />
         </label>
       )}
-      {error ? <p className="text-sm text-red-700" role="alert">{t(error)}</p> : null}
-      <button className="w-full rounded-xl bg-foreground px-4 py-3 text-sm font-medium text-white disabled:opacity-50" disabled={busy} type="submit">
+      {error ? <p className="text-sm text-error" role="alert">{t(error)}</p> : null}
+      <button className="w-full rounded-xl bg-primary px-4 py-3 text-sm font-medium text-primary-foreground disabled:opacity-50" disabled={busy} type="submit">
         {busy ? t("auth.waiting") : step === "email" ? t("auth.continue") : t("auth.verify")}
       </button>
       {step === "code" ? (

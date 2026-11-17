@@ -58,7 +58,7 @@ function TokenBadge({
     <div className="flex min-w-0 items-center gap-2">
       {logoUrl ? (
         // eslint-disable-next-line @next/next/no-img-element
-        <img alt={`${name} logo`} className="h-6 w-6 rounded-full border border-border bg-white object-contain p-0.5" src={logoUrl} />
+        <img alt={`${name} logo`} className="h-6 w-6 rounded-full border border-border bg-asset-surface object-contain p-0.5" src={logoUrl} />
       ) : (
         <div
           className={cn(
@@ -606,7 +606,7 @@ export function StockTradeTicket({ stock, limitZones, onConfirmed }: StockTradeT
           </div>
 
           {blockingError || displayedError || limitError ? (
-            <div className="mt-3 flex gap-2 rounded-[16px] border border-red-200 bg-red-50 p-3 text-xs leading-5 text-red-900">
+            <div className="mt-3 flex gap-2 rounded-[16px] border border-error-border bg-error-surface p-3 text-xs leading-5 text-error">
               <CircleAlertIcon className="mt-0.5 shrink-0" color="currentColor" size={14} strokeWidth={1.8} />
               <span>
                 {liveRouteUnavailable && orderMode === "market"

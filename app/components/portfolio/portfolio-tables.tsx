@@ -87,7 +87,7 @@ function PositionsTable({ positions, hidden }: { positions: PortfolioPosition[];
                     </span>
                   </Link>
                 </TableCell>
-                <TableCell className={cn(cell, "break-words text-end text-xs font-semibold font-money tabular-nums sm:text-sm", change === undefined || change === 0 ? "text-muted" : change < 0 ? "text-[#be3545]" : "text-[#16734a]")}>
+                <TableCell className={cn(cell, "break-words text-end text-xs font-semibold font-money tabular-nums sm:text-sm", change === undefined || change === 0 ? "text-muted" : change < 0 ? "text-negative" : "text-positive")}>
                   {change === undefined ? "—" : formatPercent(change, locale, change !== 0)}
                 </TableCell>
                 <TableCell className={cn(cell, "break-words text-end text-xs font-semibold font-money tabular-nums sm:text-sm")}>{privateValue(formatCurrency(position.valueUsd, locale))}</TableCell>

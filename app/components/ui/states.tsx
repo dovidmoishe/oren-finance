@@ -45,12 +45,12 @@ export function ErrorState({
   onRetry?: () => void;
 }) {
   return (
-    <div className="rounded-[20px] border border-red-200 bg-red-50 p-4 text-sm text-red-900">
+    <div className="rounded-[20px] border border-error-border bg-error-surface p-4 text-sm text-error">
       <div className="flex gap-3">
         <CircleAlertIcon className="mt-0.5 shrink-0" color="currentColor" size={16} strokeWidth={1.8} />
         <div>
           <p className="font-medium">{title ?? <T k="common.somethingWrong" />}</p>
-          {description ? <p className="mt-1 text-red-700">{description}</p> : null}
+          {description ? <p className="mt-1 text-error">{description}</p> : null}
           {onRetry ? (
             <Button className="mt-3" onClick={onRetry} size="sm" variant="secondary">
               <T k="common.retry" />

@@ -90,7 +90,7 @@ export function McpConnections({ connectionUid }: { connectionUid?: string }) {
       </p>
       {!authenticated && (
         <button
-          className="mt-6 rounded-xl bg-foreground px-5 py-3 text-white"
+          className="mt-6 rounded-xl bg-primary px-5 py-3 text-primary-foreground"
           onClick={open}
           type="button"
         >
@@ -98,7 +98,7 @@ export function McpConnections({ connectionUid }: { connectionUid?: string }) {
         </button>
       )}
       {error && (
-        <p className="mt-5 text-sm text-red-700" role="alert">
+        <p className="mt-5 text-sm text-error" role="alert">
           {error}
         </p>
       )}

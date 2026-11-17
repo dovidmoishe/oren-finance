@@ -1065,5 +1065,12 @@
     "intro": "Memória de desempenho baseada em snapshots da sua carteira observada pela Oren.",
     "refresh": "Atualizar",
     "closeValue": "{value} fechamento"
+  },
+  "theme": {
+    "change": "Alterar tema",
+    "title": "Tema",
+    "system": "Sistema",
+    "light": "Claro",
+    "dark": "Escuro"
   }
 }

@@ -13,6 +13,7 @@ import type {
 } from "lightweight-charts";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Button, EmptyState, LoadingState, Tabs, cn, formatCurrency, formatDate, formatPercent } from "@/components/ui";
+import { THEME_CHANGE_EVENT } from "@/components/theme/theme-script";
 import { useI18n } from "@/i18n/i18n";
 
 // lightweight-charts is only needed once there is data to draw, so it loads on
@@ -148,15 +149,16 @@ export function MarketChart({
     void loadChartLibrary().then(({ AreaSeries, CandlestickSeries, ColorType, CrosshairMode, LineType, LineStyle, createChart, createSeriesMarkers }) => {
       if (disposed) return;
       setLibraryFailed(false);
+      const color = (name: string) => getComputedStyle(container).getPropertyValue(`--${name}`).trim();
       const chart = createChart(container, {
         autoSize: true,
         layout: {
           background: { color: "transparent", type: ColorType.Solid },
-          textColor: "#85857e",
+          textColor: color("chart-text"),
           fontFamily: getComputedStyle(container).getPropertyValue("--font-oren-sans").trim(),
         },
         grid: {
-          horzLines: { color: "#e7e7e2", style: LineStyle.Dotted },
+          horzLines: { color: color("chart-grid"), style: LineStyle.Dotted },
           vertLines: { visible: false },
         },
         rightPriceScale: {
@@ -173,8 +175,8 @@ export function MarketChart({
         },
         crosshair: {
           mode: CrosshairMode.Magnet,
-          vertLine: { color: "#d6d6d0", labelVisible: false, style: LineStyle.Solid },
-          horzLine: { color: "#c9c9c2", labelVisible: false, style: LineStyle.Dashed },
+          vertLine: { color: color("chart-crosshair"), labelVisible: false, style: LineStyle.Solid },
+          horzLine: { color: color("chart-crosshair-soft"), labelVisible: false, style: LineStyle.Dashed },
         },
         handleScale: true,
         handleScroll: true,
@@ -182,44 +184,66 @@ export function MarketChart({
 
       chartRef.current = chart;
 
+      let updateSeriesColors: () => void;
       if (effectiveMode === "candles") {
         const series = chart.addSeries(CandlestickSeries, {
-          upColor: "#21c978",
-          downColor: "#ff4d4d",
-          borderUpColor: "#21c978",
-          borderDownColor: "#ff4d4d",
-          wickUpColor: "#21c978",
-          wickDownColor: "#ff4d4d",
+          upColor: color("chart-up"),
+          downColor: color("chart-down"),
+          borderUpColor: color("chart-up"),
+          borderDownColor: color("chart-down"),
+          wickUpColor: color("chart-up"),
+          wickDownColor: color("chart-down"),
+        });
+        updateSeriesColors = () => series.applyOptions({
+          upColor: color("chart-up"), downColor: color("chart-down"),
+          borderUpColor: color("chart-up"), borderDownColor: color("chart-down"),
+          wickUpColor: color("chart-up"), wickDownColor: color("chart-down"),
         });
         series.setData(candleSeriesData);
         seriesRef.current = series;
       } else {
         const series = chart.addSeries(AreaSeries, {
-          lineColor: "#353531",
+          lineColor: color("chart-line"),
           lineWidth: 2,
           lineType: LineType.Curved,
-          topColor: "rgba(92, 89, 108, 0.18)",
-          bottomColor: "rgba(92, 89, 108, 0)",
+          topColor: `${color("chart-area")}2e`,
+          bottomColor: `${color("chart-area")}00`,
           lastValueVisible: false,
           priceLineVisible: false,
           crosshairMarkerRadius: 5,
-          crosshairMarkerBackgroundColor: "#353531",
-          crosshairMarkerBorderColor: "#ffffff",
+          crosshairMarkerBackgroundColor: color("chart-line"),
+          crosshairMarkerBorderColor: color("panel"),
           crosshairMarkerBorderWidth: 2,
         });
         series.setData(lineSeriesData);
         const latest = lineSeriesData.at(-1);
-        if (latest) createSeriesMarkers(series, [{
+        const marker = createSeriesMarkers(series, latest ? [{
           time: latest.time,
           position: "atPriceMiddle",
           price: latest.value,
           shape: "circle",
-          color: "#353531",
+          color: color("chart-line"),
           size: 0.55,
-        }], { autoScale: false });
+        }] : [], { autoScale: false });
+        updateSeriesColors = () => {
+          series.applyOptions({
+            lineColor: color("chart-line"), topColor: `${color("chart-area")}2e`, bottomColor: `${color("chart-area")}00`,
+            crosshairMarkerBackgroundColor: color("chart-line"), crosshairMarkerBorderColor: color("panel"),
+          });
+          if (latest) marker.setMarkers([{ time: latest.time, position: "atPriceMiddle", price: latest.value, shape: "circle", color: color("chart-line"), size: 0.55 }]);
+        };
         seriesRef.current = series;
       }
 
+      const updateColors = () => {
+        chart.applyOptions({
+          layout: { textColor: color("chart-text") },
+          grid: { horzLines: { color: color("chart-grid") } },
+          crosshair: { vertLine: { color: color("chart-crosshair") }, horzLine: { color: color("chart-crosshair-soft") } },
+        });
+        updateSeriesColors();
+      };
+      window.addEventListener(THEME_CHANGE_EVENT, updateColors);
       chart.timeScale().fitContent();
 
       const handleCrosshairMove = (param: MouseEventParams<Time>) => {
@@ -258,6 +282,7 @@ export function MarketChart({
       chart.subscribeCrosshairMove(handleCrosshairMove);
 
       dispose = () => {
+        window.removeEventListener(THEME_CHANGE_EVENT, updateColors);
         chart.unsubscribeCrosshairMove(handleCrosshairMove);
         chart.remove();
         chartRef.current = null;

@@ -1,3 +1,4 @@
+import { themeBootScript } from "@/components/theme/theme-script";
 import type { Metadata } from "next";
 import { NextIntlClientProvider } from "next-intl";
 import "@fontsource-variable/geist";
@@ -27,7 +28,8 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       className="h-full antialiased"
       suppressHydrationWarning
     >
-      <body className="min-h-full bg-background text-foreground font-sans selection:bg-[#111111] selection:text-white">
+      <head><script dangerouslySetInnerHTML={{ __html: themeBootScript }} /></head>
+      <body className="min-h-full bg-background text-foreground font-sans selection:bg-primary selection:text-primary-foreground">
         <NextIntlClientProvider locale={DEFAULT_LOCALE} messages={en} timeZone="UTC">
           <IntlErrorProvider>
             <LocaleSync />

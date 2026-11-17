@@ -2,11 +2,6 @@
 
 .oren-app {
   @apply font-sans text-[.875rem] leading-[1.5] antialiased;
-  --foreground: #24242b;
-  --panel-subtle: #f6f6f8;
-  --muted: #71717e;
-  --border: #e6e6ec;
-  --border-strong: #cdcdd7;
   --text-lg: 1rem;
   --text-xl: 1.125rem;
   --text-2xl: 1.25rem;

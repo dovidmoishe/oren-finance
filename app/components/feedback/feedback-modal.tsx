@@ -107,7 +107,7 @@ function FeedbackForm({ wallet }: { wallet: string }) {
       <label className="block text-sm font-medium">{t("feedback.subject")}<input className={`${inputClass} mt-2`} disabled={busy} maxLength={FEEDBACK_SUBJECT_MAX} value={subject} onChange={event => setSubject(event.target.value)} /></label>
       <label className="block text-sm font-medium">{t("feedback.message")}<textarea className={`${inputClass} mt-2 min-h-32 resize-y`} disabled={busy} maxLength={FEEDBACK_MESSAGE_MAX} value={message} onChange={event => setMessage(event.target.value)} placeholder={kind === 'bug' ? t("feedback.bugPlaceholder") : undefined} /></label>
       <p className="text-xs leading-5 text-muted">{t("feedback.safety")}</p>
-      {error ? <p role="alert" className="text-sm leading-6 text-red-700">{error}</p> : null}
+      {error ? <p role="alert" className="text-sm leading-6 text-error">{error}</p> : null}
       <Button className="w-full" variant="primary" disabled={busy} type="submit">{busy ? t("feedback.sending") : t("feedback.send")}</Button>
     </form>}
     <section className="mt-6 border-t border-border pt-4" aria-labelledby="feedback-history">
@@ -117,7 +117,7 @@ function FeedbackForm({ wallet }: { wallet: string }) {
         : <ul className="mt-2 divide-y divide-border">
           {tickets.map(ticket => <li key={ticket.id} className="flex items-center justify-between gap-3 py-2.5 text-sm">
             <div className="min-w-0"><p className="truncate font-medium">{ticket.subject}</p><p className="text-xs text-muted">{ticketReference(ticket.id)} · {formatDate(ticket.createdAt, locale, timeZone, t("common.notUpdated"))}</p></div>
-            <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-medium ${ticket.status === 'resolved' ? 'bg-green-50 text-green-800' : 'bg-background text-muted'}`}>{ticket.status === 'resolved' ? t("feedback.resolved") : t("feedback.open")}</span>
+            <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-medium ${ticket.status === 'resolved' ? 'bg-success-surface text-success' : 'bg-background text-muted'}`}>{ticket.status === 'resolved' ? t("feedback.resolved") : t("feedback.open")}</span>
           </li>)}
         </ul>}
     </section>

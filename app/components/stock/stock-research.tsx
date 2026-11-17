@@ -224,7 +224,7 @@ export function StockResearchPanel({ assetId }: { assetId: string }) {
                       key={`${item.author}-${item.url}`}
                     >
                       <a
-                        className="text-sm font-medium text-sky-700 underline-offset-2 hover:underline"
+                        className="text-sm font-medium text-link underline-offset-2 hover:underline"
                         href={item.url}
                         onClick={recordSource}
                         rel="noopener noreferrer"

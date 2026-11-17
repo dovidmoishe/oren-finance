@@ -20,8 +20,8 @@ const icons: Record<ToastTone, LucideIcon> = {
 
 const tones: Record<ToastTone, string> = {
   info: "border-border bg-panel text-foreground",
-  success: "border-green-200 bg-green-50 text-green-900",
-  error: "border-red-200 bg-red-50 text-red-900",
+  success: "border-success-border bg-success-surface text-success",
+  error: "border-error-border bg-error-surface text-error",
 };
 
 export function Toast({

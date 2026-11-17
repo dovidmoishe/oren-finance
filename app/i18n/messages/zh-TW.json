@@ -1065,5 +1065,12 @@
     "intro": "以快照為基礎的績效紀錄，對應你在 Oren 觀察到的投資組合。",
     "refresh": "重新整理",
     "closeValue": "{value} 收盤"
+  },
+  "theme": {
+    "change": "變更主題",
+    "title": "主題",
+    "system": "跟隨系統",
+    "light": "淺色",
+    "dark": "深色"
   }
 }

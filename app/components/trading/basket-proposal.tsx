@@ -27,7 +27,7 @@ export function BasketProposal({ basket, onReview }: { basket: BasketResponse; o
             <div className="min-w-0 flex-1"><p className="text-xs font-medium">{allocation.name ?? allocation.ticker}</p><p className="mt-0.5 text-[10px] text-muted">{allocation.ticker}</p></div>
             <div className="text-right"><p className="text-xs font-medium tabular-nums">{formatCurrency(allocation.amountUsd, locale)}</p><p className="mt-0.5 text-[10px] tabular-nums text-muted">{formatNumber(allocation.weightPercent, locale, 0)}%</p></div>
           </div>
-          <div className="mt-2.5 h-1 overflow-hidden rounded-full bg-panel-subtle"><div className="h-full rounded-full bg-[#c9bde0]" style={{ width: `${Math.min(100, Math.max(0, allocation.weightPercent))}%` }} /></div>
+          <div className="mt-2.5 h-1 overflow-hidden rounded-full bg-panel-subtle"><div className="h-full rounded-full bg-bar-lavender" style={{ width: `${Math.min(100, Math.max(0, allocation.weightPercent))}%` }} /></div>
         </div>)}
       </div>
       {basket.thesis && <p className="mt-5 text-xs leading-5 text-muted">{basket.thesis}</p>}

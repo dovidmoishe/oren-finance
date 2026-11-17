@@ -1065,5 +1065,12 @@
     "intro": "Mémoire de performance basée sur des instantanés de votre portefeuille observé par Oren.",
     "refresh": "Actualiser",
     "closeValue": "{value} clôture"
+  },
+  "theme": {
+    "change": "Changer le thème",
+    "title": "Thème",
+    "system": "Système",
+    "light": "Clair",
+    "dark": "Sombre"
   }
 }

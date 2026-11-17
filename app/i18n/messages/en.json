@@ -1065,5 +1065,12 @@
     "intro": "Snapshot-based performance memory for your Oren-observed portfolio.",
     "refresh": "Refresh",
     "closeValue": "{value} close"
+  },
+  "theme": {
+    "change": "Change theme",
+    "title": "Theme",
+    "system": "System",
+    "light": "Light",
+    "dark": "Dark"
   }
 }

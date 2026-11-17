@@ -1065,5 +1065,12 @@
     "intro": "Bộ nhớ hiệu suất theo ảnh chụp cho danh mục được Oren ghi nhận.",
     "refresh": "Làm mới",
     "closeValue": "{value} đóng cửa"
+  },
+  "theme": {
+    "change": "Đổi giao diện",
+    "title": "Giao diện",
+    "system": "Hệ thống",
+    "light": "Sáng",
+    "dark": "Tối"
   }
 }

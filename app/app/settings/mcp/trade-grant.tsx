@@ -323,7 +323,7 @@ export function TradeGrant({ connectionUid }: { connectionUid?: string }) {
             {t("grant.signerNote", { signer: pending.signerId, policy: pending.policyId })}
           </p>
           <button
-            className="mt-4 rounded-xl bg-foreground px-4 py-2 text-white disabled:opacity-50"
+            className="mt-4 rounded-xl bg-primary px-4 py-2 text-primary-foreground disabled:opacity-50"
             type="button"
             disabled={busy || pending.wallet !== auth.address}
             onClick={() => void addSigner()}
@@ -372,7 +372,7 @@ export function TradeGrant({ connectionUid }: { connectionUid?: string }) {
       {apiOrigin && !grant && !error && <p className="mt-4 text-sm text-muted" role="status">{t("grant.loading")}</p>}
       {grant?.enabled && <ConnectionNextStep uid={connectionUid} />}
       {errorText && (
-        <p className="mt-4 text-sm text-red-700" role="alert">
+        <p className="mt-4 text-sm text-error" role="alert">
           {errorText}
         </p>
       )}

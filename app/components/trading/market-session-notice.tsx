@@ -17,7 +17,7 @@ export function MarketSessionNotice({
   if (!session || session.regular || !session.summary) return null;
   if (variant === "note") {
     return (
-      <p className="mt-3 rounded-[13px] bg-white/60 px-3 py-2 text-[11px] leading-4 text-muted">
+      <p className="mt-3 rounded-[13px] bg-panel/60 px-3 py-2 text-[11px] leading-4 text-muted">
         <span className="font-semibold text-foreground">{t("review.marketHoursPrefix")}</span>
         {session.summary}
       </p>
