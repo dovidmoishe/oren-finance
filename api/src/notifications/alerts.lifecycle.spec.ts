@@ -72,7 +72,11 @@ run('price alert life cycle with disposable Postgres', () => {
     client = postgres(pgUrl!, { connection: { search_path: ns } });
     await client.unsafe(`create table cached_stocks (asset_id text, ticker text, category text, expires_at timestamptz);
       create table user_preferences (user_id text primary key, sectors text[], morning_brief boolean, breaking_news boolean, brief_time text, time_zone text);`);
-    for (const f of ['0019_notifications', '0020_price_alert_failed'])
+    for (const f of [
+      '0019_notifications',
+      '0020_price_alert_failed',
+      '0022_notification_job_send_errors',
+    ])
       await client.unsafe(await readFile(`lib/db/migrations/${f}.sql`, 'utf8'));
     await client`insert into cached_stocks values ('nvda','NVDA','equity',now()+interval '1 hour',
       ${client.unsafe(`'${JSON.stringify([{ mint, symbol: 'NVDAx' }])}'::jsonb`)})`;

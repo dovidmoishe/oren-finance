@@ -2,6 +2,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import { sql, type SQL } from 'drizzle-orm';
 import { DRIZZLE } from '../config/constants';
 import type { Database } from '../database/database.provider';
+import type { SenviokSendFailure } from './senviok-error';
 import { notificationSettings } from './settings';
 import {
   BRIEF_GRACE_MS,
@@ -164,22 +165,36 @@ export class NotificationJobs {
     job: Job,
     state: 'complete' | 'canceled' | 'uncertain' | 'accepted',
     providerId?: string,
+    failure?: SenviokSendFailure,
   ) {
     await this.db.execute(sql`
       update notification_jobs set state = ${state}, provider_id = ${providerId ?? null},
+        last_error_status = ${failure?.status ?? null}, last_error = ${failure?.message ?? null},
         lease_until = null, updated_at = now()
       where id = ${job.id} and lease_token = ${job.lease_token}
         and state in ('running', 'sending', 'uncertain')`);
   }
 
-  async failSend(job: Job) {
-    await this.db
-      .execute(sql`update notification_jobs set state = 'failed', lease_until = null, updated_at = now()
+  async failSend(job: Job, failure: SenviokSendFailure) {
+    await this.db.execute(sql`
+      update notification_jobs set state = 'failed',
+        last_error_status = ${failure.status}, last_error = ${failure.message},
+        lease_until = null, updated_at = now()
       where id = ${job.id} and lease_token = ${job.lease_token} and state = 'sending'`);
   }
 
-  async retry(job: Job, submitted = false) {
+  async retry(job: Job, submitted = false, failure?: SenviokSendFailure) {
     const seconds = 30 * 2 ** Math.min(job.attempts - 1, 4);
+    if (failure) {
+      await this.db.execute(sql`
+        update notification_jobs set state = ${job.attempts >= 5 ? 'failed' : 'pending'},
+          run_after = now() + ${seconds} * interval '1 second',
+          last_error_status = ${failure.status}, last_error = ${failure.message},
+          lease_token = null, lease_until = null, updated_at = now()
+        where id = ${job.id} and lease_token = ${job.lease_token}
+          and state = ${submitted ? 'sending' : 'running'}`);
+      return;
+    }
     await this.db.execute(sql`
       update notification_jobs set state = ${job.attempts >= 5 ? 'failed' : 'pending'},
         run_after = now() + ${seconds} * interval '1 second',

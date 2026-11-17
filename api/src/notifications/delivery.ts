@@ -5,6 +5,7 @@ import { PrivyWalletAuth } from '../auth/privy-wallet-auth';
 import { SenviokEmailService } from '../senviok/senviok.service';
 import { renderBriefEmail, type BriefEmailFacts } from './brief-email';
 import { NotificationJobs, type Job } from './jobs';
+import { senviokSendFailure } from './senviok-error';
 import { formatAlertPrice } from './quotes';
 import { BRIEF_GRACE_MS, briefEmailSlots } from './schedule';
 import {
@@ -28,6 +29,17 @@ export function unsubscribeJobId(token: string, secret: string) {
     : null;
 }
 
+function senviokSecrets(recipient: string) {
+  return [
+    recipient,
+    process.env.SENVIOK_API_KEY,
+    process.env.SENVIOK_FROM,
+  ].filter(
+    (value): value is string =>
+      typeof value === 'string' && value.trim().length > 0,
+  );
+}
+
 function render(job: Job, app: string, api: string, secret: string) {
   const stop = `${api}/api/notifications/unsubscribe/${unsubscribeToken(job.id, secret)}`;
   if (job.kind === 'brief-email') {
@@ -39,6 +51,8 @@ function render(job: Job, app: string, api: string, secret: string) {
   }
   return alertEmail(job.payload as AlertEmailFacts, app, stop);
 }
+
+const permanentSenviokStatus = new Set([400, 401, 403, 404, 422]);
 
 type AlertEmailFacts = {
   ticker: string;
@@ -145,23 +159,23 @@ export class NotificationDelivery {
         }),
       ]);
     } catch (error: unknown) {
-      const status =
-        error && typeof error === 'object' && 'status' in error
-          ? error.status
-          : undefined;
+      const failure = senviokSendFailure(error, senviokSecrets(email));
+      this.logger.warn({
+        event: 'senviok_send_failed',
+        jobId: job.id,
+        kind: job.kind,
+        status: failure.status,
+        error: failure.message,
+      });
       // A confirmed throttling response means the request was rejected.
-      if (status === 429) {
-        this.logger.warn('Senviok throttled notification submissions');
-        return this.jobs.retry(job, true);
-      }
+      if (failure.status === 429) return this.jobs.retry(job, true, failure);
       if (
-        typeof status === 'number' &&
-        [400, 401, 403, 404, 422].includes(status)
+        failure.status !== null &&
+        permanentSenviokStatus.has(failure.status)
       ) {
-        return this.jobs.failSend(job);
+        return this.jobs.failSend(job, failure);
       }
-      this.logger.warn('Notification submission outcome is uncertain');
-      return this.jobs.update(job, 'uncertain');
+      return this.jobs.update(job, 'uncertain', undefined, failure);
     } finally {
       clearTimeout(timeout);
     }
