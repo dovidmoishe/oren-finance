@@ -1,8 +1,26 @@
+/* Official Fontshare CDN, ITF Free Font License: https://www.fontshare.com/licenses/itf-ffl.
+   Keep the original font files unmodified; Inter remains the offline fallback. */
+@font-face {
+  font-family: "Switzer";
+  src: url("https://cdn.fontshare.com/wf/HJHZ26OECMTXRH7JXPFC7EVIHDSLT2RA/LJRNLR7WCPF3PY3SZ7B2LHNUTQMFNCHL/4MCJYGQDIOOXHWSIIB2OYNDBEALJSOGN.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Switzer";
+  src: url("https://cdn.fontshare.com/wf/KDSQNRHYYJCWSLSNMQTKJOY7QNC2IBLM/HGYBIGJ4X7DYUETLTGW4BIVO3FCWLJUR/AFY5UJBPUVSDM77Q42DSHPT5JUNR7N4Y.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: italic;
+  font-display: swap;
+}
+
 /* Product density: preserve body text and root rem sizing; tighten larger UI tokens. */
 
 .oren-app {
   @apply font-sans text-[.875rem] leading-[1.5] antialiased;
-  --font-oren-sans: "PP Neue Montreal", "Inter Variable", system-ui, sans-serif;
+  --font-oren-sans: "Switzer", "Inter Variable", system-ui, sans-serif;
   --font-oren-money: "Inter Variable", system-ui, sans-serif;
   --foreground: #24242b;
   --panel-subtle: #f6f6f8;

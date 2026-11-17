@@ -40,7 +40,7 @@ const contentSecurityPolicy = [
   ["script-src", "'self'", "'unsafe-inline'", turnstile, ...(isDev ? ["'unsafe-eval'"] : [])],
   ["style-src", "'self'", "'unsafe-inline'"],
   ["img-src", "'self'", "data:", "blob:", "https:"],
-  ["font-src", "'self'", "data:"],
+  ["font-src", "'self'", "data:", "https://cdn.fontshare.com"],
   ["media-src", "'self'"],
   ["connect-src", "'self'", ...[apiOrigin()].filter((origin): origin is string => Boolean(origin)), ...privyConnect, ...rpc, ...(isDev ? ["ws:"] : [])],
   ["frame-src", ...privy, turnstile],

@@ -2,7 +2,7 @@ import type { HTMLAttributes, TableHTMLAttributes, ThHTMLAttributes } from "reac
 import { cn } from "./utils";
 
 export function Table({ className, ...props }: TableHTMLAttributes<HTMLTableElement>) {
-  return <table className={cn("w-full border-collapse text-sm", className)} {...props} />;
+  return <table className={cn("w-full border-collapse text-sm in-[.oren-app]:font-money", className)} {...props} />;
 }
 
 export function TableHeader({ className, ...props }: HTMLAttributes<HTMLTableSectionElement>) {
