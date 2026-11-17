@@ -100,6 +100,18 @@
   }
 }
 
+/* Desktop density is independent of browser zoom and root font preferences. */
+@media (min-width: 1024px) and (pointer: fine) {
+  .oren-app {
+    --app-nav-height: 3.25rem;
+    --app-control-height: 2rem;
+    --app-control-small: 1.75rem;
+    --app-control-large: 2.75rem;
+    --app-control-icon: 2rem;
+    --app-tab-height: 1.875rem;
+  }
+}
+
 @media (pointer: coarse) {
   .oren-app {
     --app-control-height: 2.75rem;

@@ -21,7 +21,7 @@ export function NavigationLink({ href, label, icon, active, compact, onNavigate 
       animate="rest"
       aria-current={active ? "page" : undefined}
       className={cn(
-        "flex min-h-12 items-center gap-3 rounded-xl px-3.5 text-sm font-medium outline-offset-2 focus-visible:outline-2 focus-visible:outline-focus",
+        "flex min-h-10 items-center gap-2.5 rounded-lg px-3 text-sm font-medium outline-offset-2 focus-visible:outline-2 focus-visible:outline-focus lg:min-h-9 pointer-coarse:min-h-11",
         active ? "bg-panel text-foreground shadow-[0_2px_8px_rgb(23_23_23/.05)] ring-1 ring-border/80 [&_svg]:text-[#6652b3]" : "text-muted hover:bg-panel/70 hover:text-foreground",
         compact && "justify-center px-0",
       )}

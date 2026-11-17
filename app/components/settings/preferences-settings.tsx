@@ -12,9 +12,9 @@ export function PreferencesSettings() {
   const auth = useOrenAuth();
   const t = useT();
   return (
-    <section aria-labelledby="settings-preferences-title" className="space-y-5">
+    <section aria-labelledby="settings-preferences-title" className="space-y-4">
       <div><h2 className="font-display text-xl font-semibold" id="settings-preferences-title">{t("preferences.title")}</h2><p className="mt-1 text-sm leading-6 text-muted">{t("preferences.followDetail")}</p></div>
-      <div className="rounded-2xl border border-border p-5 @lg:p-6">
+      <div className="rounded-2xl border border-border p-4 @lg:p-5">
         {restoreBlocked(auth) ? <RestoreActions signInLabel={t("account.signIn")} /> : !auth.ready ? (
           <p role="status">{t("account.loading")}</p>
         ) : auth.authenticated && auth.userId ? (

@@ -227,9 +227,9 @@ export function AgentPanel() {
         inert={!visible}
         ref={panelRef}
       >
-        <header className="flex shrink-0 items-center justify-between gap-3 border-b border-border px-4 py-3">
-          <div className="flex min-w-0 items-center gap-3">
-            <OrenLogo className="shrink-0" size={30} state={logoState} />
+        <header className="flex shrink-0 items-center justify-between gap-2 border-b border-border px-3 py-2">
+          <div className="flex min-w-0 items-center gap-2">
+            <OrenLogo className="shrink-0" size={26} state={logoState} />
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
                 <h2 className="truncate font-display font-semibold">Oren</h2>

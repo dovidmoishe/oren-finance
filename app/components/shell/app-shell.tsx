@@ -41,8 +41,8 @@ const navigation: { href: string; label: MessageKey; icon: NavigationIconName }[
   { href: "/app/leaderboard", label: "nav.leaderboard", icon: "leaderboard" },
 ];
 
-const headerButton = "inline-flex h-10 shrink-0 items-center justify-center rounded-full text-muted hover:bg-panel-subtle hover:text-foreground focus-visible:outline-2 focus-visible:outline-focus lg:h-9 pointer-coarse:h-11";
-const iconButton = cn(headerButton, "w-10 lg:w-9 pointer-coarse:w-11");
+const headerButton = "inline-flex h-10 shrink-0 items-center justify-center rounded-full text-muted hover:bg-panel-subtle hover:text-foreground focus-visible:outline-2 focus-visible:outline-focus lg:h-8 pointer-coarse:h-11";
+const iconButton = cn(headerButton, "w-10 lg:w-8 pointer-coarse:w-11");
 
 function Icon({ icon, size = 18 }: { icon: LucideIcon; size?: number }) {
   return <InterfaceIcon aria-hidden="true" className="shrink-0" icon={icon} size={size} strokeWidth={1.7} />;
@@ -126,7 +126,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div ref={shell} style={{ "--copilot-preferred-width": width + "px" } as CSSProperties} className={cn(
       "mx-auto min-h-dvh overflow-x-clip bg-panel-subtle text-foreground lg:grid lg:grid-cols-[var(--nav-width)_minmax(0,1fr)_var(--copilot-width)] lg:p-3 lg:[--app-shell-inset:0.75rem] motion-reduce:transition-none [--app-header-bottom:calc(var(--app-nav-height)+var(--app-shell-inset,0px))]",
-      collapsed ? "lg:[--nav-width:4rem]" : "lg:[--nav-width:14rem] xl:[--nav-width:15.5rem]",
+      collapsed ? "lg:[--nav-width:3.5rem]" : "lg:[--nav-width:12.5rem] xl:[--nav-width:13.5rem]",
       agentOpen && agentExpanded ? "lg:[--copilot-width:1fr]" : docked ? "lg:[--copilot-width:var(--copilot-preferred-width)]" : "lg:[--copilot-width:0rem]",
       resizing ? "select-none lg:transition-none" : cn(
         "lg:[transition:grid-template-columns_var(--panel-close-dur)_var(--panel-ease)]",
@@ -147,7 +147,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </button>
         </div>
         <button aria-haspopup="dialog" aria-label={t("markets.searchLabel")} className={cn(
-          "mb-4 flex min-h-9 items-center gap-2 rounded-lg border border-border bg-panel text-start text-sm text-muted shadow-xs hover:border-border-strong hover:text-foreground focus-visible:outline-2 focus-visible:outline-focus",
+          "mb-2 flex min-h-9 items-center gap-2 rounded-lg border border-border bg-panel text-start text-sm text-muted shadow-xs hover:border-border-strong hover:text-foreground focus-visible:outline-2 focus-visible:outline-focus pointer-coarse:min-h-11",
           collapsed ? "justify-center" : "px-2.5",
         )} onClick={() => search.current?.showModal()} title={t("markets.searchLabel")} type="button">
           <Icon icon={SearchIcon} size={16} />
@@ -169,8 +169,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </nav>
           </div>
           {active === portfolio || pathname === markets.href
-            ? <h1 className="min-w-0 flex-1 truncate font-display text-[1.2rem] font-bold tracking-tight sm:text-[1.25rem]">{title}</h1>
-            : <span className="min-w-0 flex-1 truncate font-display text-[1.2rem] font-bold tracking-tight sm:text-[1.25rem]">{title}</span>}
+            ? <h1 className="min-w-0 flex-1 truncate font-display text-[1.125rem] font-bold tracking-tight">{title}</h1>
+            : <span className="min-w-0 flex-1 truncate font-display text-[1.125rem] font-bold tracking-tight">{title}</span>}
           <div aria-label={t("nav.yourAccount")} className="flex min-w-0 items-center gap-0.5 sm:gap-2">
             <button aria-haspopup="dialog" aria-label={t("markets.searchLabel")} className={cn(iconButton, "lg:hidden")} onClick={() => search.current?.showModal()} type="button"><Icon icon={SearchIcon} /></button>
             <LanguageMenu />
@@ -191,7 +191,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </div>
         </header>
         <main
-          className={cn("@container min-w-0 px-3 pb-10 pt-3 sm:px-7 sm:pt-5 lg:pt-4", agentOpen && "max-lg:invisible")}
+          className={cn("@container min-w-0 px-3 pb-8 pt-3 sm:px-5 sm:pt-4 lg:pt-3", agentOpen && "max-lg:invisible")}
           id="app-content"
           tabIndex={-1}
         >

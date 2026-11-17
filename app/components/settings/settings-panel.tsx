@@ -24,7 +24,7 @@ export function SettingsLinks({ connection }: { connection?: string }) {
         <Link
           aria-current={pathname === href ? "page" : undefined}
           className={cn(
-            "flex min-h-10 shrink-0 items-center gap-2.5 whitespace-nowrap rounded-lg px-3 text-sm font-medium focus-visible:outline-2 focus-visible:outline-focus",
+            "flex min-h-9 shrink-0 items-center gap-2 whitespace-nowrap rounded-lg px-3 text-sm font-medium focus-visible:outline-2 focus-visible:outline-focus pointer-coarse:min-h-11",
             pathname === href ? "bg-panel text-foreground shadow-xs" : "text-muted hover:bg-panel/60 hover:text-foreground",
           )}
           href={href + suffix}
@@ -48,11 +48,11 @@ export function SettingsPanel({ children }: { children: ReactNode }) {
   const t = useT();
   return (
     <div className="mx-auto max-w-5xl pb-10">
-      <header className="mb-6 pt-1 @lg:mb-8">
-        <h1 className="font-display text-2xl font-semibold tracking-tight">{t("nav.settings")}</h1>
-        <p className="mt-2 max-w-xl text-sm leading-6 text-muted">{t("settings.intro")}</p>
+      <header className="mb-4">
+        <h1 className="sr-only">{t("nav.settings")}</h1>
+        <p className="max-w-xl text-sm leading-6 text-muted">{t("settings.intro")}</p>
       </header>
-      <div className="grid min-w-0 gap-6 @3xl:grid-cols-[12rem_minmax(0,1fr)] @3xl:gap-8">
+      <div className="grid min-w-0 gap-4 @3xl:grid-cols-[11rem_minmax(0,1fr)] @3xl:gap-6">
         <Suspense fallback={<p className="rounded-xl bg-panel-subtle p-3 text-sm text-muted" role="status">{t("account.loading")}</p>}><SettingsNavigation /></Suspense>
         <div className="min-w-0">{children}</div>
       </div>
