@@ -63,8 +63,8 @@ export function PortfolioDashboard() {
     }
     return (
       <EmptyState
-        className="min-h-[65dvh] border-solid border-accent-lavender/40 bg-linear-to-b from-accent-lavender/20 via-panel to-panel shadow-none [&>h3]:mt-4 [&>h3]:text-2xl [&>h3]:font-medium [&>h3]:tracking-tight [&>p]:mt-3 [&>p]:leading-6 [&>div]:mt-6"
-        icon={<OrenLogo size={64} />}
+        className="mx-auto min-h-[55dvh] max-w-2xl rounded-none border-0 bg-panel shadow-none [&>h3]:mt-4 [&>h3]:text-2xl [&>h3]:font-medium [&>h3]:tracking-tight [&>p]:mt-3 [&>p]:leading-6 [&>div]:mt-6"
+        icon={<OrenLogo size={40} />}
         action={
           restoreBlocked(auth) ? <RestoreActions signInLabel={t("portfolio.signIn")} />
             : auth.authenticated
@@ -98,6 +98,7 @@ export function PortfolioDashboard() {
         history={!hidden ? (
           <MarketChart
             activeRange={range}
+            className="rounded-none border-0 shadow-none"
             compact
             lineData={chartData}
             loading={isLoading && history.length === 0}

@@ -168,15 +168,15 @@ export function DisconnectedState({ onConnect }: { onConnect: () => void }) {
   const auth = useOrenAuth();
   const t = useT();
   return (
-    <div className="flex h-full flex-col justify-center rounded-2xl bg-linear-to-b from-accent-lavender/20 via-panel to-panel p-4">
-      <div className="grid size-10 place-items-center rounded-xl border border-accent-lavender/60 bg-panel text-[#7160b8]">
+    <div className="flex h-full flex-col justify-center px-3 py-8">
+      <div className="grid size-10 place-items-center rounded-xl bg-panel-subtle text-muted">
         <Icon icon={WalletCardsIcon} size={20} />
       </div>
       <h3 className="mt-3 font-display text-xl leading-snug font-medium tracking-tight">{t("agent.disconnectedTitle")}</h3>
       <p className="mt-2 text-sm leading-relaxed text-muted">
         {auth.authenticated ? auth.error || t("agent.preparingWallet") : t("agent.signInBody")}
       </p>
-      {(!auth.authenticated || auth.error) && <Button className="mt-4 min-h-9 rounded-lg pointer-coarse:min-h-11" onClick={auth.authenticated ? () => void auth.createWallet() : onConnect} variant="primary">
+      {(!auth.authenticated || auth.error) && <Button className="mt-5 min-h-9 self-start rounded-lg pointer-coarse:min-h-11" onClick={auth.authenticated ? () => void auth.createWallet() : onConnect} variant="primary">
         <Icon icon={WalletCardsIcon} size={16} />
         {auth.authenticated ? t("agent.retryWallet") : t("agent.signIn")}
       </Button>}

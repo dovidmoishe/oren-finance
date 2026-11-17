@@ -56,7 +56,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const agentExpanded = useAgentStore((state) => state.expanded);
   const setPanelOpen = useAgentStore((state) => state.setPanelOpen);
   const [collapsed, setCollapsed] = useState(false);
-  const [copilotWidth, setCopilotWidth] = useState(360);
+  const [copilotWidth, setCopilotWidth] = useState(320);
   const [maxCopilotWidth, setMaxCopilotWidth] = useState(MAX_COPILOT_WIDTH);
   const [resizing, setResizing] = useState(false);
   const shell = useRef<HTMLDivElement>(null);
@@ -191,7 +191,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </div>
         </header>
         <main
-          className={cn("@container min-w-0 px-3 pb-8 pt-3 sm:px-6 sm:pt-6 lg:pt-6", agentOpen && "max-lg:invisible")}
+          className={cn("@container min-w-0 px-3 pb-8 pt-3 sm:px-6 sm:pt-6 xl:px-8 xl:pt-8", agentOpen && "max-lg:invisible")}
           id="app-content"
           tabIndex={-1}
         >

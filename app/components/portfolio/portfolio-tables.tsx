@@ -25,7 +25,7 @@ const activityLabels: Record<PortfolioActivityItem["type"], MessageKey> = {
 };
 
 const headerCell = "px-2.5 py-3 font-medium text-muted sm:px-4";
-const cell = "px-2.5 py-4 sm:px-4 sm:py-5";
+const cell = "px-2.5 py-3 sm:px-4 sm:py-3.5";
 const desktopCell = "hidden @2xl:table-cell";
 const toolbarButton = "inline-flex min-h-9 shrink-0 items-center justify-center gap-1.5 rounded-full border border-border px-2.5 text-xs font-semibold text-muted hover:bg-panel-subtle hover:text-foreground focus-visible:outline-2 focus-visible:outline-focus disabled:opacity-50 pointer-coarse:min-h-11";
 
@@ -172,24 +172,24 @@ export function PortfolioTables({ positions, activity, allocation, history, hidd
   onRefresh: () => void;
 }) {
   const { t } = useI18n();
-  const [section, setSection] = useState<"positions" | "allocation" | "history" | "activity">("positions");
+  const [section, setSection] = useState<"positions" | "allocation" | "activity">("positions");
   const options = [
     { id: "positions", label: t("portfolio.positions") },
     { id: "allocation", label: t("trader.allocation") },
-    { id: "history", label: t("portfolio.valueHistory") },
     { id: "activity", label: t("common.activityTitle") },
   ] as const;
 
   return (
     <section aria-label={options.find((option) => option.id === section)?.label}>
-      <div className="mb-5 flex items-center justify-between gap-2 @lg:gap-3">
-        <div aria-label={t("nav.portfolio")} className="flex min-w-0 gap-0.5 overflow-x-auto rounded-xl bg-panel-subtle p-1" role="group">
+      {history && <div aria-label={t("portfolio.valueHistory")} className="mb-8 overflow-hidden rounded-xl border border-border p-3 @lg:p-4">{history}</div>}
+      <div className="mb-4 flex items-center justify-between gap-2 border-b border-border @lg:gap-3">
+        <div aria-label={t("nav.portfolio")} className="flex min-w-0 gap-5 overflow-x-auto" role="group">
           {options.map(({ id, label }) => (
             <button
               aria-pressed={id === section}
               className={cn(
-                "min-h-10 shrink-0 whitespace-nowrap rounded-lg px-1.5 text-xs font-medium focus-visible:outline-2 focus-visible:outline-focus @lg:px-4 @lg:text-sm",
-                id === section ? "bg-panel text-[#6652b3] shadow-[0_1px_4px_rgb(23_23_23/.08)]" : "text-muted hover:bg-panel/60 hover:text-foreground",
+                "min-h-11 shrink-0 whitespace-nowrap border-b-2 px-0.5 text-sm font-medium focus-visible:outline-2 focus-visible:outline-focus",
+                id === section ? "border-foreground text-foreground" : "border-transparent text-muted hover:text-foreground",
               )}
               key={id}
               onClick={() => setSection(id)}
@@ -212,7 +212,6 @@ export function PortfolioTables({ positions, activity, allocation, history, hidd
       </div>
       {section === "positions" && <PositionsTable hidden={hidden} positions={positions} />}
       {section === "allocation" && allocation}
-      {section === "history" && (history ?? <p className="rounded-xl bg-panel-subtle p-4 text-sm text-muted">{t("portfolio.showBalances")}</p>)}
       {section === "activity" && <RecentActivityTable activity={activity} hidden={hidden} />}
     </section>
   );
