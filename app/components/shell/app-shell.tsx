@@ -118,7 +118,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         icon={item.icon}
         key={item.href}
         label={t(item.label)}
-        onNavigate={() => mobileMenu.current?.hidePopover()}
+        onNavigate={() => {
+          mobileMenu.current?.hidePopover();
+          if (!window.matchMedia("(min-width: 1024px)").matches) setPanelOpen(false);
+        }}
       />
     );
   }
