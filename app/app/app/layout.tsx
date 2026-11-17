@@ -1,4 +1,3 @@
-import "@fontsource-variable/inter";
 import { ChunkLoadRecovery } from "@/components/chunk-load-recovery";
 import { AppShell } from "@/components/shell/app-shell";
 import { PersonalizedIntl } from "@/i18n/personalized-intl";

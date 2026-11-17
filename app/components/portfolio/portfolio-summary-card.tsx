@@ -78,7 +78,7 @@ export function PortfolioSummaryCard({ portfolio, hidden, onToggleHidden, onDepo
   const changeColor = !hidden && change ? change > 0 ? "text-[#16734a]" : "text-[#be3545]" : "text-muted";
 
   return (
-    <section aria-label={t("portfolio.totalValue")} className="border-b border-border pb-6 pt-2">
+    <section aria-label={t("portfolio.totalValue")} className="rounded-[20px] border border-accent-lavender/45 bg-linear-to-br from-panel via-panel to-accent-lavender/30 p-5 shadow-[0_4px_20px_rgb(23_23_23/.025)] @lg:px-8 @lg:py-8">
       <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-3">
         <div className="min-w-0">
           <div className="flex items-center gap-1">

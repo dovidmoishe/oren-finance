@@ -4,7 +4,7 @@ export function PortfolioSkeleton() {
   return (
     <div className="space-y-5" role="status">
       <span className="sr-only"><T k="common.loading" /></span>
-      <div aria-hidden="true" className="border-b border-border pb-6 pt-2">
+      <div aria-hidden="true" className="rounded-[20px] border border-accent-lavender/45 bg-linear-to-br from-panel to-accent-lavender/30 p-5 @lg:px-8 @lg:py-8">
         <div className="animate-pulse motion-reduce:animate-none">
           <div className="flex items-start justify-between gap-4">
             <div className="space-y-2.5">

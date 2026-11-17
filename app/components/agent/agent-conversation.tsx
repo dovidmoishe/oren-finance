@@ -168,8 +168,8 @@ export function DisconnectedState({ onConnect }: { onConnect: () => void }) {
   const auth = useOrenAuth();
   const t = useT();
   return (
-    <div className="flex h-full flex-col justify-center px-3 py-8">
-      <div className="grid size-10 place-items-center rounded-xl bg-panel-subtle text-muted">
+    <div className="flex h-full flex-col justify-center rounded-2xl bg-linear-to-b from-accent-lavender/20 via-panel to-panel p-4">
+      <div className="grid size-10 place-items-center rounded-xl border border-accent-lavender/60 bg-panel text-[#7160b8]">
         <Icon icon={WalletCardsIcon} size={20} />
       </div>
       <h3 className="mt-3 font-display text-xl leading-snug font-medium tracking-tight">{t("agent.disconnectedTitle")}</h3>

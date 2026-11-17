@@ -63,7 +63,7 @@ export function PortfolioDashboard() {
     }
     return (
       <EmptyState
-        className="mx-auto min-h-[55dvh] max-w-2xl rounded-none border-0 bg-panel shadow-none [&>h3]:mt-4 [&>h3]:text-2xl [&>h3]:font-medium [&>h3]:tracking-tight [&>p]:mt-3 [&>p]:leading-6 [&>div]:mt-6"
+        className="min-h-[55dvh] border-solid border-accent-lavender/40 bg-linear-to-b from-accent-lavender/20 via-panel to-panel shadow-none [&>h3]:mt-4 [&>h3]:text-2xl [&>h3]:font-medium [&>h3]:tracking-tight [&>p]:mt-3 [&>p]:leading-6 [&>div]:mt-6"
         icon={<OrenLogo size={40} />}
         action={
           restoreBlocked(auth) ? <RestoreActions signInLabel={t("portfolio.signIn")} />
