@@ -66,6 +66,7 @@ export class NotificationWorker
   ) {}
 
   onApplicationBootstrap() {
+    this.logger.log(senviokConfigSummary(process.env));
     const config = notificationSettings();
     if (notificationWorkerStartup(config) === 'idle') {
       this.logger.log('Notification features are disabled');
@@ -221,6 +222,38 @@ function laneEnabled(
   return lane === 'brief' || lane === 'brief-email'
     ? config.briefs
     : config.alerts;
+}
+
+/**
+ * Presence only. The key value is never included. The sender is reduced to
+ * its domain so a bad mailbox or domain can be spotted without logging it.
+ */
+export function senviokConfigSummary(env: {
+  SENVIOK_API_KEY?: string;
+  SENVIOK_FROM?: string;
+}) {
+  const apiKey = env.SENVIOK_API_KEY?.trim() ? 'present' : 'missing';
+  const from = env.SENVIOK_FROM?.trim() ?? '';
+  return `senviok config api_key=${apiKey} from=${from ? 'present' : 'missing'} from_domain=${senderDomain(from)}`;
+}
+
+function senderDomain(from: string) {
+  if (!from) return 'missing';
+  const address = /<([^<>]+)>/.exec(from)?.[1]?.trim() ?? from;
+  const at = address.lastIndexOf('@');
+  if (at <= 0 || at === address.length - 1) return 'invalid';
+  const domain = address
+    .slice(at + 1)
+    .trim()
+    .toLowerCase()
+    .replace(/\s+.*/, '');
+  if (
+    !/^[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?\.[a-z]{2,}$/.test(domain) ||
+    domain.includes('..')
+  ) {
+    return 'invalid';
+  }
+  return domain;
 }
 
 export const DISPATCH_LOG_INTERVAL_MS = 60_000;

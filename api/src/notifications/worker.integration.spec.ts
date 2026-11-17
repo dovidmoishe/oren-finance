@@ -68,9 +68,14 @@ run('notification jobs with disposable Postgres and Redis', () => {
         brief_time text, time_zone text
       );
     `);
-    await client.unsafe(
-      await readFile('lib/db/migrations/0019_notifications.sql', 'utf8'),
-    );
+    for (const file of [
+      '0019_notifications',
+      '0022_notification_job_send_errors',
+    ]) {
+      await client.unsafe(
+        await readFile(`lib/db/migrations/${file}.sql`, 'utf8'),
+      );
+    }
     jobs = new NotificationJobs(drizzle(client) as never);
   }, 20_000);
 
