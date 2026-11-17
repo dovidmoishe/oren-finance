@@ -77,7 +77,7 @@
   --font-oren-sans: "Onest Variable", system-ui, sans-serif;
   --font-sans: var(--font-oren-sans);
   --font-display: var(--font-oren-sans);
-  --font-money: "Geist Variable", var(--font-oren-sans);
+  --font-money: var(--font-oren-money, "Geist Variable"), var(--font-oren-sans);
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 

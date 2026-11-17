@@ -21,8 +21,8 @@ export function NavigationLink({ href, label, icon, active, compact, onNavigate 
       animate="rest"
       aria-current={active ? "page" : undefined}
       className={cn(
-        "flex min-h-10 items-center gap-2.5 rounded-lg px-3 text-sm font-medium outline-offset-2 focus-visible:outline-2 focus-visible:outline-focus lg:min-h-9 pointer-coarse:min-h-11",
-        active ? "bg-panel text-foreground shadow-[0_2px_8px_rgb(23_23_23/.05)] ring-1 ring-border/80 [&_svg]:text-[#6652b3]" : "text-muted hover:bg-panel/70 hover:text-foreground",
+        "flex min-h-10 items-center gap-2.5 rounded-lg px-3 text-sm font-normal outline-offset-2 focus-visible:outline-2 focus-visible:outline-focus lg:min-h-9 pointer-coarse:min-h-11",
+        active ? "bg-[#eaeaf0] text-foreground [&_svg]:text-[#6652b3]" : "text-muted hover:bg-panel/70 hover:text-foreground",
         compact && "justify-center px-0",
       )}
       href={href}
@@ -33,7 +33,7 @@ export function NavigationLink({ href, label, icon, active, compact, onNavigate 
       whileHover={reducedMotion ? undefined : "hover"}
     >
       <AnimatedNavigationIcon name={icon} />
-      <span className={cn(compact && "sr-only", active && "font-semibold")}>{label}</span>
+      <span className={cn(compact && "sr-only", active && "font-medium")}>{label}</span>
     </MotionLink>
   );
 }

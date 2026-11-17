@@ -25,7 +25,7 @@ type ButtonActionProps = SharedButtonProps &
 export type ButtonProps = ButtonLinkProps | ButtonActionProps;
 
 const baseClasses =
-  "group relative inline-flex items-center justify-center overflow-hidden rounded-[12px] font-semibold transition-[background-color,color,box-shadow,transform] duration-200 ease-out focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus disabled:pointer-events-none disabled:opacity-60";
+  "group relative inline-flex items-center justify-center overflow-hidden rounded-[12px] font-semibold in-[.oren-app]:rounded-lg in-[.oren-app]:font-medium in-[.oren-app]:shadow-none transition-[background-color,color,box-shadow,transform] duration-200 ease-out focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus disabled:pointer-events-none disabled:opacity-60";
 
 const variantClasses: Record<ButtonVariant, string> = {
   white: "border border-border bg-white text-foreground shadow-sm hover:border-border-strong hover:bg-panel-subtle",
@@ -65,7 +65,7 @@ function getButtonContent(children: ReactNode, variant: ButtonVariant) {
       <span
         aria-hidden="true"
         className={cn(
-          "absolute inset-y-0 -left-[130%] z-0 w-[86%] -skew-x-12 bg-gradient-to-r from-transparent to-transparent opacity-0 transition-[left,opacity] duration-700 ease-out group-hover:left-[138%] group-hover:opacity-100 group-focus-visible:left-[138%] group-focus-visible:opacity-100 motion-reduce:hidden",
+          "in-[.oren-app]:hidden absolute inset-y-0 -left-[130%] z-0 w-[86%] -skew-x-12 bg-gradient-to-r from-transparent to-transparent opacity-0 transition-[left,opacity] duration-700 ease-out group-hover:left-[138%] group-hover:opacity-100 group-focus-visible:left-[138%] group-focus-visible:opacity-100 motion-reduce:hidden",
           sheenClasses[variant],
         )}
       />

@@ -1,7 +1,14 @@
 /* Product density: preserve body text and root rem sizing; tighten larger UI tokens. */
 
 .oren-app {
-  @apply text-[.875rem] leading-[1.5];
+  @apply font-sans text-[.875rem] leading-[1.5] antialiased;
+  --font-oren-sans: "PP Neue Montreal", "Inter Variable", system-ui, sans-serif;
+  --font-oren-money: "Inter Variable", system-ui, sans-serif;
+  --foreground: #24242b;
+  --panel-subtle: #f6f6f8;
+  --muted: #71717e;
+  --border: #e6e6ec;
+  --border-strong: #cdcdd7;
   --text-lg: 1rem;
   --text-xl: 1.125rem;
   --text-2xl: 1.25rem;
@@ -12,7 +19,7 @@
   --app-nav-height: 3.75rem;
   --app-card-padding: 1rem;
   --app-card-header-y: .75rem;
-  --app-card-radius: 20px;
+  --app-card-radius: 12px;
   --app-control-height: 2.25rem;
   --app-control-small: 2rem;
   --app-control-large: 3rem;

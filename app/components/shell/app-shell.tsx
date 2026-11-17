@@ -125,7 +125,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div ref={shell} style={{ "--copilot-preferred-width": width + "px" } as CSSProperties} className={cn(
-      "mx-auto min-h-dvh overflow-x-clip bg-panel-subtle text-foreground lg:grid lg:grid-cols-[var(--nav-width)_minmax(0,1fr)_var(--copilot-width)] lg:p-3 lg:[--app-shell-inset:0.75rem] motion-reduce:transition-none [--app-header-bottom:calc(var(--app-nav-height)+var(--app-shell-inset,0px))]",
+      "mx-auto min-h-dvh overflow-x-clip bg-panel-subtle text-foreground [&_h2]:font-medium [&_h2]:tracking-[-0.025em] [&_h3]:font-medium [&_h3]:tracking-[-0.015em] lg:grid lg:grid-cols-[var(--nav-width)_minmax(0,1fr)_var(--copilot-width)] lg:[--app-shell-inset:0px] motion-reduce:transition-none [--app-header-bottom:calc(var(--app-nav-height)+var(--app-shell-inset,0px))]",
       collapsed ? "lg:[--nav-width:3.5rem]" : "lg:[--nav-width:12.5rem] xl:[--nav-width:13.5rem]",
       agentOpen && agentExpanded ? "lg:[--copilot-width:1fr]" : docked ? "lg:[--copilot-width:var(--copilot-preferred-width)]" : "lg:[--copilot-width:0rem]",
       resizing ? "select-none lg:transition-none" : cn(
@@ -134,7 +134,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       ),
     )}>
       <a className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-50 focus:rounded-lg focus:bg-panel focus:p-3" href="#app-content">{t("nav.skipToContent")}</a>
-      <aside ref={sidebar} className="sticky top-3 hidden h-[calc(100dvh-1.5rem)] min-h-0 flex-col pe-3 ps-2 pb-2 lg:flex">
+      <aside ref={sidebar} className="sticky top-0 hidden h-dvh min-h-0 flex-col border-e border-border px-3 pb-3 lg:flex">
         <div className={cn("flex h-[var(--app-nav-height)] shrink-0 items-center", collapsed ? "justify-center" : "justify-between px-1")}>
           {collapsed ? null : (
             <Link className="flex items-center gap-2 font-display text-[1.2rem] font-bold tracking-tight" href="/app">
@@ -147,7 +147,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </button>
         </div>
         <button aria-haspopup="dialog" aria-label={t("markets.searchLabel")} className={cn(
-          "mb-2 flex min-h-9 items-center gap-2 rounded-lg border border-border bg-panel text-start text-sm text-muted shadow-xs hover:border-border-strong hover:text-foreground focus-visible:outline-2 focus-visible:outline-focus pointer-coarse:min-h-11",
+          "mb-2 flex min-h-9 items-center gap-2 rounded-lg border border-border bg-panel text-start text-sm text-muted hover:border-border-strong hover:text-foreground focus-visible:outline-2 focus-visible:outline-focus pointer-coarse:min-h-11",
           collapsed ? "justify-center" : "px-2.5",
         )} onClick={() => search.current?.showModal()} title={t("markets.searchLabel")} type="button">
           <Icon icon={SearchIcon} size={16} />
@@ -159,8 +159,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </nav>
       </aside>
 
-      <div className={cn("min-h-dvh min-w-0 bg-panel lg:col-start-2 lg:row-start-1 lg:min-h-[calc(100dvh-1.5rem)] lg:rounded-[22px] lg:border lg:border-border/80 lg:shadow-[0_4px_24px_rgb(23_23_23/.025)]", agentOpen && agentExpanded && "lg:hidden")}>
-        <header ref={header} className="sticky top-0 z-30 flex min-h-[var(--app-nav-height)] items-center gap-1.5 border-b border-border/70 bg-panel px-2.5 sm:gap-2.5 sm:px-5 lg:rounded-t-[22px] lg:border-b-0">
+      <div className={cn("min-h-dvh min-w-0 bg-panel lg:col-start-2 lg:row-start-1 lg:min-h-dvh", agentOpen && agentExpanded && "lg:hidden")}>
+        <header ref={header} className="sticky top-0 z-30 flex min-h-[var(--app-nav-height)] items-center gap-1.5 border-b border-border/70 bg-panel px-2.5 sm:gap-2.5 sm:px-5">
           <button aria-label={t("nav.navigation")} className={cn(iconButton, "lg:hidden")} popoverTarget={menuId} type="button"><Icon icon={MenuIcon} size={20} /></button>
           <div className="fixed inset-x-2 top-[var(--app-header-bottom)] bottom-auto m-0 max-h-[calc(100dvh-var(--app-nav-height)-1rem)] overflow-y-auto rounded-xl border border-border bg-panel p-2 text-foreground shadow-xl lg:hidden" id={menuId} popover="auto" ref={mobileMenu}>
             <nav aria-label={t("nav.navigation")} className="grid gap-1">
@@ -169,8 +169,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </nav>
           </div>
           {active === portfolio || pathname === markets.href
-            ? <h1 className="min-w-0 flex-1 truncate font-display text-[1.125rem] font-bold tracking-tight">{title}</h1>
-            : <span className="min-w-0 flex-1 truncate font-display text-[1.125rem] font-bold tracking-tight">{title}</span>}
+            ? <h1 className="min-w-0 flex-1 truncate font-display text-[1.125rem] font-medium tracking-[-0.025em]">{title}</h1>
+            : <span className="min-w-0 flex-1 truncate font-display text-[1.125rem] font-medium tracking-[-0.025em]">{title}</span>}
           <div aria-label={t("nav.yourAccount")} className="flex min-w-0 items-center gap-0.5 sm:gap-2">
             <button aria-haspopup="dialog" aria-label={t("markets.searchLabel")} className={cn(iconButton, "lg:hidden")} onClick={() => search.current?.showModal()} type="button"><Icon icon={SearchIcon} /></button>
             <LanguageMenu />
@@ -191,7 +191,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </div>
         </header>
         <main
-          className={cn("@container min-w-0 px-3 pb-8 pt-3 sm:px-5 sm:pt-4 lg:pt-3", agentOpen && "max-lg:invisible")}
+          className={cn("@container min-w-0 px-3 pb-8 pt-3 sm:px-6 sm:pt-6 lg:pt-6", agentOpen && "max-lg:invisible")}
           id="app-content"
           tabIndex={-1}
         >
@@ -199,7 +199,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           {children}
         </main>
       </div>
-      <div className={cn("contents lg:sticky lg:top-3 lg:row-start-1 lg:block lg:min-w-0 lg:self-start", agentExpanded ? "lg:col-span-2 lg:col-start-2" : "lg:col-start-3", docked && "lg:ps-3")}>
+      <div className={cn("contents lg:sticky lg:top-0 lg:row-start-1 lg:block lg:min-w-0 lg:self-start", agentExpanded ? "lg:col-span-2 lg:col-start-2" : "lg:col-start-3", docked && "lg:border-s lg:border-border")}>
         {docked && <CopilotResizeHandle
           maxWidth={maxCopilotWidth}
           onDragChange={setResizing}
