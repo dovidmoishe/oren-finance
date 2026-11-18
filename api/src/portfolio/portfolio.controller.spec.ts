@@ -32,6 +32,13 @@ describe('PortfolioController', () => {
     expect(portfolio.getPortfolio).toHaveBeenCalledWith(wallet);
   });
 
+  it('passes the selected chart range to history after checking wallet ownership', async () => {
+    auth.requireWallet.mockResolvedValue('user-1');
+    await controller.getHistory('Bearer token', wallet, '1W');
+    expect(auth.requireWallet).toHaveBeenCalledWith('Bearer token', wallet);
+    expect(portfolio.getHistory).toHaveBeenCalledWith(wallet, '1W');
+  });
+
   it.each([
     [
       'history',

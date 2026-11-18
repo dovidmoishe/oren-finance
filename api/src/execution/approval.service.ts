@@ -25,6 +25,15 @@ import { LimitOrderRepository } from './limit-order.repository';
 import { LimitOrderCache } from './limit-order-cache';
 import { QuoteCache } from './quote-cache';
 import { publicQuote, type SwapExpectation } from './swap-terms';
+import {
+  sponsorshipEligible,
+  validateSponsoredTransaction,
+} from './gas-sponsorship';
+import { signingFailureDetails } from '../mcp-auth/signing-outcome';
+
+function sponsored(row: ApprovalRow) {
+  return row.kind !== 'withdrawal' && row.details.gasSponsorship === true;
+}
 
 export type ApprovalKind = 'swap' | 'limit' | 'cancel';
 @Injectable()
@@ -103,10 +112,22 @@ export class ApprovalService {
         ticker: order.ticker,
       };
     }
+    const useSponsorship =
+      this.env.PRIVY_REVIEWED_GAS_SPONSORSHIP === true &&
+      sponsorshipEligible(prepared.transaction, input.wallet);
+    if (useSponsorship) {
+      if (!this.env.PRIVY_GAS_SIMULATION_PAYER)
+        throw new ServiceUnavailableException(
+          'Gas sponsorship is not configured',
+        );
+      details.gasSponsorship = true;
+      details.gasSimulationPayer = this.env.PRIVY_GAS_SIMULATION_PAYER;
+    }
     const feeLamports = await this.rpc.inspect(
       prepared.transaction,
       input.wallet,
       expectation,
+      ...(useSponsorship ? [this.env.PRIVY_GAS_SIMULATION_PAYER] : []),
     );
     // The latest blockhash after simulation gives a conservative validity bound
     // for the reviewed transaction without changing its message or blockhash.
@@ -169,6 +190,7 @@ export class ApprovalService {
       row.transaction,
       row.id,
       row.expiresAt,
+      ...(sponsored(row) ? [true] : []),
     );
   }
 
@@ -181,10 +203,13 @@ export class ApprovalService {
     const owned = await this.owned(authorization, id);
     let row = owned.row;
     if (row.status === 'submitted') {
+      if (sponsored(row)) return this.status(authorization, id);
       await this.track(row);
       return this.view(row);
     }
     if (row.status === 'confirmed') return this.view(row);
+    if (row.status === 'signing' && sponsored(row))
+      return this.status(authorization, id);
     if (row.status === 'signing')
       throw new ConflictException(
         'Your approval is being processed. Check its status before retrying.',
@@ -211,6 +236,7 @@ export class ApprovalService {
         row.kind === 'swap'
           ? (row.details.expectation as SwapExpectation | undefined)
           : undefined,
+        ...(sponsored(row) ? [String(row.details.gasSimulationPayer)] : []),
       );
       if (row.expiresAt.getTime() <= Date.now())
         throw new BadRequestException(
@@ -224,6 +250,53 @@ export class ApprovalService {
           'An approval is already being processed for your wallet.',
         );
       row = claimed;
+      if (sponsored(row)) {
+        try {
+          const result = await this.auth.sendSponsoredTransaction(
+            row.walletId,
+            [authorizationSignature],
+            row.transaction,
+            row.id,
+            row.expiresAt,
+          );
+          // Preserve the returned hash before any validation or follow-up can fail.
+          row = await this.approvals.patch(
+            row.id,
+            {
+              status: 'submitted',
+              signature: result.signature,
+            },
+            'signing',
+          );
+          if (result.signedTransaction) {
+            validateSponsoredTransaction(
+              row.transaction,
+              result.signedTransaction,
+              row.wallet,
+              result.signature,
+            );
+            row = await this.approvals.patch(
+              row.id,
+              { signedTransaction: result.signedTransaction },
+              'submitted',
+            );
+          }
+          return this.status(authorization, id);
+        } catch (error) {
+          const failure = signingFailureDetails(error);
+          // Only explicit request rejection before a hash is known is safe to release.
+          if (
+            !row.signature &&
+            /^privy_rejected_(400|401|403|404|422)$/.test(failure.errorCode)
+          )
+            await this.approvals.patch(row.id, { status: 'failed' }, 'signing');
+          return {
+            ...this.view((await this.approvals.get(row.id)) ?? row),
+            message:
+              'Checking the sponsored trade. Keep this approval; do not create another trade until it is resolved.',
+          };
+        }
+      }
       try {
         const signed = await this.auth.signTransaction(
           row.walletId,
@@ -303,7 +376,28 @@ export class ApprovalService {
         )) ??
         (await this.approvals.get(row.id)) ??
         row;
-    if (row.status === 'signing' && row.expiresAt.getTime() <= Date.now())
+    if (row.status === 'signing' && sponsored(row)) {
+      try {
+        const signature = await this.auth.findSponsoredTransaction(
+          row.walletId,
+          row.id,
+        );
+        if (signature)
+          row =
+            (await this.approvals.patch(
+              row.id,
+              { status: 'submitted', signature },
+              'signing',
+            )) ?? row;
+      } catch {
+        /* Keep ambiguous broadcasts pending, including after original blockhash expiry. */
+      }
+    }
+    if (
+      row.status === 'signing' &&
+      !sponsored(row) &&
+      row.expiresAt.getTime() <= Date.now()
+    )
       row =
         (await this.approvals.patch(row.id, { status: 'failed' }, 'signing')) ??
         (await this.approvals.get(row.id)) ??
@@ -317,6 +411,7 @@ export class ApprovalService {
         row = await this.approvals.patch(row.id, { status: 'failed' });
       else if (
         !status &&
+        !sponsored(row) &&
         !(await this.rpc.blockhashValid(
           row.transaction,
           row.wallet,
@@ -328,6 +423,21 @@ export class ApprovalService {
         status &&
         ['confirmed', 'finalized'].includes(status.confirmationStatus ?? '')
       ) {
+        const confirmedSignature = row.signature;
+        if (sponsored(row)) {
+          // A provider hash alone does not prove the authorized instructions landed.
+          const signed = await this.rpc.verifySponsored(
+            row.signature,
+            row.transaction,
+            row.wallet,
+          );
+          if (!row.signedTransaction)
+            row = await this.approvals.patch(
+              row.id,
+              { signedTransaction: signed },
+              'submitted',
+            );
+        }
         await this.track(row);
         if (row.kind === 'limit') {
           const p = row.details.proposal as LimitOrderProposal;
@@ -345,7 +455,7 @@ export class ApprovalService {
             amountUsd: p.amountUsd,
             status: 'open',
             basis: p.basis,
-            openSignature: row.signature,
+            openSignature: confirmedSignature,
             expiredAt: new Date(p.expiredAt * 1000),
           });
         } else if (row.kind === 'cancel') {
@@ -353,7 +463,7 @@ export class ApprovalService {
             String(row.details.orderKey),
             {
               status: 'cancelled',
-              closeSignature: row.signature,
+              closeSignature: confirmedSignature,
             },
             row.wallet,
           );
@@ -361,7 +471,7 @@ export class ApprovalService {
         if (row.kind !== 'swap' && row.kind !== 'withdrawal')
           await this.executions.updateStatus(row.executionId, {
             status: 'confirmed',
-            transactionSignature: row.signature,
+            transactionSignature: confirmedSignature,
           });
         row = await this.approvals.patch(row.id, { status: 'confirmed' });
       }

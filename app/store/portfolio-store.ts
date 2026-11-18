@@ -26,8 +26,10 @@ interface PortfolioState {
   calendar?: TradingCalendarResponse;
   calendarDay?: TradingCalendarDayResponse;
   isLoading: boolean;
+  isHistoryLoading: boolean;
   isCalendarLoading: boolean;
   error?: string;
+  historyError?: string;
   loadPortfolio: (wallet: string) => Promise<void>;
   loadHistory: (wallet: string, range?: PortfolioRange) => Promise<void>;
   loadActivity: (wallet: string) => Promise<void>;
@@ -36,10 +38,13 @@ interface PortfolioState {
   reset: () => void;
 }
 
+let historyRequestId = 0;
+
 export const usePortfolioStore = create<PortfolioState>((set) => ({
   history: [],
   activity: [],
   isLoading: false,
+  isHistoryLoading: false,
   isCalendarLoading: false,
   async loadPortfolio(wallet) {
     const update = sessionSetter(set);
@@ -52,12 +57,16 @@ export const usePortfolioStore = create<PortfolioState>((set) => ({
     }
   },
   async loadHistory(wallet, range) {
+    const requestId = ++historyRequestId;
     const update = sessionSetter(set);
+    update({ isHistoryLoading: true, historyError: undefined });
     try {
       const history = await getPortfolioHistory(wallet, range);
-      update({ history });
+      if (requestId !== historyRequestId) return;
+      update({ history, isHistoryLoading: false });
     } catch (error) {
-      update({ error: error instanceof Error ? error.message : "Unable to load portfolio history" });
+      if (requestId !== historyRequestId) return;
+      update({ historyError: error instanceof Error ? error.message : "Unable to load portfolio history", isHistoryLoading: false });
     }
   },
   async loadActivity(wallet) {
@@ -90,6 +99,7 @@ export const usePortfolioStore = create<PortfolioState>((set) => ({
     }
   },
   reset() {
-    set({ wallet: undefined, portfolio: undefined, history: [], activity: [], calendar: undefined, calendarDay: undefined, error: undefined, isLoading: false, isCalendarLoading: false });
+    historyRequestId += 1;
+    set({ wallet: undefined, portfolio: undefined, history: [], activity: [], calendar: undefined, calendarDay: undefined, error: undefined, historyError: undefined, isLoading: false, isHistoryLoading: false, isCalendarLoading: false });
   },
 }));

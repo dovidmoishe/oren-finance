@@ -1,15 +1,21 @@
 import { PrivyWalletAuth } from './privy-wallet-auth';
 import { Logger } from '@nestjs/common';
+import bs58 from 'bs58';
+import { SPONSORED_SOLANA_CHAIN } from '../execution/gas-sponsorship';
 
 const verify = jest.fn();
 const getUser = jest.fn();
 const getWallet = jest.fn();
 const signTransaction = jest.fn();
+const signAndSendTransaction = jest.fn();
 jest.mock('@privy-io/node', () => ({
   PrivyClient: jest.fn().mockImplementation(() => ({
     utils: () => ({ auth: () => ({ verifyAccessToken: verify }) }),
     users: () => ({ _get: getUser }),
-    wallets: () => ({ get: getWallet, solana: () => ({ signTransaction }) }),
+    wallets: () => ({
+      get: getWallet,
+      solana: () => ({ signTransaction, signAndSendTransaction }),
+    }),
   })),
 }));
 
@@ -24,6 +30,97 @@ describe('PrivyWalletAuth', () => {
         { type: 'wallet', chain_type: 'ethereum', address: 'other-chain' },
       ],
     });
+  });
+  it('binds sponsorship, mainnet, reference and both quorum signatures to one request', async () => {
+    const signature = bs58.encode(new Uint8Array(64).fill(7));
+    signAndSendTransaction.mockResolvedValue({
+      hash: signature,
+      caip2: SPONSORED_SOLANA_CHAIN,
+    });
+    const expiry = new Date(Date.now() + 30_000);
+    expect(
+      auth.signingRequest('wallet-id', 'unsigned', 'reference', expiry, true)
+        .body,
+    ).toEqual({
+      method: 'signAndSendTransaction',
+      chain_type: 'solana',
+      caip2: SPONSORED_SOLANA_CHAIN,
+      sponsor: true,
+      reference_id: 'reference',
+      params: { transaction: 'unsigned', encoding: 'base64' },
+    });
+    await expect(
+      auth.sendSponsoredTransaction(
+        'wallet-id',
+        ['api', 'gate'],
+        'unsigned',
+        'reference',
+        expiry,
+      ),
+    ).resolves.toMatchObject({ signature });
+    expect(signAndSendTransaction).toHaveBeenCalledWith('wallet-id', {
+      transaction: 'unsigned',
+      caip2: SPONSORED_SOLANA_CHAIN,
+      sponsor: true,
+      reference_id: 'reference',
+      authorization_context: { signatures: ['api', 'gate'] },
+      idempotency_key: 'reference',
+      request_expiry: expiry.getTime(),
+    });
+    expect(signTransaction).not.toHaveBeenCalled();
+  });
+  it('recovers only a uniquely matching sponsored mainnet wallet transaction without sending', async () => {
+    const signature = bs58.encode(new Uint8Array(64).fill(6));
+    const match = {
+      wallet_id: 'wallet-id',
+      reference_id: 'reference',
+      caip2: SPONSORED_SOLANA_CHAIN,
+      sponsored: true,
+      transaction_hash: signature,
+    };
+    const fetcher = jest
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(
+        new Response(JSON.stringify({ transactions: [match] })),
+      );
+    try {
+      await expect(
+        auth.findSponsoredTransaction('wallet-id', 'reference'),
+      ).resolves.toBe(signature);
+      expect(fetcher.mock.calls[0][0]).toBe(
+        'https://api.privy.io/v1/transactions?reference_id=reference',
+      );
+      for (const mismatch of [
+        { wallet_id: 'other' },
+        { reference_id: 'other' },
+        { sponsored: false },
+        { caip2: 'solana:devnet' },
+      ]) {
+        fetcher.mockResolvedValueOnce(
+          new Response(
+            JSON.stringify({ transactions: [{ ...match, ...mismatch }] }),
+          ),
+        );
+        await expect(
+          auth.findSponsoredTransaction('wallet-id', 'reference'),
+        ).rejects.toThrow('mismatch');
+      }
+      fetcher.mockResolvedValueOnce(
+        new Response(JSON.stringify({ transactions: [match, match] })),
+      );
+      await expect(
+        auth.findSponsoredTransaction('wallet-id', 'reference'),
+      ).rejects.toThrow('Ambiguous');
+      fetcher.mockResolvedValueOnce(
+        new Response(JSON.stringify({ transactions: [] })),
+      );
+      await expect(
+        auth.findSponsoredTransaction('wallet-id', 'reference'),
+      ).resolves.toBeUndefined();
+      expect(signAndSendTransaction).not.toHaveBeenCalled();
+    } finally {
+      fetcher.mockRestore();
+    }
   });
 
   it('requires configuration and a bearer token', async () => {

@@ -139,6 +139,10 @@ export class SignerGateClient {
     }
   }
 
+  reconcile(executionId: string) {
+    return this.post<GateResult>('/reconcile', { executionId });
+  }
+
   grantLimits() {
     return this.post<{
       maxDurationHours?: number;

@@ -18,7 +18,11 @@ function execution(type: 'stock_purchase' | 'stock_sale') {
 }
 
 function balance(mint: string, amount: number) {
-  return { mint, owner: wallet, uiTokenAmount: { uiAmountString: String(amount), decimals: 6 } };
+  return {
+    mint,
+    owner: wallet,
+    uiTokenAmount: { uiAmountString: String(amount), decimals: 6 },
+  };
 }
 
 describe('buildVerifiedFill', () => {
@@ -52,14 +56,16 @@ describe('buildVerifiedFill', () => {
   });
 
   it('fails closed when token deltas contradict the intent', () => {
-    expect(() => buildVerifiedFill(execution('stock_purchase'), 'sig-bad', {
-      slot: 44,
-      blockTime: 1_700_000_002,
-      meta: {
-        preTokenBalances: [balance(stockMint, 2), balance(USDC_MINT, 10)],
-        postTokenBalances: [balance(stockMint, 1.5), balance(USDC_MINT, 50)],
-      },
-    })).toThrow('do not match');
+    expect(() =>
+      buildVerifiedFill(execution('stock_purchase'), 'sig-bad', {
+        slot: 44,
+        blockTime: 1_700_000_002,
+        meta: {
+          preTokenBalances: [balance(stockMint, 2), balance(USDC_MINT, 10)],
+          postTokenBalances: [balance(stockMint, 1.5), balance(USDC_MINT, 50)],
+        },
+      }),
+    ).toThrow('do not match');
   });
 
   const buy = {
@@ -72,28 +78,76 @@ describe('buildVerifiedFill', () => {
   };
 
   it('refuses swap volume from a transaction another wallet paid for', () => {
-    expect(() => buildVerifiedFill(execution('stock_purchase'), 'sig-other', {
-      ...buy,
-      transaction: { message: { accountKeys: [{ pubkey: 'Someone1111111111111111111111111111111111', signer: true }] } },
-    }, { requireWalletFeePayer: true })).toThrow('fee payer');
-    expect(() => buildVerifiedFill(execution('stock_purchase'), 'sig-missing', buy, {
-      requireWalletFeePayer: true,
-    })).toThrow('fee payer');
+    expect(() =>
+      buildVerifiedFill(
+        execution('stock_purchase'),
+        'sig-other',
+        {
+          ...buy,
+          transaction: {
+            message: {
+              accountKeys: [
+                {
+                  pubkey: 'Someone1111111111111111111111111111111111',
+                  signer: true,
+                },
+              ],
+            },
+          },
+        },
+        { requireWalletFeePayer: true },
+      ),
+    ).toThrow('fee payer');
+    expect(() =>
+      buildVerifiedFill(execution('stock_purchase'), 'sig-missing', buy, {
+        requireWalletFeePayer: true,
+      }),
+    ).toThrow('fee payer');
   });
 
   it('accepts swap volume the execution wallet signed and paid for', () => {
-    const fill = buildVerifiedFill(execution('stock_purchase'), 'sig-own', {
-      ...buy,
-      transaction: { message: { accountKeys: [{ pubkey: wallet, signer: true }] } },
-    }, { requireWalletFeePayer: true });
+    const fill = buildVerifiedFill(
+      execution('stock_purchase'),
+      'sig-own',
+      {
+        ...buy,
+        transaction: {
+          message: { accountKeys: [{ pubkey: wallet, signer: true }] },
+        },
+      },
+      { requireWalletFeePayer: true },
+    );
     expect(fill.walletAddress).toBe(wallet);
+  });
+  it('accepts a sponsored fill only when the execution wallet is still a signer', () => {
+    const keys = [
+      { pubkey: 'sponsor', signer: true },
+      { pubkey: wallet, signer: true },
+    ];
+    const tx = { ...buy, transaction: { message: { accountKeys: keys } } };
+    expect(
+      buildVerifiedFill(execution('stock_purchase'), 'sig-sponsored', tx, {
+        requireWalletSigner: true,
+      }).walletAddress,
+    ).toBe(wallet);
+    keys[1].signer = false;
+    expect(() =>
+      buildVerifiedFill(execution('stock_purchase'), 'sig-no-owner', tx, {
+        requireWalletSigner: true,
+      }),
+    ).toThrow('not signed');
   });
 
   it('refuses a trade that landed before the execution was prepared', () => {
-    expect(() => buildVerifiedFill(
-      { ...execution('stock_purchase'), createdAt: new Date(1_700_000_000_000 + 10 * 60_000) },
-      'sig-old',
-      buy,
-    )).toThrow('predates');
+    expect(() =>
+      buildVerifiedFill(
+        {
+          ...execution('stock_purchase'),
+          createdAt: new Date(1_700_000_000_000 + 10 * 60_000),
+        },
+        'sig-old',
+        buy,
+      ),
+    ).toThrow('predates');
   });
 });

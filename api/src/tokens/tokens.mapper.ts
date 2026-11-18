@@ -214,7 +214,7 @@ export function mapRisk(
 export function mapNewsItem(raw: TokensNewsItemRaw): MarketNewsItem | null {
   const headline = raw.headline ?? raw.title;
   if (!headline) return null;
-  const published = raw.publishedAt ?? raw.published_at;
+  const published = raw.publishedAt ?? raw.published_at ?? raw.posted_at;
   let publishedAt = new Date();
   if (typeof published === 'number') {
     publishedAt = new Date(
