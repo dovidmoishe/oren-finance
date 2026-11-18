@@ -50,6 +50,7 @@ function fixture() {
     allowedUsers: new Set(['user-test']), buysEnabled: true, sellsEnabled: false,
   };
   const service = new SignerGateService(config, {
+    auth: new PrivyWalletAuth('app-test', 'secret-test'),
     db, privy: { wallets: () => ({ solana: () => ({ signTransaction: async (...args) => {
       signCalls++;
       return sign(...args);
