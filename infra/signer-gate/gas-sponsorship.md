@@ -4,6 +4,13 @@ Native Privy App-pays sponsorship is implemented behind independent switches.
 This branch does not change production configuration, policies, wallets or grants.
 No SDK upgrade, new MCP tool, user step or database migration is required.
 
+Current owner decision (2026-11-18): keep MCP sponsorship off. Leave
+`PRIVY_MCP_GAS_SPONSORSHIP=false` and `SIGNER_GATE_GAS_SPONSORSHIP=false`;
+do not create or attach a sponsored MCP policy, rotate policy pins or request
+renewed grants for this rollout. The MCP-specific steps below are deferred until
+the owner resumes that work. User-reviewed trade sponsorship remains a separate
+rollout; its implementation is ready locally and has not been enabled in production.
+
 ## Scope and authorization
 
 - Eligible user-reviewed swap, limit-open and limit-cancel approvals use the same
