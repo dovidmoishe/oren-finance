@@ -82,17 +82,15 @@ test('draft lookup and listing require explicit development preview; production 
   assert.equal(findEntry(entries, 'missing'), undefined);
 });
 
-test('seed entry references the approved video and checksum manifest and explains development status', () => {
+test('token entry preserves its public link and describes planned holder access', () => {
   const dir = new URL('../content/changelog/', import.meta.url);
   const entries = validateEntries(readdirSync(dir).filter(f => f.endsWith('.json')).map(f => JSON.parse(readFileSync(new URL(f, dir), 'utf8'))));
   const token = findEntry(entries, 'introducing-the-oren-token-page');
   assert.equal(token.date, '2026-10-31');
-  assert.equal(token.video.src, '/videos/oren-token-explainer-50-percent.mp4');
-  assert.match(token.video.caption, /in development and are not active yet/);
+  assert.equal(token.video, undefined);
+  assert.match(JSON.stringify(token.sections), /before activation/);
+  assert.doesNotMatch(JSON.stringify(token), /buyback|burn|fee allocation|50%/i);
   assert.equal(token.links[0].href, '/token');
-  const manifest = readFileSync(new URL('../../infra/videos.sha256', import.meta.url), 'utf8');
-  assert.ok(manifest.includes(token.video.src.split('/').at(-1)));
-  assert.ok(manifest.includes(token.video.poster.split('/').at(-1)));
 });
 
 function loadModule(file, require, process) {

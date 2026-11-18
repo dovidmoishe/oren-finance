@@ -3,7 +3,7 @@
   "date": "2026-10-31",
   "status": "published",
   "title": "Introducing the Oren token page",
-  "summary": "A home for $OREN. Explore the token’s role in Oren, find its official address, and watch the story in 36 seconds.",
+  "summary": "A home for $OREN. Explore the token’s role in Oren, find its official address, and learn about planned holder access.",
   "sections": [
     {
       "heading": "Added",
@@ -13,12 +13,8 @@
           "title": "The official token address"
         },
         {
-          "description": "A short film introducing holder access, member benefits, and the buyback-and-burn system we are building.",
-          "title": "The story in 36 seconds"
-        },
-        {
-          "description": "50% of platform fees for buybacks and burns, 20% for the team treasury, and 30% for the development team.",
-          "title": "A clear fee allocation"
+          "title": "Holder access and membership",
+          "description": "Learn about the holding-based membership tiers and benefits we are building. Features, usage allowances and holding requirements will be published before activation."
         }
       ]
     }
@@ -29,13 +25,5 @@
       "href": "/token"
     }
   ],
-  "video": {
-    "src": "/videos/oren-token-explainer-50-percent.mp4",
-    "poster": "/videos/oren-token-poster.jpg",
-    "label": "Oren token utility explainer, 36 seconds",
-    "caption": "Holder benefits and automated buybacks are in development and are not active yet. The allocation applies to platform fees, not the amount you trade.",
-    "width": 1920,
-    "height": 1080
-  },
   "sequence": 1
 }
