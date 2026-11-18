@@ -95,7 +95,7 @@ function session(createWallet, { deployment = "production", pathname = "/app" } 
       if (id === './auth-context') return { AuthContext: { Provider: 'auth' } };
       if (id === './email-login') return { EmailLogin: 'email-login' };
       if (id === './personalization-dialog') return { PersonalizationDialog: 'onboarding' };
-      if (id === '@solana/wallet-adapter-react') return { WalletContext: { Provider: 'wallet' } };
+      if (id === '@/components/auth/wallet-context') return { WalletContext: { Provider: 'wallet' } };
       if (id === './wallet-modal-context') return { WalletModalContext: { Provider: 'wallet-modal' } };
       return require(id);
     },

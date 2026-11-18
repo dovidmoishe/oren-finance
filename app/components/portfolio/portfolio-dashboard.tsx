@@ -31,13 +31,16 @@ export function PortfolioDashboard() {
   const connected = useWalletStore((state) => state.connected);
   const portfolio = usePortfolioStore((state) => state.portfolio);
   const history = usePortfolioStore((state) => state.history);
+  const historyKey = usePortfolioStore((state) => state.historyKey);
   const activity = usePortfolioStore((state) => state.activity);
   const isLoading = usePortfolioStore((state) => state.isLoading);
   const isHistoryLoading = usePortfolioStore((state) => state.isHistoryLoading);
   const historyError = usePortfolioStore((state) => state.historyError);
   const error = usePortfolioStore((state) => state.error);
   const reset = usePortfolioStore((state) => state.reset);
-  const [range, setRange] = useState<MarketChartRange>("7D");
+  const selectedRange = usePortfolioStore((state) => state.selectedRange);
+  const selectRange = usePortfolioStore((state) => state.selectRange);
+  const range = (Object.keys(chartRangeToPortfolioRange) as MarketChartRange[]).find((key) => chartRangeToPortfolioRange[key] === selectedRange) ?? "7D";
   const [hidden, setHidden] = useState(false);
   const refresh = usePortfolioRefresh(chartRangeToPortfolioRange[range]);
 
@@ -46,13 +49,14 @@ export function PortfolioDashboard() {
       reset();
       return;
     }
-    void refresh();
+    void refresh(false);
   }, [connected, refresh, reset, wallet]);
 
-  const chartData = useMemo(() => history.map((snapshot) => ({
+  const historyMatches = historyKey === `${wallet}:${selectedRange}`;
+  const chartData = useMemo(() => (historyMatches ? history : []).map((snapshot) => ({
     timestamp: snapshot.timestamp,
     value: snapshot.totalValueUsd,
-  })), [history]);
+  })), [history, historyMatches]);
 
   if (!connected) {
     if (!auth.ready && !restoreBlocked(auth)) {
@@ -87,6 +91,7 @@ export function PortfolioDashboard() {
   return (
     <div className="mx-auto max-w-[75rem] space-y-5 @lg:space-y-7">
       {error ? <ErrorState description={error} onRetry={() => void refresh()} /> : null}
+      {historyError && history.length > 0 ? <p className="text-sm text-muted" role="status">{t("common.chartUnavailable")}: {historyError}</p> : null}
       <PortfolioSummaryCard
         hidden={hidden}
         onDeposit={auth.openDeposit}
@@ -102,11 +107,11 @@ export function PortfolioDashboard() {
             activeRange={range}
             className="rounded-none border-0 shadow-none"
             compact
-            error={historyError}
+            error={history.length === 0 ? historyError : undefined}
             lineData={chartData}
-            loading={isHistoryLoading || (isLoading && history.length === 0)}
+            loading={!historyMatches || isHistoryLoading}
             mode="line"
-            onRangeChange={setRange}
+            onRangeChange={(next) => selectRange(chartRangeToPortfolioRange[next])}
             showSummary={false}
           />
         ) : undefined}

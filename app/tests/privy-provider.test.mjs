@@ -25,7 +25,7 @@ for (const rpcOverride of [undefined, 'https://rpc.example.invalid/private-key-m
       require(id) {
         noBrowserRpc(id);
         if (id === '@privy-io/react-auth') return { PrivyProvider(props) { config = props.config; return props.children; } };
-        if (id === '@solana/wallet-adapter-react') return { WalletContext: createContext({}), ConnectionProvider() { throw new Error('Browser RPC must not be initialized'); } };
+        if (id === '@/components/auth/wallet-context') return { useWallet: () => ({}), WalletContext: createContext({}), ConnectionProvider() { throw new Error('Browser RPC must not be initialized'); } };
         if (id === './auth-context') return { AuthContext: createContext({}) };
         if (id === './wallet-modal-context') return { WalletModalContext: createContext({}) };
         if (id === './privy-session') return { PrivySession: ({ children }) => children };
@@ -57,7 +57,7 @@ function renderProviders(env) {
     require(id) {
       noBrowserRpc(id);
       if (id === 'next/dynamic') return { default: (load) => { privyLoads++; void load; return () => null; } };
-      if (id === '@solana/wallet-adapter-react') return { WalletContext, ConnectionProvider() { throw new Error('Browser RPC must not be initialized'); } };
+      if (id === '@/components/auth/wallet-context') return { WalletContext, ConnectionProvider() { throw new Error('Browser RPC must not be initialized'); } };
       if (id === '@/components/auth/auth-context') return { AuthContext };
       if (id === '@/components/auth/wallet-modal-context') return { WalletModalContext };
       if (id === '@/components/auth/privy-auth') throw new Error('Privy must be loaded lazily');

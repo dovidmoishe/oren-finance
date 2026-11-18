@@ -1,4 +1,9 @@
 @import "tailwindcss";
+
+/* A delayed recovery link that also works while application scripts are stalled. */
+@keyframes startup-recovery {
+  to { visibility: visible; }
+}
 @import "./styles/theme.css";
 @import "./styles/conversation-motion.css";
 @import "./styles/trade-grant.css";
