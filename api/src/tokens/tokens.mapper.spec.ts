@@ -3,9 +3,31 @@ import {
   mapCandles,
   mapEquity,
   mapEquityList,
+  mapNewsItem,
 } from './tokens.mapper';
 
 describe('tokens mapper', () => {
+  it('preserves the live news feed posted_at timestamp', () => {
+    const news = mapNewsItem({
+      title: 'NVIDIA market update',
+      posted_at: '2026-11-14T17:05:08.000Z',
+      url: 'https://x.com/tokens/status/2121650652476838390',
+    });
+
+    expect(news?.publishedAt.toISOString()).toBe('2026-11-14T17:05:08.000Z');
+  });
+
+  it.each([
+    { publishedAt: '2026-11-14T17:05:08.000Z' },
+    { published_at: '2026-11-14T17:05:08.000Z' },
+    { posted_at: 1_794_675_908 },
+    { posted_at: 1_794_675_908_000 },
+  ])('preserves supported news timestamp formats: %j', (timestamp) => {
+    const news = mapNewsItem({ title: 'NVIDIA market update', ...timestamp });
+
+    expect(news?.publishedAt.toISOString()).toBe('2026-11-14T17:05:08.000Z');
+  });
+
   it('maps the curated asset image and canonical stats', () => {
     const equity = mapEquity({
       assetId: 'nvidia',
