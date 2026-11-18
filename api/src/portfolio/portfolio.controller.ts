@@ -11,6 +11,7 @@ import { PrivyWalletAuth } from '../auth/privy-wallet-auth';
 import { WalletAddressPipe } from '../common/pipes/wallet-address.pipe';
 import { PortfolioCalendarService } from './portfolio-calendar.service';
 import { PortfolioService } from './portfolio.service';
+import type { ChartRange } from '../../types/market';
 
 @Controller('portfolio')
 export class PortfolioController {
@@ -32,9 +33,10 @@ export class PortfolioController {
   async getHistory(
     @Headers('authorization') authorization: string | undefined,
     @Param('wallet', WalletAddressPipe) wallet: string,
+    @Query('range') range?: ChartRange,
   ): Promise<GetPortfolioHistoryResponse> {
     await this.auth.requireWallet(authorization, wallet);
-    return this.portfolio.getHistory(wallet);
+    return this.portfolio.getHistory(wallet, range);
   }
 
   @Get(':wallet/activity')
