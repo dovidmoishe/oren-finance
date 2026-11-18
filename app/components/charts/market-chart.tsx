@@ -326,7 +326,7 @@ export function MarketChart({
           />
         ) : (
           <>
-            <div className="h-full w-full" ref={containerRef} />
+            <div className="absolute inset-0" ref={containerRef} />
             {tooltip ? (
               <div
                 className="pointer-events-none absolute rounded-[10px] border border-border bg-panel px-2.5 py-1.5 text-xs text-foreground shadow-sm"
