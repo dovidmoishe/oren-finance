@@ -1,6 +1,10 @@
 import { createHash, createPublicKey, randomUUID, verify } from 'node:crypto';
 import { BadRequestException } from '@nestjs/common';
 import {
+  isSponsoredRequest,
+  validateSponsoredTransaction,
+} from '../execution/gas-sponsorship';
+import {
   policyAllowsStock,
   policyAllowsDestinationAccount,
   signingPolicyExpiresAt,
@@ -96,7 +100,23 @@ export function gatePolicyRulesValid(
   policy: PrivyPolicy,
   sellsEnabled: boolean,
 ) {
-  const rules = policy.rules;
+  const sponsoredRules = policy.rules.filter(
+    (rule) => rule.method === 'signAndSendTransaction',
+  );
+  const rules = policy.rules.filter(
+    (rule) => rule.method !== 'signAndSendTransaction',
+  );
+  if (
+    sponsoredRules.length &&
+    gatePolicyFingerprint({
+      ...policy,
+      rules: sponsoredRules.map((rule) => ({
+        ...rule,
+        method: 'signTransaction',
+      })),
+    }) !== gatePolicyFingerprint({ ...policy, rules })
+  )
+    return false;
   if (!rules || rules.some((rule) => rule.method !== 'signTransaction'))
     return false;
   const buys = 'allow bounded jupiter buy';
@@ -139,6 +159,8 @@ export interface SignerGateConfig {
   publicAccess?: boolean;
   buysEnabled: boolean;
   sellsEnabled: boolean;
+  gasSponsorship?: boolean;
+  simulationPayer?: string;
 }
 
 export interface SignerGateDependencies {
@@ -190,6 +212,14 @@ export class SignerGateService {
 
   private assertEnabled() {
     if (!this.config.enabled) throw new Error('Delegated signing is disabled');
+  }
+
+  private sponsor(policy: PrivyPolicy) {
+    return (
+      this.config.gasSponsorship === true &&
+      !!this.config.simulationPayer &&
+      policy.rules.some((rule) => rule.method === 'signAndSendTransaction')
+    );
   }
 
   private async browserOwner(
@@ -621,7 +651,13 @@ export class SignerGateService {
     }
     // One fresh quote at the intent's original slippage. Never a wider limit.
     const built = await retryOnceOnSlippage(() =>
-      buildGateJupiterRoute(intent, this.deps),
+      buildGateJupiterRoute(
+        intent,
+        this.deps,
+        this.sponsor(policy)
+          ? { simulationPayer: this.config.simulationPayer }
+          : undefined,
+      ),
     );
     const fresh = built.value;
     if (
@@ -641,6 +677,7 @@ export class SignerGateService {
       fresh.transaction,
       executionId,
       requestExpiresAt,
+      ...(this.sponsor(policy) && fresh.gasSponsored ? [true] : []),
     );
     const reserved = await reserveTradeBudget(this.deps.db, {
       delegationId: delegation.id,
@@ -722,6 +759,9 @@ export class SignerGateService {
       throw new Error('Prepared intent is unavailable for delegation');
     const fresh = await buildGateJupiterRoute(intent, this.deps, {
       allowExecuting: true,
+      ...(this.sponsor(policy)
+        ? { simulationPayer: this.config.simulationPayer }
+        : {}),
     });
     if (
       fresh.createsDestinationAccount &&
@@ -752,6 +792,7 @@ export class SignerGateService {
       fresh.transaction,
       execution.id,
       requestExpiresAt,
+      ...(this.sponsor(policy) && fresh.gasSponsored ? [true] : []),
     );
     const [updated] = await this.deps.db
       .update(mcpDelegatedExecutions)
@@ -845,7 +886,23 @@ export class SignerGateService {
       )
     )
       throw new Error('API authorization signature is invalid');
-    const { delegation } = await this.ownedState(execution.intentId);
+    const { delegation, policy } = await this.ownedState(execution.intentId);
+    const sponsored = isSponsoredRequest(execution.privyRequest);
+    if (sponsored && !this.sponsor(policy))
+      throw new Error('Gas sponsorship is disabled');
+    const expectedRequest = this.deps.auth.signingRequest(
+      delegation.walletId,
+      execution.unsignedTransaction,
+      execution.id,
+      execution.requestExpiresAt,
+      ...(sponsored ? [true] : []),
+    );
+    if (
+      !canonical(execution).equals(
+        Buffer.from(formatRequestForAuthorizationSignature(expectedRequest)),
+      )
+    )
+      throw new Error('Privy request differs from the claimed transaction');
     const requestUrl = execution.privyRequest.url;
     if (
       typeof requestUrl !== 'string' ||
@@ -868,6 +925,70 @@ export class SignerGateService {
       authorizationPrivateKey: this.config.gatePrivateKeyDerBase64,
       input: canonical(claimed),
     });
+    if (sponsored) {
+      let chainSignature: string | undefined;
+      try {
+        const result = await this.deps.auth.sendSponsoredTransaction(
+          delegation.walletId,
+          [apiSignatureBase64, gateSignature],
+          execution.unsignedTransaction,
+          execution.id,
+          execution.requestExpiresAt,
+        );
+        chainSignature = result.signature;
+        await this.deps.db
+          .update(mcpDelegatedExecutions)
+          .set({ state: 'broadcast', chainSignature, updatedAt: new Date() })
+          .where(eq(mcpDelegatedExecutions.id, execution.id));
+        if (result.signedTransaction) {
+          validateSponsoredTransaction(
+            execution.unsignedTransaction,
+            result.signedTransaction,
+            delegation.wallet,
+            chainSignature,
+          );
+          await this.deps.db
+            .update(mcpDelegatedExecutions)
+            .set({ signedTransaction: result.signedTransaction })
+            .where(eq(mcpDelegatedExecutions.id, execution.id));
+        }
+        await this.deps.db
+          .update(mcpTradeIntents)
+          .set({ status: 'submitted' })
+          .where(eq(mcpTradeIntents.id, execution.intentId));
+        return { executionId, state: 'broadcast' as const, chainSignature };
+      } catch (error) {
+        // No fallback to sign-only or another request/key after a possible broadcast.
+        const failure = signingFailureDetails(error);
+        const rejected =
+          !chainSignature &&
+          /^privy_rejected_(400|401|403|404|422)$/.test(failure.errorCode);
+        await this.deps.db
+          .update(mcpDelegatedExecutions)
+          .set({
+            state: rejected ? 'failed' : 'pending',
+            ...(chainSignature ? { chainSignature } : {}),
+            errorCode: rejected ? 'sponsor_rejected' : 'sponsor_uncertain',
+            updatedAt: new Date(),
+          })
+          .where(eq(mcpDelegatedExecutions.id, execution.id));
+        if (rejected)
+          await settleTradeBudget(
+            this.deps.db,
+            execution.intentId,
+            'definite_failure',
+          );
+        return {
+          executionId,
+          state: rejected ? ('failed' as const) : ('pending' as const),
+          ...(chainSignature ? { chainSignature } : {}),
+          ...signingOutcome(
+            rejected ? 'sponsor_rejected' : 'sponsor_uncertain',
+            chainSignature,
+          ),
+        };
+      }
+    }
     let signed: string;
     try {
       const result = await this.deps.privy
@@ -960,14 +1081,61 @@ export class SignerGateService {
   }
 
   async reconcile(executionId: string) {
-    const [execution] = await this.deps.db
+    let [execution] = await this.deps.db
       .select()
       .from(mcpDelegatedExecutions)
       .where(eq(mcpDelegatedExecutions.id, executionId))
       .limit(1);
     if (!execution) throw new Error('Execution unavailable');
+    const sponsored = isSponsoredRequest(execution.privyRequest);
+    if (
+      sponsored &&
+      !execution.chainSignature &&
+      ['signing', 'pending'].includes(execution.state)
+    ) {
+      const [intent] = await this.deps.db
+        .select()
+        .from(mcpTradeIntents)
+        .where(eq(mcpTradeIntents.id, execution.intentId))
+        .limit(1);
+      const [delegation] = intent?.delegationId
+        ? await this.deps.db
+            .select()
+            .from(mcpTradeDelegations)
+            .where(eq(mcpTradeDelegations.id, intent.delegationId))
+            .limit(1)
+        : [];
+      if (delegation) {
+        try {
+          const signature = await this.deps.auth.findSponsoredTransaction(
+            delegation.walletId,
+            execution.id,
+          );
+          if (signature) {
+            const [updated] = await this.deps.db
+              .update(mcpDelegatedExecutions)
+              .set({
+                state: 'broadcast',
+                chainSignature: signature,
+                updatedAt: new Date(),
+              })
+              .where(
+                and(
+                  eq(mcpDelegatedExecutions.id, execution.id),
+                  inArray(mcpDelegatedExecutions.state, ['signing', 'pending']),
+                ),
+              )
+              .returning();
+            if (updated) execution = updated;
+          }
+        } catch {
+          /* Read failures and absent provider records do not release the reservation. */
+        }
+      }
+    }
     let expiredUnsignedSigning = false;
     if (
+      !sponsored &&
       execution.state === 'pending' &&
       !execution.chainSignature &&
       !execution.signedTransaction &&
@@ -1064,6 +1232,20 @@ export class SignerGateService {
           .where(eq(mcpDelegatedExecutions.id, executionId));
         return { executionId, state: 'failed' as const };
       }
+      if (sponsored) {
+        const [intent] = await this.deps.db
+          .select()
+          .from(mcpTradeIntents)
+          .where(eq(mcpTradeIntents.id, execution.intentId))
+          .limit(1);
+        if (!intent)
+          throw new Error('Sponsored execution intent is unavailable');
+        await this.deps.rpc.verifySponsored(
+          execution.chainSignature,
+          execution.unsignedTransaction,
+          intent.wallet,
+        );
+      }
       await settleTradeBudget(this.deps.db, execution.intentId, 'confirmed');
       await this.deps.db
         .update(mcpDelegatedExecutions)
@@ -1080,6 +1262,7 @@ export class SignerGateService {
       .from(mcpTradeIntents)
       .where(eq(mcpTradeIntents.id, execution.intentId));
     if (
+      !sponsored &&
       execution.signedTransaction &&
       execution.lastValidBlockHeight &&
       intent &&

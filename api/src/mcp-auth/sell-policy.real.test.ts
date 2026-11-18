@@ -37,6 +37,26 @@ function policy() {
 }
 
 describe('public sell policy compatibility', () => {
+  it('accepts sponsored method twins only with identical complete bounded rules', () => {
+    const p = policy();
+    const original = structuredClone(p.rules);
+    p.rules.push(
+      ...original.map((rule) => ({
+        ...rule,
+        method: 'signAndSendTransaction',
+      })),
+    );
+    expect(gatePolicyRulesValid(p as never, true)).toBe(true);
+    p.rules[p.rules.length - 1].conditions[0].value = '2100000000';
+    expect(gatePolicyRulesValid(p as never, true)).toBe(false);
+    p.rules = [
+      ...original,
+      ...original
+        .slice(1)
+        .map((rule) => ({ ...rule, method: 'signAndSendTransaction' })),
+    ];
+    expect(gatePolicyRulesValid(p as never, true)).toBe(false);
+  });
   it('accepts bounded chunked policies and preserves the three-rule buy pilot', () => {
     const p = policy();
     expect(gatePolicyRulesValid(p as never, true)).toBe(true);

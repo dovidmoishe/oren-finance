@@ -7,6 +7,32 @@ const required = {
 };
 
 describe('validateEnv — Jupiter', () => {
+  it('keeps gas sponsorship opt-in and requires a mainnet simulation configuration', () => {
+    const defaults = validateEnv(required);
+    expect(defaults.PRIVY_REVIEWED_GAS_SPONSORSHIP).toBe(false);
+    expect(defaults.PRIVY_MCP_GAS_SPONSORSHIP).toBe(false);
+    const config = {
+      ...required,
+      PRIVY_APP_ID: 'app',
+      PRIVY_APP_SECRET: 'secret',
+      PRIVY_REVIEWED_GAS_SPONSORSHIP: 'true',
+      PRIVY_GAS_SIMULATION_PAYER: '11111111111111111111111111111111',
+    };
+    expect(validateEnv(config).PRIVY_REVIEWED_GAS_SPONSORSHIP).toBe(true);
+    expect(() =>
+      validateEnv({ ...config, PRIVY_GAS_SIMULATION_PAYER: '' }),
+    ).toThrow('SIMULATION_PAYER');
+    expect(() => validateEnv({ ...config, SOLANA_NETWORK: 'devnet' })).toThrow(
+      'mainnet',
+    );
+    expect(() =>
+      validateEnv({
+        ...config,
+        DEPLOYMENT_ENV: 'preview',
+        PREVIEW_PR_NUMBER: '123',
+      }),
+    ).toThrow();
+  });
   beforeEach(() => {
     jest.spyOn(console, 'warn').mockImplementation(() => undefined);
   });

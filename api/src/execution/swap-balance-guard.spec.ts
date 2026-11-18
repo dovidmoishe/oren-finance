@@ -121,6 +121,55 @@ function walletTx(program = STOCK): string {
 }
 
 describe('swap balance guard', () => {
+  it('allows an absent zero-SOL account only for a complete sponsored token simulation', async () => {
+    const rpc = fakeRpc({
+      usdc: 50_000_000n,
+      stock: 398_000_000n,
+      lamports: 0,
+    });
+    const probe = await probeBalances(rpc as never, WALLET, buy);
+    probe.preLamports = 0n;
+    const addresses = simulationAddresses(probe);
+    const sim = (await rpc.call('simulateTransaction', [
+      'tx',
+      { accounts: { addresses } },
+    ])) as { value: { accounts: (SimulatedAccount | null)[] } };
+    sim.value.accounts[0] = null;
+    expect(
+      checkSimulatedBalances(probe, buy, addresses, sim.value.accounts, 0n).ok,
+    ).toBe(false);
+    expect(
+      checkSimulatedBalances(
+        probe,
+        buy,
+        addresses,
+        sim.value.accounts,
+        0n,
+        true,
+      ).ok,
+    ).toBe(true);
+    expect(
+      checkSimulatedBalances(
+        probe,
+        buy,
+        addresses,
+        sim.value.accounts.slice(0, -1),
+        0n,
+        true,
+      ).ok,
+    ).toBe(false);
+    probe.preLamports = 1n;
+    expect(
+      checkSimulatedBalances(
+        probe,
+        buy,
+        addresses,
+        sim.value.accounts,
+        0n,
+        true,
+      ).ok,
+    ).toBe(false);
+  });
   it('reads raw token amounts at offset 64 and treats missing accounts as 0', () => {
     expect(tokenAmount(tokenAccount(123n))).toBe(123n);
     expect(tokenAmount(null)).toBe(0n);
@@ -240,6 +289,40 @@ describe('swap balance guard', () => {
 });
 
 describe('ApprovalRpc.inspect with an expectation', () => {
+  it('simulates a separate payer while preserving reviewed amounts and returning zero user gas', async () => {
+    const payer = Keypair.generate().publicKey.toBase58();
+    const base = fakeRpc({
+      usdc: 50_000_000n,
+      stock: 398_000_000n,
+      lamports: 1_000_000_000,
+    });
+    const rpc = {
+      call: jest.fn((method: string, params: unknown[]) =>
+        method === 'getAccountInfo'
+          ? Promise.resolve({
+              value: {
+                owner: '11111111111111111111111111111111',
+                executable: false,
+                lamports: 10_000_000,
+              },
+            })
+          : base.call(method, params),
+      ),
+    };
+    const service = new ApprovalRpc(rpc as never);
+    expect(await service.inspect(walletTx(), WALLET, buy, payer)).toBe('0');
+    const encoded = rpc.call.mock.calls.find(
+      (call) => call[0] === 'simulateTransaction',
+    )![1][0] as string;
+    const simulation = VersionedTransaction.deserialize(
+      Buffer.from(encoded, 'base64'),
+    );
+    expect(simulation.message.staticAccountKeys[0].toBase58()).toBe(payer);
+    expect(simulation.message.staticAccountKeys[1].toBase58()).toBe(WALLET);
+    expect(
+      rpc.call.mock.calls.some((call) => call[0] === 'sendTransaction'),
+    ).toBe(false);
+  });
   it.each([
     [
       { InsufficientFundsForRent: { account_index: 0 } },

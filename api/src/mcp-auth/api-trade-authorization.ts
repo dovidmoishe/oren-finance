@@ -24,6 +24,7 @@ import {
   validGrantDuration,
 } from './grant-duration';
 import { randomUUID } from 'node:crypto';
+import { SPONSORED_SOLANA_CHAIN } from '../execution/gas-sponsorship';
 import {
   ownerPermissionMessage,
   verifyOwnerProof,
@@ -72,18 +73,35 @@ const requestSchema = z
     version: z.literal(1),
     method: z.literal('POST'),
     url: z.string(),
-    body: z
-      .object({
-        method: z.literal('signTransaction'),
-        chain_type: z.literal('solana'),
-        params: z
-          .object({
-            transaction: z.string().min(1).max(1644),
-            encoding: z.literal('base64'),
-          })
-          .strict(),
-      })
-      .strict(),
+    body: z.union([
+      z
+        .object({
+          method: z.literal('signTransaction'),
+          chain_type: z.literal('solana'),
+          params: z
+            .object({
+              transaction: z.string().min(1).max(1644),
+              encoding: z.literal('base64'),
+            })
+            .strict(),
+        })
+        .strict(),
+      z
+        .object({
+          method: z.literal('signAndSendTransaction'),
+          chain_type: z.literal('solana'),
+          caip2: z.literal(SPONSORED_SOLANA_CHAIN),
+          sponsor: z.literal(true),
+          reference_id: z.uuid(),
+          params: z
+            .object({
+              transaction: z.string().min(1).max(1644),
+              encoding: z.literal('base64'),
+            })
+            .strict(),
+        })
+        .strict(),
+    ]),
     headers: z
       .object({
         'privy-app-id': z.string(),
@@ -108,6 +126,8 @@ export class ApiTradeAuthorization implements ApiTradeAuthorizer {
       publicAccess?: boolean;
       buysEnabled: boolean;
       sellsEnabled: boolean;
+      gasSponsorship?: boolean;
+      simulationPayer?: string;
       signerQuorumId: string;
       signerPolicyId?: string;
     },
@@ -432,6 +452,9 @@ export class ApiTradeAuthorization implements ApiTradeAuthorizer {
     if (bytes.toString('base64') !== encoded)
       throw new Error('Invalid request encoding');
     const request = requestSchema.parse(JSON.parse(bytes.toString('utf8')));
+    const sponsored = request.body.method === 'signAndSendTransaction';
+    if (sponsored && (!this.deps.gasSponsorship || !this.deps.simulationPayer))
+      throw new Error('Independent gas sponsorship is disabled');
     const expiry = Number(request.headers['privy-request-expiry']);
     if (expiry <= Date.now() || expiry > Date.now() + 31_000)
       throw new Error('Signing request expiry is outside the allowed window');
@@ -440,6 +463,7 @@ export class ApiTradeAuthorization implements ApiTradeAuthorizer {
       request.body.params.transaction,
       challenge.executionId,
       new Date(expiry),
+      ...(sponsored ? [true] : []),
     );
     if (
       expected.headers['privy-app-id'] !== this.deps.appId ||
@@ -481,6 +505,7 @@ export class ApiTradeAuthorization implements ApiTradeAuthorizer {
       request.body.params.transaction,
       intent,
       this.deps,
+      ...(sponsored ? [this.deps.simulationPayer] : []),
     );
     await this.deps.db.transaction(async (tx) => {
       const [grant] = await tx

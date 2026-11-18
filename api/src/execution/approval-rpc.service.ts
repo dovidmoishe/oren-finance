@@ -20,6 +20,10 @@ import {
   simulationAddresses,
 } from './swap-balance-guard';
 import type { SwapExpectation } from './swap-terms';
+import {
+  sponsorshipSimulation,
+  validateSponsoredTransaction,
+} from './gas-sponsorship';
 
 @Injectable()
 export class ApprovalRpc {
@@ -49,8 +53,31 @@ export class ApprovalRpc {
     transaction: string,
     wallet: string,
     expectation?: SwapExpectation,
+    simulationPayer?: string,
   ) {
     const tx = this.decode(transaction, wallet);
+    if (simulationPayer) {
+      // Check the configured public account is suitable for simulation, never fund it.
+      const payer = await this.rpc.call<{
+        value: { owner: string; executable: boolean; lamports: number } | null;
+      }>('getAccountInfo', [
+        simulationPayer,
+        { encoding: 'base64', commitment: 'confirmed' },
+      ]);
+      if (
+        !payer.value ||
+        payer.value.owner !== '11111111111111111111111111111111' ||
+        payer.value.executable ||
+        payer.value.lamports < 10_000_000
+      )
+        throw new BadRequestException(
+          'Gas sponsorship simulation is unavailable',
+        );
+      transaction = sponsorshipSimulation(transaction, wallet, simulationPayer);
+    }
+    const simulatedTx = simulationPayer
+      ? VersionedTransaction.deserialize(Buffer.from(transaction, 'base64'))
+      : tx;
     const probe = expectation
       ? await probeBalances(this.rpc, wallet, expectation)
       : undefined;
@@ -68,7 +95,7 @@ export class ApprovalRpc {
         },
       ]),
       this.rpc.call<{ value: number | null }>('getFeeForMessage', [
-        Buffer.from(tx.message.serialize()).toString('base64'),
+        Buffer.from(simulatedTx.message.serialize()).toString('base64'),
         { commitment: 'confirmed' },
       ]),
     ]);
@@ -77,10 +104,12 @@ export class ApprovalRpc {
       const index = failure?.InstructionError?.[0];
       const instruction =
         typeof index === 'number' && index >= 0
-          ? tx.message.compiledInstructions[index]
+          ? simulatedTx.message.compiledInstructions[index]
           : undefined;
       const program = instruction
-        ? tx.message.staticAccountKeys[instruction.programIdIndex]?.toBase58()
+        ? simulatedTx.message.staticAccountKeys[
+            instruction.programIdIndex
+          ]?.toBase58()
         : undefined;
       const failureCode = simulationFailureCode(simulated.value.err);
       const reason = simulationReason(simulated.value.err, program);
@@ -124,7 +153,8 @@ export class ApprovalRpc {
         expectation,
         addresses,
         simulated.value.accounts ?? [],
-        BigInt(fee.value),
+        simulationPayer ? 0n : BigInt(fee.value),
+        !!simulationPayer,
       );
       if (!check.ok) {
         this.logger.warn(
@@ -135,7 +165,36 @@ export class ApprovalRpc {
         );
       }
     }
-    return String(fee.value);
+    // Keep the network fee bound even though it will not be charged to the user.
+    if (simulationPayer && fee.value > 2_000_000)
+      throw new BadRequestException(
+        'Sponsored transaction exceeds the network fee cap',
+      );
+    return simulationPayer ? '0' : String(fee.value);
+  }
+
+  async verifySponsored(signature: string, unsigned: string, wallet: string) {
+    const result = await this.rpc.call<{
+      transaction?: [string, string];
+      meta?: { err?: unknown };
+    } | null>('getTransaction', [
+      signature,
+      {
+        encoding: 'base64',
+        commitment: 'confirmed',
+        maxSupportedTransactionVersion: 0,
+      },
+    ]);
+    if (!result?.transaction?.[0] || !result.meta || result.meta.err)
+      throw new BadRequestException(
+        'Sponsored transaction is not confirmed yet',
+      );
+    return validateSponsoredTransaction(
+      unsigned,
+      result.transaction[0],
+      wallet,
+      signature,
+    );
   }
 
   /** Current confirmed slot, for routes that carry a slot expiry. */

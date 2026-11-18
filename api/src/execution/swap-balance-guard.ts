@@ -149,6 +149,7 @@ export function checkSimulatedBalances(
   addresses: string[],
   accounts: (SimulatedAccount | null)[],
   feeLamports: bigint,
+  allowEmptySponsoredWallet = false,
 ): BalanceCheckResult {
   const post = new Map<string, SimulatedAccount | null>();
   addresses.forEach((address, i) => post.set(address, accounts[i] ?? null));
@@ -176,7 +177,16 @@ export function checkSimulatedBalances(
     lamportsOut,
   });
 
-  if (!post.get(probe.wallet)) {
+  if (
+    accounts.length !== addresses.length ||
+    (!post.get(probe.wallet) &&
+      !(
+        allowEmptySponsoredWallet &&
+        probe.preLamports === 0n &&
+        !nativeOut &&
+        nativeIn === 0n
+      ))
+  ) {
     return result('simulation did not return the wallet account');
   }
   if (feeLamports > BigInt(MAX_SWAP_NETWORK_FEE_LAMPORTS)) {

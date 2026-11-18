@@ -39,7 +39,15 @@ async function registeredTools(
     converted?: boolean;
     gateError?: Error;
     gateResult?: { state: string; chainSignature: string };
-    execution?: { state: string; chainSignature: string; errorCode: null };
+    execution?: {
+      id?: string;
+      privyRequest?: Record<string, unknown>;
+      state: string;
+      chainSignature: string | null;
+      errorCode: string | null;
+    };
+    reconciled?: { state: string; chainSignature?: string };
+    reconcileUnavailable?: boolean;
     chainStatus?: { confirmationStatus: string; err: unknown } | null;
     chainUnavailable?: boolean;
     delegationExpiresAt?: Date;
@@ -78,6 +86,9 @@ async function registeredTools(
   const execute = review?.gateError
     ? jest.fn().mockRejectedValue(review.gateError)
     : jest.fn().mockResolvedValue(review?.gateResult);
+  const reconcile = review?.reconcileUnavailable
+    ? jest.fn().mockRejectedValue(new Error('unavailable'))
+    : jest.fn().mockResolvedValue(review?.reconciled);
   const deps = {
     db: {
       update: () => ({ set }),
@@ -134,7 +145,7 @@ async function registeredTools(
         },
       },
     },
-    gate: { execute },
+    gate: { execute, reconcile },
     tradeRpc: { status },
     delegatedSides: { buy: true, sell: true },
     signerPolicyId: 'current-policy',
@@ -183,6 +194,7 @@ async function registeredTools(
     getQuote,
     chainLookup: status,
     executeGate: execute,
+    reconcileGate: reconcile,
     tradeStatus: registrations.find(
       ([name]) => name === 'trade_status',
     )?.[2] as (input: {
@@ -201,6 +213,66 @@ describe('MCP trade tool exposure', () => {
       errorCode: null,
     },
   };
+  it('recovers sponsored execution through the same trade_status tool without executing', async () => {
+    const tools = await registeredTools(
+      ['oren.trade.prepare', 'oren.trade.execute'],
+      undefined,
+      {
+        ...submittedTrade,
+        execution: {
+          id: 'execution-id',
+          state: 'pending',
+          chainSignature: null,
+          errorCode: 'sponsor_uncertain',
+          privyRequest: {
+            body: { method: 'signAndSendTransaction', sponsor: true },
+          },
+        },
+        reconciled: {
+          state: 'confirmed',
+          chainSignature: 'recovered-signature',
+        },
+      },
+    );
+    expect(
+      JSON.parse(
+        (await tools.tradeStatus({ intentId: 'intent-test' })).content[0].text,
+      ),
+    ).toMatchObject({
+      status: 'confirmed',
+      signature: 'recovered-signature',
+    });
+    expect(tools.reconcileGate).toHaveBeenCalledWith('execution-id');
+    expect(tools.executeGate).not.toHaveBeenCalled();
+    expect(tools.chainLookup).not.toHaveBeenCalled();
+  });
+  it('does not report sponsored success from a raw chain status when verification is unavailable', async () => {
+    const tools = await registeredTools(
+      ['oren.trade.prepare', 'oren.trade.execute'],
+      undefined,
+      {
+        ...submittedTrade,
+        execution: {
+          ...submittedTrade.execution,
+          id: 'execution-id',
+          privyRequest: {
+            body: { method: 'signAndSendTransaction', sponsor: true },
+          },
+        },
+        reconcileUnavailable: true,
+        chainStatus: { confirmationStatus: 'confirmed', err: null },
+      },
+    );
+    expect(
+      (
+        JSON.parse(
+          (await tools.tradeStatus({ intentId: 'intent-test' })).content[0]
+            .text,
+        ) as { status: string }
+      ).status,
+    ).toBe('broadcast');
+    expect(tools.chainLookup).not.toHaveBeenCalled();
+  });
 
   it.each([
     ['finalized', null, 'confirmed'],
@@ -251,11 +323,11 @@ describe('MCP trade tool exposure', () => {
       expect(JSON.parse(result.content[0].text)).toMatchObject({
         status: 'broadcast',
         signature: 'trade-signature',
-        message: expect.stringContaining('trade_status'),
+        message: expect.stringContaining('trade_status') as unknown,
       });
-    expect(JSON.parse(checked.content[0].text).message).toContain(
-      'confirmation could not be checked',
-    );
+    expect(
+      (JSON.parse(checked.content[0].text) as { message: string }).message,
+    ).toContain('confirmation could not be checked');
   });
   it.each(['delegation_expired', 'delegation_policy_changed'])(
     'returns the renewal link for %s',

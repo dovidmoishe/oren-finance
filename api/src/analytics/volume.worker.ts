@@ -1,5 +1,10 @@
 import { backgroundWorkersEnabled } from '../config/deployment';
-import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  OnModuleDestroy,
+  OnModuleInit,
+} from '@nestjs/common';
 import { USDC_MINT } from '../config/constants';
 import { AlchemyService } from '../alchemy/alchemy.service';
 import type { AlchemyParsedTokenBalance } from '../alchemy/alchemy.types';
@@ -55,7 +60,9 @@ export class VolumeWorker implements OnModuleInit, OnModuleDestroy {
       if (!execution?.assetId || !execution.ticker || !execution.tokenMint) {
         throw new Error('Execution is missing canonical stock metadata');
       }
-      const tx = await this.alchemy.getParsedTransaction(job.transactionSignature);
+      const tx = await this.alchemy.getParsedTransaction(
+        job.transactionSignature,
+      );
       if (!tx) throw new Error('Finalized transaction is not available yet');
       if (tx.meta?.err) {
         await this.repository.completeFailedTransaction(job);
@@ -70,13 +77,17 @@ export class VolumeWorker implements OnModuleInit, OnModuleDestroy {
         },
         job.transactionSignature,
         tx,
-        // Swaps are signed and paid by the user; limit fills by Jupiter's keeper.
-        { requireWalletFeePayer: job.kind === 'swap_fill' },
+        // Sponsored swaps still require the user's signature; a separate payer covers fees.
+        { requireWalletSigner: job.kind === 'swap_fill' },
       );
       await this.repository.completeFill(job.id, fill);
-      void this.portfolio.getPortfolio(execution.walletAddress).catch((error) => {
-        this.logger.warn(`Post-fill portfolio refresh failed: ${message(error)}`);
-      });
+      void this.portfolio
+        .getPortfolio(execution.walletAddress)
+        .catch((error) => {
+          this.logger.warn(
+            `Post-fill portfolio refresh failed: ${message(error)}`,
+          );
+        });
     } catch (error) {
       await this.repository.retry(job, message(error));
     }
@@ -97,9 +108,13 @@ export function buildVerifiedFill(
   },
   transactionSignature: string,
   tx: AlchemyParsedTransaction,
-  options: { requireWalletFeePayer?: boolean } = {},
+  options: {
+    requireWalletFeePayer?: boolean;
+    requireWalletSigner?: boolean;
+  } = {},
 ): VerifiedTradeFill {
-  if (!tx.slot || !tx.blockTime) throw new Error('Transaction has no finalized slot or block time');
+  if (!tx.slot || !tx.blockTime)
+    throw new Error('Transaction has no finalized slot or block time');
   if (options.requireWalletFeePayer) {
     const payer = tx.transaction?.message?.accountKeys?.[0];
     const payerKey = typeof payer === 'string' ? payer : payer?.pubkey;
@@ -107,6 +122,16 @@ export function buildVerifiedFill(
       throw new Error('Transaction fee payer is not the execution wallet');
     }
   }
+  if (
+    options.requireWalletSigner &&
+    !tx.transaction?.message?.accountKeys?.some(
+      (key) =>
+        typeof key !== 'string' &&
+        key.pubkey === execution.walletAddress &&
+        key.signer === true,
+    )
+  )
+    throw new Error('Transaction was not signed by the execution wallet');
   // A trade that landed before Oren prepared this execution cannot belong to it.
   // Allow a minute of clock skew between the API host and block time.
   if (
@@ -127,15 +152,31 @@ export function buildVerifiedFill(
     execution.walletAddress,
     USDC_MINT,
   );
-  const side = execution.type === 'stock_purchase' || execution.type === 'limit_buy' ? 'buy' :
-    execution.type === 'stock_sale' || execution.type === 'limit_sell' ? 'sell' : null;
-  if (!side) throw new Error(`Execution type ${execution.type} is not stock volume`);
-  if (side === 'buy' ? stockDelta <= 0 || usdcDelta >= 0 : stockDelta >= 0 || usdcDelta <= 0) {
-    throw new Error('On-chain token deltas do not match the recorded trade side');
+  const side =
+    execution.type === 'stock_purchase' || execution.type === 'limit_buy'
+      ? 'buy'
+      : execution.type === 'stock_sale' || execution.type === 'limit_sell'
+        ? 'sell'
+        : null;
+  if (!side)
+    throw new Error(`Execution type ${execution.type} is not stock volume`);
+  if (
+    side === 'buy'
+      ? stockDelta <= 0 || usdcDelta >= 0
+      : stockDelta >= 0 || usdcDelta <= 0
+  ) {
+    throw new Error(
+      'On-chain token deltas do not match the recorded trade side',
+    );
   }
   const stockAmount = Math.abs(stockDelta);
   const usdNotional = Math.abs(usdcDelta);
-  if (!Number.isFinite(stockAmount) || !Number.isFinite(usdNotional) || stockAmount <= 0 || usdNotional <= 0) {
+  if (
+    !Number.isFinite(stockAmount) ||
+    !Number.isFinite(usdNotional) ||
+    stockAmount <= 0 ||
+    usdNotional <= 0
+  ) {
     throw new Error('Verified fill has no positive stock/USDC notional');
   }
   return {
@@ -166,13 +207,19 @@ export function tokenDelta(
   return sum(post, owner, mint) - sum(pre, owner, mint);
 }
 
-function sum(balances: AlchemyParsedTokenBalance[] | undefined, owner: string, mint: string): number {
+function sum(
+  balances: AlchemyParsedTokenBalance[] | undefined,
+  owner: string,
+  mint: string,
+): number {
   return (balances ?? []).reduce((total, balance) => {
     if (balance.owner !== owner || balance.mint !== mint) return total;
     const token = balance.uiTokenAmount;
-    const value = token?.uiAmountString !== undefined
-      ? Number(token.uiAmountString)
-      : token?.uiAmount ?? Number(token?.amount ?? 0) / 10 ** (token?.decimals ?? 0);
+    const value =
+      token?.uiAmountString !== undefined
+        ? Number(token.uiAmountString)
+        : (token?.uiAmount ??
+          Number(token?.amount ?? 0) / 10 ** (token?.decimals ?? 0));
     return total + (Number.isFinite(value) ? value : 0);
   }, 0);
 }

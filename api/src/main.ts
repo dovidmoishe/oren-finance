@@ -96,6 +96,8 @@ async function bootstrap() {
       ...delegatedAccess,
       buysEnabled: env.MCP_DELEGATED_BUYS_ENABLED,
       sellsEnabled: env.MCP_DELEGATED_SELLS_ENABLED,
+      gasSponsorship: env.PRIVY_MCP_GAS_SPONSORSHIP,
+      simulationPayer: env.PRIVY_GAS_SIMULATION_PAYER,
       signerQuorumId: env.PRIVY_MCP_SIGNER_QUORUM_ID ?? '',
       signerPolicyId: env.PRIVY_MCP_SIGNER_POLICY_ID,
       tokens: app.get(TokensService, { strict: false }),

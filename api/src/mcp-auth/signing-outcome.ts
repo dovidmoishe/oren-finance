@@ -35,6 +35,23 @@ export function signingOutcome(
   signature?: string | null,
 ) {
   if (
+    !signature &&
+    (errorCode === 'sponsor_uncertain' || errorCode === 'submission_uncertain')
+  )
+    return {
+      submissionState: 'unknown',
+      reason: 'submission_uncertain',
+      message:
+        'The sponsored trade may have been submitted. Use trade_status to resolve this attempt before creating another trade or reporting a fill.',
+    };
+  if (!signature && errorCode === 'sponsor_rejected')
+    return {
+      submissionState: 'not_broadcast',
+      reason: 'signing_rejected',
+      message:
+        'Privy rejected the sponsored request before submission. Check the trade status before preparing a replacement.',
+    };
+  if (
     signature ||
     !(
       errorCode === 'signing_uncertain' ||

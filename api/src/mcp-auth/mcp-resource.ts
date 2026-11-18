@@ -33,6 +33,7 @@ import {
   publicGateFailureCode,
 } from './signer-gate.errors';
 import { signingOutcome } from './signing-outcome';
+import { isSponsoredRequest } from '../execution/gas-sponsorship';
 import { rawSellShares, rawSellReferenceUsd } from './delegated-amounts';
 import { canSignInChat, delegatedModeDecision } from './delegated-mode';
 import { delegatedFailureBody } from '../execution/simulation-reason';
@@ -809,6 +810,8 @@ export async function handleMcpRequest(
         if (intent.mode === 'delegated') {
           const [execution] = await deps.db
             .select({
+              id: mcpDelegatedExecutions.id,
+              privyRequest: mcpDelegatedExecutions.privyRequest,
               state: mcpDelegatedExecutions.state,
               chainSignature: mcpDelegatedExecutions.chainSignature,
               errorCode: mcpDelegatedExecutions.errorCode,
@@ -817,8 +820,19 @@ export async function handleMcpRequest(
             .where(eq(mcpDelegatedExecutions.intentId, intentId))
             .limit(1);
           if (execution) {
-            signature = execution.chainSignature ?? undefined;
+            const sponsored = isSponsoredRequest(execution.privyRequest ?? {});
+            const reconciled =
+              sponsored &&
+              deps.gate &&
+              ['signing', 'pending', 'broadcast'].includes(execution.state)
+                ? await deps.gate.reconcile(execution.id).catch(() => undefined)
+                : undefined;
+            signature =
+              reconciled?.chainSignature ??
+              execution.chainSignature ??
+              undefined;
             const chain =
+              !sponsored &&
               signature &&
               ['signed', 'pending', 'broadcast'].includes(execution.state)
                 ? await deps.tradeRpc
@@ -833,7 +847,7 @@ export async function handleMcpRequest(
               ? chain?.err
                 ? 'failed'
                 : 'confirmed'
-              : execution.state;
+              : (reconciled?.state ?? execution.state);
             signingDetails = {
               ...signingOutcome(execution.errorCode, signature),
               ...statusFailure(execution.errorCode, intent.slippageBps),

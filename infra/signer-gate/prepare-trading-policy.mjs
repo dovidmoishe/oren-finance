@@ -42,6 +42,7 @@ const existing = existsSync(resultPath) ? JSON.parse(readFileSync(resultPath, 'u
 const allowDestinationAccountCreation = process.argv.includes('--allow-destination-account-creation');
 const untilRevoked = process.argv.includes('--until-revoked');
 const customSpendLimits = process.argv.includes('--custom-spend-limits');
+const gasSponsorship = process.argv.includes('--gas-sponsorship');
 if (existing && (existing.expiresAtUnix === null) !== untilRevoked)
   throw new Error('Use a new state directory when changing policy expiry mode');
 const priorExpiry = Math.min(...prior.rules.filter(r => r.action === 'DENY').flatMap(r => r.conditions ?? [])
@@ -51,7 +52,7 @@ const expiresAtUnix = untilRevoked ? null : existing?.expiresAtUnix ?? (allowDes
 if (!untilRevoked && allowDestinationAccountCreation && (!Number.isSafeInteger(priorExpiry) || expiresAtUnix > priorExpiry))
   throw new Error('Account-creation rollout must preserve the reviewed policy expiry');
 const set = process.argv.includes('--create') ? await preparePolicyOwner(privy) : { ownerId: prior.owner_id };
-const candidate = buildTradingPolicy({ idl, stockMints, ownerId: set.ownerId, expiresAtUnix, allowDestinationAccountCreation, untilRevoked, customSpendLimits });
+const candidate = buildTradingPolicy({ idl, stockMints, ownerId: set.ownerId, expiresAtUnix, allowDestinationAccountCreation, untilRevoked, customSpendLimits, gasSponsorship });
 const fingerprint = gate.gatePolicyFingerprint(candidate);
 if (existing?.policyId && existing.candidateFingerprint !== fingerprint) throw new Error('Saved candidate differs from the catalog or policy; review a new state directory');
 const result = { priorPolicyId: prior.id, candidate, fingerprint, candidateFingerprint: fingerprint, expiresAtUnix, stockMintCount: stockMints.length, reviewedMints: stockMints, catalogTradableMintCount: new Set(catalogMints).size };

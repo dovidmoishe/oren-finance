@@ -11,6 +11,7 @@ import {
 import { ApiTradeAuthorization } from './api-trade-authorization';
 import { inspectApiTradeTransaction } from './api-trade-transaction';
 import { SignerGateClient } from './signer-gate.client';
+import { sponsoredRequestBody } from '../execution/gas-sponsorship';
 
 jest.mock('./api-trade-transaction', () => ({
   inspectApiTradeTransaction: jest.fn(),
@@ -137,6 +138,8 @@ function fixture() {
     sellsEnabled: false,
     signerQuorumId: 'quorum',
     signerPolicyId: 'policy',
+    gasSponsorship: false,
+    simulationPayer: undefined as string | undefined,
   };
   const service = new ApiTradeAuthorization(deps);
   const executionId = randomUUID();
@@ -159,6 +162,28 @@ function fixture() {
 }
 
 describe('independent API signing authorization', () => {
+  it('authorizes sponsored bytes only with independent opt-in and the same intent binding', async () => {
+    const f = fixture();
+    f.request.body = sponsoredRequestBody(
+      f.request.body.params.transaction,
+      f.challenge().executionId,
+    );
+    await expect(f.authorize()).rejects.toThrow('sponsorship is disabled');
+    f.deps.gasSponsorship = true;
+    f.deps.simulationPayer = 'simulation-payer';
+    await expect(f.authorize()).resolves.toBeInstanceOf(Buffer);
+    expect(inspect).toHaveBeenCalledWith(
+      'transaction-fixture',
+      f.state.intent,
+      f.deps,
+      'simulation-payer',
+    );
+    f.request.body = {
+      ...f.request.body,
+      reference_id: randomUUID(),
+    } as typeof f.request.body;
+    await expect(f.authorize()).rejects.toThrow('differs');
+  });
   beforeEach(() => {
     inspect.mockReset();
     inspect.mockResolvedValue('1.000000');
