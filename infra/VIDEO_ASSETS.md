@@ -1,5 +1,22 @@
 # Public video delivery
 
+## Portfolio changelog media (November 2026)
+
+The November 14 personalization entry uses `oren-morning-brief-v8-1080p.mp4`
+and `oren-morning-brief-v8-poster.png`. The November 17 workspace entry uses
+`oren-workspace-v1.mp4` and `oren-workspace-poster.png`. The dates follow the
+reviewed film dates, not the date these entries were authored.
+
+All four assets are listed in `videos.sha256` and belong under
+`app/public/videos/` locally and `/opt/oren/media/videos` in production.
+Sources are `videos/oren-morning-brief/renders/` and
+`videos/oren-workspace-reveal/renders/` in the main checkout. These binaries
+remain outside Git. Upload and verify all four before merging the changelog
+references; the production manifest gate will reject missing assets.
+
+The Morning Brief caption explicitly identifies sample figures and pending
+email delivery. The announcement does not enable notifications or price alerts.
+
 Video exports and local motion projects stay outside Git history. The token page
 uses `/videos/oren-token-explainer-50-percent.mp4` and `/videos/oren-token-poster.jpg`.
 For local development, keep both files under `app/public/videos/` (ignored).
