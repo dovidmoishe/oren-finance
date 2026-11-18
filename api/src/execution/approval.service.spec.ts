@@ -1,7 +1,8 @@
 import { ApprovalService } from './approval.service';
 import type { ApprovalRow } from './approval.repository';
+import type { AppEnv } from '../config/env.schema';
 jest.mock('@privy-io/node', () => ({ PrivyClient: jest.fn() }));
-function fixture(status = 'prepared') {
+function fixture(status = 'prepared', env: Partial<AppEnv> = {}) {
   let row = {
     id: 'approval',
     userId: 'user',
@@ -32,6 +33,10 @@ function fixture(status = 'prepared') {
       token: 'user-jwt',
     }),
     signTransaction: jest.fn().mockResolvedValue('signed'),
+    sendSponsoredTransaction: jest
+      .fn()
+      .mockResolvedValue({ signature: 'sponsored-signature' }),
+    findSponsoredTransaction: jest.fn().mockResolvedValue(undefined),
   };
   const approvals = {
     pending: jest.fn(() => Promise.resolve([{ ...row }])),
@@ -55,6 +60,7 @@ function fixture(status = 'prepared') {
     status: jest.fn().mockResolvedValue(null),
     blockhashValid: jest.fn().mockResolvedValue(true),
     currentSlot: jest.fn().mockResolvedValue(100),
+    verifySponsored: jest.fn().mockResolvedValue('verified-sponsored-bytes'),
   };
   const executedQuote = {
     id: 'quote',
@@ -108,7 +114,7 @@ function fixture(status = 'prepared') {
     orders as never,
     quotes as never,
     {} as never,
-    { SOLANA_NETWORK: 'mainnet' } as never,
+    { SOLANA_NETWORK: 'mainnet', ...env } as never,
     withdrawalStocks as never,
   );
   return {
@@ -130,6 +136,120 @@ function fixture(status = 'prepared') {
   };
 }
 describe('server trade approvals', () => {
+  function sponsoredFixture(status = 'prepared') {
+    const f = fixture(status);
+    f.set({
+      details: { gasSponsorship: true, gasSimulationPayer: 'simulation-payer' },
+      feeLamports: '0',
+    });
+    return f;
+  }
+  it('uses the same user approval with a sponsored send, never a second RPC broadcast', async () => {
+    const f = sponsoredFixture();
+    await f.service.authorizationRequest('Bearer token', 'approval');
+    expect(f.auth.signingRequest).toHaveBeenCalledWith(
+      'privy-wallet',
+      'unsigned',
+      'approval',
+      expect.any(Date),
+      true,
+    );
+    const result = await f.service.approve(
+      'Bearer token',
+      'approval',
+      'owner-signature',
+    );
+    expect(result.status).toBe('submitted');
+    expect(f.rpc.inspect).toHaveBeenCalledWith(
+      'unsigned',
+      'wallet',
+      undefined,
+      'simulation-payer',
+    );
+    expect(f.auth.sendSponsoredTransaction).toHaveBeenCalledWith(
+      'privy-wallet',
+      ['owner-signature'],
+      'unsigned',
+      'approval',
+      expect.any(Date),
+    );
+    expect(f.auth.signTransaction).not.toHaveBeenCalled();
+    expect(f.rpc.broadcast).not.toHaveBeenCalled();
+    await f.service.approve('Bearer token', 'approval', 'owner-signature');
+    expect(f.auth.sendSponsoredTransaction).toHaveBeenCalledTimes(1);
+  });
+  it('never sponsors without the exact user authorization', async () => {
+    const f = sponsoredFixture();
+    await expect(f.service.approve('Bearer token', 'approval')).rejects.toThrow(
+      'Authorize',
+    );
+    expect(f.auth.sendSponsoredTransaction).not.toHaveBeenCalled();
+  });
+  it('keeps ambiguous sponsored sends pending beyond original transaction expiry', async () => {
+    const f = sponsoredFixture();
+    f.auth.sendSponsoredTransaction.mockRejectedValue(new Error('timeout'));
+    await f.service.approve('Bearer token', 'approval', 'owner-signature');
+    f.set({ expiresAt: new Date(0) });
+    f.rpc.blockhashValid.mockResolvedValue(false);
+    expect((await f.service.status('Bearer token', 'approval')).status).toBe(
+      'signing',
+    );
+    await f.service.approve('Bearer token', 'approval', 'owner-signature');
+    expect(f.auth.sendSponsoredTransaction).toHaveBeenCalledTimes(1);
+    expect(f.rpc.blockhashValid).not.toHaveBeenCalled();
+    expect(f.rpc.broadcast).not.toHaveBeenCalled();
+  });
+  it('recovers the hash read-only and verifies the landed trade before recording a fill', async () => {
+    const f = sponsoredFixture('signing');
+    f.auth.findSponsoredTransaction.mockResolvedValue('recovered-signature');
+    f.rpc.status.mockResolvedValue({
+      confirmationStatus: 'confirmed',
+      err: null,
+    });
+    expect((await f.service.status('Bearer token', 'approval')).status).toBe(
+      'confirmed',
+    );
+    expect(f.rpc.verifySponsored).toHaveBeenCalledWith(
+      'recovered-signature',
+      'unsigned',
+      'wallet',
+    );
+    expect(f.executions.submitAndEnqueue).toHaveBeenCalledWith(
+      expect.objectContaining({ transactionSignature: 'recovered-signature' }),
+    );
+    expect(f.auth.sendSponsoredTransaction).not.toHaveBeenCalled();
+  });
+  it('does not record success for a sponsored transaction with changed instructions', async () => {
+    const f = sponsoredFixture('submitted');
+    f.set({ signature: 'known-signature' });
+    f.rpc.status.mockResolvedValue({
+      confirmationStatus: 'confirmed',
+      err: null,
+    });
+    f.rpc.verifySponsored.mockRejectedValue(new Error('changed instruction'));
+    await expect(f.service.status('Bearer token', 'approval')).rejects.toThrow(
+      'changed instruction',
+    );
+    expect(f.executions.submitAndEnqueue).not.toHaveBeenCalled();
+    expect(f.row().status).toBe('submitted');
+  });
+  it('releases an explicitly rejected request without falling back to a user-paid send', async () => {
+    const f = sponsoredFixture();
+    f.auth.sendSponsoredTransaction.mockRejectedValue({ status: 403 });
+    expect(
+      (await f.service.approve('Bearer token', 'approval', 'owner-signature'))
+        .status,
+    ).toBe('failed');
+    expect(f.auth.signTransaction).not.toHaveBeenCalled();
+    expect(f.rpc.broadcast).not.toHaveBeenCalled();
+  });
+  it('ignores sponsorship metadata on withdrawals', async () => {
+    const f = sponsoredFixture();
+    f.set({ kind: 'withdrawal' });
+    await f.service.approve('Bearer token', 'approval', 'owner-signature');
+    expect(f.auth.sendSponsoredTransaction).not.toHaveBeenCalled();
+    expect(f.auth.signTransaction).toHaveBeenCalledTimes(1);
+  });
   it('keeps an uncertain prepared withdrawal pending until its approval expires', async () => {
     const f = fixture();
     f.set({ kind: 'withdrawal' });

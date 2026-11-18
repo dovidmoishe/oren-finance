@@ -89,7 +89,13 @@ function main() {
       publicAccess,
       buysEnabled: enabled('SIGNER_GATE_BUYS_ENABLED'),
       sellsEnabled: enabled('SIGNER_GATE_SELLS_ENABLED'),
+      gasSponsorship: enabled('SIGNER_GATE_GAS_SPONSORSHIP'),
+      simulationPayer: process.env.PRIVY_GAS_SIMULATION_PAYER?.trim(),
     };
+    if (config.gasSponsorship && !config.simulationPayer)
+      throw new Error(
+        'Signer gate sponsorship requires PRIVY_GAS_SIMULATION_PAYER',
+      );
     const env = {
       ALCHEMY_API_KEY: required('ALCHEMY_API_KEY'),
       SOLANA_NETWORK: 'mainnet',

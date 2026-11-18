@@ -45,6 +45,11 @@ export interface AppEnv {
   SOLANA_NETWORK: SolanaNetwork;
   PRIVY_APP_ID?: string;
   PRIVY_APP_SECRET?: string;
+  /** Native sponsorship is opt-in and applies only to eligible reviewed trades. */
+  PRIVY_REVIEWED_GAS_SPONSORSHIP?: boolean;
+  PRIVY_MCP_GAS_SPONSORSHIP?: boolean;
+  /** Public funded system account used ONLY for unsigned fee-free simulations. */
+  PRIVY_GAS_SIMULATION_PAYER?: string;
   MCP_DELEGATED_TRADES_ENABLED: boolean;
   MCP_DELEGATED_BUYS_ENABLED: boolean;
   MCP_DELEGATED_SELLS_ENABLED: boolean;
@@ -311,6 +316,28 @@ export function validateEnv(env: EnvSource = process.env): AppEnv {
   }
 
   const deployment = deploymentCapabilities(env);
+  const reviewedSponsorship = readBool(
+    env,
+    'PRIVY_REVIEWED_GAS_SPONSORSHIP',
+    false,
+  );
+  const mcpSponsorship = readBool(env, 'PRIVY_MCP_GAS_SPONSORSHIP', false);
+  const simulationPayer = readEnv(env, 'PRIVY_GAS_SIMULATION_PAYER');
+  if (reviewedSponsorship || mcpSponsorship) {
+    if (deployment.environment === 'preview' || network !== 'mainnet')
+      throw new Error(
+        'Trade gas sponsorship requires a non-preview mainnet deployment',
+      );
+    requireEnv(env, 'PRIVY_APP_ID');
+    requireEnv(env, 'PRIVY_APP_SECRET');
+    if (
+      !simulationPayer ||
+      !/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(simulationPayer)
+    )
+      throw new Error(
+        'Trade gas sponsorship requires PRIVY_GAS_SIMULATION_PAYER',
+      );
+  }
   const delegatedEnabled = readBool(env, 'MCP_DELEGATED_TRADES_ENABLED', false);
   const delegatedUsers = readList(env, 'MCP_DELEGATED_TRADES_ALLOWED_USERS');
   const delegatedPublic =
@@ -362,6 +389,9 @@ export function validateEnv(env: EnvSource = process.env): AppEnv {
     SOLANA_NETWORK: network,
     PRIVY_APP_ID: readEnv(env, 'PRIVY_APP_ID'),
     PRIVY_APP_SECRET: readEnv(env, 'PRIVY_APP_SECRET'),
+    PRIVY_REVIEWED_GAS_SPONSORSHIP: reviewedSponsorship,
+    PRIVY_MCP_GAS_SPONSORSHIP: mcpSponsorship,
+    PRIVY_GAS_SIMULATION_PAYER: simulationPayer,
     MCP_DELEGATED_TRADES_ENABLED: delegatedEnabled,
     MCP_DELEGATED_BUYS_ENABLED:
       delegatedEnabled && readBool(env, 'MCP_DELEGATED_BUYS_ENABLED', false),

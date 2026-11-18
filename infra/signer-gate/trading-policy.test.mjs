@@ -16,6 +16,15 @@ test('until-revoked candidates omit only the time cutoff and require explicit op
   assert.throws(() => buildTradingPolicy({ ...input, untilRevoked: true }));
 });
 const policy = buildTradingPolicy(input);
+test('adds sponsorship only as complete bounded copies without mutating legacy policy rules', () => {
+  const sponsored = buildTradingPolicy({ ...input, gasSponsorship: true });
+  const original = sponsored.rules.filter(rule => rule.method === 'signTransaction');
+  const send = sponsored.rules.filter(rule => rule.method === 'signAndSendTransaction');
+  assert.deepEqual(original, policy.rules);
+  assert.deepEqual(send, original.map(rule => ({ ...rule, method: 'signAndSendTransaction' })));
+  assert.ok(send.every(rule => rule.conditions.length > 0));
+  assert.equal(sponsored.rules.some(rule => ['signMessage', 'exportPrivateKey'].includes(rule.method)), false);
+});
 test('custom spend policy raises only the two USDC route limits', () => {
   const custom = buildTradingPolicy({ ...input, customSpendLimits: true });
   const expected = structuredClone(policy);

@@ -4,6 +4,7 @@ import { X as XIcon, Search as SearchIcon } from "lucide-react";
 
 import Link from "next/link";
 import { useEffect, useState, type RefObject } from "react";
+import { MarketStockLogo } from "@/components/markets/market-stock-logo";
 import { useT } from "@/i18n/i18n";
 import { searchStocks } from "@/services/market-service";
 import type { StockSummary } from "@/types";
@@ -48,7 +49,7 @@ export function AppSearch({ dialog }: { dialog: RefObject<HTMLDialogElement | nu
   return (
     <dialog
       aria-label={t("markets.searchLabel")}
-      className="mx-auto mt-[min(12dvh,6rem)] max-h-[76dvh] w-[calc(100%-1.5rem)] max-w-lg overflow-y-auto rounded-2xl border border-border bg-panel p-0 text-foreground shadow-xl has-[input:focus-visible]:border-[#b4a5da] backdrop:bg-black/25"
+      className="mx-auto mt-[min(12dvh,6rem)] max-h-[76dvh] w-[calc(100%-1.5rem)] max-w-lg overflow-y-auto rounded-2xl border border-border bg-panel p-0 text-foreground shadow-xl backdrop:bg-black/25"
       onClick={(event) => {
         if (event.target !== event.currentTarget) return;
         const rect = event.currentTarget.getBoundingClientRect();
@@ -85,8 +86,9 @@ export function AppSearch({ dialog }: { dialog: RefObject<HTMLDialogElement | nu
               {current.stocks.map((stock) => (
                 <li key={stock.assetId}>
                   <Link className="flex min-h-11 items-center gap-3 rounded-lg px-3 py-1.5 hover:bg-panel-subtle focus-visible:outline-2 focus-visible:outline-focus" href={"/app/stocks/" + encodeURIComponent(stock.assetId)} onClick={() => dialog.current?.close()}>
-                    <span className="min-w-14 text-sm font-semibold">{stock.ticker}</span>
-                    <span className="truncate text-sm text-muted">{stock.name}</span>
+                    <span aria-hidden="true" className="shrink-0"><MarketStockLogo stock={stock} /></span>
+                    <span className="min-w-14 shrink-0 text-sm font-semibold">{stock.ticker}</span>
+                    <span className="min-w-0 truncate text-sm text-muted" title={stock.name}>{stock.name}</span>
                   </Link>
                 </li>
               ))}

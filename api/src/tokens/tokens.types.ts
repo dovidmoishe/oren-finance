@@ -144,6 +144,7 @@ export interface TokensNewsItemRaw {
   url?: string;
   publishedAt?: string | number;
   published_at?: string | number;
+  posted_at?: string | number;
   imageUrl?: string;
   image?: string;
 }

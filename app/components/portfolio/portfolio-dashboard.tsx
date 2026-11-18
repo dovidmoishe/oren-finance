@@ -33,6 +33,8 @@ export function PortfolioDashboard() {
   const history = usePortfolioStore((state) => state.history);
   const activity = usePortfolioStore((state) => state.activity);
   const isLoading = usePortfolioStore((state) => state.isLoading);
+  const isHistoryLoading = usePortfolioStore((state) => state.isHistoryLoading);
+  const historyError = usePortfolioStore((state) => state.historyError);
   const error = usePortfolioStore((state) => state.error);
   const reset = usePortfolioStore((state) => state.reset);
   const [range, setRange] = useState<MarketChartRange>("7D");
@@ -100,8 +102,9 @@ export function PortfolioDashboard() {
             activeRange={range}
             className="rounded-none border-0 shadow-none"
             compact
+            error={historyError}
             lineData={chartData}
-            loading={isLoading && history.length === 0}
+            loading={isHistoryLoading || (isLoading && history.length === 0)}
             mode="line"
             onRangeChange={setRange}
             showSummary={false}

@@ -1,5 +1,19 @@
 import { signingFailureDetails, signingOutcome } from './signing-outcome';
 
+it('never describes a timed-out sponsored send as not broadcast', () => {
+  expect(signingOutcome('sponsor_uncertain')).toMatchObject({
+    submissionState: 'unknown',
+    reason: 'submission_uncertain',
+  });
+  expect(signingOutcome('submission_uncertain')).toMatchObject({
+    submissionState: 'unknown',
+  });
+  expect(signingOutcome('sponsor_rejected')).toMatchObject({
+    submissionState: 'not_broadcast',
+  });
+  expect(signingOutcome('sponsor_uncertain', 'chain-signature')).toEqual({});
+});
+
 describe('delegated signing outcomes', () => {
   it('keeps timeouts uncertain and unbroadcast, without leaking provider text', () => {
     const failure = signingFailureDetails(new Error('secret request payload'));

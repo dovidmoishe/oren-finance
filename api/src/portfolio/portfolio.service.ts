@@ -1,4 +1,5 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import type { ChartRange } from '../../types/market';
 import type { ActivityFeed, ActivityItem, ExecutionRecord } from '../../types/activity';
 import type { ExecutionStatus, ExecutionType } from '../../types/execution';
 import type {
@@ -24,6 +25,13 @@ import {
 } from './portfolio.repository';
 
 const RESOLVE_CONCURRENCY = 6;
+const HISTORY_RANGE_DAYS: Record<Exclude<ChartRange, 'ALL'>, number> = {
+  '1D': 1,
+  '1W': 7,
+  '1M': 30,
+  '3M': 90,
+  '1Y': 365,
+};
 
 @Injectable()
 export class PortfolioService {
@@ -157,10 +165,24 @@ export class PortfolioService {
     return portfolio;
   }
 
-  async getHistory(walletAddress: string): Promise<PortfolioHistory> {
-    const rows = await this.repository.listSnapshots(walletAddress);
-    // list is newest-first; reverse for chart chronological order
-    const points = [...rows].reverse().map((row) => ({
+  async getHistory(
+    walletAddress: string,
+    range: ChartRange = 'ALL',
+  ): Promise<PortfolioHistory> {
+    if (range !== 'ALL' && !Object.hasOwn(HISTORY_RANGE_DAYS, range)) {
+      throw new BadRequestException('Invalid portfolio history range');
+    }
+    const end = new Date();
+    // Range queries are chronological; the legacy latest-snapshots query is not.
+    const rows =
+      range === 'ALL'
+        ? [...(await this.repository.listSnapshots(walletAddress))].reverse()
+        : await this.repository.listSnapshotsInRange(
+            walletAddress,
+            new Date(end.getTime() - HISTORY_RANGE_DAYS[range] * 86_400_000),
+            end,
+          );
+    const points = rows.map((row) => ({
       timestamp: row.timestamp,
       totalValueUsd: Number(row.totalValueUsd),
       availableValueUsd: Number(row.availableValueUsd),

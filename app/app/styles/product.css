@@ -57,7 +57,7 @@
 /* Native top-layer surfaces retain Escape, outside-click and focus behavior. */
 
 .oren-account-menu {
-  @apply fixed inset-auto m-0 overflow-auto p-0 [border:none] bg-transparent;
+  @apply invisible fixed inset-auto m-0 overflow-auto p-0 [border:none] bg-transparent;
 }
 
 /* Animate the inner surface to preserve iOS Safari popover hit targets. */

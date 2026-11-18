@@ -34,7 +34,7 @@ test("header popovers follow their trigger when the copilot changes the workspac
   };
   const refs = [{ current: { getBoundingClientRect: () => rect } }, { current: popover }, { current: 0 }];
   const { useAnchoredPopover } = load("../hooks/use-anchored-popover.ts", {
-    require: () => ({ useRef: () => refs.shift(), useEffect() {} }),
+    require: () => ({ useRef: () => refs.shift(), useEffect() {}, useCallback: (callback) => callback }),
     window: { innerHeight: 900 },
     document: { documentElement: { clientWidth: 1440 } },
     requestAnimationFrame(callback) { pending = callback; return 1; },
@@ -52,6 +52,41 @@ test("header popovers follow their trigger when the copilot changes the workspac
   assert.equal(popover.style.left, "8px", "a trigger near the left edge keeps the menu in view");
   hook.onToggle({ newState: "closed" });
   assert.equal(cancelled, 1);
+});
+
+test("a header menu opened before hydration is positioned without another toggle", () => {
+  let mount;
+  let cancelled;
+  let pending;
+  let open = true;
+  const popover = {
+    style: {}, offsetWidth: 224, offsetHeight: 420, scrollHeight: 420,
+    matches: () => open,
+  };
+  const refs = [
+    { current: { getBoundingClientRect: () => ({ right: 1200, top: 20, bottom: 60 }) } },
+    { current: popover },
+    { current: 0 },
+  ];
+  const { useAnchoredPopover } = load("../hooks/use-anchored-popover.ts", {
+    require: () => ({
+      useRef: () => refs.shift(), useEffect(callback) { mount = callback; },
+      useCallback: (callback) => callback,
+    }),
+    window: { innerHeight: 900 },
+    document: { documentElement: { clientWidth: 1440 } },
+    requestAnimationFrame(callback) { pending = callback; return 7; },
+    cancelAnimationFrame(id) { cancelled = id; },
+  });
+  useAnchoredPopover();
+  const unmount = mount();
+  assert.equal(popover.style.left, "976px");
+  assert.equal(popover.style.top, "68px");
+  assert.equal(popover.style.visibility, "visible");
+  open = false;
+  pending();
+  unmount();
+  assert.equal(cancelled, 7);
 });
 
 test("NEXT_LOCALE is still found when another cookie is joined without a space", () => {
@@ -152,6 +187,7 @@ test("the language popover itself is not transformed, so iOS hit targets stay pu
   const popover = css.match(/\.oren-account-menu\s*\{[^}]*\}/g);
   const surface = css.match(/\.oren-account-menu-surface\s*\{[^}]*\}/)?.[0];
   assert.ok(popover?.length, "the compiled stylesheet contains the popover rules");
+  assert.match(popover.join("\n"), /visibility:\s*hidden/, "menus stay hidden until positioned, including before hydration");
   assert.doesNotMatch(popover.join("\n"), /\b(?:transform|scale|rotate|translate)\s*:/);
   assert.doesNotMatch(css, /\.oren-account-menu:popover-open\s*\{[^}]*\b(?:transform|scale|rotate|translate)\s*:/);
   assert.match(surface ?? "", /transform:\s*scale\(/);

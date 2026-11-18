@@ -21,10 +21,12 @@ import { staticJupiterAccounts } from './static-jupiter-accounts';
 import { buyNotionalUsd, microsUsd } from '../mcp-auth/trade-budget';
 import { rawSellReferenceUsd } from '../mcp-auth/delegated-amounts';
 import { reviewedQuoteFloor } from './reviewed-quote';
+import { sponsorshipEligible } from '../execution/gas-sponsorship';
 
 type Intent = typeof mcpTradeIntents.$inferSelect;
 
 export type GateRoute = {
+  gasSponsored?: boolean;
   createsDestinationAccount: boolean;
   transaction: string;
   rawInput: string;
@@ -48,7 +50,7 @@ export async function buildGateJupiterRoute(
     rpc: ApprovalRpc;
     connection: Connection;
   },
-  options?: { allowExecuting?: boolean },
+  options?: { allowExecuting?: boolean; simulationPayer?: string },
 ): Promise<GateRoute> {
   const statusAllowed =
     intent.status === 'prepared' ||
@@ -189,12 +191,20 @@ export async function buildGateJupiterRoute(
     },
     resolve,
   );
-  await deps.rpc.inspect(transaction, intent.wallet, {
-    inputMint,
-    outputMint,
-    maxInRaw: intent.maxInRaw,
-    minOutRaw: quote.otherAmountThreshold,
-  });
+  const gasSponsored =
+    !!options?.simulationPayer &&
+    sponsorshipEligible(transaction, intent.wallet);
+  await deps.rpc.inspect(
+    transaction,
+    intent.wallet,
+    {
+      inputMint,
+      outputMint,
+      maxInRaw: intent.maxInRaw,
+      minOutRaw: quote.otherAmountThreshold,
+    },
+    ...(gasSponsored ? [options?.simulationPayer] : []),
+  );
   let referenceValueUsd: string | undefined;
   let quotedProceedsUsd: string | undefined;
   if (intent.side === 'sell') {
@@ -210,6 +220,7 @@ export async function buildGateJupiterRoute(
     quotedProceedsUsd = microsUsd(BigInt(quote.outAmount));
   }
   return {
+    gasSponsored,
     createsDestinationAccount: inspection.createsDestinationAccount,
     transaction,
     rawInput: quote.inAmount,
