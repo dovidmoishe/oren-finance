@@ -2,7 +2,7 @@
 
 import { ArrowUpRight as ArrowUpRightIcon, Medal as MedalIcon, Users as UsersIcon } from "lucide-react";
 
-import { useWallet } from "@solana/wallet-adapter-react";
+import { useWallet } from "@/components/auth/wallet-context";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import {

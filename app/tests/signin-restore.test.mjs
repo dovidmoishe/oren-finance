@@ -13,6 +13,41 @@ const transpile = (path) => ts.transpileModule(readFileSync(new URL(path, import
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX },
 }).outputText;
 
+test("startup recovery is server-rendered with a native link and disappears after hydration", () => {
+  let hydrated = false;
+  const exports = {};
+  vm.runInNewContext(transpile("../components/startup-recovery.tsx"), {
+    exports,
+    require(id) {
+      if (id === "react") return { useSyncExternalStore: (_subscribe, client, server) => hydrated ? client() : server() };
+      return require(id);
+    },
+  });
+  const html = renderToStaticMarkup(createElement(exports.StartupRecovery));
+  assert.match(html, /<a[^>]*href=""/);
+  assert.ok(html.includes(messages.auth.reload));
+  assert.match(html, /startup-recovery_0s_15s_forwards/);
+  hydrated = true;
+  assert.equal(renderToStaticMarkup(createElement(exports.StartupRecovery)), "");
+});
+
+test("the app wallet context shares session values without loading wallet-adapter runtime", () => {
+  const exports = {};
+  vm.runInNewContext(transpile("../components/auth/wallet-context.tsx"), {
+    exports,
+    require(id) {
+      assert.notEqual(id, "@solana/wallet-adapter-react");
+      return require(id);
+    },
+  });
+  const session = { connected: true, publicKey: "owned-wallet" };
+  let seen;
+  function Probe() { seen = exports.useWallet(); return null; }
+  renderToStaticMarkup(createElement(exports.WalletContext.Provider, { value: session }, createElement(Probe)));
+  assert.equal(seen, session);
+  assert.throws(() => renderToStaticMarkup(createElement(Probe)), /outside AppProviders/);
+});
+
 function memoryStorage() {
   const values = new Map();
   return {
@@ -133,8 +168,8 @@ function mountPrivy({ fail }) {
     require(id) {
       if (id === "react") return hooks;
       if (id === "react/jsx-runtime") return require("react/jsx-runtime");
-      if (id === "next/dynamic") return { default: (load) => { bridge.load = load; return () => null; } };
-      if (id === "@solana/wallet-adapter-react") return { WalletContext: createContext({}) };
+      if (id === "next/dynamic") return { default: (load) => { bridge.load = load; return (props) => { bridge.publish = props.onSession; return null; }; } };
+      if (id === "@/components/auth/wallet-context") return { WalletContext: createContext({}) };
       if (id === "@/components/auth/auth-context") return { AuthContext };
       if (id === "@/components/auth/wallet-modal-context") return { WalletModalContext: createContext({}) };
       if (id === "@/components/auth/privy-auth") {
@@ -195,6 +230,7 @@ function mountPrivy({ fail }) {
     auth: () => seen,
     reloads: () => window.reloads(),
     async load() { await bridge.load(); },
+    publish(auth) { bridge.publish({ auth, wallet: {}, modal: {} }); },
     advance(ms) {
       window.now += ms;
       for (const timer of window.timers) {
@@ -268,13 +304,8 @@ test("blocked sessionStorage falls through to manual recovery", () => {
   assert.equal(recovery.reloadOnceForChunkFailure(), false);
 });
 
-test("the slow sign-in timer starts only after Privy has loaded and uses catalog copy", async () => {
+test("restore timeout includes the SDK download and does not restart when it loads", async () => {
   const page = mountPrivy({ fail: false });
-  page.settle();
-  page.advance(page.timeoutMs + 5_000);
-  assert.doesNotMatch(page.settle(), /still loading|longer than usual/);
-
-  await page.load();
   page.settle();
   page.advance(page.stillMs - 1);
   assert.doesNotMatch(page.settle(), /still loading|longer than usual/);
@@ -283,6 +314,9 @@ test("the slow sign-in timer starts only after Privy has loaded and uses catalog
   const still = page.settle();
   assert.ok(still.includes(messages.auth.restoreStillLoading));
   assert.doesNotMatch(still, /longer than usual|preview/i);
+
+  await page.load();
+  page.settle();
 
   page.advance(page.timeoutMs - page.stillMs);
   const slow = page.settle();
@@ -294,6 +328,21 @@ test("the slow sign-in timer starts only after Privy has loaded and uses catalog
   assert.equal(page.auth().authenticated, false);
   page.auth().open();
   assert.equal(page.reloads(), 0);
+});
+
+test("a stalled SDK download offers reload and a late ready session clears recovery", () => {
+  const page = mountPrivy({ fail: false });
+  page.settle();
+  page.advance(page.timeoutMs);
+  assert.ok(page.settle().includes(messages.auth.restoreSlow));
+  assert.equal(page.auth().restoreTimedOut, true);
+  assert.equal(page.auth().ready, false);
+  page.auth().open();
+  assert.equal(page.reloads(), 1);
+  page.publish({ ready: true, authenticated: true, configured: true });
+  assert.ok(!page.settle().includes(messages.auth.restoreSlow));
+  assert.equal(page.auth().restoreTimedOut, undefined);
+  assert.equal(page.auth().authenticated, true);
 });
 
 function dashboardRequire(auth) {

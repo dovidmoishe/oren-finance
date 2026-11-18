@@ -3,7 +3,7 @@
 import {
   WalletContext,
   type WalletContextState,
-} from "@solana/wallet-adapter-react";
+} from "@/components/auth/wallet-context";
 import dynamic from "next/dynamic";
 import { useEffect, useState } from "react";
 import { AuthContext, type OrenAuth } from "@/components/auth/auth-context";
@@ -17,7 +17,7 @@ import { reloadOnceForChunkFailure } from "@/lib/chunk-reload";
 
 const appId = process.env.NEXT_PUBLIC_PRIVY_APP_ID?.trim();
 
-/** Soft hint once Privy itself is loaded, then an actionable timeout. Download time is not counted. */
+/** Bound the entire restore, including the SDK download, without cancelling a late session. */
 export const PRIVY_STILL_LOADING_MS = 8_000;
 export const PRIVY_READY_TIMEOUT_MS = 28_000;
 
@@ -190,14 +190,14 @@ function DeferredPrivy({
   }, []);
 
   useEffect(() => {
-    if (!moduleLoaded || session?.auth.ready || restoreError) return;
+    if (session?.auth.ready || restoreError) return;
     const still = window.setTimeout(() => setStillLoading(true), PRIVY_STILL_LOADING_MS);
     const timeout = window.setTimeout(() => setRestoreTimedOut(true), PRIVY_READY_TIMEOUT_MS);
     return () => {
       window.clearTimeout(still);
       window.clearTimeout(timeout);
     };
-  }, [moduleLoaded, restoreError, session?.auth.ready]);
+  }, [restoreError, session?.auth.ready]);
 
   useEffect(() => {
     if (session) loading.replay(session);
@@ -219,7 +219,13 @@ function DeferredPrivy({
         openDeposit: retryFailedImport,
       }
     : timedOut
-      ? { ...current.auth, restoreTimedOut: true }
+      ? {
+          ...current.auth,
+          restoreTimedOut: true,
+          // There is no login UI to open until the SDK download completes.
+          open: moduleLoaded ? current.auth.open : retryFailedImport,
+          openDeposit: moduleLoaded ? current.auth.openDeposit : retryFailedImport,
+        }
       : current.auth;
   const wallet = failed ? signedOutWallet(false, retryFailedImport) : current.wallet;
   const modal = failed ? { visible: false, setVisible(next: boolean) { if (next) retryFailedImport(); } } : current.modal;

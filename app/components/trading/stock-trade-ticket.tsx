@@ -11,7 +11,7 @@ import {
   ArrowUpDown as ArrowUpDownIcon,
 } from "lucide-react";
 
-import { useWallet } from "@solana/wallet-adapter-react";
+import { useWallet } from "@/components/auth/wallet-context";
 import { useOrenAuth } from "@/components/auth/auth-context";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { useQuoteExecution } from "@/hooks/use-quote-execution";

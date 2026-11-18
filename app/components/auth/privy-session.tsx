@@ -17,7 +17,7 @@ import {
 import {
   WalletContext,
   type WalletContextState,
-} from "@solana/wallet-adapter-react";
+} from "@/components/auth/wallet-context";
 import { PublicKey } from "@solana/web3.js";
 import {
   useCallback,

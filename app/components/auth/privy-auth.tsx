@@ -1,7 +1,7 @@
 "use client";
 
 import { PrivyProvider } from "@privy-io/react-auth";
-import { WalletContext, type WalletContextState } from "@solana/wallet-adapter-react";
+import { useWallet, type WalletContextState } from "@/components/auth/wallet-context";
 import { memo, useContext, useLayoutEffect } from "react";
 import { useResolvedTheme, useThemePrimaryColor } from "../theme/theme";
 import { AuthContext, type OrenAuth } from "./auth-context";
@@ -17,7 +17,7 @@ export interface PublishedSession {
 /** Copies the session contexts out to `AppProviders`, which owns the app tree. */
 function SessionPublisher({ onSession }: { onSession: (session: PublishedSession) => void }) {
   const auth = useContext(AuthContext);
-  const wallet = useContext(WalletContext);
+  const wallet = useWallet();
   const modal = useContext(WalletModalContext);
   useLayoutEffect(() => { onSession({ auth, wallet, modal }); }, [auth, wallet, modal, onSession]);
   return null;

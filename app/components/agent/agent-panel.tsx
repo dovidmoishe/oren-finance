@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 import { InterfaceIcon } from "@/components/ui/interface-icon";
 
-import { useWallet } from '@solana/wallet-adapter-react';
+import { useWallet } from '@/components/auth/wallet-context';
 import { usePathname } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAgentStore, usePortfolioStore, useStockStore } from '@/store';

@@ -60,7 +60,7 @@ function panelFixture() {
     react: hooks,
     'next/navigation': { usePathname: () => pathname },
     'lucide-react': new Proxy({}, { get: () => () => null }),
-    '@solana/wallet-adapter-react': { useWallet: () => ({ connected: true, publicKey: { toBase58: () => 'wallet' } }) },
+    '@/components/auth/wallet-context': { useWallet: () => ({ connected: true, publicKey: { toBase58: () => 'wallet' } }) },
     '@/components/auth/wallet-modal-context': { useWalletModal: () => ({ setVisible() {} }) },
     '@/components/ui': { cn: (...args) => args.filter(Boolean).join(' '), Button: 'button' },
     '@/components/ui/interface-icon': {}, '@/components/brand/oren-logo': { OrenLogo: 'logo' },
