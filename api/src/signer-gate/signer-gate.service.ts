@@ -9,6 +9,7 @@ import {
   policyAllowsDestinationAccount,
   signingPolicyExpiresAt,
 } from './policy-stock-coverage';
+import { normalizePolicySemantics } from './policy-semantics.cjs';
 import {
   signingFailureDetails,
   signingOutcome,
@@ -173,26 +174,11 @@ export interface SignerGateDependencies {
   auth: PrivyWalletAuth;
 }
 
-/** Hash only the owner-reviewed policy semantics, excluding Privy metadata. */
+/** Sha256 of the reviewed policy. Rule order and Privy rule ids are not part of the pin. */
 export function gatePolicyFingerprint(policy: PrivyPolicy) {
-  const normalized = {
-    owner_id: policy.owner_id,
-    chain_type: policy.chain_type,
-    version: policy.version,
-    rules: policy.rules?.map((rule) => ({
-      name: rule.name,
-      method: rule.method,
-      action: rule.action,
-      conditions: rule.conditions?.map((item) => ({
-        field_source: item.field_source,
-        field: item.field,
-        operator: item.operator,
-        value: item.value,
-        idl: 'idl' in item ? (item.idl ?? null) : null,
-      })),
-    })),
-  };
-  return createHash('sha256').update(JSON.stringify(normalized)).digest('hex');
+  return createHash('sha256')
+    .update(JSON.stringify(normalizePolicySemantics(policy)))
+    .digest('hex');
 }
 
 function canonical(execution: Execution) {
