@@ -65,6 +65,6 @@ jobs:
               throw Error('Master already has protection; reconcile it manually rather than overwrite existing settings');
             } catch (error) { if (error.status !== 404) throw error; }
             await github.rest.repos.updateBranchProtection({...context.repo, branch:'master',
-              required_status_checks:{strict:true,contexts:['API test and build','App test, lint, and build','Preview infrastructure tests','Preview ready']},
+              required_status_checks:{strict:true,contexts:['API test and build','App test','App lint','App build','Preview infrastructure tests','Preview ready']},
               enforce_admins:true,required_pull_request_reviews:{dismiss_stale_reviews:true,required_approving_review_count:1},
               restrictions:null,allow_force_pushes:false,allow_deletions:false});

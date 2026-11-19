@@ -2,7 +2,9 @@ name: PR preview
 on:
   workflow_run:
     workflows: [CI]
-    types: [in_progress]
+    types: [completed]
+    # Master pushes also complete CI. They are not previews.
+    branches-ignore: [master]
   workflow_dispatch:
     inputs:
       pr:
@@ -11,12 +13,20 @@ on:
         type: number
 permissions:
   contents: read
+# One admitted preview per PR branch. A newer successful CI completion cancels
+# the older run before another image build starts. The group is prefixed so it
+# cannot collide with production-deploy. Failed CI, forks, and manual runs that
+# do not name a PR get a unique group.
+concurrency:
+  group: ${{ github.event_name == 'workflow_dispatch' && format('pr-preview-{0}', inputs.pr) || github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'pull_request' && github.event.workflow_run.head_repository.full_name == github.repository && format('pr-preview-{0}', github.event.workflow_run.head_branch) || format('pr-preview-skip-{0}', github.run_id) }}
+  cancel-in-progress: true
 jobs:
   resolve:
     if: >-
       github.ref == 'refs/heads/master' &&
-      (github.event_name != 'workflow_run' ||
+      (github.event_name == 'workflow_dispatch' ||
        (github.event.workflow_run.event == 'pull_request' &&
+        github.event.workflow_run.conclusion == 'success' &&
         github.event.workflow_run.head_repository.full_name == github.repository))
     environment: preview
     runs-on: ubuntu-24.04
@@ -42,6 +52,7 @@ jobs:
         with:
           script: |
             const {isDocsOnlyChange} = await import(process.env.GITHUB_WORKSPACE + '/infra/docs/change-scope.mjs');
+            const {requirePreviewCi} = await import(process.env.GITHUB_WORKSPACE + '/infra/preview/preview-ci.mjs');
             const run = context.payload.workflow_run;
             if (run && run.event !== 'pull_request') return;
             const args = {owner: context.repo.owner, repo: context.repo.repo};
@@ -61,12 +72,16 @@ jobs:
               if (changedFiles.length === pr.changed_files && isDocsOnlyChange(changedFiles)) {
                 await status('success', 'Documentation-only change; no application preview needed'); continue;
               }
-              // Manual redeploys retain their early CI admission check.
-              if (!run) {
-                const {data: runs} = await github.rest.actions.listWorkflowRuns({...args, workflow_id: 'ci.yml', head_sha: pr.head.sha, event: 'pull_request', per_page: 20});
-                if (!runs.workflow_runs.some(r => r.conclusion === 'success')) {
-                  await status('failure', 'CI must pass for the current PR commit'); continue;
-                }
+              // Trigger conclusion is not enough: require the newest exact-head CI run.
+              try {
+                await requirePreviewCi({github, repo: context.repo, sha: pr.head.sha, pr: pr.number});
+              } catch (error) {
+                const detail = String(error.message || '');
+                const description = /Successful CI|Preview CI /.test(detail)
+                  ? 'CI must pass for the current PR commit'
+                  : (detail || 'Preview admission failed').slice(0, 140);
+                await status('failure', description);
+                continue;
               }
               if (!process.env.PREVIEW_PRIVY_APP_ID) { await status('failure', 'Configure PREVIEW_PRIVY_APP_ID in Preview environment'); continue; }
               core.setOutput('privy_id', process.env.PREVIEW_PRIVY_APP_ID);
@@ -74,32 +89,9 @@ jobs:
               core.setOutput('pr', String(pr.number)); core.setOutput('sha', pr.head.sha);
               core.setOutput('owner', context.repo.owner.toLowerCase()); return;
             }
-  ci-gate:
-    name: Require successful CI for preview head
-    needs: resolve
-    if: needs.resolve.outputs.pr != ''
-    runs-on: ubuntu-24.04
-    timeout-minutes: 35
-    permissions:
-      contents: read
-      pull-requests: read
-      actions: read
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-        with:
-          ref: ${{ github.workflow_sha }}
-          persist-credentials: false
-      - uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
-        env:
-          PREVIEW_SHA: ${{ needs.resolve.outputs.sha }}
-          PR_NUMBER: ${{ needs.resolve.outputs.pr }}
-        with:
-          script: |
-            const {waitForPreviewCi} = await import(process.env.GITHUB_WORKSPACE + '/infra/preview/preview-ci.mjs');
-            await waitForPreviewCi({github, repo: context.repo, sha: process.env.PREVIEW_SHA, pr: Number(process.env.PR_NUMBER)});
   build-api:
     name: Build and publish preview API image
-    needs: [resolve, ci-gate]
+    needs: [resolve]
     if: needs.resolve.outputs.pr != ''
     runs-on: ubuntu-24.04
     timeout-minutes: 25
@@ -184,7 +176,7 @@ jobs:
           echo "digest=$digest" >> "$GITHUB_OUTPUT"
   build-app:
     name: Build and publish preview web image
-    needs: [resolve, ci-gate]
+    needs: [resolve]
     if: needs.resolve.outputs.pr != ''
     runs-on: ubuntu-24.04
     timeout-minutes: 25
@@ -221,8 +213,13 @@ jobs:
           cache-from: type=gha,scope=oren-app-preview
           cache-to: type=gha,mode=max,scope=oren-app-preview,ignore-error=true
   deploy:
-    needs: [resolve, ci-gate, build-api, build-app]
-    if: always() && needs.resolve.outputs.pr != ''
+    needs: [resolve, build-api, build-app]
+    if: >-
+      always() &&
+      needs.resolve.result == 'success' &&
+      needs.resolve.outputs.pr != '' &&
+      needs['build-api'].result == 'success' &&
+      needs['build-app'].result == 'success'
     runs-on: ubuntu-24.04
     environment: preview
     concurrency:
@@ -249,36 +246,46 @@ jobs:
         with:
           script: |
             const {data: pr} = await github.rest.pulls.get({...context.repo, pull_number: Number(process.env.PR)});
-            if (pr.state !== 'open' || pr.head.sha !== process.env.SHA) throw Error('PR closed or superseded');
+            if (pr.state !== 'open' || pr.head.sha !== process.env.SHA) {
+              core.notice('PR closed or superseded; not deploying this preview');
+              core.setOutput('current', 'false');
+              return;
+            }
+            core.setOutput('current', 'true');
             const {data} = await github.rest.repos.createDeployment({...context.repo, ref: process.env.SHA, environment: `preview-pr-${process.env.PR}`, auto_merge: false, required_contexts: [], transient_environment: true, production_environment: false});
             core.setOutput('id', data.id);
             await github.rest.repos.createDeploymentStatus({...context.repo, deployment_id: data.id, state: 'in_progress'});
-      - name: Require successful CI and image builds
+      - name: Require successful image builds
+        if: steps.deployment.outputs.current == 'true'
         env:
-          CI_RESULT: ${{ needs['ci-gate'].result }}
           API_BUILD_RESULT: ${{ needs['build-api'].result }}
           APP_BUILD_RESULT: ${{ needs['build-app'].result }}
-        run: test "$CI_RESULT" = success && test "$API_BUILD_RESULT" = success && test "$APP_BUILD_RESULT" = success
+        run: test "$API_BUILD_RESULT" = success && test "$APP_BUILD_RESULT" = success
       # Only trusted workflow code is checked out on the deployment runner.
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        if: steps.deployment.outputs.current == 'true'
         with:
           ref: ${{ github.workflow_sha }}
           persist-credentials: false
       - uses: webfactory/ssh-agent@a6f90b1f127823b31d4d4a8d96047790581349bd # v0.9.1
+        if: steps.deployment.outputs.current == 'true'
         with:
           ssh-private-key: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
       - name: Configure verified SSH host
+        if: steps.deployment.outputs.current == 'true'
         run: |
           install -d -m 700 ~/.ssh
           printf '%s\n' "$VPS_SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/known_hosts
       - name: Recheck current-head CI before activation
+        if: steps.deployment.outputs.current == 'true'
         uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
         with:
           script: |
             const {requirePreviewCi} = await import(process.env.GITHUB_WORKSPACE + '/infra/preview/preview-ci.mjs');
             await requirePreviewCi({github, repo: context.repo, sha: process.env.SHA, pr: Number(process.env.PR)});
       - name: Deploy using installed trusted controller
+        if: steps.deployment.outputs.current == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           REPO_NAME: ${{ github.event.repository.name }}

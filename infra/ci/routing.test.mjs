@@ -25,8 +25,9 @@ test('fork PR CI runs with read-only permissions and keeps the required check na
   assert.doesNotMatch(job(workflow('docs-site'), 'docs'), /head\.repo/);
   assert.match(ci, /permissions:\n  contents: read/);
   assert.match(job(ci, 'app-check'), /node scripts\/lint-bounded\.mjs/);
-  assert.match(job(ci, 'app'), /if: always\(\)/);
-  assert.match(job(ci, 'app'), /test "\$RESULT" = success/);
+  assert.match(job(ci, 'app-check'), /check: \[test, lint, build\]/);
+  assert.match(job(ci, 'app-check'), /name: App \$\{\{ matrix\.check \}\}/);
+  assert.doesNotMatch(ci, /App test, lint, and build/);
   assert.doesNotMatch(ci, /\bsudo\b|install -d \/opt\/oren|5432:5432|--network host/);
   assert.match(ci, /job.services.postgres.ports\['5432'\]/);
   assert.match(ci, /job.services.postgres.id/);
@@ -64,13 +65,34 @@ test('production images build ahead of the CI gate and only a verified SHA deplo
   assert.match(deploy, /workflow_dispatch/);
   assert.match(job(production, 'ci-gate'), /requireProductionCi/);
   assert.match(job(production, 'release'), /needs: \[build-images, deploy\]/);
+  const preview = workflow('preview');
   for (const name of ['build-api', 'build-app']) {
-    assert.match(job(workflow('preview'), name), /needs: \[resolve, ci-gate\]/);
+    assert.match(job(preview, name), /needs: \[resolve\]/);
+    assert.doesNotMatch(job(preview, name), /ci-gate/);
   }
+  assert.match(preview, /types: \[completed\]/);
+  assert.match(preview, /branches-ignore: \[master\]/);
+  assert.doesNotMatch(preview, /types: \[in_progress\]|waitForPreviewCi|ci-gate/);
+  assert.match(preview, /workflow_run\.conclusion == 'success'/);
+  assert.match(preview, /format\('pr-preview-\{0\}', github\.event\.workflow_run\.head_branch\)/);
+  assert.match(preview, /format\('pr-preview-skip-\{0\}', github\.run_id\)/);
+  assert.doesNotMatch(preview, /group: production-deploy/);
+  const admitted = job(preview, 'resolve');
+  assert.match(admitted, /workflow_run\.head_repository\.full_name == github\.repository/);
+  assert.match(admitted, /workflow_run\.conclusion == 'success'/);
+  assert.match(admitted, /requirePreviewCi/);
+  assert.match(admitted, /pr\.head\.repo\?\.full_name !== context\.payload\.repository\.full_name/);
+  assert.match(admitted, /listPullRequestsAssociatedWithCommit/);
+  const previewDeploy = job(preview, 'deploy');
+  assert.match(previewDeploy, /needs\['build-api'\]\.result == 'success'/);
+  assert.match(previewDeploy, /needs\['build-app'\]\.result == 'success'/);
+  assert.match(previewDeploy, /cancel-in-progress: false/);
+  assert.match(previewDeploy, /requirePreviewCi/);
+  assert.match(previewDeploy, /not deploying this preview/);
   assert.doesNotMatch(job(production, 'ci-gate'), /actions: write|coordinateReleaseGate/);
-  assert.match(job(workflow('preview'), 'resolve'), /workflow_run\.head_repository\.full_name == github\.repository/);
-  assert.match(job(workflow('preview'), 'resolve'), /pr\.head\.repo\?\.full_name !== context\.payload\.repository\.full_name/);
   assert.match(job(workflow('preview-maintenance'), 'maintain'), /pull_request\.head\.repo\.full_name == github\.repository/);
+  assert.match(workflow('preview-setup'), /'App test','App lint','App build'/);
+  assert.doesNotMatch(workflow('preview-setup'), /App test, lint, and build/);
 });
 
 test('test fixtures override paths while deployed preview defaults remain intact', () => {
