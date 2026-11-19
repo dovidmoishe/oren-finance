@@ -63,3 +63,8 @@ test('a superseded head never publishes readiness for its replacement', async ()
   assert.equal(f.commitStatuses.length, 0);
   assert.equal(f.deployments[0].state, 'inactive');
 });
+test('a cancelled run does not mark the current head as a failed preview', async () => {
+  const f = fixture({jobStatus: 'cancelled'}); await f.run();
+  assert.equal(f.commitStatuses.length, 0);
+  assert.equal(f.deployments[0].state, 'inactive');
+});

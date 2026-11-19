@@ -234,15 +234,3 @@ jobs:
           else
             pnpm run "$CHECK"
           fi
-
-  # Preserve the required-check name used by branch protection.
-  app:
-    name: App test, lint, and build
-    needs: app-check
-    if: always()
-    runs-on: ubuntu-24.04
-    steps:
-      - name: Require all web checks
-        env:
-          RESULT: ${{ needs.app-check.result }}
-        run: test "$RESULT" = success

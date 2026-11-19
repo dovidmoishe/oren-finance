@@ -58,7 +58,7 @@ The host controller globally serializes container/routing changes, including cle
 
 After both previews pass tester acceptance, run **Preview setup → enable-merge-protection** on master with `ACCEPTED-preview-login-and-research`. It requires two distinct currently successful preview deployments. Add a repository-scoped fine-grained `PREVIEW_ADMIN_TOKEN` secret in the Preview environment with Administration write, Contents read and Deployments read; only the setup step uses it. Alternatively apply equivalent rules manually using an admin account.
 
-The setup refuses to overwrite existing branch protection. It requires `API test and build`, `App test, lint, and build`, `Preview infrastructure tests`, and `Preview ready`, an up-to-date branch and one approving review; stale approvals are dismissed and admins follow the rules too. Do not enable it while bootstrap/acceptance is incomplete. Keep fork PRs blocked until reviewed changes are moved to a trusted branch.
+The setup refuses to overwrite existing branch protection. It requires `API test and build`, `App test`, `App lint`, `App build`, `Preview infrastructure tests`, and `Preview ready`, an up-to-date branch and one approving review; stale approvals are dismissed and admins follow the rules too. Do not enable it while bootstrap/acceptance is incomplete. Keep fork PRs blocked until reviewed changes are moved to a trusted branch. An existing ruleset is not updated by this workflow; change it in the repository settings.
 
 ## Production release records
 
@@ -68,21 +68,31 @@ Manual production deployments accept a full Git SHA and load its matching deploy
 
 ## Image build speed rollout
 
-Preview image builds start when PR CI enters `in_progress`, including CI reruns.
+Preview starts when a same-repository pull request's CI run completes
+successfully, including CI reruns. Master pushes do not start a preview.
+`workflow_run` `in_progress` is not a trigger: that activity was delivered again
+when a later CI job started, so one pull request ran several previews.
 The trusted resolver still admits only open, same-repository collaborator PRs on
-the current head. An independent gate waits for the newest exact-head `ci.yml`
-PR run to succeed while the API and web images build. Before activation, the
-deployment runner checks the PR, collaborator permission and latest CI again.
-Failed, cancelled, missing or pending CI cannot activate a preview. Manual
-redeploys retain their early CI admission check and the same activation gate.
+the current head, and it requires the newest exact-head `ci.yml` pull request
+run to have already succeeded. There is no runner waiting on CI. Before
+activation, the deployment runner checks the PR, collaborator permission and
+latest CI again. Failed, cancelled, missing or pending CI cannot activate a
+preview. Manual redeploys use the same admission check and the same activation gate.
 
-New commits cancel superseded PR CI and per-PR API/web image jobs. Master CI runs
-keep unique groups and are never cancelled by this policy. Deployments retain
-their existing per-PR serialization without automatic cancellation. An older
-attempt cannot overwrite a newer attempt's `Preview ready` status; the installed
-controller also retains its current-head checks, password/financial/worker gates
-and health verification. This moves CI off the serial image-build path; it does
-not skip checks, change image caching or alter production deployment/rollback.
+A newer admitted run for the same head branch cancels only the older resolve
+job. It does not cancel an image build or an activation: those stay on their
+own groups. Per-PR API and web image jobs still cancel an older build for that
+PR. The deploy job keeps `cancel-in-progress: false` and runs only after both
+image builds succeed, so a cancelled build is skipped instead of failing a
+deploy, and a later docs-only, closed, or unauthorized run cannot kill an
+activation that it does not replace. If the head moved before activation, the
+deploy records that and stops without SSHing. A cancelled deploy does not set
+`Preview ready` to failure on the current head. An older attempt cannot
+overwrite a newer attempt's status. The installed controller also retains its
+current-head checks, password, financial and worker gates, and health
+verification. This does not cancel master CI. Production deployment and
+rollback are unchanged. Fork completions and failed CI use a distinct resolve
+group, so they cannot cancel an admitted resolve or a production deploy.
 
 Production starts on the same `master` push as CI. The existing API/web image jobs and
 the exact-SHA CI gate run concurrently; deployment requires the gate and both image
@@ -106,11 +116,11 @@ API image reuse is implemented but off by default. After the timing comparison, 
 
 Web tests, lint and production build run in three independent CI matrix jobs with
 `fail-fast: false`, separate clean installs and the same `/api` build origin. All
-three must succeed. The aggregate **App test, lint, and build** check retains the
-existing branch-protection name and fails if any matrix job fails, skips or is
-cancelled. Preview still requires the entire exact-head CI workflow to succeed.
-This trades additional runner minutes and two dependency installs for lower wall
-time; do not infer a speedup until comparable PR-to-preview samples exist.
+three must succeed. Their check names are **App test**, **App lint**, and **App
+build**. Branch protection has to require those three names; there is no
+aggregate check. Preview still requires the entire exact-head CI workflow to
+succeed. This trades additional runner minutes and two dependency installs for
+lower wall time; do not infer a speedup until comparable PR-to-preview samples exist.
 
 ```sh
 node --test infra/preview/*.test.mjs
