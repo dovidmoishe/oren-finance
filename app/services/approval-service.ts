@@ -9,7 +9,7 @@ export interface TradeApproval {
   executionId: string;
   status: 'prepared' | 'signing' | 'signed' | 'submitted' | 'confirmed' | 'failed';
   signature?: string;
-  details: { quote?: QuoteResponse; proposal?: LimitOrderProposal; orderKey?: string; ticker?: string; asset?: 'USDC' | 'SOL' | 'STOCK'; mint?: string; symbol?: string; name?: string; issuer?: string; assetId?: string; decimals?: number; requestedAmount?: string; recipient?: string; amount?: string; amountAtomic?: string; rentLamports?: string; network?: 'mainnet' };
+  details: { ataRentSponsored?: boolean; quote?: QuoteResponse; proposal?: LimitOrderProposal; orderKey?: string; ticker?: string; asset?: 'USDC' | 'SOL' | 'STOCK'; mint?: string; symbol?: string; name?: string; issuer?: string; assetId?: string; decimals?: number; requestedAmount?: string; recipient?: string; amount?: string; amountAtomic?: string; rentLamports?: string; network?: 'mainnet' };
   feeLamports: string;
   expiresAt: string;
   message?: string;

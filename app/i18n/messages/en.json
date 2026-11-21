@@ -548,6 +548,8 @@
     "slippage": "Slippage",
     "route": "Route",
     "estimatedFee": "Estimated network fee",
+    "accountSetup": "Account setup",
+    "coveredByOren": "Covered by Oren",
     "preparing": "Preparing…",
     "quoteExpiry": "Quote expiry",
     "warningTitle": "Review warning",

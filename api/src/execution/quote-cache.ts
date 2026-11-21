@@ -1,14 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import type { Quote } from '../../types/quote';
-import {
-  PENDING_EXECUTION_TTL_MS,
-  QUOTE_TTL_MS,
-} from '../config/constants';
+import { PENDING_EXECUTION_TTL_MS, QUOTE_TTL_MS } from '../config/constants';
 import { QuoteExpiredError } from '../common/errors/provider.errors';
 import { type ReviewedTerms, reviewedTermsFor } from './swap-terms';
 
 export interface CachedQuoteEntry {
   quote: Quote;
+  readonly origin?: 'user_reviewed' | 'other';
   /** Set after prepare. */
   executionId?: string;
   /**
@@ -34,11 +32,12 @@ export class QuoteCache {
     }
   >();
 
-  set(quote: Quote): void {
+  set(quote: Quote, origin: 'user_reviewed' | 'other' = 'other'): void {
     // Re-setting an id never resets the floor the user already reviewed.
     const existing = this.quotes.get(quote.id);
     this.quotes.set(quote.id, {
       quote,
+      origin: existing?.origin ?? origin,
       storedAt: Date.now(),
       reviewed: existing?.reviewed ?? reviewedTermsFor(quote),
     });

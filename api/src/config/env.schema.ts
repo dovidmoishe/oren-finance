@@ -1,5 +1,6 @@
 import { deploymentCapabilities } from './deployment';
 import { DEFAULT_VAULT_PROGRAM_ID } from './constants';
+import { ataRentConfig, type AtaRentConfig } from './ata-rent-config';
 
 export type SolanaNetwork = 'mainnet' | 'devnet';
 
@@ -50,6 +51,8 @@ export interface AppEnv {
   PRIVY_MCP_GAS_SPONSORSHIP?: boolean;
   /** Public funded system account used ONLY for unsigned fee-free simulations. */
   PRIVY_GAS_SIMULATION_PAYER?: string;
+  ATA_RENT_SPONSORSHIP?: boolean;
+  ATA_RENT_CONFIG?: AtaRentConfig;
   MCP_DELEGATED_TRADES_ENABLED: boolean;
   MCP_DELEGATED_BUYS_ENABLED: boolean;
   MCP_DELEGATED_SELLS_ENABLED: boolean;
@@ -392,6 +395,8 @@ export function validateEnv(env: EnvSource = process.env): AppEnv {
     PRIVY_REVIEWED_GAS_SPONSORSHIP: reviewedSponsorship,
     PRIVY_MCP_GAS_SPONSORSHIP: mcpSponsorship,
     PRIVY_GAS_SIMULATION_PAYER: simulationPayer,
+    ATA_RENT_SPONSORSHIP: readBool(env, 'ATA_RENT_SPONSORSHIP', false),
+    ATA_RENT_CONFIG: ataRentConfig(env),
     MCP_DELEGATED_TRADES_ENABLED: delegatedEnabled,
     MCP_DELEGATED_BUYS_ENABLED:
       delegatedEnabled && readBool(env, 'MCP_DELEGATED_BUYS_ENABLED', false),

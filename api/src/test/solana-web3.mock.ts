@@ -32,6 +32,18 @@ export class TransactionInstruction {
 }
 
 export class Transaction {
+  static from(bytes: Buffer): Transaction {
+    return new Transaction({ bytes });
+  }
+  compileMessage(): unknown {
+    return {};
+  }
+  serializeMessage(): Buffer {
+    return Buffer.from('message');
+  }
+  verifySignatures(): boolean {
+    return false;
+  }
   private instructions: unknown[] = [];
 
   constructor(readonly input: unknown) {}
@@ -42,18 +54,22 @@ export class Transaction {
   }
 
   serialize(): Buffer {
-    return Buffer.from(JSON.stringify({ input: this.input, instructions: this.instructions }));
+    return Buffer.from(
+      JSON.stringify({ input: this.input, instructions: this.instructions }),
+    );
   }
 }
 
 export class Connection {
   constructor(readonly endpoint: string) {}
 
-  async getLatestBlockhash() {
-    return { blockhash: 'mock-blockhash' };
+  getLatestBlockhash() {
+    return Promise.resolve({ blockhash: 'mock-blockhash' });
   }
 
-  async getAccountInfo() {
-    return { owner: new PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA') };
+  getAccountInfo() {
+    return Promise.resolve({
+      owner: new PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA'),
+    });
   }
 }

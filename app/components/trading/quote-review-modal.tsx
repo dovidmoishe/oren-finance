@@ -122,6 +122,9 @@ export function QuoteReviewModal({
             <Row label={t("review.slippage")} value={`${formatNumber(quote.slippageBps / 100, locale, 2)}%`} />
             {route ? <Row label={t("review.route")} value={route} /> : null}
             <Row label={t("review.estimatedFee")} value={review.approval ? `${Number(review.approval.feeLamports) / 1e9} SOL` : t("review.preparing")} />
+            {review.approval?.details.ataRentSponsored === true ? (
+              <Row label={t("review.accountSetup")} value={t("review.coveredByOren")} />
+            ) : null}
             <Row label={t("review.quoteExpiry")} value={formatExpiryLabel(t, secondsLeft, isRefreshingQuote)} />
           </div>
 

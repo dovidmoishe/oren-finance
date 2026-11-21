@@ -548,6 +548,8 @@
     "slippage": "滑点",
     "route": "路由",
     "estimatedFee": "估计网络费用",
+    "accountSetup": "账户设置",
+    "coveredByOren": "由 Oren 承担",
     "preparing": "正在准备…",
     "quoteExpiry": "报价有效期",
     "warningTitle": "注意事项",

@@ -68,6 +68,8 @@ export interface QuoteRequest {
 }
 
 export interface PreparedTransaction {
+  /** Confirmed separate ATA setup paid by Oren; never implies swap gas coverage. */
+  ataRentSponsored?: boolean;
   executionId: string;
   quoteId: string;
   wallet: string;

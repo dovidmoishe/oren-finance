@@ -4,6 +4,7 @@ import {
   ForbiddenException,
   Injectable,
   Logger,
+  Optional,
 } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import bs58 from 'bs58';
@@ -51,6 +52,10 @@ import {
   marketSessionForTrade,
   stampQuoteMarketSession,
 } from '../market/us-market-session';
+import {
+  AtaRentSponsorService,
+  type AtaRentReviewContext,
+} from './ata-rent-sponsor.service';
 import { BasketCache } from './basket-cache';
 import { ExecutionRepository } from './execution.repository';
 import { JupiterTriggerClient } from './jupiter/jupiter-trigger.client';
@@ -91,18 +96,22 @@ export class ExecutionService {
     private readonly tokens: TokensService,
     private readonly intelligence: IntelligenceService,
     private readonly onchain: OnchainTransactions,
+    @Optional() private readonly ataRentSponsor?: AtaRentSponsorService,
   ) {}
 
-  async getQuote(body: TradeIntent | QuoteRequest): Promise<Quote> {
+  async getQuote(
+    body: TradeIntent | QuoteRequest,
+    origin: 'user_reviewed' | 'other' = 'other',
+  ): Promise<Quote> {
     if (!body?.side || (body.side !== 'buy' && body.side !== 'sell')) {
       throw new BadRequestException('side must be "buy" or "sell"');
     }
 
     if (isQuoteRequest(body)) {
-      return this.quoteFromMints(body);
+      return this.quoteFromMints(body, origin);
     }
 
-    const intent = body as TradeIntent;
+    const intent = body;
     if (!intent.ticker && !intent.assetId) {
       throw new BadRequestException('ticker or assetId is required');
     }
@@ -116,7 +125,7 @@ export class ExecutionService {
 
     const { quote } = await this.selector.selectAndQuote(intent);
     stampQuoteMarketSession(quote);
-    this.cache.set(quote);
+    this.cache.set(quote, origin);
     return quote;
   }
 
@@ -375,9 +384,11 @@ export class ExecutionService {
   async prepare(
     input: PostExecutionPrepareRequest,
     featureSource: ExecutionFeature = 'direct',
+    reviewContext?: AtaRentReviewContext,
   ): Promise<PreparedTransaction> {
     assertFinancialExecutionEnabled();
-    return (await this.prepareWithQuote(input, featureSource)).prepared;
+    return (await this.prepareWithQuote(input, featureSource, reviewContext))
+      .prepared;
   }
 
   /**
@@ -388,6 +399,7 @@ export class ExecutionService {
   async prepareWithQuote(
     input: PostExecutionPrepareRequest,
     featureSource: ExecutionFeature = 'direct',
+    reviewContext?: AtaRentReviewContext,
   ): Promise<{
     prepared: PreparedTransaction;
     quote: Quote;
@@ -409,7 +421,7 @@ export class ExecutionService {
       // Keep the Jupiter alternative server-side so the client can start a
       // fresh review for it by id. It carries its own reviewed terms.
       if (err instanceof PriceMovedError && err.alternativeQuote) {
-        this.cache.set(err.alternativeQuote as Quote);
+        this.cache.set(err.alternativeQuote as Quote, entry.origin);
       }
       throw err;
     }
@@ -432,9 +444,23 @@ export class ExecutionService {
       status: 'awaiting_signature',
     });
 
+    // The only eligible entry is an authenticated browser prepare of a browser-issued
+    // stock quote. Agent, MCP, delegated, basket, and limit paths fail closed.
+    const ataRentSponsored =
+      this.ataRentSponsor &&
+      featureSource === 'direct' &&
+      entry.origin === 'user_reviewed'
+        ? await this.ataRentSponsor
+            .cover(quote, wallet, reviewContext, prepared.transaction)
+            .catch(() => false)
+        : false;
     this.cache.attachExecution(quote.id, row.id, wallet, prepared.transaction);
     return {
-      prepared: { ...prepared, executionId: row.id },
+      prepared: {
+        ...prepared,
+        executionId: row.id,
+        ...(ataRentSponsored ? { ataRentSponsored: true } : {}),
+      },
       quote,
       expectation,
     };
@@ -549,7 +575,7 @@ export class ExecutionService {
       amount = intent.amount;
     }
 
-    let rates;
+    let rates: ReturnType<typeof computeLimitOrderAmounts>;
     try {
       rates = computeLimitOrderAmounts({
         side: intent.side,
@@ -1018,7 +1044,10 @@ export class ExecutionService {
     throw new TokensNotFoundError(`Stock not found: ${q}`);
   }
 
-  private async quoteFromMints(req: QuoteRequest): Promise<Quote> {
+  private async quoteFromMints(
+    req: QuoteRequest,
+    origin: 'user_reviewed' | 'other',
+  ): Promise<Quote> {
     if (!req.inputMint || !req.outputMint) {
       throw new BadRequestException('inputMint and outputMint are required');
     }
@@ -1033,12 +1062,16 @@ export class ExecutionService {
       name: req.ticker ?? 'TOKEN',
       tradable: true,
     };
+    let catalogStock = false;
     let assetId = req.assetId ?? 'unknown';
     let ticker = req.ticker ?? 'UNKNOWN';
 
     try {
       const equity = await this.tokens.resolveMint(stockMint);
       if (equity) {
+        catalogStock = equity.variants.some(
+          (variant) => variant.mint === stockMint && variant.tradable,
+        );
         assetId = equity.id;
         ticker = equity.ticker;
         variant = equity.variants.find((v) => v.mint === stockMint) ?? {
@@ -1093,7 +1126,8 @@ export class ExecutionService {
     }
 
     stampQuoteMarketSession(quote);
-    this.cache.set(quote);
+    // Client-supplied assetId/ticker placeholders never qualify an unresolved mint.
+    this.cache.set(quote, catalogStock ? origin : 'other');
     return quote;
   }
 }

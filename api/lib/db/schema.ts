@@ -15,6 +15,37 @@ import {
   uniqueIndex,
 } from 'drizzle-orm/pg-core';
 
+/** Subsidy admission ledger only. Never delete attempts or recycle wallet/mint pairs. */
+export const ataRentSponsorships = pgTable(
+  'ata_rent_sponsorships',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    userId: text('user_id').notNull(),
+    wallet: text('wallet').notNull(),
+    mint: text('mint').notNull(),
+    status: text('status')
+      .$type<'reserved' | 'sponsored' | 'failed'>()
+      .notNull()
+      .default('reserved'),
+    /** Conservative rent + network fee reservation, retained even on uncertain failure. */
+    lamports: numeric('lamports', { precision: 20, scale: 0 }).notNull(),
+    signature: text('signature'),
+    failureReason: text('failure_reason'),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    sponsoredAt: timestamp('sponsored_at', { withTimezone: true }),
+  },
+  (table) => [
+    uniqueIndex('ata_rent_wallet_mint_unique').on(table.wallet, table.mint),
+    index('ata_rent_user_idx').on(table.userId),
+    index('ata_rent_created_idx').on(table.createdAt),
+  ],
+);
+
 /** Durable approval state only; chain confirmations remain the financial ledger. */
 export const tradeApprovals = pgTable(
   'trade_approvals',
