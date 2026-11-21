@@ -70,7 +70,7 @@ function session(createWallet, { deployment = "production", pathname = "/app" } 
     useCallback(fn) { return fn; }, useEffect: effect, useLayoutEffect: effect,
   };
   let resets = 0;
-  const state = { reset() {}, resetAll() { resets++; }, clearCopy() {}, initialize() {}, setWalletState() {} };
+  const state = { reset() {}, resetPrivateFeeds() { resets++; }, resetAll() { resets++; }, clearCopy() {}, initialize() {}, setWalletState() {} };
   const store = { getState: () => state };
   const exports = {};
   const code = ts.transpileModule(readFileSync(new URL('../components/auth/privy-session.tsx', import.meta.url), 'utf8'), {
@@ -97,7 +97,7 @@ function session(createWallet, { deployment = "production", pathname = "/app" } 
       };
       if (id === '@privy-io/react-auth/solana') return { useStandardWallets: () => standardSdk, useWallets: () => walletSdk, useCreateWallet: () => ({ createWallet }), useSignMessage: () => ({ signMessage: (...args) => messageSigner(...args) }), useSignTransaction: () => ({ signTransaction: input => transactionSigner(input) }) };
       if (id === 'next/navigation') return { usePathname: () => pathname };
-      if (id === '@/store') return Object.fromEntries(['useAgentStore','useExecutionStore','usePortfolioStore','useSocialStore','useVaultStore','useWalletStore'].map(k => [k, store]));
+      if (id === '@/store') return Object.fromEntries(['useAgentStore','useExecutionStore','useExploreStore','usePortfolioStore','useSocialStore','useVaultStore','useWalletStore'].map(k => [k, store]));
       if (id === '@/services/wallet-session') return { invalidateWalletSession() {}, walletSessionIsCurrent: () => () => true };
       if (id === '@/services/approval-service') return { getApprovalAuthorizationRequest: async () => authorizationRequest };
       if (id === '@/services/agent-service') return { setAgentTokenProvider() {} };

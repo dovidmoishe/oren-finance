@@ -33,6 +33,7 @@ import {
 import {
   useAgentStore,
   useExecutionStore,
+  useExploreStore,
   usePortfolioStore,
   useSocialStore,
   useVaultStore,
@@ -79,6 +80,7 @@ function clearWalletData() {
   invalidateWalletSession();
   useWalletStore.getState().reset();
   usePortfolioStore.getState().reset();
+  useExploreStore.getState().resetPrivateFeeds();
   useExecutionStore.getState().resetAll();
   useVaultStore.getState().reset();
   useSocialStore.getState().clearCopy();

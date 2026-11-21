@@ -2,22 +2,21 @@
 
 import { ArrowUpRight, Newspaper, RefreshCw, Sparkles } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef } from "react";
 import { useOrenAuth } from "@/components/auth/auth-context";
 import { OrenLogo } from "@/components/brand/oren-logo";
 import { Button, cn } from "@/components/ui";
 import { useI18n, useT } from "@/i18n/i18n";
-import { getNewsFeed } from "@/services/news-feed-service";
-import { useAgentStore } from "@/store";
-import type { NewsFeed, NewsStory } from "@/types/news-feed";
+import { exploreFeedKey, useAgentStore, useExploreStore, type ExploreScope } from "@/store";
+import type { NewsStory } from "@/types/news-feed";
 
-type Scope = "for-you" | "trending";
 const focus = "focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-focus";
 
 export function ExplorePage() {
   const auth = useOrenAuth();
   const t = useT();
-  const [scope, setScope] = useState<Scope>("for-you");
+  const scope = useExploreStore((state) => state.selectedScope);
+  const setScope = useExploreStore((state) => state.selectScope);
   return (
     <div className="@container/news mx-auto max-w-[75rem]">
       <header className="py-3 sm:py-5">
@@ -32,7 +31,7 @@ export function ExplorePage() {
           </button>
         ))}
       </nav>
-      {scope === "for-you" && (!auth.ready || (auth.authenticated && !auth.address)) ? (
+      {scope === "for-you" && (!auth.ready || (auth.authenticated && (!auth.address || !auth.userId))) ? (
         auth.ready && auth.error ? (
           <div className="py-10" role="alert">
             <p className="text-sm text-muted">{auth.error}</p>
@@ -50,34 +49,32 @@ export function ExplorePage() {
           </div>
         </section>
       ) : (
-        <NewsFeedSection getAccessToken={auth.getAccessToken} key={`${scope}:${scope === "for-you" ? `${auth.userId}:${auth.address}` : "public"}`} scope={scope} wallet={scope === "for-you" ? auth.address : undefined} />
+        <NewsFeedSection getAccessToken={auth.getAccessToken} key={`${scope}:${scope === "for-you" ? `${auth.userId}:${auth.address}` : "public"}`} scope={scope} userId={scope === "for-you" ? auth.userId : undefined} wallet={scope === "for-you" ? auth.address : undefined} />
       )}
     </div>
   );
 }
 
-function NewsFeedSection({ scope, wallet, getAccessToken }: {
-  scope: Scope;
+function NewsFeedSection({ scope, userId, wallet, getAccessToken }: {
+  scope: ExploreScope;
+  userId?: string;
   wallet?: string;
   getAccessToken: () => Promise<string | null>;
 }) {
   const { locale, timeZone, t } = useI18n();
-  const [feed, setFeed] = useState<NewsFeed>();
-  const [error, setError] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [attempt, setAttempt] = useState(0);
+  const key = exploreFeedKey(scope, userId, wallet);
+  const entry = useExploreStore((state) => key ? state.feeds[key] : undefined);
+  const loadFeed = useExploreStore((state) => state.loadFeed);
+  const feed = entry?.feed;
+  const error = entry?.error ?? false;
+  const loading = entry?.isLoading ?? true;
   const tokenProvider = useRef(getAccessToken);
   useLayoutEffect(() => { tokenProvider.current = getAccessToken; }, [getAccessToken]);
   useEffect(() => {
-    const controller = new AbortController();
-    void getNewsFeed(scope, controller.signal, wallet ? { wallet, getAccessToken: () => tokenProvider.current() } : undefined)
-      .then((result) => { if (!controller.signal.aborted) { setFeed(result); setError(false); } })
-      .catch(() => { if (!controller.signal.aborted) setError(true); })
-      .finally(() => { if (!controller.signal.aborted) setLoading(false); });
-    return () => controller.abort();
-  }, [scope, wallet, attempt]);
+    void loadFeed(scope, userId && wallet ? { userId, wallet, getAccessToken: () => tokenProvider.current() } : undefined);
+  }, [scope, userId, wallet, loadFeed]);
   const personal = scope === "for-you";
-  const refresh = () => { setLoading(true); setError(false); setAttempt((value) => value + 1); };
+  const refresh = () => { void loadFeed(scope, userId && wallet ? { userId, wallet, getAccessToken: () => tokenProvider.current() } : undefined, true); };
   return (
     <section aria-label={t(personal ? "news.forYou" : "news.trending")}>
       <div className="flex flex-wrap items-center justify-between gap-3 py-4">
