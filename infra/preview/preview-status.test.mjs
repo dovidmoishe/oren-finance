@@ -59,12 +59,26 @@ test('rerunning a failed deployment job can recover its own failure status', asy
   assert.equal(f.commitStatuses[0].state, 'success');
 });
 test('a superseded head never publishes readiness for its replacement', async () => {
-  const f = fixture({head: 'c'.repeat(40)}); await f.run();
-  assert.equal(f.commitStatuses.length, 0);
+  for (const jobStatus of ['success', 'cancelled']) {
+    const f = fixture({head: 'c'.repeat(40), jobStatus}); await f.run();
+    assert.equal(f.commitStatuses.length, 0);
+    assert.equal(f.deployments[0].state, 'inactive');
+  }
+});
+test('cancelling the deploy that owns the current head asks for a redeploy', async () => {
+  const f = fixture({jobStatus: 'cancelled'}); await f.run();
+  assert.equal(f.commitStatuses.length, 1);
+  assert.equal(f.commitStatuses[0].state, 'failure');
+  assert.equal(f.commitStatuses[0].description, 'Preview cancelled; redeploy');
+  assert.equal(f.commitStatuses[0].target_url, runUrl);
   assert.equal(f.deployments[0].state, 'inactive');
 });
-test('a cancelled run does not mark the current head as a failed preview', async () => {
-  const f = fixture({jobStatus: 'cancelled'}); await f.run();
+test('a cancelled run does not overwrite a newer status on the same head', async () => {
+  const f = fixture({jobStatus: 'cancelled', statuses: [
+    {id: 1, context: 'Preview ready', state: 'pending', target_url: runUrl},
+    {id: 2, context: 'Preview ready', state: 'pending', target_url: runUrl.replace('/10', '/11')},
+  ]});
+  await f.run();
   assert.equal(f.commitStatuses.length, 0);
   assert.equal(f.deployments[0].state, 'inactive');
 });

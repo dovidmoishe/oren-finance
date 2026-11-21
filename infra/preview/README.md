@@ -79,20 +79,19 @@ activation, the deployment runner checks the PR, collaborator permission and
 latest CI again. Failed, cancelled, missing or pending CI cannot activate a
 preview. Manual redeploys use the same admission check and the same activation gate.
 
-A newer admitted run for the same head branch cancels only the older resolve
-job. It does not cancel an image build or an activation: those stay on their
-own groups. Per-PR API and web image jobs still cancel an older build for that
-PR. The deploy job keeps `cancel-in-progress: false` and runs only after both
-image builds succeed, so a cancelled build is skipped instead of failing a
-deploy, and a later docs-only, closed, or unauthorized run cannot kill an
-activation that it does not replace. If the head moved before activation, the
-deploy records that and stops without SSHing. A cancelled deploy does not set
-`Preview ready` to failure on the current head. An older attempt cannot
-overwrite a newer attempt's status. The installed controller also retains its
-current-head checks, password, financial and worker gates, and health
-verification. This does not cancel master CI. Production deployment and
-rollback are unchanged. Fork completions and failed CI use a distinct resolve
-group, so they cannot cancel an admitted resolve or a production deploy.
+Resolve does not cancel another resolve. A stale CI re-run on the same branch
+skips when its SHA is no longer the head, and it must not stop the current
+head's preview. Per-PR API and web image jobs still cancel an older build for
+that PR. The deploy job keeps `cancel-in-progress: false` and runs only after
+both image builds succeed, so a cancelled build is skipped instead of failing a
+deploy. If the head moved before activation, the deploy records that and stops
+without SSHing. If a person or a timeout cancels a deploy that still owns the
+current head's `Preview ready` status, that status becomes failure with
+`Preview cancelled; redeploy`. A run whose head was superseded, or whose status
+was replaced by a newer attempt, does not overwrite that newer status. The
+installed controller also retains its current-head checks, password, financial
+and worker gates, and health verification. This does not cancel master CI.
+Production deployment and rollback are unchanged.
 
 Production starts on the same `master` push as CI. The existing API/web image jobs and
 the exact-SHA CI gate run concurrently; deployment requires the gate and both image
