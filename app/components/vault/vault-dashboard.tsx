@@ -4,8 +4,6 @@ import { financialExecutionEnabled } from "@/services/environment";
 
 import {
   CircleAlert as CircleAlertIcon,
-  Calendar as CalendarIcon,
-  Clock as ClockIcon,
   RefreshCw as RefreshCwIcon,
   Vault as VaultIcon,
 } from "lucide-react";
@@ -55,28 +53,13 @@ function isEligible(unlockAt: string) {
   return new Date(unlockAt).getTime() <= Date.now();
 }
 
-function MetricTile({
-  label,
-  value,
-  detail,
-  className,
-}: {
-  label: string;
-  value: string;
-  detail: string;
-  className?: string;
-}) {
+function Metric({ label, value, detail }: { label: string; value: string; detail?: string }) {
   return (
-    <section
-      className={cn(
-        "rounded-[24px] border border-border p-4 shadow-[0_18px_60px_rgba(23,23,23,0.04)]",
-        className,
-      )}
-    >
-      <p className="text-xs font-semibold uppercase tracking-[0.08em] text-muted">{label}</p>
-      <p className="mt-3 font-display text-3xl font-semibold tracking-normal">{value}</p>
-      <p className="mt-2 text-sm text-muted">{detail}</p>
-    </section>
+    <div className="min-w-0 px-5 py-4">
+      <dt className="text-sm text-muted">{label}</dt>
+      <dd className="mt-1 break-words font-money text-2xl font-medium tracking-tight tabular-nums">{value}</dd>
+      {detail ? <dd className="mt-1 text-xs text-muted">{detail}</dd> : null}
+    </div>
   );
 }
 
@@ -191,13 +174,14 @@ export function VaultDashboard() {
 
   if (!connected) {
     return (
-      <div className="space-y-4 px-4 py-4 sm:px-6">
+      <div className="mx-auto max-w-[75rem] space-y-5 @lg:space-y-6">
         <header>
-          <p className="text-sm font-semibold uppercase tracking-[0.12em] text-muted">{t("vault.eyebrow")}</p>
-          <h1 className="mt-1 font-display text-4xl font-semibold tracking-normal">{t("vault.title")}</h1>
+          <h1 className="text-2xl font-medium tracking-tight">{t("vault.title")}</h1>
         </header>
         <EmptyState
-          action={restoreBlocked(auth) ? <RestoreActions signInLabel={t("common.signIn")} /> : undefined}
+          className="min-h-[45dvh] rounded-xl border-solid shadow-none"
+          icon={<VaultIcon className="mb-3 text-muted" size={28} strokeWidth={1.5} />}
+          action={restoreBlocked(auth) ? <RestoreActions signInLabel={t("common.signIn")} /> : !auth.authenticated && auth.ready ? <Button disabled={auth.configured === false} onClick={auth.open}>{t("common.signIn")}</Button> : undefined}
           description={restoreBlocked(auth) ? t("auth.restoreSlow") : auth.authenticated ? auth.error || t("vault.preparingDescription") : t("vault.signInDescription")}
           title={restoreBlocked(auth) ? t("auth.restoreSlowTitle") : !auth.ready ? t("vault.restoring") : auth.authenticated ? t("vault.preparing") : t("vault.signInTitle")}
         />
@@ -206,12 +190,11 @@ export function VaultDashboard() {
   }
 
   return (
-    <div className="space-y-4 px-4 py-4 sm:px-6">
-      <div className="flex flex-wrap items-end justify-between gap-4">
+    <div className="mx-auto max-w-[75rem] space-y-5 @lg:space-y-6">
+      <div className="flex flex-wrap items-start justify-between gap-3">
         <header>
-          <p className="text-sm font-semibold uppercase tracking-[0.12em] text-muted">{t("vault.eyebrow")}</p>
-          <h1 className="mt-1 font-display text-4xl font-semibold tracking-normal">{t("vault.title")}</h1>
-          <p className="mt-2 max-w-2xl text-sm text-muted">
+          <h1 className="text-2xl font-medium tracking-tight">{t("vault.title")}</h1>
+          <p className="mt-1 max-w-xl text-sm leading-6 text-muted">
             {t("vault.intro")}
           </p>
         </header>
@@ -235,13 +218,13 @@ export function VaultDashboard() {
       </div>
 
       {!programLive ? (
-        <div className="rounded-[20px] border border-warning-border bg-warning-surface p-4 text-sm text-warning">
+        <div className="rounded-xl border border-border bg-panel-subtle px-4 py-3 text-sm text-muted">
           <div className="flex gap-3">
             <VaultIcon className="mt-0.5 shrink-0" color="currentColor" size={18} strokeWidth={1.8} />
             <div>
-              <p className="font-semibold">{t("vault.offlineTitle")}</p>
-              <p className="mt-1 leading-6 text-warning/85">
-                {t("vault.offlineBody")}
+              <p className="font-medium">{t("vault.offlineTitle")}</p>
+              <p className="mt-1 text-xs leading-5">
+                {t("vault.previewNote")}
               </p>
             </div>
           </div>
@@ -257,7 +240,7 @@ export function VaultDashboard() {
       ) : null}
 
       {formError ? (
-        <div className="rounded-[18px] border border-error-border bg-error-surface p-4 text-sm text-error">
+        <div role="alert" className="rounded-xl border border-error-border bg-error-surface p-4 text-sm text-error">
           <div className="flex gap-3">
             <CircleAlertIcon className="mt-0.5 shrink-0" color="currentColor" size={16} strokeWidth={1.8} />
             <p>{formError}</p>
@@ -265,83 +248,49 @@ export function VaultDashboard() {
         </div>
       ) : null}
 
-      <div className="grid gap-4 md:grid-cols-3">
-        <MetricTile
-          className="bg-accent-pink"
-          detail={programLive ? t("vault.indexedLocks") : t("vault.previewOnly")}
-          label={t("vault.totalLocked")}
-          value={isLoading && !summary ? "—" : formatCurrency(summary?.totalLockedValueUsd, locale)}
-        />
-        <MetricTile
-          className="bg-accent-lavender"
-          detail={t("vault.activeLockCount", { count: positions.length })}
-          label={t("vault.activeLocks")}
-          value={isLoading && !summary ? "—" : String(positions.length)}
-        />
-        <MetricTile
-          className="bg-accent-yellow"
-          detail={
-            upcoming[0]
-              ? `${upcoming[0].ticker ?? t("vault.asset")} · ${formatDate(upcoming[0].unlockAt, locale, timeZone, t("common.notUpdated"))}`
-              : t("vault.noUpcoming")
-          }
-          label={t("vault.nextUnlock")}
-          value={
-            upcoming[0] ? t("vault.daysShort", { count: upcoming[0].daysRemaining ?? daysUntil(upcoming[0].unlockAt) }) : "—"
-          }
-        />
-      </div>
+      <Card>
+        <dl className="grid divide-y divide-border @md:grid-cols-3 @md:divide-x @md:divide-y-0">
+          <Metric
+            label={t("vault.totalLocked")}
+            value={isLoading && !summary ? "—" : formatCurrency(summary?.totalLockedValueUsd, locale)}
+          />
+          <Metric
+            label={t("vault.activeLocks")}
+            value={isLoading && !summary ? "—" : String(positions.length)}
+          />
+          <Metric
+            detail={
+              upcoming[0]
+                ? `${upcoming[0].ticker ?? t("vault.asset")} · ${formatDate(upcoming[0].unlockAt, locale, timeZone, t("common.notUpdated"))}`
+                : t("vault.noUpcoming")
+            }
+            label={t("vault.nextUnlock")}
+            value={
+              upcoming[0] ? t("vault.daysShort", { count: upcoming[0].daysRemaining ?? daysUntil(upcoming[0].unlockAt) }) : "—"
+            }
+          />
+        </dl>
+      </Card>
 
-      {upcoming.length ? (
+      <div className="grid items-start gap-5 @4xl:grid-cols-[minmax(0,1fr)_minmax(0,1.7fr)]">
         <Card>
           <CardHeader>
-            <h2 className="font-display text-lg font-semibold">{t("vault.upcomingTitle")}</h2>
-            <p className="text-sm text-muted">{t("vault.upcomingSubtitle")}</p>
-          </CardHeader>
-          <CardContent className="grid gap-3 md:grid-cols-3">
-            {upcoming.map((position) => (
-              <div
-                className="rounded-[18px] border border-border bg-panel-subtle p-4"
-                key={position.lockAddress}
-              >
-                <div className="flex items-center justify-between gap-3">
-                  <p className="font-semibold">{position.ticker ?? t("vault.asset")}</p>
-                  <span className="rounded-full bg-panel px-2.5 py-1 text-xs font-semibold">
-                    {t("vault.daysShort", { count: position.daysRemaining ?? daysUntil(position.unlockAt) })}
-                  </span>
-                </div>
-                <p className="mt-2 font-mono text-sm">
-                  {formatNumber(position.quantity, locale)} · {formatCurrency(position.valueUsd, locale)}
-                </p>
-                <p className="mt-1 flex items-center gap-1.5 text-xs text-muted">
-                  <CalendarIcon color="currentColor" size={12} strokeWidth={1.8} />
-                  {formatDate(position.unlockAt, locale, timeZone, t("common.notUpdated"))}
-                </p>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-      ) : null}
-
-      <div className="grid gap-4 xl:grid-cols-[360px_minmax(0,1fr)]">
-        <Card>
-          <CardHeader>
-            <h2 className="font-display text-lg font-semibold">{t("vault.ticketTitle")}</h2>
+            <h2 className="text-base font-medium">{t("vaultReview.lockPosition")}</h2>
             <p className="text-sm text-muted">{t("vault.ticketSubtitle")}</p>
           </CardHeader>
           <CardContent className="space-y-4">
-            {isLoading && !portfolio ? <Skeleton className="h-40" /> : null}
-            {!isLoading && lockable.length === 0 ? (
+            {isLoading && !portfolio ? <Skeleton className="h-40 rounded-lg" /> : lockable.length === 0 ? (
               <EmptyState
+                className="min-h-48 rounded-lg border-0 bg-panel-subtle p-5 shadow-none"
                 description={t("vault.noAvailableDescription")}
                 title={t("vault.noAvailableTitle")}
               />
             ) : (
               <>
                 <label className="block space-y-2 text-sm">
-                  <span className="font-semibold">{t("vault.asset")}</span>
+                  <span className="font-medium">{t("vault.asset")}</span>
                   <select
-                    className="h-11 w-full rounded-[14px] border border-border bg-panel px-3 font-medium outline-none focus:border-foreground"
+                    className="h-10 w-full min-w-0 rounded-lg border border-border bg-panel px-3 text-sm outline-none focus-visible:outline-2 focus-visible:outline-focus"
                     onChange={(event) => setAssetId(event.target.value)}
                     value={selected?.assetId ?? ""}
                   >
@@ -355,9 +304,9 @@ export function VaultDashboard() {
 
                 <label className="block space-y-2 text-sm">
                   <div className="flex items-center justify-between gap-3">
-                    <span className="font-semibold">{t("vault.amount")}</span>
+                    <span className="font-medium">{t("vault.amount")}</span>
                     <button
-                      className="text-xs font-semibold text-muted hover:text-foreground"
+                      className="rounded text-xs font-medium text-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-focus"
                       onClick={() => selected && setAmount(String(selected.availableQuantity))}
                       type="button"
                     >
@@ -365,7 +314,7 @@ export function VaultDashboard() {
                     </button>
                   </div>
                   <input
-                    className="h-11 w-full rounded-[14px] border border-border bg-panel px-3 font-mono outline-none focus:border-foreground"
+                    className="h-10 w-full min-w-0 rounded-lg border border-border bg-panel px-3 font-money text-sm tabular-nums outline-none focus-visible:outline-2 focus-visible:outline-focus"
                     inputMode="decimal"
                     min="0"
                     onChange={(event) => setAmount(event.target.value)}
@@ -376,9 +325,9 @@ export function VaultDashboard() {
                 </label>
 
                 <label className="block space-y-2 text-sm">
-                  <span className="font-semibold">{t("vault.unlockDate")}</span>
+                  <span className="font-medium">{t("vault.unlockDate")}</span>
                   <input
-                    className="h-11 w-full rounded-[14px] border border-border bg-panel px-3 outline-none focus:border-foreground"
+                    className="h-10 w-full min-w-0 rounded-lg border border-border bg-panel px-3 text-sm outline-none focus-visible:outline-2 focus-visible:outline-focus"
                     min={minUnlockDate}
                     onChange={(event) => setUnlockDate(event.target.value)}
                     type="date"
@@ -386,32 +335,20 @@ export function VaultDashboard() {
                   />
                 </label>
 
-                <div className="rounded-[16px] border border-border bg-panel-subtle p-3 text-sm">
+                <div className="border-t border-border pt-4 text-sm">
                   <div className="flex items-center justify-between gap-3">
                     <span className="text-muted">{t("vault.estimatedValue")}</span>
-                    <span className="font-mono font-medium">{formatCurrency(estimatedValue, locale)}</span>
+                    <span className="font-money font-medium tabular-nums">{formatCurrency(estimatedValue, locale)}</span>
                   </div>
                   <p className="mt-2 text-xs leading-5 text-muted">
                     {t("vault.noEarlyWithdraw")}
                   </p>
                 </div>
 
-                <Button className="h-12 w-full rounded-[16px]" disabled={!financialExecutionEnabled} onClick={openLockReview} variant="primary">
+                <Button className="w-full" disabled={!financialExecutionEnabled} onClick={openLockReview} variant="primary">
                   <VaultIcon color="currentColor" size={16} strokeWidth={1.8} />
                   {t("vault.reviewLock")}
                 </Button>
-
-                {!programLive ? (
-                  <p className="flex items-start gap-2 text-xs leading-5 text-muted">
-                    <ClockIcon
-                      className="mt-0.5 shrink-0"
-                      color="currentColor"
-                      size={14}
-                      strokeWidth={1.8}
-                    />
-                    {t("vault.previewNote")}
-                  </p>
-                ) : null}
               </>
             )}
           </CardContent>
@@ -419,8 +356,7 @@ export function VaultDashboard() {
 
         <Card className="overflow-hidden">
           <CardHeader>
-            <h2 className="font-display text-lg font-semibold">{t("vault.activeLocks")}</h2>
-            <p className="text-sm text-muted">{t("vault.activeSubtitle")}</p>
+            <h2 className="text-base font-medium">{t("vault.activeLocks")}</h2>
           </CardHeader>
           <div className="overflow-x-auto">
             {isLoading && positions.length === 0 ? (
@@ -430,6 +366,7 @@ export function VaultDashboard() {
             ) : positions.length === 0 ? (
               <div className="p-4">
                 <EmptyState
+                  className="min-h-64 rounded-lg border-0 shadow-none"
                   description={
                     programLive
                       ? t("vault.emptyLive")
@@ -464,8 +401,8 @@ export function VaultDashboard() {
                             </p>
                           </div>
                         </TableCell>
-                        <TableCell className="font-mono">{formatNumber(position.quantity, locale)}</TableCell>
-                        <TableCell className="font-mono">{formatCurrency(position.valueUsd, locale)}</TableCell>
+                        <TableCell className="font-money tabular-nums">{formatNumber(position.quantity, locale)}</TableCell>
+                        <TableCell className="font-money tabular-nums">{formatCurrency(position.valueUsd, locale)}</TableCell>
                         <TableCell>
                           <div>
                             <p>{formatDate(position.unlockAt, locale, timeZone, t("common.notUpdated"))}</p>
@@ -487,14 +424,14 @@ export function VaultDashboard() {
                           </span>
                         </TableCell>
                         <TableCell className="text-right">
-                          <Button
-                            disabled={!financialExecutionEnabled || !eligible}
+                          {eligible ? <Button
+                            disabled={!financialExecutionEnabled}
                             onClick={() => openUnlockReview(position)}
                             size="sm"
                             variant="secondary"
                           >
-                            {eligible ? t("vault.reviewUnlock") : t("vault.locked")}
-                          </Button>
+                            {t("vault.reviewUnlock")}
+                          </Button> : null}
                         </TableCell>
                       </TableRow>
                     );
