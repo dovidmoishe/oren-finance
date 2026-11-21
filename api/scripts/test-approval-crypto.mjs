@@ -40,6 +40,28 @@ function loadSource(url, modules = {}) {
 }
 const exports = loadSource(new URL('../src/execution/approval-rpc.service.ts', import.meta.url));
 const rpc = new exports.ApprovalRpc({ call() { throw new Error('No network calls allowed'); } });
+
+test('external signatures must cover the exact stored transaction and all required signers', () => {
+  const owner = Keypair.generate();
+  const recipient = Keypair.generate().publicKey;
+  const blockhash = Keypair.generate().publicKey.toBase58();
+  const make = lamports => new VersionedTransaction(new TransactionMessage({
+    payerKey: owner.publicKey, recentBlockhash: blockhash,
+    instructions: [SystemProgram.transfer({ fromPubkey: owner.publicKey, toPubkey: recipient, lamports })],
+  }).compileToV0Message());
+  const original = make(1);
+  const unsigned = Buffer.from(original.serialize()).toString('base64');
+  original.sign([owner]);
+  const signed = Buffer.from(original.serialize()).toString('base64');
+  assert.equal(typeof rpc.validateSigned(unsigned, signed, owner.publicKey.toBase58()), 'string');
+  const altered = make(2); altered.sign([owner]);
+  assert.throws(() => rpc.validateSigned(unsigned, Buffer.from(altered.serialize()).toString('base64'), owner.publicKey.toBase58()), /does not match/);
+  const invalid = VersionedTransaction.deserialize(Buffer.from(signed, 'base64')); invalid.signatures[0][0] ^= 1;
+  assert.throws(() => rpc.validateSigned(unsigned, Buffer.from(invalid.serialize()).toString('base64'), owner.publicKey.toBase58()), /could not be verified/);
+  assert.throws(() => rpc.validateSigned(unsigned, unsigned, owner.publicKey.toBase58()), /could not be verified/);
+  assert.throws(() => rpc.validateSigned(unsigned, signed, recipient.toBase58()), /does not belong/);
+  assert.throws(() => rpc.validateSigned(unsigned, 'invalid-base64', owner.publicKey.toBase58()), /Invalid Solana/);
+});
 test('simulation and fee estimation start together while simulation failures still reject the trade', async () => {
   const owner = Keypair.generate();
   const tx = new Transaction({ feePayer: owner.publicKey, recentBlockhash: Keypair.generate().publicKey.toBase58() }).add(SystemProgram.transfer({ fromPubkey: owner.publicKey, toPubkey: Keypair.generate().publicKey, lamports: 1 }));

@@ -33,3 +33,29 @@ export interface NewsContext {
   items: MarketNewsItem[];
   generatedAt: Date;
 }
+
+export interface NewsFeedStock {
+  assetId: string;
+  ticker: string;
+  name: string;
+}
+
+export interface CuratedNewsStory {
+  id: string;
+  headline: string;
+  summary?: string;
+  source: string;
+  url: string;
+  publishedAt: string;
+  stocks: NewsFeedStock[];
+}
+
+export interface CuratedNewsFeed {
+  items: CuratedNewsStory[];
+  selection: 'agent' | 'latest';
+  state: 'ready' | 'no_holdings' | 'no_news';
+  stocks: NewsFeedStock[];
+  totalHoldings: number;
+  partial: boolean;
+  generatedAt: string;
+}

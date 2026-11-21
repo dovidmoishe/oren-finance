@@ -36,7 +36,7 @@ const settings = { href: "/app/settings", label: "nav.settings", icon: "settings
 const navigation: { href: string; label: MessageKey; icon: NavigationIconName }[] = [
   portfolio,
   markets,
-  { href: "/app/activity", label: "common.activityTitle", icon: "activity" },
+  { href: "/app/explore", label: "news.nav", icon: "explore" },
   { href: "/app/vault", label: "nav.vault", icon: "vault" },
   { href: "/app/calendar", label: "calendar.title", icon: "calendar" },
   { href: "/app/leaderboard", label: "nav.leaderboard", icon: "leaderboard" },

@@ -62,7 +62,7 @@ export function TradeGrant({ connectionUid }: { connectionUid?: string }) {
   const noticeText = useShownMessage(notice);
 
   const refresh = useCallback(async () => {
-    if (!apiOrigin || !authenticated) return;
+    if (!apiOrigin || !authenticated || auth.walletKind === 'external') return;
     const token = await getAccessToken();
     if (!token) throw new MessageKeyError("grant.signInAgain");
     const response = await fetch(`${apiOrigin}/mcp/delegation`, {
@@ -74,7 +74,7 @@ export function TradeGrant({ connectionUid }: { connectionUid?: string }) {
     const value = (await response.json()) as GrantState;
     setGrant(value);
     setPending(value.pendingGrant);
-  }, [apiOrigin, authenticated, getAccessToken]);
+  }, [apiOrigin, authenticated, getAccessToken, auth.walletKind]);
 
   useEffect(() => {
     if (!ready || !authenticated) return;
@@ -240,6 +240,8 @@ export function TradeGrant({ connectionUid }: { connectionUid?: string }) {
   }
 
   if (!auth.authenticated) return null;
+  if (auth.walletKind === 'external') return <p className="rounded-xl border border-border bg-panel-subtle p-4 text-sm leading-6 text-muted">{t('walletAuth.manualTrading')}</p>;
+
   return (
     <section id="chat-trading" aria-labelledby="chat-trading-title" className="trade-grant-card">
       <div className="trade-grant-heading">

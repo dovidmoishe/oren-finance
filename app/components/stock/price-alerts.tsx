@@ -17,7 +17,7 @@ const inputClass = "mt-1 block w-full rounded-xl border border-border bg-backgro
 export function StockPriceAlerts({ stock }: { stock: StockDetail }) {
   const auth = useOrenAuth();
   if (!auth.ready || !auth.authenticated || !auth.userId || stock.category !== "equity") return null;
-  return <AlertPanel key={`${auth.userId}-${stock.assetId}`} stock={stock} getAccessToken={auth.getAccessToken} />;
+  return <AlertPanel key={`${auth.userId}-${auth.email ?? ''}-${stock.assetId}`} stock={stock} getAccessToken={auth.getAccessToken} />;
 }
 
 function AlertPanel({ stock, getAccessToken }: {

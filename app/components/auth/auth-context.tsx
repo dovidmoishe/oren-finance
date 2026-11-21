@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useContext } from "react";
+import type { TradeAuthorization } from "@/services/approval-service";
 
 export interface OrenAuth {
   configured: boolean;
@@ -16,6 +17,11 @@ export interface OrenAuth {
   busy: boolean;
   userId?: string;
   email?: string;
+  walletKind?: 'embedded' | 'external';
+  walletConnected?: boolean;
+  linkEmail: () => void;
+  linkWallet: () => void;
+  connectWallet: () => void;
   walletPreparing: boolean;
   depositOpen: boolean;
   openDeposit: () => void;
@@ -25,7 +31,7 @@ export interface OrenAuth {
   selectWallet: (address: string) => void;
   createWallet: () => Promise<void>;
   getAccessToken: () => Promise<string | null>;
-  authorizeTrade: (id: string, token: string | null) => Promise<string>;
+  authorizeTrade: (id: string, token: string | null) => Promise<TradeAuthorization>;
   signTradePermission: (wallet: string, message: string) => Promise<string>;
   addTradeSigner: (
     wallet: string,
@@ -40,6 +46,9 @@ export const AuthContext = createContext<OrenAuth>({
   ready: true,
   authenticated: false,
   wallets: [],
+  linkEmail() {},
+  linkWallet() {},
+  connectWallet() {},
   busy: false,
   walletPreparing: false,
   depositOpen: false,

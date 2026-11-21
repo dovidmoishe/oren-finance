@@ -111,7 +111,10 @@ export class WithdrawalService {
       throw new ServiceUnavailableException(
         'Transfers are available on Solana mainnet only',
       );
-    const owner = await this.auth.requireSigner(authorization, input.wallet);
+    const owner = await this.auth.requireApprovalWallet(
+      authorization,
+      input.wallet,
+    );
     if (!['USDC', 'SOL', 'STOCK'].includes(input.asset))
       throw new BadRequestException(
         'Choose USDC, SOL, or a stock token from your holdings',
@@ -344,6 +347,7 @@ export class WithdrawalService {
       feeLamports: String(fee.value),
       expiresAt: new Date(Date.now() + 60_000),
       details: {
+        signingMode: owner.signingMode,
         asset: input.asset,
         ...(stock
           ? {

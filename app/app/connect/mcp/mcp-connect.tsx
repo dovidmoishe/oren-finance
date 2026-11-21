@@ -38,7 +38,7 @@ type Delegation = {
   expiresAt?: string | null;
 };
 
-/** OAuth consent uses Oren's existing Privy email OTP sign-in dialog. */
+/** OAuth consent uses Oren's existing Privy sign-in dialog. */
 export function McpConnect({ uid }: { uid: string }) {
   return <McpConnection key={uid} uid={uid} />;
 }
@@ -61,6 +61,7 @@ function McpConnection({ uid }: { uid: string }) {
   const appName = connector?.name ?? 'your app';
   const scopes = details?.scope.split(/\s+/) ?? [];
   const unavailable = !uid || !apiOrigin;
+  const requiresEmbeddedWallet = authenticated && auth.walletKind !== 'embedded';
 
   useEffect(() => {
     if (!uid || !apiOrigin) return;
@@ -82,7 +83,7 @@ function McpConnection({ uid }: { uid: string }) {
   }, [uid, apiOrigin]);
 
   useEffect(() => {
-    if (!requestsExecute || !authenticated || !apiOrigin) return;
+    if (!requestsExecute || !authenticated || requiresEmbeddedWallet || !apiOrigin) return;
     const controller = new AbortController();
     void (async () => {
       try {
@@ -102,10 +103,10 @@ function McpConnection({ uid }: { uid: string }) {
       }
     })();
     return () => controller.abort();
-  }, [requestsExecute, authenticated, getAccessToken, apiOrigin]);
+  }, [requestsExecute, authenticated, requiresEmbeddedWallet, getAccessToken, apiOrigin]);
 
   async function authorize() {
-    if (!apiOrigin || !uid || !details || !auth.authenticated || !auth.address || (needsNativeConsent && !allowNativeClient) || (requestsExecute && (!allowExecute || !delegation?.enabled || !delegation.delegationId))) return;
+    if (!apiOrigin || !uid || !details || !auth.authenticated || !auth.address || requiresEmbeddedWallet || (needsNativeConsent && !allowNativeClient) || (requestsExecute && (!allowExecute || !delegation?.enabled || !delegation.delegationId))) return;
     setBusy(true);
     setError(undefined);
     try {
@@ -192,7 +193,7 @@ function McpConnection({ uid }: { uid: string }) {
             <p>Set your trading limits, then return here to finish connecting.</p>
             <Link className="mcp-connect-primary" href={`${mcpEnrollmentLinks(uid).settings}#chat-trading`}>Set up chat trading</Link>
           </div>}
-          {requestsExecute && authenticated && !delegation && !delegationError && <p className="mcp-connect-loading" role="status">Checking your trading limits…</p>}
+          {requestsExecute && authenticated && !requiresEmbeddedWallet && !delegation && !delegationError && <p className="mcp-connect-loading" role="status">Checking your trading limits…</p>}
           <details className="mcp-connect-details">
             <summary>Connection details</summary>
             <dl><dt>Connection ID</dt><dd>{details.clientId}</dd><dt>Return address</dt><dd>{details.callbackUrl}</dd></dl>
@@ -201,19 +202,20 @@ function McpConnection({ uid }: { uid: string }) {
       {unavailable && <p className="mcp-connect-error" role="alert">{!uid ? 'Open a new connection from your app to get started.' : 'Connections are temporarily unavailable. Please try again later.'}</p>}
       {error && <p className="mcp-connect-error" role="alert">{error}</p>}
       {delegationError && <p className="mcp-connect-error" role="alert">{delegationError}</p>}
-      {!auth.configured && <p className="mcp-connect-error" role="alert">Email sign-in is temporarily unavailable.</p>}
+      {requiresEmbeddedWallet && <div className="mcp-connect-notice" role="status"><p>{t('walletAuth.agentConnection')}</p><Link className="mcp-connect-primary" href={mcpEnrollmentLinks(uid).settings}>{t('nav.settings')}</Link></div>}
+      {!auth.configured && <p className="mcp-connect-error" role="alert">Sign-in is temporarily unavailable.</p>}
       {!auth.authenticated ? (
         <button className="mcp-connect-primary" disabled={unavailable || !details || !auth.configured || !auth.ready} onClick={auth.open} type="button">
           {auth.ready ? 'Sign in to Oren' : 'Loading sign-in…'}
           <ChevronRightIcon size={18} />
         </button>
       ) : (
-        <button className="mcp-connect-primary" disabled={unavailable || !details || !auth.address || busy || (needsNativeConsent && !allowNativeClient) || (requestsExecute && (!allowExecute || !delegation?.enabled || !delegation.delegationId))} onClick={() => void authorize()} type="button">
+        <button className="mcp-connect-primary" disabled={unavailable || !details || !auth.address || requiresEmbeddedWallet || busy || (needsNativeConsent && !allowNativeClient) || (requestsExecute && (!allowExecute || !delegation?.enabled || !delegation.delegationId))} onClick={() => void authorize()} type="button">
           {busy ? 'Connecting…' : auth.address ? (connector ? `Connect to ${appName}` : 'Allow connection') : 'Getting your account ready…'}
           {!busy && <ChevronRightIcon size={18} />}
         </button>
       )}
-      {!auth.authenticated && <p className="mcp-connect-sign-in-note">We’ll email you a sign-in code.</p>}
+      {!auth.authenticated && <p className="mcp-connect-sign-in-note">{t('walletAuth.optionalEmail')}</p>}
       </section>
       <p className="mcp-connect-footer">
         You can disconnect anytime in <Link href={mcpEnrollmentLinks(uid).settings}>Agent connections</Link>.

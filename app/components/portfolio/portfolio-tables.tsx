@@ -2,7 +2,6 @@
 
 import {
   ChevronDown as ChevronDownIcon,
-  ChevronRight as ChevronRightIcon,
   RefreshCw as RefreshCwIcon,
 } from "lucide-react";
 
@@ -137,7 +136,7 @@ function RecentActivityTable({ activity, hidden }: { activity: PortfolioActivity
         </TableRow>
       </TableHeader>
       <TableBody>
-        {activity.slice(0, 6).map((item) => {
+        {activity.map((item) => {
           const timestamp = formatDateTime(item.occurredAt, locale, timeZone, t("common.unknown"));
           return (
             <TableRow className="hover:bg-accent-lavender/10 focus-within:bg-accent-lavender/10" key={item.id}>
@@ -199,16 +198,9 @@ export function PortfolioTables({ positions, activity, allocation, history, hidd
             </button>
           ))}
         </div>
-        {section === "activity" ? (
-          <Link className={toolbarButton} href="/app/activity">
-            {t("portfolio.viewAll")}
-            <ChevronRightIcon aria-hidden="true" size={14} strokeWidth={1.8} />
-          </Link>
-        ) : (
-          <button aria-label={t("portfolio.refresh")} className={toolbarButton} disabled={isLoading} onClick={onRefresh} title={t("portfolio.refresh")} type="button">
-            <RefreshCwIcon aria-hidden="true" className={isLoading ? "motion-safe:animate-spin" : undefined} size={15} strokeWidth={1.8} />
-          </button>
-        )}
+        <button aria-label={t("portfolio.refresh")} className={toolbarButton} disabled={isLoading} onClick={onRefresh} title={t("portfolio.refresh")} type="button">
+          <RefreshCwIcon aria-hidden="true" className={isLoading ? "motion-safe:animate-spin" : undefined} size={15} strokeWidth={1.8} />
+        </button>
       </div>
       {section === "positions" && <PositionsTable hidden={hidden} positions={positions} />}
       {section === "allocation" && allocation}

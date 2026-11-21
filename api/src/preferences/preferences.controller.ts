@@ -35,7 +35,7 @@ export class PreferencesController {
   @Get()
   @Header('Cache-Control', 'private, no-store')
   async get(@Headers('authorization') authorization?: string) {
-    const { userId, email } =
+    const { userId, emailVerified } =
       await this.auth.requireAccountIdentity(authorization);
     const [preferences] = await this.db
       .select(fields)
@@ -43,7 +43,7 @@ export class PreferencesController {
       .where(eq(userPreferences.userId, userId));
     return {
       preferences: preferences ?? null,
-      emailEligible: Boolean(email),
+      emailEligible: emailVerified,
       supportedInterests: interestIds,
     };
   }
@@ -54,10 +54,13 @@ export class PreferencesController {
     @Body() body: unknown,
     @Headers('authorization') authorization?: string,
   ) {
-    const { userId, email } =
+    const { userId, emailVerified } =
       await this.auth.requireAccountIdentity(authorization);
     const preferences = parsePreferences(body);
-    if (!email && (preferences.morningBrief || preferences.breakingNews)) {
+    if (
+      !emailVerified &&
+      (preferences.morningBrief || preferences.breakingNews)
+    ) {
       throw new BadRequestException('A verified email is required for updates');
     }
     const due = preferences.morningBrief
@@ -79,7 +82,7 @@ export class PreferencesController {
       .returning(fields);
     return {
       preferences: saved,
-      emailEligible: Boolean(email),
+      emailEligible: emailVerified,
       supportedInterests: interestIds,
     };
   }

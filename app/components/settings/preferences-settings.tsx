@@ -18,7 +18,7 @@ export function PreferencesSettings() {
         {restoreBlocked(auth) ? <RestoreActions signInLabel={t("account.signIn")} /> : !auth.ready ? (
           <p role="status">{t("account.loading")}</p>
         ) : auth.authenticated && auth.userId ? (
-          <PreferencesForm key={auth.userId} getAccessToken={auth.getAccessToken} />
+          <><PreferencesForm key={`${auth.userId}:${auth.email ?? ''}`} getAccessToken={auth.getAccessToken} />{!auth.email && <Button className="mt-4" size="sm" disabled={auth.busy} onClick={auth.linkEmail}>{t('walletAuth.addEmail')}</Button>}</>
         ) : (
           <Button type="button" variant="primary" disabled={!auth.configured} onClick={auth.open}>{t("account.signIn")}</Button>
         )}

@@ -83,6 +83,11 @@ const getMatching = (pattern: RegExp) => (method: string, path: string) =>
 export function defaultRateRules(): RateRule[] {
   return [
     {
+      name: 'news-feed',
+      matches: getMatching(/^\/api\/news\/(trending|for-you)$/),
+      limiter: new SlidingWindowLimiter(15, MINUTE),
+    },
+    {
       name: 'agent',
       matches: post(['/api/agent/message', '/api/agent/message/stream']),
       limiter: new SlidingWindowLimiter(20, MINUTE),
@@ -97,7 +102,7 @@ export function defaultRateRules(): RateRule[] {
           '/api/social/copy-portfolio/prepare',
         ])(method, path) ||
         getMatching(
-          /^\/api\/(stocks\/[^/]+\/(news|analysis|chart)|signals\/[^/]+|research\/.+|markets\/(trending|opportunities))$/,
+          /^\/api\/(portfolio\/[^/]+|stocks\/[^/]+\/(news|analysis|chart)|signals\/[^/]+|research\/.+|markets\/(trending|opportunities))$/,
         )(method, path),
       limiter: new SlidingWindowLimiter(PROVIDER_REQUESTS_PER_MINUTE, MINUTE),
     },

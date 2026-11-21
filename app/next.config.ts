@@ -17,7 +17,7 @@ function apiOrigin(): string | undefined {
 
 // Privy hosts follow https://docs.privy.io/security/implementation-guide/content-security-policy.
 // WalletConnect relay/verify and Coinbase Wallet hosts are left out because privy-auth.tsx disables
-// external wallets; Privy still reads the WalletConnect wallet list, so that one host stays.
+// WalletConnect; injected Solana wallets remain supported. Privy still reads the wallet list.
 // Retest after every Privy SDK upgrade.
 const privy = ["https://auth.privy.io"];
 const privyConnect = [...privy, "https://explorer-api.walletconnect.com"];
@@ -77,7 +77,9 @@ const nextConfig: NextConfig = {
   },
   async redirects() {
     return [
-      { source: "/activity", destination: "/app/activity", permanent: false },
+      { source: "/activity", destination: "/app", permanent: false },
+      { source: "/news", destination: "/app/explore", permanent: false },
+      { source: "/explore", destination: "/app/explore", permanent: false },
       { source: "/calendar", destination: "/app/calendar", permanent: false },
       { source: "/deposit", destination: "/app/deposit", permanent: false },
       { source: "/leaderboard/:path*", destination: "/app/leaderboard/:path*", permanent: false },

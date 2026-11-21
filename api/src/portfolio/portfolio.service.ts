@@ -1,11 +1,18 @@
-import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  Logger,
+  ServiceUnavailableException,
+} from '@nestjs/common';
+import type { Equity } from '../../types/equity';
 import type { ChartRange } from '../../types/market';
-import type { ActivityFeed, ActivityItem, ExecutionRecord } from '../../types/activity';
-import type { ExecutionStatus, ExecutionType } from '../../types/execution';
 import type {
-  Portfolio,
-  PortfolioHistory,
-} from '../../types/portfolio';
+  ActivityFeed,
+  ActivityItem,
+  ExecutionRecord,
+} from '../../types/activity';
+import type { WalletTransaction } from '../../types/providers/alchemy-provider';
+import type { Portfolio, PortfolioHistory } from '../../types/portfolio';
 import { AlchemyService } from '../alchemy/alchemy.service';
 import { USDC_MINT } from '../config/constants';
 import { routeVenueLabel } from '../execution/route-label';
@@ -19,12 +26,12 @@ import {
   priceFromSnapshots,
   type HoldingLot,
 } from './portfolio.mapper';
-import {
-  PortfolioRepository,
-  type ExecutionRow,
-} from './portfolio.repository';
+import { PortfolioRepository, type ExecutionRow } from './portfolio.repository';
 
 const RESOLVE_CONCURRENCY = 6;
+const MAX_DISTINCT_MINTS = 256;
+const MAX_ACTIVE_BUILDS = 4;
+const MAX_CACHED_MINTS = 2048;
 const HISTORY_RANGE_DAYS: Record<Exclude<ChartRange, 'ALL'>, number> = {
   '1D': 1,
   '1W': 7,
@@ -36,6 +43,12 @@ const HISTORY_RANGE_DAYS: Record<Exclude<ChartRange, 'ALL'>, number> = {
 @Injectable()
 export class PortfolioService {
   private readonly logger = new Logger(PortfolioService.name);
+  private readonly builds = new Map<string, Promise<Portfolio>>();
+  private readonly mintLookups = new Map<string, Promise<Equity | null>>();
+  private readonly mintCache = new Map<
+    string,
+    { equity: Equity | null; expiresAt: number }
+  >();
 
   constructor(
     private readonly alchemy: AlchemyService,
@@ -44,6 +57,50 @@ export class PortfolioService {
   ) {}
 
   async getPortfolio(walletAddress: string): Promise<Portfolio> {
+    const current = this.builds.get(walletAddress);
+    if (current) return current;
+    if (this.builds.size >= MAX_ACTIVE_BUILDS) {
+      throw new ServiceUnavailableException(
+        'Portfolio service is busy. Try again shortly.',
+      );
+    }
+    // Register before starting work, including synchronous provider failures.
+    const build = Promise.resolve().then(() =>
+      this.buildPortfolio(walletAddress),
+    );
+    this.builds.set(walletAddress, build);
+    try {
+      return await build;
+    } finally {
+      this.builds.delete(walletAddress);
+    }
+  }
+
+  private async resolveMint(mint: string): Promise<Equity | null> {
+    const cached = this.mintCache.get(mint);
+    if (cached && cached.expiresAt > Date.now()) return cached.equity;
+    const pending = this.mintLookups.get(mint);
+    if (pending) return pending;
+    const lookup = Promise.resolve().then(() => this.tokens.resolveMint(mint));
+    this.mintLookups.set(mint, lookup);
+    try {
+      const equity = await lookup;
+      this.mintCache.delete(mint);
+      this.mintCache.set(mint, {
+        equity,
+        expiresAt: Date.now() + (equity ? 15_000 : 60_000),
+      });
+      if (this.mintCache.size > MAX_CACHED_MINTS) {
+        const oldest = this.mintCache.keys().next();
+        if (!oldest.done) this.mintCache.delete(oldest.value);
+      }
+      return equity;
+    } finally {
+      this.mintLookups.delete(mint);
+    }
+  }
+
+  private async buildPortfolio(walletAddress: string): Promise<Portfolio> {
     const [balances, locks, previous] = await Promise.all([
       this.alchemy.getTokenBalances(walletAddress),
       this.repository.listVaultPositions(walletAddress),
@@ -51,32 +108,51 @@ export class PortfolioService {
     ]);
 
     let cashValueUsd = cashFromBalances(balances);
-    const nonCash = balances.filter(
-      (b) => b.uiAmount > 0 && b.mint !== USDC_MINT,
-    );
-
-    const resolved = await mapPool(nonCash, RESOLVE_CONCURRENCY, async (bal) => {
-      try {
-        const equity = await this.tokens.resolveMint(bal.mint);
-        if (!equity) return null;
-        if (isCashMint(bal.mint, equity.id)) {
-          return { kind: 'cash' as const, amount: bal.uiAmount };
-        }
-        return {
-          kind: 'lot' as const,
-          lot: {
-            mint: bal.mint,
-            amount: bal.uiAmount,
-            equity,
-          } satisfies Omit<HoldingLot, 'price' | 'priceChange24h'>,
-        };
-      } catch (err) {
-        this.logger.warn(
-          `resolveMint failed for ${bal.mint}: ${err instanceof Error ? err.message : String(err)}`,
+    const amounts = new Map<string, number>();
+    for (const balance of balances) {
+      if (balance.uiAmount <= 0 || balance.mint === USDC_MINT) continue;
+      amounts.set(
+        balance.mint,
+        (amounts.get(balance.mint) ?? 0) + balance.uiAmount,
+      );
+      if (amounts.size > MAX_DISTINCT_MINTS) {
+        // Fail the whole request: a truncated financial total would be misleading.
+        throw new ServiceUnavailableException(
+          'This wallet has too many token types to load its complete portfolio.',
         );
-        return null;
       }
-    });
+    }
+    const nonCash = [...amounts].map(([mint, uiAmount]) => ({
+      mint,
+      uiAmount,
+    }));
+
+    const resolved = await mapPool(
+      nonCash,
+      RESOLVE_CONCURRENCY,
+      async (bal) => {
+        try {
+          const equity = await this.resolveMint(bal.mint);
+          if (!equity) return null;
+          if (isCashMint(bal.mint, equity.id)) {
+            return { kind: 'cash' as const, amount: bal.uiAmount };
+          }
+          return {
+            kind: 'lot' as const,
+            lot: {
+              mint: bal.mint,
+              amount: bal.uiAmount,
+              equity,
+            } satisfies Omit<HoldingLot, 'price' | 'priceChange24h'>,
+          };
+        } catch (err) {
+          this.logger.warn(
+            `resolveMint failed for ${bal.mint}: ${err instanceof Error ? err.message : String(err)}`,
+          );
+          return null;
+        }
+      },
+    );
 
     const lots: HoldingLot[] = [];
     for (const item of resolved) {
@@ -111,8 +187,7 @@ export class PortfolioService {
       return {
         ...lot,
         price: typeof price === 'number' ? price : 0,
-        priceChange24h:
-          snap?.priceChange24h ?? lot.equity.priceChange24h,
+        priceChange24h: snap?.priceChange24h ?? lot.equity.priceChange24h,
       };
     });
 
@@ -137,9 +212,7 @@ export class PortfolioService {
     const lockedByMint = buildLockedByMint(locks);
     const positions = buildPositions(pricedLots, lockedByMint);
 
-    const previousTotal = previous
-      ? Number(previous.totalValueUsd)
-      : null;
+    const previousTotal = previous ? Number(previous.totalValueUsd) : null;
 
     const portfolio = buildPortfolio({
       walletAddress,
@@ -196,7 +269,7 @@ export class PortfolioService {
       this.repository.listExecutions(walletAddress, 50),
       this.alchemy
         .getTransactionHistory(walletAddress, { limit: 20 })
-        .catch((err) => {
+        .catch((err): WalletTransaction[] => {
           this.logger.warn(
             `wallet activity failed: ${err instanceof Error ? err.message : String(err)}`,
           );
@@ -234,7 +307,7 @@ export function mapExecutionRow(row: ExecutionRow): ExecutionRecord {
   return {
     id: row.id,
     walletAddress: row.walletAddress,
-    type: row.type as ExecutionType,
+    type: row.type,
     assetId: row.assetId ?? undefined,
     ticker: row.ticker ?? undefined,
     tokenMint: row.tokenMint ?? undefined,
@@ -245,7 +318,7 @@ export function mapExecutionRow(row: ExecutionRow): ExecutionRecord {
     provider: row.provider ?? undefined,
     route: routeVenueLabel(row.provider),
     transactionSignature: row.transactionSignature ?? undefined,
-    status: row.status as ExecutionStatus,
+    status: row.status,
     createdAt: row.createdAt,
   };
 }
@@ -255,7 +328,7 @@ async function mapPool<T, R>(
   concurrency: number,
   fn: (item: T) => Promise<R>,
 ): Promise<R[]> {
-  const results: R[] = new Array(items.length);
+  const results = new Array<R>(items.length);
   let index = 0;
 
   async function worker() {

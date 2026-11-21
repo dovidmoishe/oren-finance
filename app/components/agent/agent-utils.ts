@@ -15,6 +15,7 @@ export function pageContext(pathname: string): AgentPageContext | undefined {
   if (terminalPath === '/calendar') return { page: 'calendar' };
   if (terminalPath === '/leaderboard' || terminalPath.startsWith('/leaderboard/')) return { page: 'leaderboard' };
   if (terminalPath === '/markets') return { page: 'markets' };
+  if (terminalPath === '/explore' || terminalPath === '/news') return { page: 'explore' };
   if (terminalPath === '/vault') return { page: 'vault' };
   if (terminalPath === '/activity') return { page: 'activity' };
   if (['/', '/portfolio', '/overview'].includes(terminalPath)) return { page: 'dashboard' };
@@ -30,6 +31,8 @@ export function contextTicker(context: AgentPageContext | undefined, stock?: Pic
 export function promptSuggestions(context?: AgentPageContext, ticker?: string): string[] {
   if (!context) return ['What can Oren help me with?', 'Explain how trade approvals work', 'Help me understand portfolio risk'];
   switch (context.page) {
+    case 'explore':
+      return ['Catch me up on news about my holdings', 'Which recent stories matter most to my portfolio?', 'Explain the latest earnings news'];
     case 'stock':
       return [
         `Research ${ticker ?? 'this stock'} with sources`,
@@ -84,6 +87,8 @@ export function contextLabelKey(context?: AgentPageContext, ticker?: string): [M
       return ticker ? ['agent.contextStock', { ticker }] : ['agent.contextStockGeneric'];
     case 'markets':
       return ['agent.contextMarkets'];
+    case 'explore':
+      return ['news.nav'];
     case 'vault':
       return ['agent.contextVault'];
     case 'calendar':

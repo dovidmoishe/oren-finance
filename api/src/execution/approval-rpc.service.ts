@@ -30,9 +30,15 @@ export class ApprovalRpc {
   private readonly logger = new Logger(ApprovalRpc.name);
   constructor(private readonly rpc: AlchemyClient) {}
   decode(transaction: string, wallet: string) {
-    const tx = VersionedTransaction.deserialize(
-      Buffer.from(transaction, 'base64'),
-    );
+    let tx: VersionedTransaction;
+    try {
+      const bytes = Buffer.from(transaction, 'base64');
+      if (bytes.length > 1232 || bytes.toString('base64') !== transaction)
+        throw new Error();
+      tx = VersionedTransaction.deserialize(bytes);
+    } catch {
+      throw new BadRequestException('Invalid Solana transaction');
+    }
     if (
       tx.message.staticAccountKeys[0]?.toBase58() !== wallet ||
       tx.message.header.numRequiredSignatures < 1

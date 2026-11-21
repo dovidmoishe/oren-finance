@@ -49,6 +49,22 @@ describe('SlidingWindowLimiter', () => {
 });
 
 describe('RateLimitGuard', () => {
+  it('counts public portfolio reads against the shared paid-provider bucket', () => {
+    const guard = new RateLimitGuard();
+    for (let i = 0; i < 60; i++)
+      guard.canActivate(context('GET', '/api/portfolio/wallet').ctx);
+    expect(() =>
+      guard.canActivate(context('POST', '/api/execution/quote').ctx),
+    ).toThrow(HttpException);
+  });
+  it('bounds combined news feed requests per address', () => {
+    const guard = new RateLimitGuard();
+    for (let i = 0; i < 15; i++)
+      guard.canActivate(context('GET', '/api/news/for-you').ctx);
+    expect(() =>
+      guard.canActivate(context('GET', '/api/news/trending').ctx),
+    ).toThrow(HttpException);
+  });
   it('limits agent messages per address and sets Retry-After', () => {
     const guard = new RateLimitGuard();
     for (let i = 0; i < 20; i++)

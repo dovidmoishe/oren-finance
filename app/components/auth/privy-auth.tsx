@@ -1,12 +1,15 @@
 "use client";
 
 import { PrivyProvider } from "@privy-io/react-auth";
+import { toSolanaWalletConnectors } from "@privy-io/react-auth/solana";
 import { useWallet, type WalletContextState } from "@/components/auth/wallet-context";
 import { memo, useContext, useLayoutEffect } from "react";
 import { useResolvedTheme, useThemePrimaryColor } from "../theme/theme";
 import { AuthContext, type OrenAuth } from "./auth-context";
 import { PrivySession } from "./privy-session";
 import { WalletModalContext, type WalletModalContextState } from "./wallet-modal-context";
+
+const solanaConnectors = toSolanaWalletConnectors({ shouldAutoConnect: false });
 
 export interface PublishedSession {
   auth: OrenAuth;
@@ -34,11 +37,9 @@ export const PrivyAuth = memo(function PrivyAuth({ appId, onSession }: { appId: 
   const accentColor = useThemePrimaryColor();
   return (
     <PrivyProvider appId={appId} config={{
-      loginMethods: ["email"],
+      loginMethods: ["wallet", "email"],
       appearance: { theme, accentColor, walletChainType: "solana-only" },
-      // Email sign-in with Privy's embedded Solana wallet only: skip external
-      // wallet detection and WalletConnect start-up on every page load.
-      externalWallets: { disableAllExternalWallets: true, walletConnect: { enabled: false } },
+      externalWallets: { solana: { connectors: solanaConnectors }, walletConnect: { enabled: false } },
       embeddedWallets: { solana: { createOnLogin: "off" }, showWalletUIs: true },
     }}>
       <PrivySession>
