@@ -8,6 +8,10 @@
   @apply block w-full h-full overflow-visible;
 }
 
+.oren-logo[data-motion="false"] * {
+  animation-play-state: paused !important;
+}
+
 .oren-logo__float {
   @apply [transform-box:fill-box] [transform-origin:center] [will-change:transform];
 }

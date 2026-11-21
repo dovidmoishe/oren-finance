@@ -176,6 +176,7 @@ function mountPrivy({ fail }) {
         if (fail) throw chunkError();
         return { PrivyAuth() { return null; } };
       }
+      if (id === "@/lib/performance-client") return { recordPerformanceMetric() {} };
       if (id === "@/lib/chunk-reload") {
         const loaded = {};
         vm.runInNewContext(transpile("../lib/chunk-reload.ts"), {
@@ -229,7 +230,7 @@ function mountPrivy({ fail }) {
     settle,
     auth: () => seen,
     reloads: () => window.reloads(),
-    async load() { await bridge.load(); },
+    async load() { seen.open(); settle(); await bridge.load(); },
     publish(auth) { bridge.publish({ auth, wallet: {}, modal: {} }); },
     advance(ms) {
       window.now += ms;
@@ -401,7 +402,7 @@ function dashboardRequire(auth) {
       restoreModule ??= loadModule("../components/auth/restore-actions.tsx", sandboxRequire);
       return restoreModule;
     }
-    if (id === "@/store") return {
+    if (["@/store", "@/store/portfolio-store", "@/store/wallet-store"].includes(id)) return {
       useWalletStore: (select) => select(storeState),
       usePortfolioStore: (select) => select(storeState),
       useVaultStore: (select) => select(storeState),

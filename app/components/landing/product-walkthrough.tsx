@@ -20,6 +20,8 @@ const walkthroughMutedClass = "text-[11px] text-[#84837b]";
 const STEP_MS = 1200;
 const SCENE_MS = 6000;
 const DURATION = STEP_MS * 4;
+// Discrete UI changes do not need a React render on every animation tick.
+const milestones = [[481, 561, 1001, 1200], [561, 1001, 1200], [440, 461, 721, 841, 1081, 1200], [1200]];
 const stocks = [
   { symbol: "NVDA", name: "NVIDIA", price: "$186.42", change: "+3.28%", logo: stockLogos.NVDA },
   { symbol: "AAPL", name: "Apple", price: "$268.75", change: "+1.46%", logo: stockLogos.AAPL },
@@ -52,14 +54,14 @@ function DemoCursor({ clicking }: { clicking: boolean }) {
   return <span aria-hidden className="walkthrough-cursor" data-clicking={clicking}><MousePointer2Icon size={23} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className="inline-block shrink-0 align-middle" /></span>;
 }
 
-function PriceChart({ progress }: { progress: number }) {
+function PriceChart({ reveal }: { reveal: boolean }) {
   const id = useId().replace(/:/g, "");
   return (
     <div className="flex gap-[12px] mt-[20px]">
       <svg aria-label="Illustrative NVIDIA 30-day price chart, ending at 186 dollars and 42 cents" className="block w-full min-w-0 h-[160px] overflow-visible at-most-640:h-[120px]" viewBox="0 0 500 210" preserveAspectRatio="none" role="img">
         <defs>
           <linearGradient id={`${id}-fill`} x1="0" x2="0" y1="0" y2="1"><stop stopColor="#dcd5f5" stopOpacity=".38" /><stop offset="1" stopColor="#dcd5f5" stopOpacity="0" /></linearGradient>
-          <clipPath id={`${id}-reveal`}><rect x="0" y="0" width={500 * progress} height="210" /></clipPath>
+          <clipPath id={`${id}-reveal`}><rect className={reveal ? "walkthrough-chart-reveal" : undefined} x="0" y="0" width="500" height="210" /></clipPath>
         </defs>
         {[188, 182, 176, 170].map((price) => <path key={price} d={`M0 ${chartY(price)}H500`} stroke="#eeede9" strokeDasharray="3 5" vectorEffect="non-scaling-stroke" />)}
         <g clipPath={`url(#${id}-reveal)`}>
@@ -70,6 +72,26 @@ function PriceChart({ progress }: { progress: number }) {
       <div aria-hidden className="walkthrough-price-axis">{[188, 182, 176, 170].map((price) => <span key={price} style={{ top: `${chartY(price) / 210 * 100}%` }}>${price}</span>)}</div>
     </div>
   );
+}
+
+function DemoAnswer({ active }: { active: boolean }) {
+  const text = "NVIDIA is up 3.28% today. Momentum is positive, with moderate volatility over the past month.";
+  const output = useRef<HTMLSpanElement>(null);
+  const elapsed = useRef(0);
+  useEffect(() => {
+    if (!active) return;
+    const started = performance.now() - elapsed.current;
+    let frame: number;
+    const update = (now: number) => {
+      elapsed.current = now - started;
+      const count = Math.min(text.length, Math.floor(elapsed.current / 4) + 1);
+      if (output.current) output.current.textContent = text.slice(0, count);
+      if (count < text.length) frame = requestAnimationFrame(update);
+    };
+    frame = requestAnimationFrame(update);
+    return () => cancelAnimationFrame(frame);
+  }, [active, text]);
+  return <p><span className="sr-only">{text}</span><span aria-hidden="true" ref={output}>{text.slice(0, 1)}</span></p>;
 }
 
 export function ProductWalkthrough() {
@@ -106,15 +128,11 @@ export function ProductWalkthrough() {
 
   useEffect(() => {
     if (!running) return;
-    let previous = performance.now();
-    const timer = window.setInterval(() => {
-      const now = performance.now();
-      const delta = now - previous;
-      previous = now;
-      setElapsed((value) => (value + delta) % DURATION);
-    }, 60);
-    return () => window.clearInterval(timer);
-  }, [running]);
+    const sceneTime = elapsed - step * STEP_MS;
+    const next = milestones[step].find((time) => time > sceneTime) ?? STEP_MS;
+    const timer = window.setTimeout(() => setElapsed((step * STEP_MS + next) % DURATION), next - sceneTime);
+    return () => window.clearTimeout(timer);
+  }, [elapsed, running, step]);
 
   function selectStep(index: number) { setElapsed(index * STEP_MS); setPlaying(true); }
 
@@ -149,7 +167,7 @@ export function ProductWalkthrough() {
               <div className="walkthrough-scene" key="stock">
                 <div className="walkthrough-stock-heading"><StockMark stock={stocks[0]} /><div><h3>NVIDIA</h3><span className={walkthroughMutedClass}>NVDA · Tokenized stock</span></div><span className="ml-auto text-[10px] [padding:5px_9px] rounded-[5px] bg-[#f7f6f2] text-[#86847e]">Technology</span></div>
                 <div className="walkthrough-price"><strong>$186.42</strong><span className={walkthroughPositiveClass}>+3.28% <span className={walkthroughMutedClass}>today</span></span></div>
-                <PriceChart progress={step === 1 ? Math.min(1, .35 + local / 2200) : 1} />
+                <PriceChart reveal={step === 1} />
                 <div className="flex justify-between pr-[42px] text-[9px] text-[#a4a198] mt-[5px]"><span>Oct 1</span><span>Oct 15</span><span>Oct 30</span></div>
                 <div className="flex gap-[17px] items-center text-[10px] text-[#848179] mt-[14px]"><span>24H</span><span>7D</span><span className="bg-[#f1f0eb] [padding:5px_9px] rounded-[5px] text-[#232320]">30D</span><span>90D</span><span>1Y</span></div>
                 <div className="walkthrough-outlook"><div><span>Market outlook</span><span className="text-[10px] text-[#6f6860] bg-[#eeeadf] [padding:2px_6px] rounded-[4px]">84 / 100</span></div><p>Positive momentum. Moderate volatility.</p><div className="walkthrough-metrics"><span>7D momentum<strong className={walkthroughPositiveClass}>+6.84%</strong></span><span>30D volatility<strong>3.12%</strong></span><span>Trend<strong>Uptrend</strong></span></div></div>
@@ -166,7 +184,7 @@ export function ProductWalkthrough() {
             ) : step === 2 ? (
               <div className="walkthrough-conversation walkthrough-scene" key="conversation">
                 <p className="bg-[#eeece6] [border-radius:12px_12px_3px_12px] ml-[15px] p-[12px] text-[12px] leading-[1.6]">What&apos;s happening with NVIDIA?</p>
-                <div className="walkthrough-answer"><span className="text-[#878173] text-[10px]">Oren</span><p>{"NVIDIA is up 3.28% today. Momentum is positive, with moderate volatility over the past month.".slice(0, Math.floor(local / 20) + 1)}</p></div>
+                <div className="walkthrough-answer"><span className="text-[#878173] text-[10px]">Oren</span><DemoAnswer active={running} /></div>
                 {local > 2300 && <div className="walkthrough-insight-card walkthrough-scene"><span>Portfolio context</span><p>NVIDIA is 18% of your holdings.</p><small>A $100 buy would bring it to 20%.</small></div>}
                 {local > 3600 && <button className="walkthrough-primary-button walkthrough-action-target" onClick={() => selectStep(3)}>Review a $100 buy <span><ArrowRightIcon size={16} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className="inline-block shrink-0 align-middle" /></span>{running && local > 4200 && <DemoCursor clicking={local > 5400} />}</button>}
               </div>

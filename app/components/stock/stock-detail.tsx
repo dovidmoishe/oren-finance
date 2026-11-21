@@ -47,6 +47,8 @@ export function StockDetail({ assetId }: { assetId: string }) {
   const news = useStockStore((state) => state.news);
   const isLoading = useStockStore((state) => state.isLoading);
   const isChartLoading = useStockStore((state) => state.isChartLoading);
+  const isAnalysisLoading = useStockStore((state) => state.isAnalysisLoading);
+  const isNewsLoading = useStockStore((state) => state.isNewsLoading);
   const error = useStockStore((state) => state.error);
   const chartError = useStockStore((state) => state.chartError);
   const loadStock = useStockStore((state) => state.loadStock);
@@ -128,7 +130,7 @@ export function StockDetail({ assetId }: { assetId: string }) {
       </div>
 
       <StockPriceAlerts stock={stock} />
-      <StockMarketOutlook analysis={analysis} news={news} stock={stock} />
+      <StockMarketOutlook analysis={analysis} news={news} stock={stock} analysisLoading={isAnalysisLoading} newsLoading={isNewsLoading} />
       <StockResearchPanel assetId={stock.assetId} />
     </div>
   );

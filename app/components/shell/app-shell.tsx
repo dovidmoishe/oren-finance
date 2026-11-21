@@ -20,7 +20,8 @@ import { LanguageMenu } from "@/components/language/language-menu";
 import { PendingApprovalNotice } from "@/components/trading/pending-approval-notice";
 import { cn } from "@/components/ui";
 import { useT, type MessageKey } from "@/i18n/i18n";
-import { useAgentStore } from "@/store";
+import { useAgentStore } from "@/store/agent-store";
+import { useWalletStore } from "@/store/wallet-store";
 import { AccountMenu } from "./account-menu";
 import { AppSearch } from "./app-search";
 import { NavigationLink } from "./navigation-link";
@@ -29,6 +30,14 @@ import { CopilotResizeHandle, MAX_COPILOT_WIDTH, MIN_COPILOT_WIDTH } from "./cop
 
 const AgentPanel = dynamic(() => import("@/components/agent/agent-panel").then((mod) => mod.AgentPanel), { ssr: false });
 const DepositModal = dynamic(() => import("@/components/portfolio/deposit-dashboard").then((mod) => mod.DepositModal), { ssr: false });
+
+// Remember the first opening so closing the panel preserves drafts and review
+// state, while never-opened mobile panels do not download their heavy UI.
+function AgentPanelLoader({ open }: { open: boolean }) {
+  const [opened, setOpened] = useState(open);
+  if (open && !opened) setOpened(true);
+  return opened ? <AgentPanel /> : null;
+}
 
 const portfolio = { href: "/app", label: "nav.portfolio", icon: "portfolio" } as const;
 const markets = { href: "/app/markets", label: "nav.markets", icon: "markets" } as const;
@@ -56,6 +65,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const agentOpen = useAgentStore((state) => state.panelOpen && state.hydrated);
   const agentExpanded = useAgentStore((state) => state.expanded);
   const setPanelOpen = useAgentStore((state) => state.setPanelOpen);
+  const initializeAgent = useAgentStore((state) => state.initialize);
+  const walletAddress = useWalletStore((state) => state.address);
+  useEffect(() => { void initializeAgent(walletAddress); }, [initializeAgent, walletAddress]);
   const [collapsed, setCollapsed] = useState(false);
   const [copilotWidth, setCopilotWidth] = useState(320);
   const [maxCopilotWidth, setMaxCopilotWidth] = useState(MAX_COPILOT_WIDTH);
@@ -211,7 +223,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           onResize={(next) => setCopilotWidth(Math.max(MIN_COPILOT_WIDTH, Math.min(maxCopilotWidth, next)))}
           width={width}
         />}
-        <AgentPanel />
+        <AgentPanelLoader open={agentOpen} />
       </div>
       <AppSearch dialog={search} />
       {depositOpen ? <DepositModal /> : null}

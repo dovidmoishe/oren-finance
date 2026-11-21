@@ -58,7 +58,7 @@ export function LaunchArrow() {
   return (
     <span className="relative inline-grid h-4 w-4 place-items-center" ref={setAnchor}>
       <ArrowRightIcon size={16} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className={`col-start-1 row-start-1 transition-[opacity,transform] group-hover:translate-x-0.5 ${busy ? "opacity-0" : "opacity-100"}`} />
-      <LoaderCircleIcon size={14} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className={`col-start-1 row-start-1 motion-safe:animate-spin ${busy ? "opacity-100" : "opacity-0"}`} />
+      {busy ? <LoaderCircleIcon size={14} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className="col-start-1 row-start-1 motion-safe:animate-spin" /> : null}
       <span aria-live="polite" className="sr-only">{busy ? "Opening Oren…" : ""}</span>
     </span>
   );

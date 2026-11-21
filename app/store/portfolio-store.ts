@@ -8,7 +8,7 @@ import {
   getPortfolioHistory,
   getTradingCalendar,
   getTradingCalendarDay,
-} from "@/services";
+} from "@/services/portfolio-service";
 import type {
   PortfolioActivityItem,
   PortfolioRange,
@@ -34,15 +34,21 @@ interface PortfolioState {
   isCalendarLoading: boolean;
   error?: string;
   historyError?: string;
-  loadPortfolio: (wallet: string) => Promise<void>;
+  loadPortfolio: (wallet: string, force?: boolean) => Promise<void>;
   loadHistory: (wallet: string, range?: PortfolioRange, force?: boolean) => Promise<void>;
-  loadActivity: (wallet: string) => Promise<void>;
+  loadActivity: (wallet: string, force?: boolean) => Promise<void>;
   loadCalendar: (wallet: string, input: { month?: string; start?: string; end?: string; timeZone?: string }) => Promise<void>;
   loadCalendarDay: (wallet: string, date: string, input: { timeZone?: string }) => Promise<void>;
   reset: () => void;
 }
 
 let historyRequestId = 0;
+let portfolioRequestId = 0;
+let activityRequestId = 0;
+let portfolioUpdatedAt = 0;
+let portfolioFlight: { wallet: string; promise: Promise<void> } | undefined;
+let activityFlight: { wallet: string; promise: Promise<void> } | undefined;
+const historyFlights = new Map<string, Promise<PortfolioSnapshot[]>>();
 
 export const usePortfolioStore = create<PortfolioState>((set, get) => ({
   history: [],
@@ -53,15 +59,21 @@ export const usePortfolioStore = create<PortfolioState>((set, get) => ({
   isLoading: false,
   isHistoryLoading: false,
   isCalendarLoading: false,
-  async loadPortfolio(wallet) {
+  loadPortfolio(wallet, force = false) {
+    if (!force && portfolioFlight?.wallet === wallet) return portfolioFlight.promise;
+    if (!force && get().portfolio?.wallet === wallet && Date.now() - portfolioUpdatedAt < 30_000) return Promise.resolve();
+    const requestId = ++portfolioRequestId;
     const update = sessionSetter(set);
     update({ wallet, isLoading: true, error: undefined });
-    try {
-      const portfolio = await getPortfolio(wallet);
+    const promise = getPortfolio(wallet).then((portfolio) => {
+      if (requestId !== portfolioRequestId) return;
+      portfolioUpdatedAt = Date.now();
       update({ portfolio, isLoading: false });
-    } catch (error) {
-      update({ error: error instanceof Error ? error.message : "Unable to load portfolio", isLoading: false });
-    }
+    }).catch((error: unknown) => {
+      if (requestId === portfolioRequestId) update({ error: error instanceof Error ? error.message : "Unable to load portfolio", isLoading: false });
+    }).finally(() => { if (portfolioFlight?.promise === promise) portfolioFlight = undefined; });
+    portfolioFlight = { wallet, promise };
+    return promise;
   },
   async loadHistory(wallet, range = "1W", force = true) {
     const key = `${wallet}:${range}`;
@@ -76,7 +88,15 @@ export const usePortfolioStore = create<PortfolioState>((set, get) => ({
     const update = sessionSetter(set);
     update({ history: cached?.points ?? [], historyKey: key, isHistoryLoading: !cached, historyError: undefined });
     try {
-      const history = await getPortfolioHistory(wallet, range);
+      let pending = force ? undefined : historyFlights.get(key);
+      if (!pending) {
+        const request = getPortfolioHistory(wallet, range).finally(() => {
+          if (historyFlights.get(key) === request) historyFlights.delete(key);
+        });
+        pending = request;
+        historyFlights.set(key, request);
+      }
+      const history = await pending;
       if (requestId !== historyRequestId) return;
       update({ history, isHistoryLoading: false, historyCache: { ...get().historyCache, [key]: { points: history, updatedAt: Date.now() } } });
     } catch (error) {
@@ -84,14 +104,17 @@ export const usePortfolioStore = create<PortfolioState>((set, get) => ({
       update({ historyError: error instanceof Error ? error.message : "Unable to load portfolio history", isHistoryLoading: false });
     }
   },
-  async loadActivity(wallet) {
+  loadActivity(wallet, force = false) {
+    if (!force && activityFlight?.wallet === wallet) return activityFlight.promise;
+    const requestId = ++activityRequestId;
     const update = sessionSetter(set);
-    try {
-      const activity = await getPortfolioActivity(wallet);
-      update({ activity });
-    } catch (error) {
-      update({ error: error instanceof Error ? error.message : "Unable to load portfolio activity" });
-    }
+    const promise = getPortfolioActivity(wallet).then((activity) => {
+      if (requestId === activityRequestId) update({ activity });
+    }).catch((error: unknown) => {
+      if (requestId === activityRequestId) update({ error: error instanceof Error ? error.message : "Unable to load portfolio activity" });
+    }).finally(() => { if (activityFlight?.promise === promise) activityFlight = undefined; });
+    activityFlight = { wallet, promise };
+    return promise;
   },
   async loadCalendar(wallet, input) {
     const update = sessionSetter(set);
@@ -114,6 +137,11 @@ export const usePortfolioStore = create<PortfolioState>((set, get) => ({
     }
   },
   reset() {
+    portfolioRequestId++;
+    activityRequestId++;
+    portfolioUpdatedAt = 0;
+    portfolioFlight = activityFlight = undefined;
+    historyFlights.clear();
     historyRequestId += 1;
     set({ wallet: undefined, portfolio: undefined, history: [], historyKey: undefined, historyCache: {}, selectedRange: "1W", activity: [], calendar: undefined, calendarDay: undefined, error: undefined, historyError: undefined, isLoading: false, isHistoryLoading: false, isCalendarLoading: false });
   },

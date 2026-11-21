@@ -46,7 +46,7 @@ function loadStore(getAgentThreadMessages) {
     require(id) {
       if (id === "zustand") return nodeRequire("zustand");
       if (id === "@/services/wallet-session") return walletSession;
-      if (id === "@/services") {
+      if (["@/services/api-client", "@/services/agent-service"].includes(id)) {
         return {
           ApiError,
           getAgentThreadMessages,

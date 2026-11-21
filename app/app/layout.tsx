@@ -6,6 +6,7 @@ import "@fontsource-variable/onest";
 import "./globals.css";
 import { ChunkLoadRecoveryGate } from "@/components/chunk-load-recovery";
 import { PreviewBanner } from "@/components/preview-banner";
+import { PerformanceReporter } from "@/components/performance-reporter";
 import en from "@/i18n/messages/en.json";
 import { IntlErrorProvider } from "@/i18n/intl-error";
 import { LocaleSync } from "@/i18n/locale-sync";
@@ -34,6 +35,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           <IntlErrorProvider>
             <LocaleSync />
             <PreviewBanner />
+            <PerformanceReporter />
             <ChunkLoadRecoveryGate />
             {children}
           </IntlErrorProvider>

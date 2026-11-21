@@ -8,7 +8,7 @@ function loadApi(origin) {
   const exports={};
   vm.runInNewContext(ts.transpileModule(readFileSync(new URL('../services/api-client.ts',import.meta.url),'utf8'),{
     compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022},
-  }).outputText,{exports,URL,process:{env:{NEXT_PUBLIC_OREN_API_URL:origin}},window:{location:{origin:'https://pr-42.preview.example.com'}}});
+  }).outputText,{exports,URL,require: () => ({}),process:{env:{NEXT_PUBLIC_OREN_API_URL:origin}},window:{location:{origin:'https://pr-42.preview.example.com'}}});
   return exports;
 }
 test('preview API URLs stay on the preview origin and preserve API prefix and query',()=>{
