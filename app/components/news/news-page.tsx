@@ -120,10 +120,12 @@ function StoryRow({ story, featured, personal }: { story: NewsStory; featured: b
   const auth = useOrenAuth();
   const busy = useAgentStore((state) => state.isSending);
   const setPanelOpen = useAgentStore((state) => state.setPanelOpen);
+  const newChat = useAgentStore((state) => state.newChat);
   const sendMessage = useAgentStore((state) => state.sendMessage);
   const canAsk = auth.authenticated && Boolean(auth.address);
   const ask = () => {
     if (!auth.address || !canAsk || busy) return;
+    newChat(auth.address);
     setPanelOpen(true);
     void sendMessage(t("news.askPrompt", { headline: story.headline, url: story.url }), auth.address, { page: "explore" });
   };

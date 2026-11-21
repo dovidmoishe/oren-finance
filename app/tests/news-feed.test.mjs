@@ -45,7 +45,7 @@ const { exploreFeedKey } = load('../store/explore-store.ts', { '@/services/news-
 
 function fixture({ feed = baseFeed, auth = { ready: true, authenticated: true, address: 'wallet', userId: 'owner' }, busy = false, error = false, loading = false } = {}) {
   const calls = [];
-  const store = { isSending: busy, setPanelOpen: (...args) => calls.push(['open', ...args]), sendMessage: (...args) => calls.push(['send', ...args]) };
+  const store = { isSending: busy, newChat: (...args) => calls.push(['new', ...args]), setPanelOpen: (...args) => calls.push(['open', ...args]), sendMessage: (...args) => calls.push(['send', ...args]) };
   const explore = {
     selectedScope: 'for-you',
     selectScope: (scope) => { explore.selectedScope = scope; },
@@ -139,11 +139,13 @@ test('Ask Oren uses the current wallet, article source and news page context and
   }
   const view = fixture();
   button(view.StoryRow({ story, personal: true, featured: true })).props.onClick();
-  assert.equal(view.calls[0][0], 'open');
-  assert.equal(view.calls[1][0], 'send');
-  assert.ok(view.calls[1][1].includes(story.url));
-  assert.equal(view.calls[1][2], 'wallet');
-  assert.equal(view.calls[1][3].page, 'explore');
+  assert.equal(view.calls[0][0], 'new');
+  assert.equal(view.calls[0][1], 'wallet');
+  assert.equal(view.calls[1][0], 'open');
+  assert.equal(view.calls[2][0], 'send');
+  assert.ok(view.calls[2][1].includes(story.url));
+  assert.equal(view.calls[2][2], 'wallet');
+  assert.equal(view.calls[2][3].page, 'explore');
   const locked = fixture({ busy: true });
   button(locked.StoryRow({ story, personal: true, featured: true })).props.onClick();
   assert.equal(locked.calls.length, 0);

@@ -18,6 +18,7 @@ const RECENTS_KEY = "oren-agent-recents-v1";
 const PANEL_KEY = "oren-agent-panel-v1";
 const MAX_RECENTS = 12;
 let activeController: AbortController | undefined;
+let historyRequestId = 0;
 
 interface AgentState {
   walletAddress?: string;
@@ -34,7 +35,7 @@ interface AgentState {
   initialize: (walletAddress?: string) => Promise<void>;
   setPanelOpen: (open: boolean) => void;
   setExpanded: (expanded: boolean) => void;
-  newChat: () => void;
+  newChat: (walletAddress?: string) => void;
   loadThread: (threadId: string) => Promise<void>;
   sendMessage: (
     message: string,
@@ -57,6 +58,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
   async initialize(walletAddress) {
     const update = sessionSetter(set);
     if (get().walletAddress === walletAddress && get().hydrated) return;
+    historyRequestId += 1;
     activeController?.abort();
     activeController = undefined;
 
@@ -107,13 +109,20 @@ export const useAgentStore = create<AgentState>((set, get) => ({
     set({ expanded });
   },
 
-  newChat() {
+  newChat(walletAddress) {
     if (get().isSending) return;
+    historyRequestId += 1;
     set({
+      ...(walletAddress ? {
+        walletAddress,
+        hydrated: true,
+        recentThreads: readRecents()[walletAddress] ?? [],
+      } : {}),
       threadId: undefined,
       messages: [],
       error: undefined,
       lastRequest: undefined,
+      isLoadingHistory: false,
     });
   },
 
@@ -122,10 +131,11 @@ export const useAgentStore = create<AgentState>((set, get) => ({
     const isCurrent = walletSessionIsCurrent();
     const walletAddress = get().walletAddress;
     if (!walletAddress || get().isSending) return;
+    const requestId = ++historyRequestId;
     update({ isLoadingHistory: true, error: undefined });
     try {
       const response = await getAgentThreadMessages(threadId, walletAddress);
-      if (!isCurrent()) return;
+      if (!isCurrent() || requestId !== historyRequestId) return;
       update({
         threadId,
         messages: response.messages,
@@ -133,7 +143,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
       });
       touchRecent(update, walletAddress, threadId);
     } catch (error) {
-      if (!isCurrent()) return;
+      if (!isCurrent() || requestId !== historyRequestId) return;
       const message =
         error instanceof Error
           ? error.message
@@ -156,6 +166,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
     const isCurrent = walletSessionIsCurrent();
     const content = message.trim();
     if (!content || get().isSending) return;
+    historyRequestId += 1;
     const request: AgentRequest = {
       walletAddress,
       threadId: get().threadId,
@@ -183,6 +194,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
         },
       ],
       isSending: true,
+      isLoadingHistory: false,
       error: undefined,
       lastRequest: request,
     }));
