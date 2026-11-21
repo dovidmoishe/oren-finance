@@ -16,7 +16,7 @@ const groups = [
   { title: "Terminal", links: [
     { label: "Markets", href: "/app/markets" },
     { label: "Portfolio", href: "/app/portfolio" },
-    { label: "Activity", href: "/app/activity" },
+    { label: "Explore", href: "/app/explore" },
   ] },
   { title: "Resources", links: [
     { label: "Connect your agent", href: "/agents" },

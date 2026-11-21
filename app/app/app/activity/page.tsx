@@ -1,5 +1,5 @@
-import { ActivityTimeline } from "@/components/portfolio/activity-timeline";
+import { redirect } from "next/navigation";
 
 export default function ActivityPage() {
-  return <ActivityTimeline />;
+  redirect("/app");
 }

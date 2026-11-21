@@ -45,11 +45,12 @@ function navigationAt(desktop) {
 
 test('mobile navigation closes the copilot so every destination is visible', () => {
   const state = navigationAt(false);
-  for (const href of ['/app/markets', '/app/activity', '/app/settings']) {
+  for (const href of ['/app/markets', '/app/explore', '/app/settings']) {
     state.links.find((link) => link.href === href).onNavigate();
   }
   assert.deepEqual(state.changes, [false, false, false]);
   assert.equal(state.dismissed(), 3);
+  assert.equal(state.links.some((link) => link.href === '/app/activity'), false);
 });
 
 test('desktop navigation keeps the docked copilot open', () => {

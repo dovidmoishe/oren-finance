@@ -26,7 +26,8 @@ function find(node, type) {
 
 test('page context recognizes investing routes and never labels settings as a portfolio', () => {
   for (const path of ['/app', '/app/portfolio', '/app/overview']) assert.equal(utils.pageContext(path).page, 'dashboard');
-  for (const page of ['markets', 'vault', 'activity', 'calendar', 'leaderboard']) assert.equal(utils.pageContext(`/app/${page}`).page, page);
+  for (const page of ['markets', 'explore', 'vault', 'activity', 'calendar', 'leaderboard']) assert.equal(utils.pageContext(`/app/${page}`).page, page);
+  assert.equal(utils.pageContext('/app/news').page, 'explore');
   assert.equal(utils.pageContext('/app/stocks/stock%3Anvda').assetId, 'stock:nvda');
   for (const path of ['/app/settings', '/app/settings/preferences', '/app/settings/connections', '/app/stocks/%ZZ', '/application', '/app/markets-extra']) {
     assert.equal(utils.pageContext(path), undefined);
