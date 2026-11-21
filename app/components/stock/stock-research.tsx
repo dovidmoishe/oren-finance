@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ArrowRight, BookOpen, FileText, MessageSquareText, RefreshCw, ChartPie } from "lucide-react";
+import { ArrowRight, BookOpen, ChevronDown, FileText, MessageSquareText, RefreshCw, ChartPie } from "lucide-react";
 import { useOrenAuth } from "@/components/auth/auth-context";
 import {
   getStockResearch,
@@ -338,45 +338,69 @@ function CompanyFilings({
   const { locale, timeZone, t } = useI18n();
   const data = company.data;
   const cards = data ? companyCards(t, data, locale, timeZone) : [];
+  const summary = cards.find((card) => card.key === "quarter")
+    ?? cards.find((card) => card.key === "year")
+    ?? cards[0];
   const filings = sourceFilings(t, data, locale, timeZone);
   return (
-    <article className="rounded-2xl border border-border bg-panel-subtle p-4 @3xl/research:col-span-2">
-      <h3 className="text-sm font-semibold">{t("research.filings")}</h3>
-      <p className="mt-2 text-xs text-muted">{t("research.filingsNote")}</p>
+    <article className="@container/filings min-w-0 rounded-2xl border border-border bg-panel p-4 @3xl/research:col-span-2 sm:p-5">
+      <h3 className="text-base font-semibold">{t("research.performanceTitle")}</h3>
+      {summary ? <p className="mt-1 text-xs leading-5 text-muted">{summary.key === "ttm" ? t("research.ttmPeriod") : summary.title} · {summary.range}</p> : null}
       {company.reason ? (
         <p className="mt-2 text-sm text-muted">
-          {t(companyReason(company.reason))}
+          {t(company.reason === "stale" ? "research.staleSummary" : companyReason(company.reason))}
         </p>
       ) : null}
+      {summary ? (
+        <dl className="mt-5 grid gap-5 @2xl/filings:grid-cols-3 @2xl/filings:gap-6">
+          <MetricFact simple currency filings={filings} label={t("research.metricRevenue")} metric={summary.revenue} note={t("research.revenueExplanation")} onOpenSource={onOpenSource} />
+          <MetricFact simple currency filings={filings} label={t("research.profitLabel")} metric={summary.netIncome} note={t("research.profitExplanation")} onOpenSource={onOpenSource} />
+          <MetricFact simple filings={filings} label={t("research.growthLabel")} metric={summary.yoy} note={t(summary.key === "quarter" ? "research.quarterGrowthExplanation" : summary.key === "year" ? "research.yearGrowthExplanation" : "research.ttmGrowthExplanation")} onOpenSource={onOpenSource} />
+        </dl>
+      ) : null}
+      <details className="group/details mt-5 border-t border-border pt-2">
+        <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 rounded text-xs font-medium text-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-focus [&::-webkit-details-marker]:hidden">
+          {t("research.reportDetails")}
+          <ChevronDown aria-hidden="true" className="group-open/details:rotate-180" size={14} />
+        </summary>
+        <h4 className="mt-3 text-sm font-medium">{t("research.filings")}</h4>
+        <p className="mt-1 text-xs leading-5 text-muted">{t("research.filingsNote")}</p>
       {cards.length ? (
-        <div className="mt-3 grid gap-3 md:grid-cols-3">
+        <div className="mt-5 grid gap-4 @3xl/filings:grid-cols-3">
           {cards.map((card) => (
             <section
-              className="rounded-xl border border-border bg-panel p-3"
+              className="min-w-0 rounded-xl bg-panel-subtle p-4"
               key={card.key}
             >
               <h4 className="text-[11px] font-semibold uppercase tracking-wide text-muted">
                 {card.title}
               </h4>
-              <p className="mt-1 text-sm font-semibold">{card.period}</p>
-              <p className="text-[11px] text-muted">{card.range}</p>
-              <dl className="mt-3 space-y-2">
+              <p className="mt-2 text-base font-semibold tracking-tight">{card.period}</p>
+              <p className="mt-1 text-xs leading-5 text-muted">{card.range}</p>
+              <dl className="mt-5 grid grid-cols-2 gap-x-4 gap-y-4">
                 <MetricFact
+                  prominent
+                  currency
+                  filings={filings}
                   label={t("research.metricRevenue")}
                   metric={card.revenue}
                   onOpenSource={onOpenSource}
                 />
                 <MetricFact
+                  currency
+                  filings={filings}
                   label={t("research.metricNetIncome")}
                   metric={card.netIncome}
                   onOpenSource={onOpenSource}
                 />
                 <MetricFact
+                  filings={filings}
                   label={t("research.metricMargin")}
                   metric={card.margin}
                   onOpenSource={onOpenSource}
                 />
                 <MetricFact
+                  filings={filings}
                   label={t("research.metricYoy")}
                   metric={card.yoy}
                   note={card.yoyNote}
@@ -398,16 +422,19 @@ function CompanyFilings({
         </div>
       ) : null}
       {filings.length ? (
-        <div className="mt-4 border-t border-border pt-3">
-          <h4 className="text-xs font-semibold">
+        <div className="mt-5 border-t border-border pt-3">
+          <h4 className="flex min-h-9 items-center gap-2 text-xs font-medium text-muted">
+            <FileText aria-hidden="true" size={14} />
             {t("research.sourceFilings")}
+            <span className="rounded-full bg-panel-subtle px-2 py-0.5 tabular-nums">{filings.length}</span>
           </h4>
           <ul className="mt-2 divide-y divide-border">
-            {filings.map((filing) => (
+            {filings.map((filing, index) => (
               <li
                 className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2"
                 key={filing.key}
               >
+                <span className="text-[10px] tabular-nums text-muted">[{index + 1}]</span>
                 <span className="inline-flex rounded-md border border-border bg-background px-1.5 py-0.5 font-mono text-[10px] font-semibold text-foreground">
                   {filing.form}
                 </span>
@@ -416,7 +443,7 @@ function CompanyFilings({
                   {t("research.filedOn", { date: filing.filed })}
                 </span>
                 <a
-                  className={`ml-auto text-xs ${FILING_LINK_CLASS}`}
+                  className={`ms-auto text-xs ${FILING_LINK_CLASS}`}
                   href={filing.url}
                   onClick={onOpenSource}
                   rel="noopener noreferrer"
@@ -434,6 +461,7 @@ function CompanyFilings({
           {t("research.fetched", { date: dateLabel(t, company.fetchedAt, locale, timeZone) })}
         </p>
       ) : null}
+      </details>
     </article>
   );
 }
@@ -499,48 +527,55 @@ function MetricFact({
   label,
   metric,
   note,
+  currency = false,
+  prominent = false,
+  simple = false,
+  filings,
   onOpenSource,
 }: {
   label: string;
   metric?: CompanyMetricView;
   note?: string;
+  currency?: boolean;
+  prominent?: boolean;
+  simple?: boolean;
+  filings: ReturnType<typeof sourceFilings>;
   onOpenSource: () => void;
 }) {
   const { locale, timeZone, t } = useI18n();
-  const sources = metricSources(metric);
+  const sources = metricSources(metric).sort((a, b) =>
+    filings.findIndex((filing) => filing.url === a.sourceUrl) - filings.findIndex((filing) => filing.url === b.sourceUrl),
+  );
+  const available = metric?.available && metric.display;
+  const value = currency && available && Number.isFinite(metric.value)
+    ? companyAmount(metric.value!, locale, simple)
+    : available ? metric.display : t("research.metricUnavailable");
   return (
-    <div className="flex items-start justify-between gap-3">
-      <dt className="text-[11px] text-muted">{label}</dt>
-      <dd className="text-right">
-        <p className="text-xs font-medium tabular-nums">
-          {metric?.available && metric.display
-            ? metric.display
-            : t("research.metricUnavailable")}
-          {metric?.derived && metric.available ? (
-            <span className="ml-1 font-normal text-muted">
-              {t("research.metricDerived")}
-            </span>
-          ) : null}
-        </p>
-        {note ? <p className="text-[11px] text-muted">{note}</p> : null}
-        {sources.map((source) => (
-          <a
-            className={`mt-0.5 block text-[11px] ${FILING_LINK_CLASS}`}
-            href={source.sourceUrl}
-            key={source.sourceUrl}
-            onClick={onOpenSource}
-            rel="noopener noreferrer"
-            target="_blank"
-          >
-            {t("research.citationFiled", {
-              form: source.form,
-              date: dateLabel(t, source.filed, locale, timeZone),
+    <div className={simple ? "min-w-0" : prominent || currency ? "col-span-2 min-w-0" : "min-w-0 border-t border-border pt-3"}>
+      <dt className="text-xs leading-5 text-muted">{label}</dt>
+      <dd className="mt-1">
+        <p className={`flex flex-wrap items-baseline gap-x-1.5 gap-y-1 font-money font-medium tabular-nums ${simple ? "text-2xl tracking-tight" : prominent ? "text-3xl tracking-tight" : "text-xl tracking-tight"}`}>
+          <span className="min-w-0 break-words" title={available ? metric.display : undefined}>{value}</span>
+          {!simple && sources.length ? <span className="inline-flex flex-wrap gap-1 align-super text-[10px] font-normal tracking-normal text-muted">
+            {sources.map((source) => {
+              const index = filings.findIndex((filing) => filing.url === source.sourceUrl);
+              const citation = t("research.citationFiled", { form: source.form, date: dateLabel(t, source.filed, locale, timeZone) });
+              return <a aria-label={`${label}: ${citation}`} className="rounded hover:text-foreground hover:underline focus-visible:outline-2 focus-visible:outline-focus" href={source.sourceUrl} key={source.sourceUrl} onClick={onOpenSource} rel="noopener noreferrer" target="_blank" title={citation}>[{index + 1}]</a>;
             })}
-          </a>
-        ))}
+          </span> : null}
+        </p>
+        {!simple && (currency || (metric?.derived && metric.available)) ? <p className="mt-1 min-h-4 text-[10px] text-muted">{metric?.derived && metric.available ? t("research.metricDerived") : null}</p> : null}
+        {note ? <p className="mt-1 text-xs leading-5 text-muted">{note}</p> : null}
       </dd>
     </div>
   );
+}
+
+function companyAmount(value: number, locale: string, plain: boolean) {
+  if (!plain) return new Intl.NumberFormat(locale, { style: "currency", currency: "USD", notation: "compact", maximumFractionDigits: 2 }).format(value);
+  const words = new Intl.NumberFormat(locale, { notation: "compact", compactDisplay: "long", maximumFractionDigits: 2 }).format(Math.abs(value));
+  return new Intl.NumberFormat(locale, { style: "currency", currency: "USD", currencyDisplay: "narrowSymbol", maximumFractionDigits: 0 })
+    .formatToParts(value < 0 ? -0 : 0).map((part) => part.type === "integer" ? words : part.value).join("");
 }
 
 function companyCards(
@@ -625,8 +660,25 @@ function sourceFilings(t: Translate, data: CompanyResearchData | undefined, loca
       filedSort: filing.filed,
       url: filing.sourceUrl,
     }));
-  if (rows.length) {
-    return rows.sort(
+  const byUrl = new Map(rows.map((row) => [row.url, row]));
+  // Derived metrics may cite older inputs outside the recent filings list.
+  for (const period of [data?.latestQuarter, data?.ttm, data?.latestAnnual]) {
+    for (const metric of [period?.revenue, period?.netIncome, period?.operatingMargin, period?.revenueGrowth]) {
+      for (const source of metricSources(metric)) {
+        if (byUrl.has(source.sourceUrl)) continue;
+        byUrl.set(source.sourceUrl, {
+          key: source.sourceUrl,
+          form: source.form,
+          period: t("research.periodEnded", { date: dateLabel(t, source.periodEnd, locale, timeZone) }),
+          filed: dateLabel(t, source.filed, locale, timeZone),
+          filedSort: source.filed,
+          url: source.sourceUrl,
+        });
+      }
+    }
+  }
+  if (byUrl.size) {
+    return [...byUrl.values()].sort(
       (a, b) =>
         b.filedSort.localeCompare(a.filedSort) || b.key.localeCompare(a.key),
     );

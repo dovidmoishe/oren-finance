@@ -97,12 +97,18 @@ test('stock research renders cited company filings without treating them as the 
           revenue: {
             available: true,
             display: '$114,477,000,000',
+            value: 114477000000,
             derived: true,
             inputCitations: [{
               form: '10-K',
               filed: '2026-11-03',
               periodEnd: '2026-09-26',
               sourceUrl: 'https://www.sec.gov/Archives/edgar/data/320193/000032019326000026/0000320193-26-000026-index.html',
+            }, {
+              form: '10-Q',
+              filed: '2026-02-01',
+              periodEnd: '2025-12-31',
+              sourceUrl: 'https://www.sec.gov/Archives/edgar/data/320193/older-derived-input.html',
             }],
           },
           netIncome: { available: true, display: '$28,000,000,000', citation: { form: '10-K', filed: '2026-11-03', periodEnd: '2026-09-26', sourceUrl: 'https://www.sec.gov/Archives/edgar/data/320193/000032019326000026/0000320193-26-000026-index.html' } },
@@ -144,6 +150,16 @@ test('stock research renders cited company filings without treating them as the 
   const html = renderToStaticMarkup(require('react').createElement(exports.StockResearchPanel, { assetId: 'apple' }));
   assert.ok(html.includes('Company filings'));
   assert.ok(html.includes('$114,477,000,000'));
+  assert.ok(html.includes('$114.48B'));
+  assert.ok(html.includes('<details'));
+  assert.ok(html.includes('Revenue: 10-K filed'));
+  assert.equal(html.includes('[0]'), false);
+  const summary = html.slice(html.indexOf('Company performance'), html.indexOf('<details'));
+  for (const label of ['Profit', 'Revenue growth', 'Sales before expenses', 'Left after all expenses', 'Compared with the same quarter last year', '$114.48 billion']) assert.ok(summary.includes(label), label);
+  for (const label of ['TTM', 'Operating margin', 'derived', '[1]', 'Source filings']) assert.equal(summary.includes(label), false, label);
+  const sourceDisclosure = html.slice(html.indexOf('Source filings'));
+  assert.ok(sourceDisclosure.includes('older-derived-input.html'));
+  assert.equal((sourceDisclosure.match(/older-derived-input.html/g) ?? []).length, 1);
   assert.ok(html.includes('$478,834,000,000'));
   assert.ok(html.includes('Latest quarter'));
   assert.ok(html.includes('Trailing twelve months'));
@@ -204,4 +220,41 @@ test('company filing fallback renders SEC markdown links and drops other urls', 
   assert.equal(html.includes('(https://www.sec.gov/'), false);
   assert.equal(html.includes('https://evil.example/buy'), false);
   assert.equal(html.split('not a recommendation').length - 1, 1);
+});
+
+function companySummary(data) {
+  const exports = {};
+  const code = ts.transpileModule(readFileSync(new URL('../components/stock/stock-research.tsx', import.meta.url), 'utf8') + '\nexport { CompanyFilings };', { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX } }).outputText;
+  vm.runInNewContext(code, { exports, require(id) {
+    if (id === '@/components/auth/auth-context' || id === '@/services/research-service') return {};
+    return require(id);
+  } });
+  const html = renderToStaticMarkup(require('react').createElement(exports.CompanyFilings, { company: { available: true, data: { briefing: [], filings: [], links: [], ...data } }, onOpenSource() {} }));
+  return html.slice(0, html.indexOf('<details'));
+}
+
+test('annual-only company reports keep the period and growth comparison honest and show losses clearly', () => {
+  const html = companySummary({ latestAnnual: {
+    fiscalYear: 2026, start: '2025-01-01', end: '2025-12-31',
+    revenue: { available: true, display: '$2,000,000,000', value: 2000000000 },
+    netIncome: { available: true, display: '-$28,000,000', value: -28000000 },
+    revenueGrowth: { available: true, display: '-5%' },
+  } });
+  assert.match(html, /Full year/);
+  assert.match(html, /Compared with the previous year/);
+  assert.match(html, /-\$28 million/);
+  assert.doesNotMatch(html, /Latest quarter|same quarter|TTM/);
+});
+
+test('twelve-month-only reports explain the correct comparison and do not fill missing profit', () => {
+  const html = companySummary({ ttm: {
+    start: '2025-01-01', end: '2025-12-31',
+    revenue: { available: true, display: '$2,000,000,000', value: 2000000000 },
+    netIncome: { available: false, value: 999 },
+    revenueGrowth: { available: true, display: '5%' },
+  } });
+  assert.match(html, /Trailing twelve months/);
+  assert.match(html, /Compared with the previous 12 months/);
+  assert.match(html, /Unavailable/);
+  assert.doesNotMatch(html, /999|Latest quarter|same quarter/);
 });
