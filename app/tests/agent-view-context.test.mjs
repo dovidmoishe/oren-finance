@@ -68,6 +68,7 @@ function panelFixture() {
     '@/store': { useAgentStore: select => select(state), useStockStore: select => select(stock), usePortfolioStore: select => select({}) },
     './agent-utils': utils,
     './agent-action-review': { AgentActionReview: 'review' },
+    './agent-composer-view': { resizeAgentComposer() {} },
     './agent-conversation': { AgentConversationThread: 'conversation', AgentComposer: 'composer', ConversationHistory: 'history' },
     './agent-workspace': { AgentWorkspace: 'workspace', latestAssistantArtifacts: () => [] },
   });

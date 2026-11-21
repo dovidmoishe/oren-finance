@@ -19,6 +19,7 @@ import { useWalletModal } from '@/components/auth/wallet-modal-context';
 import { OrenLogo, type OrenLogoState } from '@/components/brand/oren-logo';
 import { Button, cn } from '@/components/ui';
 import { AgentActionReview } from './agent-action-review';
+import { resizeAgentComposer } from './agent-composer-view';
 import {
   AgentComposer,
   AgentConversationThread,
@@ -170,9 +171,8 @@ export function AgentPanel() {
   useEffect(() => {
     const textarea = composerRef.current;
     if (!textarea) return;
-    textarea.style.height = 'auto';
-    textarea.style.height = `${Math.min(textarea.scrollHeight, 128)}px`;
-  }, [composer]);
+    resizeAgentComposer(textarea);
+  }, [composer, expanded, panelOpen]);
 
   useEffect(() => {
     if (shouldFollowRef.current) scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });

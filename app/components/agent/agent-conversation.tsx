@@ -50,8 +50,8 @@ export function AgentMessage({
   const t = useT();
   if (message.role === 'user') {
     return (
-      <div className="flex justify-end">
-        <div className="max-w-[86%] rounded-[20px] rounded-br-[7px] bg-primary px-4 py-3 text-sm leading-6 text-primary-foreground">
+      <div className="flex min-w-0 justify-end">
+        <div className="min-w-0 max-w-[90%] whitespace-pre-wrap rounded-2xl rounded-br-md bg-primary px-3.5 py-2.5 text-sm leading-6 text-primary-foreground [overflow-wrap:anywhere]">
           {message.content}
           {message.interrupted ? <p className="mt-2 text-[10px] text-primary-foreground/75">{t("agent.interrupted")}</p> : null}
         </div>
@@ -60,7 +60,7 @@ export function AgentMessage({
   }
 
   return (
-    <article>
+    <article className="min-w-0 max-w-full">
       {message.activities?.length ? <ToolTrace activities={message.activities} /> : null}
       {message.content ? (
         <AgentMessageBody content={message.content} />
@@ -260,7 +260,7 @@ export function AgentConversationThread({
   const t = useT();
   return (
     <div
-      className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-5"
+      className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain px-3 py-4 sm:px-4"
       onScroll={(event) => {
         const node = event.currentTarget;
         shouldFollowRef.current = node.scrollHeight - node.scrollTop - node.clientHeight < 96;
@@ -278,7 +278,7 @@ export function AgentConversationThread({
       ) : messages.length === 0 ? (
         <EmptyConversation onPrompt={onPrompt} prompts={prompts} />
       ) : (
-        <div className="space-y-6">
+        <div className="min-w-0 max-w-full space-y-5">
           {messages.map((message) => (
             <AgentMessage
               artifactDensity={artifactDensity}
@@ -320,7 +320,7 @@ export function AgentComposer(props: Omit<Parameters<typeof AgentComposerView>[0
   const auth = useOrenAuth();
   const t = useT();
   const placeholder = props.connected
-    ? t("agent.placeholder")
+    ? t("agent.ask")
     : auth.authenticated ? t("agent.placeholderPreparing") : t("agent.placeholderSignIn");
   return <AgentComposerView {...props} placeholder={placeholder} />;
 }
