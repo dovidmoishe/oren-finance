@@ -139,6 +139,7 @@ export interface TokensNewsItemRaw {
   headline?: string;
   title?: string;
   source?: string;
+  source_name?: string;
   summary?: string;
   description?: string;
   url?: string;

@@ -1,4 +1,5 @@
 import {
+  extractAssetList,
   extractCandles,
   mapCandles,
   mapEquity,
@@ -7,6 +8,24 @@ import {
 } from './tokens.mapper';
 
 describe('tokens mapper', () => {
+  it('reads the live trending wrapper and news publisher name', () => {
+    expect(
+      extractAssetList({ trending: [{ assetId: 'nvidia', symbol: 'NVDA' }] }),
+    ).toEqual([{ assetId: 'nvidia', symbol: 'NVDA' }]);
+    expect(
+      mapNewsItem({
+        title: 'NVIDIA results',
+        source_name: '@tokens',
+        posted_at: '2026-11-19T12:44:00Z',
+      })?.source,
+    ).toBe('@tokens');
+  });
+  it('does not present undated or invalid-dated news as newly published', () => {
+    expect(mapNewsItem({ title: 'NVIDIA update' })).toBeNull();
+    expect(
+      mapNewsItem({ title: 'NVIDIA update', posted_at: 'not-a-date' }),
+    ).toBeNull();
+  });
   it('preserves the live news feed posted_at timestamp', () => {
     const news = mapNewsItem({
       title: 'NVIDIA market update',
@@ -97,10 +116,7 @@ describe('tokens mapper', () => {
       },
     ]);
 
-    expect(equities.map((equity) => equity.id)).toEqual([
-      'nvidia',
-      'spacex',
-    ]);
+    expect(equities.map((equity) => equity.id)).toEqual(['nvidia', 'spacex']);
   });
 
   it('maps tuple OHLCV candles from nested provider envelopes', () => {

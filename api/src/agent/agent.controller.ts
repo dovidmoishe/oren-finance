@@ -37,6 +37,7 @@ const AGENT_PAGES: AgentPage[] = [
   'calendar',
   'leaderboard',
   'markets',
+  'explore',
   'stock',
   'vault',
   'activity',
