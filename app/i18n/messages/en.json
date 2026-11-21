@@ -1,4 +1,19 @@
 {
+  "walletAuth": {
+    "agentConnection": "Agent connections currently require an Oren embedded wallet. If you already have one, select it in Settings and return here. Your connected wallet can still trade in Oren.",
+    "or": "or",
+    "continueWallet": "Continue with wallet",
+    "optionalEmail": "No email needed. You can add one later.",
+    "noEmail": "No email linked",
+    "emailDetail": "Add an email for briefs and alerts. Notifications stay off until you choose them.",
+    "addEmail": "Add email",
+    "addWallet": "Link another wallet",
+    "reconnect": "Reconnect wallet",
+    "reconnectDetail": "Reconnect your selected wallet, then review the transaction again.",
+    "approvalDetail": "Trades require approval in this wallet.",
+    "linkError": "Could not link this account. It may already belong to another Oren account. Sign in to that account to link your wallet there.",
+    "manualTrading": "Approve each trade in your wallet. Automatic chat trading requires an Oren embedded wallet."
+  },
   "news": {
     "nav": "Explore",
     "title": "Explore",

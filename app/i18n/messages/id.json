@@ -1,4 +1,19 @@
 {
+  "walletAuth": {
+    "agentConnection": "Koneksi agen saat ini memerlukan dompet tertanam Oren. Jika Anda sudah memilikinya, pilih di Pengaturan lalu kembali ke sini. Dompet terhubung Anda tetap dapat trading di Oren.",
+    "or": "atau",
+    "continueWallet": "Lanjutkan dengan dompet",
+    "optionalEmail": "Tidak perlu email. Anda bisa menambahkannya nanti.",
+    "noEmail": "Belum ada email tertaut",
+    "emailDetail": "Tambahkan email untuk ringkasan dan peringatan. Notifikasi tetap nonaktif sampai Anda memilihnya.",
+    "addEmail": "Tambahkan email",
+    "addWallet": "Tautkan dompet lain",
+    "reconnect": "Hubungkan ulang dompet",
+    "reconnectDetail": "Hubungkan ulang dompet pilihan Anda, lalu tinjau transaksi lagi.",
+    "approvalDetail": "Transaksi memerlukan persetujuan di dompet ini.",
+    "linkError": "Akun ini tidak dapat ditautkan. Mungkin sudah dimiliki akun Oren lain. Masuk ke akun tersebut untuk menautkan dompet Anda.",
+    "manualTrading": "Setujui setiap transaksi di dompet Anda. Trading otomatis lewat chat memerlukan dompet tertanam Oren."
+  },
   "news": {
     "nav": "Jelajahi",
     "title": "Jelajahi",

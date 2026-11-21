@@ -1,4 +1,19 @@
 {
+  "walletAuth": {
+    "agentConnection": "As conexões com agentes exigem uma carteira integrada da Oren no momento. Se você já tem uma, selecione-a em Configurações e volte aqui. Sua carteira conectada ainda pode negociar na Oren.",
+    "or": "ou",
+    "continueWallet": "Continuar com carteira",
+    "optionalEmail": "Sem e-mail obrigatório. Você pode adicionar um depois.",
+    "noEmail": "Nenhum e-mail vinculado",
+    "emailDetail": "Adicione um e-mail para resumos e alertas. As notificações ficam desativadas até você escolher recebê-las.",
+    "addEmail": "Adicionar e-mail",
+    "addWallet": "Vincular outra carteira",
+    "reconnect": "Reconectar carteira",
+    "reconnectDetail": "Reconecte sua carteira selecionada e revise a transação novamente.",
+    "approvalDetail": "As operações precisam da sua aprovação nesta carteira.",
+    "linkError": "Não foi possível vincular esta conta. Ela pode pertencer a outra conta Oren. Entre nessa conta para vincular sua carteira lá.",
+    "manualTrading": "Aprove cada operação na sua carteira. Operações automáticas pelo chat exigem uma carteira integrada Oren."
+  },
   "news": {
     "nav": "Explorar",
     "title": "Explorar",

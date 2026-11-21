@@ -1,4 +1,19 @@
 {
+  "walletAuth": {
+    "agentConnection": "代理连接目前需要 Oren 内嵌钱包。如果您已有该钱包，请在设置中选择后返回此处。您连接的钱包仍可在 Oren 交易。",
+    "or": "或",
+    "continueWallet": "使用钱包继续",
+    "optionalEmail": "无需邮箱，可稍后添加。",
+    "noEmail": "尚未关联邮箱",
+    "emailDetail": "添加邮箱以接收简报和提醒。只有在您选择后才会开启通知。",
+    "addEmail": "添加邮箱",
+    "addWallet": "关联其他钱包",
+    "reconnect": "重新连接钱包",
+    "reconnectDetail": "重新连接所选钱包，然后再次核对交易。",
+    "approvalDetail": "交易需要在此钱包中批准。",
+    "linkError": "无法关联此账户。它可能已属于另一个 Oren 账户。请登录该账户后再关联您的钱包。",
+    "manualTrading": "请在钱包中批准每笔交易。聊天自动交易需要 Oren 内嵌钱包。"
+  },
   "news": {
     "nav": "探索",
     "title": "探索",

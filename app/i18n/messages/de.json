@@ -1,4 +1,19 @@
 {
+  "walletAuth": {
+    "agentConnection": "Agent-Verbindungen erfordern derzeit eine eingebettete Oren-Wallet. Wenn du bereits eine hast, wähle sie in den Einstellungen aus und kehre hierher zurück. Mit deiner verbundenen Wallet kannst du weiterhin in Oren handeln.",
+    "or": "oder",
+    "continueWallet": "Mit Wallet fortfahren",
+    "optionalEmail": "Keine E-Mail nötig. Du kannst sie später hinzufügen.",
+    "noEmail": "Keine E-Mail verknüpft",
+    "emailDetail": "Füge eine E-Mail für Berichte und Alarme hinzu. Benachrichtigungen bleiben bis zu deiner Zustimmung aus.",
+    "addEmail": "E-Mail hinzufügen",
+    "addWallet": "Weitere Wallet verknüpfen",
+    "reconnect": "Wallet erneut verbinden",
+    "reconnectDetail": "Verbinde deine ausgewählte Wallet erneut und prüfe die Transaktion noch einmal.",
+    "approvalDetail": "Trades müssen in dieser Wallet bestätigt werden.",
+    "linkError": "Dieses Konto konnte nicht verknüpft werden. Es gehört möglicherweise bereits zu einem anderen Oren-Konto. Melde dich dort an, um deine Wallet zu verknüpfen.",
+    "manualTrading": "Bestätige jeden Trade in deiner Wallet. Automatisches Chat-Trading erfordert eine eingebettete Oren-Wallet."
+  },
   "news": {
     "nav": "Entdecken",
     "title": "Entdecken",

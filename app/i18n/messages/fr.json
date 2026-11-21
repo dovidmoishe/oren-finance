@@ -1,4 +1,19 @@
 {
+  "walletAuth": {
+    "agentConnection": "Les connexions aux agents nécessitent actuellement un wallet intégré Oren. Si vous en avez déjà un, sélectionnez-le dans les paramètres, puis revenez ici. Votre wallet connecté peut toujours trader dans Oren.",
+    "or": "ou",
+    "continueWallet": "Continuer avec un wallet",
+    "optionalEmail": "Aucun e-mail requis. Vous pourrez en ajouter un plus tard.",
+    "noEmail": "Aucun e-mail lié",
+    "emailDetail": "Ajoutez un e-mail pour les résumés et alertes. Les notifications restent désactivées sans votre accord.",
+    "addEmail": "Ajouter un e-mail",
+    "addWallet": "Lier un autre wallet",
+    "reconnect": "Reconnecter le wallet",
+    "reconnectDetail": "Reconnectez le wallet sélectionné, puis vérifiez à nouveau la transaction.",
+    "approvalDetail": "Les transactions nécessitent votre approbation dans ce wallet.",
+    "linkError": "Impossible de lier ce compte. Il appartient peut-être à un autre compte Oren. Connectez-vous à ce compte pour y lier votre wallet.",
+    "manualTrading": "Approuvez chaque transaction dans votre wallet. Le trading automatique par chat nécessite un wallet intégré Oren."
+  },
   "news": {
     "nav": "Explorer",
     "title": "Explorer",

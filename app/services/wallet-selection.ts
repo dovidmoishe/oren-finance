@@ -1,6 +1,12 @@
 export type WalletSelection = { userId: string; address: string };
 type WalletOwner = { id: string; linkedAccounts: { type: string; chainType?: string; address?: string; walletClientType?: string }[] };
 
+export function resolveSolanaAccount(user: WalletOwner | null, selection?: WalletSelection) {
+  const linked = user?.linkedAccounts.filter(account => account.type === 'wallet' && account.chainType === 'solana' && account.address) ?? [];
+  const selected = selection?.userId === user?.id ? linked.find(account => account.address === selection?.address) : undefined;
+  return { linked, active: selected ?? linked[0] };
+}
+
 /** Account identity does not require a browser signer to finish discovery. */
 export function resolveEmbeddedSolanaAccount(user: WalletOwner | null, selection?: WalletSelection) {
   const linked = user?.linkedAccounts.filter(account => account.type === 'wallet' && account.chainType === 'solana' && account.walletClientType === 'privy' && account.address) ?? [];

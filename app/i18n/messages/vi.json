@@ -1,4 +1,19 @@
 {
+  "walletAuth": {
+    "agentConnection": "Kết nối tác nhân hiện yêu cầu ví nhúng Oren. Nếu đã có, hãy chọn ví đó trong Cài đặt rồi quay lại đây. Ví đã kết nối vẫn có thể giao dịch trong Oren.",
+    "or": "hoặc",
+    "continueWallet": "Tiếp tục bằng ví",
+    "optionalEmail": "Không cần email. Bạn có thể thêm sau.",
+    "noEmail": "Chưa liên kết email",
+    "emailDetail": "Thêm email để nhận bản tin và cảnh báo. Thông báo vẫn tắt cho đến khi bạn chọn nhận.",
+    "addEmail": "Thêm email",
+    "addWallet": "Liên kết ví khác",
+    "reconnect": "Kết nối lại ví",
+    "reconnectDetail": "Kết nối lại ví đã chọn rồi xem lại giao dịch.",
+    "approvalDetail": "Giao dịch cần được phê duyệt trong ví này.",
+    "linkError": "Không thể liên kết tài khoản. Tài khoản có thể đã thuộc về một tài khoản Oren khác. Hãy đăng nhập tài khoản đó để liên kết ví.",
+    "manualTrading": "Phê duyệt từng giao dịch trong ví. Giao dịch tự động qua chat cần ví nhúng Oren."
+  },
   "news": {
     "nav": "Khám phá",
     "title": "Khám phá",
