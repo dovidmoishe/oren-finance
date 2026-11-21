@@ -22,7 +22,8 @@ import type {
 } from '@/types';
 import { Button, cn, formatDate } from '@/components/ui';
 import { useOrenAuth } from '@/components/auth/auth-context';
-import { AgentArtifacts } from './agent-artifacts';
+// Artifacts are paused until their product flow is intentionally designed.
+// import { AgentArtifacts } from './agent-artifacts';
 import { AgentMessageBody } from './agent-message-body';
 import { toolLabel } from './agent-utils';
 import { AgentComposerView } from './agent-composer-view';
@@ -34,11 +35,11 @@ function Icon({ icon, size = 18, className }: { icon: LucideIcon; size?: number;
 
 export function AgentMessage({
   message,
-  artifactDensity = 'inline',
-  onReviewQuote,
-  onReviewBasket,
-  onReviewLimitOrder,
-  onNavigate,
+  // artifactDensity = 'inline',
+  // onReviewQuote,
+  // onReviewBasket,
+  // onReviewLimitOrder,
+  // onNavigate,
 }: {
   message: AgentDisplayMessage;
   artifactDensity?: AgentArtifactDensity;
@@ -69,6 +70,7 @@ export function AgentMessage({
           {t("agent.thinking")}
         </span>
       ) : null}
+      {/* Artifacts paused: retain cards and review wiring for later.
       {!message.streaming && !message.interrupted && message.artifacts?.length ? (
         <AgentArtifacts
           artifacts={message.artifacts}
@@ -79,6 +81,7 @@ export function AgentMessage({
           onReviewQuote={onReviewQuote}
         />
       ) : null}
+      */}
       {message.interrupted && message.content ? (
         <p className="mt-2 text-xs text-muted">{t("agent.stopped")}</p>
       ) : null}
