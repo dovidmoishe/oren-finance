@@ -1,9 +1,42 @@
 import {
   ServiceUnavailableException,
+  Logger,
   type ArgumentsHost,
 } from '@nestjs/common';
 import { PriceMovedError } from '../errors/provider.errors';
 import { HttpExceptionFilter } from './http-exception.filter';
+
+describe('unexpected server errors', () => {
+  it('logs internal details once and returns a generic response', () => {
+    const log = jest
+      .spyOn(Logger.prototype, 'error')
+      .mockImplementation(() => {});
+    try {
+      const response = { status: jest.fn().mockReturnThis(), json: jest.fn() };
+      const host = {
+        switchToHttp: () => ({
+          getResponse: () => response,
+          getRequest: () => ({ url: '/api/portfolio/wallet' }),
+        }),
+      } as unknown as ArgumentsHost;
+      new HttpExceptionFilter().catch(
+        new Error('internal database query details'),
+        host,
+      );
+      expect(response.status).toHaveBeenCalledWith(500);
+      expect(response.json).toHaveBeenCalledWith(
+        expect.objectContaining({ message: 'Internal server error' }),
+      );
+      expect(JSON.stringify(response.json.mock.calls)).not.toContain(
+        'database query',
+      );
+      expect(log).toHaveBeenCalledTimes(1);
+      expect(log.mock.calls[0][0]).toContain('internal database query details');
+    } finally {
+      log.mockRestore();
+    }
+  });
+});
 
 describe('approval failure response contract', () => {
   function responseFor(body: string | Record<string, unknown>) {
