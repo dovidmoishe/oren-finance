@@ -16,11 +16,13 @@ import { STOCK_CATALOG_TTL_MS } from '../config/constants';
 import { StockCatalogRepository } from '../tokens/stock-catalog.repository';
 import { TokensService } from '../tokens/tokens.service';
 import { rankSectorMatches } from './sector-ranking';
+import { MarketReadCache } from './market-read-cache';
 
 @Injectable()
 export class MarketService implements OnApplicationBootstrap {
   private readonly logger = new Logger(MarketService.name);
   private catalogRefresh?: Promise<void>;
+  private readonly charts = new MarketReadCache<ChartSeries>();
 
   constructor(
     private readonly tokens: TokensService,
@@ -123,9 +125,24 @@ export class MarketService implements OnApplicationBootstrap {
     return this.tokens.getStock(assetId);
   }
 
-  async getChart(assetId: string, range: ChartRange): Promise<ChartSeries> {
+  getChart(assetId: string, range: ChartRange): Promise<ChartSeries> {
+    return this.charts.get(JSON.stringify([assetId, range]), () =>
+      this.loadChart(assetId, range),
+    );
+  }
+
+  private async loadChart(
+    assetId: string,
+    range: ChartRange,
+  ): Promise<ChartSeries> {
     const [equity, candles] = await Promise.all([
-      this.tokens.getStock(assetId).catch(() => null),
+      this.catalog
+        .findByAssetIds([assetId])
+        .then((items) => items.find((item) => item.id === assetId))
+        .catch(() => undefined)
+        .then<EquitySummary | null>(
+          (item) => item ?? this.tokens.getStock(assetId).catch(() => null),
+        ),
       this.tokens.getPriceChart(assetId, range),
     ]);
 
