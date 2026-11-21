@@ -205,6 +205,102 @@ test("portfolio and activity consumers coalesce and explicit refreshes bypass pe
   assert.equal(store.getState().activity.length, 0);
 });
 
+function portfolioRefreshFixture() {
+  const requests = [];
+  const store = load("../store/portfolio-store.ts", {
+    "@/services/portfolio-service": {
+      getPortfolio: () => { const request = deferred(); requests.push(request); return request.promise; },
+    },
+    "@/services/wallet-session": { sessionSetter: (set) => set },
+  }).usePortfolioStore;
+  return { requests, store };
+}
+
+test("funding balance increases refresh a fresh cached portfolio and supersede an older pending read", async () => {
+  for (const balance of ["usdcAtomic", "solLamports"]) {
+    const { requests, store } = portfolioRefreshFixture();
+    const initial = store.getState().loadPortfolio("wallet");
+    requests[0].resolve({ wallet: "wallet", cashUsd: 10 });
+    await initial;
+    let callback, cleanup;
+    const hook = load("../hooks/use-funding.ts", {
+      react: { useState: (initial) => [initial, () => {}], useEffect: (effect) => { cleanup = effect(); } },
+      "@/store": { usePortfolioStore: store, useWalletStore: { getState: () => ({ address: "wallet" }) } },
+      "@/services/funding-stream": {
+        FundingStreamError: class extends Error {},
+        streamFunding: (_wallet, _token, onEvent) => { callback = onEvent; return new Promise(() => {}); },
+      },
+    }, { document: { hidden: false, addEventListener() {}, removeEventListener() {} } }).useFunding;
+    hook("wallet", async () => "token");
+    try {
+      const snapshot = { slot: 100, usdcAtomic: "10", solLamports: "10" };
+      callback({ type: "snapshot", data: snapshot });
+      assert.equal(requests.length, 1, "initial funding snapshot does not trigger a refresh");
+      callback({ type: "snapshot", data: { ...snapshot, slot: 101, [balance]: "20" } });
+      assert.equal(requests.length, 2, "a deposit bypasses the 30-second cache");
+      requests[1].resolve({ wallet: "wallet", cashUsd: 20 });
+      await tick();
+      assert.equal(store.getState().portfolio.cashUsd, 20);
+      const olderRead = store.getState().loadPortfolio("wallet", true);
+      callback({ type: "snapshot", data: { ...snapshot, slot: 102, [balance]: "30" } });
+      assert.equal(requests.length, 4, "a later deposit bypasses an older pending read");
+      requests[3].resolve({ wallet: "wallet", cashUsd: 30 });
+      await tick();
+      requests[2].resolve({ wallet: "wallet", cashUsd: 20 });
+      await olderRead;
+      assert.equal(store.getState().portfolio.cashUsd, 30);
+    } finally { cleanup(); }
+  }
+});
+
+test("Vault Refresh bypasses fresh portfolio data and older pending reads while navigation reuses the cache", async () => {
+  const { requests, store } = portfolioRefreshFixture();
+  const initial = store.getState().loadPortfolio("wallet");
+  requests[0].resolve({ wallet: "wallet", cashUsd: 10, positions: [] });
+  await initial;
+  const effects = [], vaultReads = [];
+  const Button = () => null;
+  const { VaultDashboard } = load("../components/vault/vault-dashboard.tsx", {
+    react: {
+      useEffect: (effect) => effects.push(effect), useMemo: (compute) => compute(),
+      useState: (initial) => [typeof initial === "function" ? initial() : initial, () => {}],
+    },
+    "@/components/auth/auth-context": { useOrenAuth: () => ({ ready: true, authenticated: true }) },
+    "@/components/auth/restore-actions": { restoreBlocked: () => false },
+    "@/components/ui": { Button, cn: () => "", formatCurrency: String, formatNumber: String },
+    "@/store": {
+      usePortfolioStore: (select) => select(store.getState()),
+      useWalletStore: (select) => select({ address: "wallet", connected: true }),
+      useVaultStore: (select) => select({ positions: [], loadVaults: (wallet) => vaultReads.push(wallet) }),
+    },
+    "@/services/environment": { financialExecutionEnabled: true },
+    "@/i18n/i18n": { useI18n: () => ({ t: (key) => key }) },
+    "./vault-review-modal": { VaultReviewModal: () => null },
+  });
+  const tree = VaultDashboard();
+  for (const effect of effects) effect();
+  assert.equal(requests.length, 1, "mounting the Vault reuses fresh portfolio data");
+  function findRefresh(node) {
+    if (!node || typeof node !== "object") return;
+    if (Array.isArray(node)) return node.map(findRefresh).find(Boolean);
+    if (node.type === Button && node.props.children.includes("vault.refresh")) return node;
+    return findRefresh(node.props?.children);
+  }
+  const refresh = findRefresh(tree);
+  assert.ok(refresh);
+  assert.equal(refresh.props.disabled, false);
+  refresh.props.onClick();
+  assert.equal(requests.length, 2, "Refresh bypasses the 30-second cache");
+  refresh.props.onClick();
+  assert.equal(requests.length, 3, "Refresh bypasses an older pending read");
+  requests[2].resolve({ wallet: "wallet", cashUsd: 30 });
+  await tick();
+  requests[1].resolve({ wallet: "wallet", cashUsd: 20 });
+  await tick();
+  assert.equal(store.getState().portfolio.cashUsd, 30);
+  assert.deepEqual(vaultReads, ["wallet", "wallet", "wallet"]);
+});
+
 test("visibility requires non-zero intersection and a foreground document", () => {
   let callback, cleanup, value;
   const listeners = new Map();

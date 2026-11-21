@@ -32,7 +32,7 @@ export function useFunding(wallet: string, getAccessToken: () => Promise<string 
             latestSlot = event.data.slot;
             if (previous && (BigInt(event.data.usdcAtomic) > BigInt(previous.usdcAtomic) || BigInt(event.data.solLamports) > BigInt(previous.solLamports))) {
               setReceived(true);
-              if (useWalletStore.getState().address === wallet) void usePortfolioStore.getState().loadPortfolio(wallet);
+              if (useWalletStore.getState().address === wallet) void usePortfolioStore.getState().loadPortfolio(wallet, true);
             }
             previous = event.data;
             attempts = 0;
