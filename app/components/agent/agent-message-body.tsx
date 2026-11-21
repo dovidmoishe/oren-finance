@@ -13,7 +13,7 @@ export function AgentMessageBody({ content }: { content: string }) {
   const blocks = parseAgentMessage(content);
   if (!blocks.length) return null;
   return (
-    <div className="space-y-3 text-[15px] leading-7 text-foreground">
+    <div className="min-w-0 max-w-full space-y-3 text-sm leading-6 text-foreground [overflow-wrap:anywhere]">
       {blocks.map((block, index) => {
         if (block.type === "details") {
           const lines = block.text

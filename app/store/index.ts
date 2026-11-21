@@ -1,5 +1,6 @@
 export * from "./agent-store";
 export * from "./execution-store";
+export * from "./explore-store";
 export * from "./market-store";
 export * from "./portfolio-store";
 export * from "./social-store";

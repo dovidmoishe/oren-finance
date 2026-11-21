@@ -19,13 +19,15 @@ import { useWalletModal } from '@/components/auth/wallet-modal-context';
 import { OrenLogo, type OrenLogoState } from '@/components/brand/oren-logo';
 import { Button, cn } from '@/components/ui';
 import { AgentActionReview } from './agent-action-review';
+import { resizeAgentComposer } from './agent-composer-view';
 import {
   AgentComposer,
   AgentConversationThread,
   ConversationHistory,
 } from './agent-conversation';
 import { contextTicker, pageContext, promptSuggestions } from './agent-utils';
-import { AgentWorkspace, latestAssistantArtifacts } from './agent-workspace';
+import { AgentWorkspace } from './agent-workspace';
+// Artifacts paused: import { latestAssistantArtifacts } from './agent-workspace';
 import { useT } from "@/i18n/i18n";
 
 function Icon({ icon, size = 18, className }: { icon: LucideIcon; size?: number; className?: string }) {
@@ -88,7 +90,7 @@ export function AgentPanel() {
     () => promptSuggestions(context, ticker),
     [context, ticker],
   );
-  const railArtifacts = useMemo(() => latestAssistantArtifacts(messages), [messages]);
+  // Artifacts paused: const railArtifacts = useMemo(() => latestAssistantArtifacts(messages), [messages]);
   const logoState = useMemo((): OrenLogoState => {
     if (successFlash) return 'success';
     if (error) return 'alert';
@@ -170,9 +172,8 @@ export function AgentPanel() {
   useEffect(() => {
     const textarea = composerRef.current;
     if (!textarea) return;
-    textarea.style.height = 'auto';
-    textarea.style.height = `${Math.min(textarea.scrollHeight, 128)}px`;
-  }, [composer]);
+    resizeAgentComposer(textarea);
+  }, [composer, expanded, panelOpen]);
 
   useEffect(() => {
     if (shouldFollowRef.current) scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
@@ -291,6 +292,7 @@ export function AgentPanel() {
         ) : null}
 
         {expanded ? (
+          // Artifacts paused: restore railArtifacts={railArtifacts} with the working-set rail.
           <AgentWorkspace
             composer={composer}
             composerRef={composerRef}
@@ -311,7 +313,6 @@ export function AgentPanel() {
             onStop={stop}
             onSubmit={() => void submit()}
             prompts={prompts}
-            railArtifacts={railArtifacts}
             scrollRef={scrollRef}
             shouldFollowRef={shouldFollowRef}
             ticker={ticker}
