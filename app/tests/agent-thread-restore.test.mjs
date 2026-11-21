@@ -3,6 +3,7 @@ import test from "node:test";
 import vm from "node:vm";
 import { createRequire } from "node:module";
 import { readFileSync } from "node:fs";
+import { webcrypto } from "node:crypto";
 import ts from "typescript";
 
 const nodeRequire = createRequire(new URL("../package.json", import.meta.url));
@@ -27,7 +28,7 @@ class ApiError extends Error {
   }
 }
 
-function loadStore(getAgentThreadMessages) {
+function loadStore(getAgentThreadMessages, streamAgentMessage = async () => {}) {
   const storage = new Map();
   const walletSession = {};
   vm.runInNewContext(transpile("../services/wallet-session.ts"), {
@@ -36,6 +37,8 @@ function loadStore(getAgentThreadMessages) {
   const exports = {};
   vm.runInNewContext(transpile("../store/agent-store.ts"), {
     exports,
+    crypto: webcrypto,
+    AbortController,
     window: {
       localStorage: {
         getItem: (key) => (storage.has(key) ? storage.get(key) : null),
@@ -50,7 +53,7 @@ function loadStore(getAgentThreadMessages) {
         return {
           ApiError,
           getAgentThreadMessages,
-          streamAgentMessage: async () => {},
+          streamAgentMessage,
         };
       }
       throw new Error(`unexpected import ${id}`);
@@ -69,6 +72,66 @@ function seedRecent(storage, wallet, threadId) {
     }),
   );
 }
+
+test('Ask Oren before panel initialization does not restore the previous chat over the new prompt', async () => {
+  let reads = 0;
+  const requests = [];
+  const { useAgentStore: store, storage } = loadStore(async () => { reads++; return { messages: [] }; }, async request => { requests.push(request); });
+  seedRecent(storage, 'wallet', 'previous');
+  store.getState().newChat('wallet');
+  await store.getState().sendMessage('Explain this article', 'wallet', { page: 'explore' });
+  await store.getState().initialize('wallet');
+  assert.equal(reads, 0);
+  assert.equal(requests[0].threadId, undefined);
+  assert.equal(store.getState().messages[0].content, 'Explain this article');
+  assert.equal(store.getState().recentThreads[0].id, 'previous');
+});
+
+test('a fresh news conversation omits the previous thread and ignores its late history', async () => {
+  let restore;
+  const requests = [];
+  const { useAgentStore: store } = loadStore(() => new Promise(resolve => { restore = resolve; }), async request => { requests.push(request); });
+  await store.getState().initialize('wallet');
+  store.setState({ threadId: 'old-thread', messages: [{ id: 'old', role: 'user', content: 'Previous conversation' }] });
+  const history = store.getState().loadThread('old-thread');
+  store.getState().newChat();
+  await store.getState().sendMessage('Explain this article', 'wallet', { page: 'explore' });
+  assert.equal(requests[0].threadId, undefined);
+  assert.equal(store.getState().isLoadingHistory, false);
+  restore({ messages: [{ id: 'old', role: 'user', content: 'Stale history' }] });
+  await history;
+  assert.equal(store.getState().threadId, undefined);
+  assert.equal(store.getState().messages[0].content, 'Explain this article');
+  assert.equal(store.getState().messages.some(message => message.id === 'old'), false);
+});
+
+test('a history error after New chat cannot clear the new conversation or its error state', async () => {
+  let reject;
+  const { useAgentStore: store } = loadStore(() => new Promise((_resolve, no) => { reject = no; }));
+  await store.getState().initialize('wallet');
+  const history = store.getState().loadThread('old-thread');
+  store.getState().newChat();
+  store.setState({ messages: [{ id: 'new', role: 'user', content: 'New conversation' }], error: 'Current error' });
+  reject(new ApiError('threadId not found', 404));
+  await history;
+  assert.equal(store.getState().messages[0].id, 'new');
+  assert.equal(store.getState().error, 'Current error');
+  assert.equal(store.getState().isLoadingHistory, false);
+});
+
+test('rapid history selections keep the newest thread when older results arrive last', async () => {
+  const pending = new Map();
+  const { useAgentStore: store } = loadStore(id => new Promise(resolve => { pending.set(id, resolve); }));
+  await store.getState().initialize('wallet');
+  const old = store.getState().loadThread('old');
+  const latest = store.getState().loadThread('latest');
+  pending.get('latest')({ messages: [{ id: 'latest', role: 'user', content: 'Latest' }] });
+  await latest;
+  pending.get('old')({ messages: [{ id: 'old', role: 'user', content: 'Old' }] });
+  await old;
+  assert.equal(store.getState().threadId, 'latest');
+  assert.equal(store.getState().messages[0].id, 'latest');
+});
 
 test("a 401 while restoring history keeps the saved thread shortcut", async () => {
   const wallet = "wallet-1";

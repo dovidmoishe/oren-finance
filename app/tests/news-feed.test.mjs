@@ -41,24 +41,32 @@ test('public trending never sends a token or wallet and missing auth does not ma
 
 const story = { id: 'one', headline: 'NVIDIA reports quarterly results', summary: 'The company published its latest results.', source: 'Company newsroom', url: 'https://example.com/results', publishedAt: '2026-11-19T10:00:00Z', stocks: [{ assetId: 'nvda', ticker: 'NVDA', name: 'NVIDIA' }] };
 const baseFeed = { items: [story], selection: 'agent', state: 'ready', stocks: story.stocks, totalHoldings: 1, partial: false, generatedAt: '2026-11-19T11:00:00Z' };
+const { exploreFeedKey } = load('../store/explore-store.ts', { '@/services/news-feed-service': {} });
 
 function fixture({ feed = baseFeed, auth = { ready: true, authenticated: true, address: 'wallet', userId: 'owner' }, busy = false, error = false, loading = false } = {}) {
   const calls = [];
-  const store = { isSending: busy, setPanelOpen: (...args) => calls.push(['open', ...args]), sendMessage: (...args) => calls.push(['send', ...args]) };
-  let states = [];
-  const hooks = { useState: (initial) => [states.length ? states.shift() : initial, () => {}], useEffect() {}, useLayoutEffect() {}, useRef: (value) => ({ current: value }) };
+  const store = { isSending: busy, newChat: (...args) => calls.push(['new', ...args]), setPanelOpen: (...args) => calls.push(['open', ...args]), sendMessage: (...args) => calls.push(['send', ...args]) };
+  const explore = {
+    selectedScope: 'for-you',
+    selectScope: (scope) => { explore.selectedScope = scope; },
+    feeds: {
+      [exploreFeedKey('for-you', auth.userId, auth.address)]: { feed, error, isLoading: loading },
+      trending: { feed, error, isLoading: loading },
+    },
+    loadFeed: (...args) => { calls.push(['load', ...args]); return Promise.resolve(); },
+  };
+  const hooks = { useEffect() {}, useLayoutEffect() {}, useRef: (value) => ({ current: value }) };
   const exports = load('../components/news/news-page.tsx', {
     react: hooks,
     'next/link': { default: ({ children, href, ...props }) => createElement('a', { href, ...props }, children) },
     '@/components/auth/auth-context': { useOrenAuth: () => auth },
     '@/components/brand/oren-logo': { OrenLogo: () => null },
     '@/components/ui': { cn: (...values) => values.filter(Boolean).join(' '), Button: ({ children, ...props }) => createElement('button', props, children) },
-    '@/services/news-feed-service': {},
-    '@/store': { useAgentStore: (select) => select(store) },
+    '@/store': { exploreFeedKey, useExploreStore: (select) => select(explore), useAgentStore: (select) => select(store) },
   }, '\nexport { NewsFeedSection, StoryRow };');
   return { ...exports, calls, auth,
-    renderPage(scope = 'for-you') { states = [scope, feed, error, loading, 0]; return renderToStaticMarkup(createElement(exports.ExplorePage)); },
-    renderFeed() { states = [feed, error, loading, 0]; return renderToStaticMarkup(createElement(exports.NewsFeedSection, { scope: 'for-you', wallet: 'wallet', getAccessToken: async () => 'session' })); },
+    renderPage(scope = explore.selectedScope) { explore.selectedScope = scope; return renderToStaticMarkup(createElement(exports.ExplorePage)); },
+    renderFeed() { return renderToStaticMarkup(createElement(exports.NewsFeedSection, { scope: 'for-you', userId: auth.userId, wallet: auth.address, getAccessToken: async () => 'session' })); },
   };
 }
 
@@ -131,11 +139,13 @@ test('Ask Oren uses the current wallet, article source and news page context and
   }
   const view = fixture();
   button(view.StoryRow({ story, personal: true, featured: true })).props.onClick();
-  assert.equal(view.calls[0][0], 'open');
-  assert.equal(view.calls[1][0], 'send');
-  assert.ok(view.calls[1][1].includes(story.url));
-  assert.equal(view.calls[1][2], 'wallet');
-  assert.equal(view.calls[1][3].page, 'explore');
+  assert.equal(view.calls[0][0], 'new');
+  assert.equal(view.calls[0][1], 'wallet');
+  assert.equal(view.calls[1][0], 'open');
+  assert.equal(view.calls[2][0], 'send');
+  assert.ok(view.calls[2][1].includes(story.url));
+  assert.equal(view.calls[2][2], 'wallet');
+  assert.equal(view.calls[2][3].page, 'explore');
   const locked = fixture({ busy: true });
   button(locked.StoryRow({ story, personal: true, featured: true })).props.onClick();
   assert.equal(locked.calls.length, 0);
