@@ -60,26 +60,88 @@ describe('ExecutionController', () => {
     });
   });
 
+  it('passes only the authenticated user into reviewed preparation', async () => {
+    auth.requireWallet.mockResolvedValue('verified-user');
+    await controller.prepare('Bearer token', {
+      quoteId: 'q',
+      wallet: 'wallet',
+    });
+    expect(execution.prepare).toHaveBeenCalledWith(
+      { quoteId: 'q', wallet: 'wallet' },
+      'direct',
+      { flow: 'user_reviewed', userId: 'verified-user' },
+    );
+  });
+
+  it('marks agent browser review quotes ineligible', async () => {
+    await controller.quote({
+      side: 'buy',
+      ticker: 'STOCK',
+      reviewOrigin: 'agent',
+    });
+    expect(execution.getQuote).toHaveBeenCalledWith(expect.anything(), 'other');
+  });
+
   describe('signature-reporting routes require the wallet owner', () => {
     const wallet = '11111111111111111111111111111111';
-    const denied = new ForbiddenException('Wallet is not linked to this account');
+    const denied = new ForbiddenException(
+      'Wallet is not linked to this account',
+    );
 
     it.each([
-      ['prepare', 'prepare', () => controller.prepare(undefined, { quoteId: 'q', wallet })],
-      ['confirm', 'confirm', () => controller.confirm(undefined, { quoteId: 'q', wallet, signature: 's' })],
-      ['limit-order/confirm', 'confirmLimitOrder', () => controller.confirmLimitOrder(undefined, { proposalId: 'p', wallet, signature: 's' })],
-      ['limit-order/confirm-cancel', 'confirmCancelLimitOrder', () => controller.confirmCancelLimitOrder(undefined, { orderKey: 'o', wallet, signature: 's' })],
-    ] as const)('%s rejects callers who do not own the wallet', async (_route, method, call) => {
-      auth.requireWallet.mockRejectedValue(denied);
-      await expect(call()).rejects.toBe(denied);
-      expect(auth.requireWallet).toHaveBeenCalledWith(undefined, wallet);
-      expect(execution[method]).not.toHaveBeenCalled();
-    });
+      [
+        'prepare',
+        'prepare',
+        () => controller.prepare(undefined, { quoteId: 'q', wallet }),
+      ],
+      [
+        'confirm',
+        'confirm',
+        () =>
+          controller.confirm(undefined, {
+            quoteId: 'q',
+            wallet,
+            signature: 's',
+          }),
+      ],
+      [
+        'limit-order/confirm',
+        'confirmLimitOrder',
+        () =>
+          controller.confirmLimitOrder(undefined, {
+            proposalId: 'p',
+            wallet,
+            signature: 's',
+          }),
+      ],
+      [
+        'limit-order/confirm-cancel',
+        'confirmCancelLimitOrder',
+        () =>
+          controller.confirmCancelLimitOrder(undefined, {
+            orderKey: 'o',
+            wallet,
+            signature: 's',
+          }),
+      ],
+    ] as const)(
+      '%s rejects callers who do not own the wallet',
+      async (_route, method, call) => {
+        auth.requireWallet.mockRejectedValue(denied);
+        await expect(call()).rejects.toBe(denied);
+        expect(auth.requireWallet).toHaveBeenCalledWith(undefined, wallet);
+        expect(execution[method]).not.toHaveBeenCalled();
+      },
+    );
 
     it('passes the bearer token and wallet to the ownership check', async () => {
       auth.requireWallet.mockResolvedValue('user-1');
       execution.confirm.mockResolvedValue({ status: 'submitted' });
-      await controller.confirm('Bearer token', { quoteId: 'q', wallet, signature: 's' });
+      await controller.confirm('Bearer token', {
+        quoteId: 'q',
+        wallet,
+        signature: 's',
+      });
       expect(auth.requireWallet).toHaveBeenCalledWith('Bearer token', wallet);
       expect(execution.confirm).toHaveBeenCalled();
     });

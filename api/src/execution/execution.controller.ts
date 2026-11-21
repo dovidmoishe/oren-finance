@@ -26,7 +26,6 @@ import type {
   PostExecutionQuoteResponse,
 } from '../../types/api';
 import type {
-  BasketCandidate,
   PreparedBasketPurchase,
   QuoteRequest,
   TradeIntent,
@@ -46,6 +45,10 @@ import { publicQuote } from './swap-terms';
 
 /** Accepts either TradeIntent or mint-level QuoteRequest fields. */
 class ExecutionQuoteDto {
+  @IsOptional()
+  @IsIn(['agent'])
+  reviewOrigin?: 'agent';
+
   @IsIn(['buy', 'sell'])
   side!: TradeSide;
 
@@ -281,7 +284,10 @@ export class ExecutionController {
     // Route payloads (instructions, lookup tables) stay server-side, keyed
     // by quote id in the QuoteCache; clients only ever send the id back.
     return publicQuote(
-      await this.execution.getQuote(body as TradeIntent | QuoteRequest),
+      await this.execution.getQuote(
+        body as TradeIntent | QuoteRequest,
+        body.reviewOrigin === 'agent' ? 'other' : 'user_reviewed',
+      ),
     );
   }
 
@@ -290,8 +296,11 @@ export class ExecutionController {
     @Headers('authorization') authorization: string | undefined,
     @Body() body: ExecutionPrepareDto,
   ): Promise<PostExecutionPrepareResponse> {
-    await this.auth.requireWallet(authorization, body.wallet);
-    return this.execution.prepare(body);
+    const userId = await this.auth.requireWallet(authorization, body.wallet);
+    return this.execution.prepare(body, 'direct', {
+      flow: 'user_reviewed',
+      userId,
+    });
   }
 
   @Post('confirm')
@@ -312,7 +321,7 @@ export class ExecutionController {
   basket(@Body() body: BasketCreateDto): Promise<PostBasketResponse> {
     return this.execution.createBasket({
       ...body,
-      candidates: body.candidates as BasketCandidate[] | undefined,
+      candidates: body.candidates,
     });
   }
 

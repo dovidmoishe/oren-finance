@@ -80,16 +80,21 @@ export class ApprovalService {
       // Bind the approval to the quote and bytes prepare actually produced
       // (a refreshed Titan route or the Jupiter fallback), never to a later
       // cache read that a concurrent prepare could have replaced.
-      const result = await this.execution.prepareWithQuote({
-        quoteId: input.referenceId,
-        wallet: input.wallet,
-      });
+      const result = await this.execution.prepareWithQuote(
+        {
+          quoteId: input.referenceId,
+          wallet: input.wallet,
+        },
+        'direct',
+        { flow: 'user_reviewed', userId: owner.userId },
+      );
       prepared = result.prepared;
       expectation = result.expectation;
       details = {
         quote: publicQuote(result.quote),
         expectation,
         expiresAfterSlot: result.prepared.expiresAfterSlot,
+        ...(result.prepared.ataRentSponsored ? { ataRentSponsored: true } : {}),
       };
       expiresAt = Math.min(expiresAt, result.quote.expiresAt.getTime());
     } else if (input.kind === 'limit') {

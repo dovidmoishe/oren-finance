@@ -1,5 +1,7 @@
 # Trade gas sponsorship
 
+Separate reviewed-buy ATA rent setup is documented in [ATA rent sponsorship](../ata-rent-sponsorship.md). It does not change this gas or policy flow.
+
 Native Privy App-pays sponsorship is implemented behind independent switches.
 This branch does not change production configuration, policies, wallets or grants.
 No SDK upgrade, new MCP tool, user step or database migration is required.

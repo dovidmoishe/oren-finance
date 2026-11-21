@@ -548,6 +548,8 @@
     "slippage": "滑價",
     "route": "路由",
     "estimatedFee": "估計網路手續費",
+    "accountSetup": "帳戶設定",
+    "coveredByOren": "由 Oren 承擔",
     "preparing": "準備中…",
     "quoteExpiry": "報價有效期限",
     "warningTitle": "注意事項",
