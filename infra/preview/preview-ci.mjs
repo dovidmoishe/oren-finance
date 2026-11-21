@@ -35,6 +35,8 @@ export async function requirePreviewCi(args) {
   return id;
 }
 
+// Retained for tests. The preview workflow must not poll this on a runner;
+// it admits only after CI has completed and then calls requirePreviewCi.
 export async function waitForPreviewCi({sleep = ms => new Promise(resolve => setTimeout(resolve, ms)), attempts = 120, ...args}) {
   validate(args);
   if (!Number.isSafeInteger(attempts) || attempts < 1) throw Error('Invalid CI wait limit');

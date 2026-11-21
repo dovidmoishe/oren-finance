@@ -1,5 +1,15 @@
 import { buildLaunchPolicy } from './build-launch-policy.mjs';
+import { createRequire } from 'node:module';
+import { existsSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { isDeepStrictEqual } from 'node:util';
+const require = createRequire(import.meta.url);
+const semanticsPath = [
+  fileURLToPath(new URL('../../api/src/signer-gate/policy-semantics.cjs', import.meta.url)),
+  '/app/dist/src/signer-gate/policy-semantics.cjs',
+].find((candidate) => existsSync(candidate));
+if (!semanticsPath) throw new Error('Missing reviewed policy semantics');
+const { normalizePolicySemantics } = require(semanticsPath);
 const JUPITER = 'JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4';
 const USDC = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
 const COMPUTE = 'ComputeBudget111111111111111111111111111111';
@@ -16,10 +26,7 @@ export function tradingPolicyIdl(policy) {
 }
 
 export function samePolicySemantics(a, b) {
-  const normalize = policy => ({ owner_id: policy.owner_id, chain_type: policy.chain_type, version: policy.version,
-    rules: policy.rules?.map(rule => ({ name: rule.name, method: rule.method, action: rule.action,
-      conditions: rule.conditions?.map(c => ({ field_source: c.field_source, field: c.field, operator: c.operator, value: c.value, idl: c.idl ?? null })) })) });
-  return isDeepStrictEqual(normalize(a), normalize(b));
+  return isDeepStrictEqual(normalizePolicySemantics(a), normalizePolicySemantics(b));
 }
 
 /** A new policy; never expands an enrolled wallet's policy in place. */
