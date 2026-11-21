@@ -4,8 +4,8 @@ import {
   Plus as PlusIcon,
   X as XIcon,
   History as HistoryIcon,
-  Expand as ExpandGlyph,
-  Shrink as ShrinkIcon,
+  Maximize2 as ExpandGlyph,
+  Minimize2 as ShrinkIcon,
   type LucideIcon,
 } from "lucide-react";
 import { InterfaceIcon } from "@/components/ui/interface-icon";
@@ -13,10 +13,10 @@ import { InterfaceIcon } from "@/components/ui/interface-icon";
 import { useWallet } from '@/components/auth/wallet-context';
 import { usePathname } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useAgentStore, usePortfolioStore, useStockStore } from '@/store';
 import type { BasketResponse, LimitOrderProposal, QuoteResponse } from '@/types';
 import { useWalletModal } from '@/components/auth/wallet-modal-context';
-import { OrenLogo, type OrenLogoState } from '@/components/brand/oren-logo';
 import { Button, cn } from '@/components/ui';
 import { AgentActionReview } from './agent-action-review';
 import { resizeAgentComposer } from './agent-composer-view';
@@ -46,7 +46,7 @@ function CollapseIcon({ size = 17 }: { size?: number }) {
   );
 }
 
-export function AgentPanel() {
+export function AgentPanel({ controlsContainer }: { controlsContainer?: HTMLElement | null } = {}) {
   const pathname = usePathname();
   const t = useT();
   const { connected, publicKey } = useWallet();
@@ -77,9 +77,7 @@ export function AgentPanel() {
   const [reviewQuote, setReviewQuote] = useState<QuoteResponse>();
   const [reviewBasket, setReviewBasket] = useState<BasketResponse>();
   const [reviewLimitOrder, setReviewLimitOrder] = useState<LimitOrderProposal>();
-  const [successFlash, setSuccessFlash] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const wasSendingRef = useRef(false);
   const panelRef = useRef<HTMLElement>(null);
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const reviewOriginRef = useRef<HTMLElement | null>(null);
@@ -91,25 +89,6 @@ export function AgentPanel() {
     [context, ticker],
   );
   // Artifacts paused: const railArtifacts = useMemo(() => latestAssistantArtifacts(messages), [messages]);
-  const logoState = useMemo((): OrenLogoState => {
-    if (successFlash) return 'success';
-    if (error) return 'alert';
-    if (!isSending) return 'idle';
-
-    const lastMessage = messages.at(-1);
-    const hasRunningTool = lastMessage?.activities?.some((activity) => activity.status === 'running');
-    return hasRunningTool ? 'processing' : 'thinking';
-  }, [error, isSending, messages, successFlash]);
-
-  useEffect(() => {
-    if (wasSendingRef.current && !isSending && !error) {
-      setSuccessFlash(true);
-      const timer = window.setTimeout(() => setSuccessFlash(false), 720);
-      wasSendingRef.current = isSending;
-      return () => window.clearTimeout(timer);
-    }
-    wasSendingRef.current = isSending;
-  }, [error, isSending]);
 
   const collapseToSidecar = useCallback(() => {
     setExpanded(false);
@@ -215,35 +194,10 @@ export function AgentPanel() {
   const visible = panelOpen && hydrated;
   return (
     <>
-      <aside
-        aria-label={t("agent.copilotLabel")}
-        aria-busy={isSending}
-        aria-hidden={!visible}
-        className={cn(
-          't-panel-slide fixed inset-x-0 bottom-0 top-[var(--app-header-bottom,var(--app-nav-height))] z-20 flex min-h-0 min-w-0 flex-col overflow-hidden border-t border-border bg-panel lg:relative lg:inset-auto lg:h-dvh lg:border-t-0',
-          !expanded && hasReviewOpen ? 'opacity-40' : '',
-        )}
-        data-open={visible}
-        id="oren-agent-panel"
-        inert={!visible}
-        ref={panelRef}
-      >
-        <header className="flex shrink-0 items-center justify-between gap-2 border-b border-border px-3 py-2">
-          <div className="flex min-w-0 items-center gap-2">
-            <OrenLogo className="shrink-0" size={26} state={logoState} />
-            <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-2">
-                <h2 className="truncate font-display font-semibold">Oren</h2>
-                {isSending ? <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-positive" /> : null}
-              </div>
-              <p className="truncate text-xs text-muted">
-                {isSending ? t("agent.working") : t("agent.tagline")}
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center gap-1">
+      {controlsContainer && visible ? createPortal(
+          <div aria-label={t("agent.copilotLabel")} role="toolbar" className="flex shrink-0 items-center gap-0.5 [&_button]:h-8 [&_button]:w-8 pointer-coarse:[&_button]:h-10 pointer-coarse:[&_button]:w-10">
             <Button
-              aria-label={t("agent.recent")}
+              aria-label={t("agent.recent")} title={t("agent.recent")}
               aria-expanded={showHistory}
               onClick={() => setShowHistory((value) => !value)}
               size="icon"
@@ -252,7 +206,7 @@ export function AgentPanel() {
               <Icon icon={HistoryIcon} size={17} />
             </Button>
             <Button
-              aria-label={t("agent.newConversation")}
+              aria-label={t("agent.newConversation")} title={t("agent.newConversation")}
               disabled={isSending}
               onClick={() => {
                 newChat();
@@ -265,7 +219,7 @@ export function AgentPanel() {
             </Button>
             <div className="hidden lg:block">
               <Button
-                aria-label={t(expanded ? "agent.collapse" : "agent.expand")}
+                aria-label={t(expanded ? "agent.collapse" : "agent.expand")} title={t(expanded ? "agent.collapse" : "agent.expand")}
                 onClick={() => setExpanded(!expanded)}
                 size="icon"
                 variant="ghost"
@@ -273,12 +227,25 @@ export function AgentPanel() {
                 {expanded ? <CollapseIcon /> : <ExpandIcon />}
               </Button>
             </div>
-            <Button aria-label={t("agent.close")} onClick={closePanel} size="icon" variant="ghost">
+            <Button aria-label={t("agent.close")} title={t("agent.close")} onClick={closePanel} size="icon" variant="ghost">
               <Icon icon={XIcon} size={18} />
             </Button>
-          </div>
-        </header>
-
+          </div>,
+        controlsContainer,
+      ) : null}
+      <aside
+        aria-label={t("agent.copilotLabel")}
+        aria-busy={isSending}
+        aria-hidden={!visible}
+        className={cn(
+          't-panel-slide fixed inset-x-0 bottom-0 top-[var(--app-header-bottom,var(--app-nav-height))] z-20 flex min-h-0 min-w-0 flex-col overflow-hidden border-t border-border bg-panel lg:relative lg:inset-auto lg:h-[calc(100dvh-var(--app-nav-height))] lg:border-t-0',
+          !expanded && hasReviewOpen ? 'opacity-40' : '',
+        )}
+        data-open={visible}
+        id="oren-agent-panel"
+        inert={!visible}
+        ref={panelRef}
+      >
         {showHistory ? (
           <ConversationHistory
             activeThreadId={threadId}

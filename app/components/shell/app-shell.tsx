@@ -33,10 +33,10 @@ const DepositModal = dynamic(() => import("@/components/portfolio/deposit-dashbo
 
 // Remember the first opening so closing the panel preserves drafts and review
 // state, while never-opened mobile panels do not download their heavy UI.
-function AgentPanelLoader({ open }: { open: boolean }) {
+function AgentPanelLoader({ open, controlsContainer }: { open: boolean; controlsContainer: HTMLElement | null }) {
   const [opened, setOpened] = useState(open);
   if (open && !opened) setOpened(true);
-  return opened ? <AgentPanel /> : null;
+  return opened ? <AgentPanel controlsContainer={controlsContainer} /> : null;
 }
 
 const portfolio = { href: "/app", label: "nav.portfolio", icon: "portfolio" } as const;
@@ -69,6 +69,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const walletAddress = useWalletStore((state) => state.address);
   useEffect(() => { void initializeAgent(walletAddress); }, [initializeAgent, walletAddress]);
   const [collapsed, setCollapsed] = useState(false);
+  const [agentControls, setAgentControls] = useState<HTMLDivElement | null>(null);
   const [copilotWidth, setCopilotWidth] = useState(320);
   const [maxCopilotWidth, setMaxCopilotWidth] = useState(MAX_COPILOT_WIDTH);
   const [resizing, setResizing] = useState(false);
@@ -141,7 +142,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div ref={shell} style={{ "--copilot-preferred-width": width + "px" } as CSSProperties} className={cn(
-      "mx-auto min-h-dvh overflow-x-clip bg-panel-subtle text-foreground [&_h2]:font-medium [&_h2]:tracking-[-0.025em] [&_h3]:font-medium [&_h3]:tracking-[-0.015em] lg:grid lg:grid-cols-[var(--nav-width)_minmax(0,1fr)_var(--copilot-width)] lg:[--app-shell-inset:0px] motion-reduce:transition-none [--app-header-bottom:calc(var(--app-nav-height)+var(--app-shell-inset,0px))]",
+      "mx-auto min-h-dvh overflow-x-clip bg-panel-subtle text-foreground [&_h2]:font-medium [&_h2]:tracking-[-0.025em] [&_h3]:font-medium [&_h3]:tracking-[-0.015em] lg:grid lg:grid-cols-[var(--nav-width)_minmax(0,1fr)_var(--copilot-width)] lg:grid-rows-[var(--app-nav-height)_1fr] lg:[--app-shell-inset:0px] motion-reduce:transition-none [--app-header-bottom:calc(var(--app-nav-height)+var(--app-shell-inset,0px))]",
       collapsed ? "lg:[--nav-width:3.5rem]" : "lg:[--nav-width:12.5rem] xl:[--nav-width:13.5rem]",
       agentOpen && agentExpanded ? "lg:[--copilot-width:1fr]" : docked ? "lg:[--copilot-width:var(--copilot-preferred-width)]" : "lg:[--copilot-width:0rem]",
       resizing ? "select-none lg:transition-none" : cn(
@@ -150,7 +151,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       ),
     )}>
       <a className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-50 focus:rounded-lg focus:bg-panel focus:p-3" href="#app-content">{t("nav.skipToContent")}</a>
-      <aside ref={sidebar} className="sticky top-0 hidden h-dvh min-h-0 flex-col border-e border-border px-3 pb-3 lg:flex">
+      <aside ref={sidebar} className="sticky top-0 hidden h-dvh min-h-0 flex-col self-start border-e border-border px-3 pb-3 lg:col-start-1 lg:row-span-2 lg:row-start-1 lg:flex">
         <div className={cn("flex h-[var(--app-nav-height)] shrink-0 items-center", collapsed ? "justify-center" : "justify-between px-1")}>
           {collapsed ? null : (
             <Link className="flex items-center gap-2 font-display text-[1.2rem] font-bold tracking-tight" href="/app">
@@ -175,8 +176,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </nav>
       </aside>
 
-      <div className={cn("min-h-dvh min-w-0 bg-panel lg:col-start-2 lg:row-start-1 lg:min-h-dvh", agentOpen && agentExpanded && "lg:hidden")}>
-        <header ref={header} className="sticky top-0 z-30 flex min-h-[var(--app-nav-height)] items-center gap-1.5 border-b border-border/70 bg-panel px-2.5 sm:gap-2.5 sm:px-5">
+      <div className="min-h-dvh min-w-0 bg-panel lg:contents">
+        <header ref={header} className="sticky top-0 z-30 flex min-h-[var(--app-nav-height)] items-center gap-1.5 border-b border-border/70 bg-panel px-2.5 sm:gap-2.5 sm:px-5 lg:col-span-2 lg:col-start-2 lg:row-start-1">
           <button aria-label={t("nav.navigation")} className={cn(iconButton, "lg:hidden")} popoverTarget={menuId} type="button"><Icon icon={MenuIcon} size={20} /></button>
           <div className="fixed inset-x-2 top-[var(--app-header-bottom)] bottom-auto m-0 max-h-[calc(100dvh-var(--app-nav-height)-1rem)] overflow-y-auto rounded-xl border border-border bg-panel p-2 text-foreground shadow-xl lg:hidden" id={menuId} popover="auto" ref={mobileMenu}>
             <nav aria-label={t("nav.navigation")} className="grid gap-1">
@@ -189,9 +190,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             : <span className="min-w-0 flex-1 truncate font-display text-[1.125rem] font-medium tracking-[-0.025em]">{title}</span>}
           <div aria-label={t("nav.yourAccount")} className="flex min-w-0 items-center gap-0.5 sm:gap-2">
             <button aria-haspopup="dialog" aria-label={t("markets.searchLabel")} className={cn(iconButton, "lg:hidden")} onClick={() => search.current?.showModal()} type="button"><Icon icon={SearchIcon} /></button>
-            <ThemeMenu />
-            <LanguageMenu />
-            <button
+            <div className={cn("flex items-center gap-0.5 sm:gap-2", agentOpen && "max-lg:hidden")}><ThemeMenu /><LanguageMenu /></div>
+            <div hidden={!agentOpen} inert={!agentOpen} ref={setAgentControls} />
+            {!agentOpen ? <button
               aria-controls="oren-agent-panel"
               aria-expanded={agentOpen}
               aria-label={t(agentOpen ? "agent.close" : "agent.ask")}
@@ -203,12 +204,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             >
               <OrenLogo size={24} />
               <span className="hidden text-xs font-semibold sm:inline">{t("agent.ask")}</span>
-            </button>
+            </button> : null}
             <AccountMenu />
           </div>
         </header>
         <main
-          className={cn("@container min-w-0 px-3 pb-8 pt-3 sm:px-6 sm:pt-6 xl:px-8 xl:pt-8", agentOpen && "max-lg:invisible")}
+          className={cn("@container min-w-0 bg-panel px-3 pb-8 pt-3 sm:px-6 sm:pt-6 xl:px-8 xl:pt-8 lg:col-start-2 lg:row-start-2", agentOpen && "max-lg:invisible", agentOpen && agentExpanded && "lg:hidden")}
           id="app-content"
           tabIndex={-1}
         >
@@ -216,14 +217,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           {children}
         </main>
       </div>
-      <div className={cn("contents lg:sticky lg:top-0 lg:row-start-1 lg:block lg:min-w-0 lg:self-start", agentExpanded ? "lg:col-span-2 lg:col-start-2" : "lg:col-start-3", docked && "lg:border-s lg:border-border")}>
+      <div className={cn("contents lg:sticky lg:top-[var(--app-nav-height)] lg:row-start-2 lg:block lg:min-w-0 lg:self-start", agentExpanded ? "lg:col-span-2 lg:col-start-2" : "lg:col-start-3", docked && "lg:border-s lg:border-border")}>
         {docked && <CopilotResizeHandle
           maxWidth={maxCopilotWidth}
           onDragChange={setResizing}
           onResize={(next) => setCopilotWidth(Math.max(MIN_COPILOT_WIDTH, Math.min(maxCopilotWidth, next)))}
           width={width}
         />}
-        <AgentPanelLoader open={agentOpen} />
+        <AgentPanelLoader controlsContainer={agentControls} open={agentOpen} />
       </div>
       <AppSearch dialog={search} />
       {depositOpen ? <DepositModal /> : null}
