@@ -5,14 +5,16 @@ import { Search as SearchIcon } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { Button, Skeleton, cn, formatCompactCurrency, formatCurrency, formatPercent } from "@/components/ui";
-import { getStockChart } from "@/services";
-import { useMarketStore } from "@/store";
+import { getStockChart } from "@/services/market-service";
+import { useMarketStore } from "@/store/market-store";
+import { useElementVisible } from "@/hooks/use-element-visible";
+import { createSharedReadCache } from "@/services/shared-read-cache";
 import type { MarketCandle, StockSummary } from "@/types";
 import { useI18n, useT } from "@/i18n/i18n";
 import { MarketForYou } from "./market-for-you";
 import { MarketStockLogo } from "./market-stock-logo";
 
-const sparklineCache = new Map<string, MarketCandle[]>();
+const readSparkline = createSharedReadCache<MarketCandle[]>();
 
 const marketColumns = "grid grid-cols-[minmax(0,1fr)_4.75rem_4.25rem] items-center gap-2.5 px-3 @lg:grid-cols-[minmax(0,1fr)_minmax(5.5rem,0.55fr)_minmax(4rem,0.5fr)_minmax(5rem,0.55fr)] @3xl:grid-cols-[minmax(0,1fr)_minmax(5.5rem,0.55fr)_minmax(4rem,0.5fr)_minmax(6rem,0.65fr)_minmax(5rem,0.55fr)] @lg:gap-4 @lg:px-4";
 
@@ -54,32 +56,28 @@ function Sparkline({ stock }: { stock: StockSummary }) {
   const t = useT();
   const gradientId = useId();
   const cacheKey = `${stock.assetId}:1D`;
-  const [candles, setCandles] = useState<MarketCandle[] | undefined>(() => sparklineCache.get(cacheKey));
+  const cell = useRef<HTMLSpanElement>(null);
+  const visible = useElementVisible(cell);
+  const [result, setResult] = useState<{ key: string; candles: MarketCandle[] }>();
+  const candles = result?.key === cacheKey ? result.candles : undefined;
 
   useEffect(() => {
-    let cancelled = false;
-    const cached = sparklineCache.get(cacheKey);
-
-    if (cached) {
-      return;
-    }
-
-    void getStockChart(stock.assetId, "1D")
+    if (!visible) return;
+    const controller = new AbortController();
+    void readSparkline(cacheKey, (signal) => getStockChart(stock.assetId, "1D", signal), controller.signal)
       .then((chart) => {
-        if (cancelled) return;
-        sparklineCache.set(cacheKey, chart);
-        setCandles(chart);
+        if (!controller.signal.aborted) setResult({ key: cacheKey, candles: chart });
       })
       .catch(() => {
-        if (cancelled) return;
-        sparklineCache.set(cacheKey, []);
-        setCandles([]);
+        if (!controller.signal.aborted) setResult({ key: cacheKey, candles: [] });
       });
+    return () => controller.abort();
+  }, [cacheKey, stock.assetId, visible]);
 
-    return () => {
-      cancelled = true;
-    };
-  }, [cacheKey, stock.assetId]);
+  return <span className="block w-full" ref={cell}><SparklineGraphic candles={candles} gradientId={gradientId} label={t("markets.sparklineLabel", { ticker: stock.ticker })} emptyLabel={t("markets.noData24h")} /></span>;
+}
+
+function SparklineGraphic({ candles, gradientId, label, emptyLabel }: { candles?: MarketCandle[]; gradientId: string; label: string; emptyLabel: string }) {
 
   if (!candles) {
     return <Skeleton className="h-7 w-full max-w-28 rounded-full" />;
@@ -87,7 +85,7 @@ function Sparkline({ stock }: { stock: StockSummary }) {
 
   const points = buildSparklinePoints(candles);
   if (!points) {
-    return <span className="text-xs text-muted">{t("markets.noData24h")}</span>;
+    return <span className="text-xs text-muted">{emptyLabel}</span>;
   }
 
   const first = candles.find((candle) => Number.isFinite(candle.close))?.close ?? 0;
@@ -96,7 +94,7 @@ function Sparkline({ stock }: { stock: StockSummary }) {
 
   return (
     <svg
-      aria-label={t("markets.sparklineLabel", { ticker: stock.ticker })}
+      aria-label={label}
       className={cn("h-9 w-full max-w-28", positive ? "text-positive" : "text-negative")}
       preserveAspectRatio="none"
       role="img"

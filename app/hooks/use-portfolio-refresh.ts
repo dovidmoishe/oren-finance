@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback } from "react";
-import { usePortfolioStore, useWalletStore } from "@/store";
+import { usePortfolioStore } from "@/store/portfolio-store";
+import { useWalletStore } from "@/store/wallet-store";
 import type { PortfolioRange } from "@/types";
 
 export function usePortfolioRefresh(range?: PortfolioRange) {
@@ -17,6 +18,6 @@ export function usePortfolioRefresh(range?: PortfolioRange) {
       return;
     }
 
-    await Promise.all([loadPortfolio(wallet), loadHistory(wallet, historyRange, force), loadActivity(wallet)]);
+    await Promise.all([loadPortfolio(wallet, force), loadHistory(wallet, historyRange, force), loadActivity(wallet, force)]);
   }, [loadActivity, loadHistory, loadPortfolio, historyRange, wallet]);
 }

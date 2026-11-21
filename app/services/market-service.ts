@@ -64,24 +64,25 @@ export function searchStocks(query: string, signal?: AbortSignal) {
   }).then((stocks) => stocks.map(mapStockSummary));
 }
 
-export function getStock(assetId: string) {
-  return apiRequest<ApiStockDetail>(`/stocks/${assetId}`).then(mapStockDetail);
+export function getStock(assetId: string, signal?: AbortSignal) {
+  return apiRequest<ApiStockDetail>(`/stocks/${assetId}`, { signal }).then(mapStockDetail);
 }
 
-export function getStockChart(assetId: string, range: ChartRange) {
+export function getStockChart(assetId: string, range: ChartRange, signal?: AbortSignal) {
   return apiRequest<{ candles: MarketCandle[] }>(`/stocks/${assetId}/chart`, {
     query: { range },
+    signal,
   }).then((series) => series.candles);
 }
 
-export function getStockAnalysis(assetId: string) {
-  return apiRequest<ApiStockAnalysis>(`/stocks/${assetId}/analysis`).then(
+export function getStockAnalysis(assetId: string, signal?: AbortSignal) {
+  return apiRequest<ApiStockAnalysis>(`/stocks/${assetId}/analysis`, { signal }).then(
     (analysis): StockAnalysis => analysis,
   );
 }
 
-export function getStockNews(assetId: string) {
-  return apiRequest<ApiNewsFeed>(`/stocks/${assetId}/news`).then((feed) =>
+export function getStockNews(assetId: string, signal?: AbortSignal) {
+  return apiRequest<ApiNewsFeed>(`/stocks/${assetId}/news`, { signal }).then((feed) =>
     feed.items.map((item, index) => ({
       ...item,
       id: item.id ?? `${assetId}-${item.publishedAt}-${index}`,

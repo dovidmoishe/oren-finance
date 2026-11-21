@@ -2,6 +2,7 @@
 
 import { useEffect, useId, useRef, useState, type CSSProperties } from 'react';
 import { cn } from '@/components/ui';
+import { useElementVisible } from '@/hooks/use-element-visible';
 
 export type OrenLogoState = 'idle' | 'thinking' | 'processing' | 'success' | 'alert';
 
@@ -53,6 +54,7 @@ export function OrenLogo({
   const reducedMotion = usePrefersReducedMotion();
   const [blinking, setBlinking] = useState(false);
   const logoRef = useRef<HTMLDivElement>(null);
+  const visible = useElementVisible(logoRef);
   const blinkTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const gestureFrame = useRef<number | undefined>(undefined);
   const gestureTarget = useRef({ x: 0, y: 0, kickX: 0, kickY: 0, engaged: false });
@@ -61,7 +63,7 @@ export function OrenLogo({
   const reactionTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   useEffect(() => {
-    if (state !== 'idle' || reducedMotion) {
+    if (state !== 'idle' || reducedMotion || !visible) {
       const resetBlink = window.setTimeout(() => setBlinking(false), 0);
       return () => window.clearTimeout(resetBlink);
     }
@@ -81,13 +83,13 @@ export function OrenLogo({
     return () => {
       if (blinkTimer.current) clearTimeout(blinkTimer.current);
     };
-  }, [reducedMotion, state]);
+  }, [reducedMotion, state, visible]);
 
   useEffect(() => {
     const logo = logoRef.current;
     if (!logo) return;
 
-    if (!interactive || reducedMotion || state !== 'idle') {
+    if (!interactive || reducedMotion || !visible || state !== 'idle') {
       logo.style.setProperty('--oren-look-x', '0px');
       logo.style.setProperty('--oren-look-y', '0px');
       logo.style.setProperty('--oren-eye-x', '0px');
@@ -263,7 +265,7 @@ export function OrenLogo({
       gestureFrame.current = undefined;
       if (reactionTimer.current) clearTimeout(reactionTimer.current);
     };
-  }, [attentionTargetId, interactive, reducedMotion, state]);
+  }, [attentionTargetId, interactive, reducedMotion, state, visible]);
 
   const shellGradient = `${uid}-shell-gradient`;
   const glowGradient = `${uid}-glow-gradient`;
@@ -277,6 +279,7 @@ export function OrenLogo({
       className={cn('oren-logo', className)}
       data-blink={blinking ? 'true' : 'false'}
       data-interactive={interactive ? 'true' : 'false'}
+      data-motion={visible && !reducedMotion ? 'true' : 'false'}
       data-reduced-motion={reducedMotion ? 'true' : 'false'}
       data-state={state}
       ref={logoRef}

@@ -16,7 +16,7 @@ function historyStore(getPortfolioHistory) {
   runInNewContext(code, {
     exports, Error,
     require(id) {
-      if (id === "@/services") return { getPortfolioHistory };
+      if (id === "@/services/portfolio-service") return { getPortfolioHistory };
       if (id === "@/services/wallet-session") return { sessionSetter: (set) => set };
       return require(id);
     },
@@ -147,7 +147,7 @@ test("post-trade refresh keeps the selected chart range and bypasses navigation 
     exports,
     require(id) {
       if (id === "react") return { useCallback: (fn) => fn };
-      if (id === "@/store") return { useWalletStore: (select) => select({ address: "wallet" }), usePortfolioStore: (select) => select(state) };
+      if (["@/store/portfolio-store", "@/store/wallet-store"].includes(id)) return { useWalletStore: (select) => select({ address: "wallet" }), usePortfolioStore: (select) => select(state) };
       return require(id);
     },
   });

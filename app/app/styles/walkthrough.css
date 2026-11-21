@@ -4,6 +4,21 @@
   @apply text-[#232320] [overflow-anchor:none];
 }
 
+.walkthrough-chart-reveal {
+  transform-origin: 0 0;
+  animation: walkthrough-chart-reveal 286ms linear both;
+}
+.walkthrough-walkthrough[data-playing="false"] .walkthrough-chart-reveal {
+  animation-play-state: paused;
+}
+@keyframes walkthrough-chart-reveal {
+  from { transform: scaleX(.35); }
+  to { transform: scaleX(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .walkthrough-chart-reveal { animation: none; }
+}
+
 .walkthrough-demo-label {
   @apply flex items-center gap-[7px] text-[10px] text-[#77766f];
 }

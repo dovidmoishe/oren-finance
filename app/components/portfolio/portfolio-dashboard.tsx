@@ -9,7 +9,8 @@ import { usePortfolioRefresh } from "@/hooks/use-portfolio-refresh";
 import { useOrenAuth } from "@/components/auth/auth-context";
 import { RestoreActions, restoreBlocked } from "@/components/auth/restore-actions";
 import { useT } from "@/i18n/i18n";
-import { usePortfolioStore, useWalletStore } from "@/store";
+import { usePortfolioStore } from "@/store/portfolio-store";
+import { useWalletStore } from "@/store/wallet-store";
 import type { PortfolioRange } from "@/types";
 import { PortfolioSkeleton } from "./portfolio-skeleton";
 import { PortfolioAllocation, PortfolioSummaryCard } from "./portfolio-summary-card";
@@ -43,14 +44,22 @@ export function PortfolioDashboard() {
   const range = (Object.keys(chartRangeToPortfolioRange) as MarketChartRange[]).find((key) => chartRangeToPortfolioRange[key] === selectedRange) ?? "7D";
   const [hidden, setHidden] = useState(false);
   const refresh = usePortfolioRefresh(chartRangeToPortfolioRange[range]);
+  const loadPortfolio = usePortfolioStore((state) => state.loadPortfolio);
+  const loadActivity = usePortfolioStore((state) => state.loadActivity);
+  const loadHistory = usePortfolioStore((state) => state.loadHistory);
 
   useEffect(() => {
     if (!wallet || !connected) {
       reset();
       return;
     }
-    void refresh(false);
-  }, [connected, refresh, reset, wallet]);
+    void loadPortfolio(wallet, false);
+    void loadActivity(wallet);
+  }, [connected, loadActivity, loadPortfolio, reset, wallet]);
+
+  useEffect(() => {
+    if (wallet && connected) void loadHistory(wallet, selectedRange, false);
+  }, [connected, loadHistory, selectedRange, wallet]);
 
   const historyMatches = historyKey === `${wallet}:${selectedRange}`;
   const chartData = useMemo(() => (historyMatches ? history : []).map((snapshot) => ({

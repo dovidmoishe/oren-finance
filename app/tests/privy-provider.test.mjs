@@ -62,6 +62,7 @@ function renderProviders(env) {
       if (id === '@/components/auth/auth-context') return { AuthContext };
       if (id === '@/components/auth/wallet-modal-context') return { WalletModalContext };
       if (id === '@/components/auth/privy-auth') throw new Error('Privy must be loaded lazily');
+      if (id === '@/lib/performance-client') return { recordPerformanceMetric() {} };
       if (id === '@/lib/chunk-reload') {
         const loaded = {};
         vm.runInNewContext(transpile('../lib/chunk-reload.ts'), { exports: loaded, require });

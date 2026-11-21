@@ -25,7 +25,8 @@ function navigationAt(desktop) {
     if (id === 'next/navigation') return { usePathname: () => '/app' };
     if (id === 'next/dynamic') return { default: () => () => null };
     if (id === '@/components/auth/auth-context') return { useOrenAuth: () => ({ depositOpen: false }) };
-    if (id === '@/store') return { useAgentStore: (select) => select(store) };
+    if (id === '@/store/agent-store') return { useAgentStore: (select) => select(store) };
+    if (id === '@/store/wallet-store') return { useWalletStore: (select) => select({}) };
     if (id === '@/i18n/i18n') return { useT: () => (key) => key };
     if (id === '@/components/ui') return { cn: (...values) => values.filter(Boolean).join(' ') };
     if (id === './navigation-link') return { NavigationLink: navigation };

@@ -220,7 +220,7 @@ export function VaultDashboard() {
           onClick={() => {
             if (!wallet) return;
             void loadVaults(wallet);
-            void loadPortfolio(wallet);
+            void loadPortfolio(wallet, true);
           }}
           variant="secondary"
         >

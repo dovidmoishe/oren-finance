@@ -5,7 +5,8 @@ import {
   sessionSetter,
   walletSessionIsCurrent,
 } from "@/services/wallet-session";
-import { ApiError, getAgentThreadMessages, streamAgentMessage } from "@/services";
+import { ApiError } from "@/services/api-client";
+import { getAgentThreadMessages, streamAgentMessage } from "@/services/agent-service";
 import type {
   AgentDisplayMessage,
   AgentPageContext,

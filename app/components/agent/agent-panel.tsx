@@ -128,9 +128,9 @@ export function AgentPanel() {
   }, [initialize, walletAddress]);
 
   useEffect(() => {
-    if (!walletAddress || portfolio?.wallet === walletAddress) return;
+    if (!panelOpen || !walletAddress || portfolio?.wallet === walletAddress) return;
     void loadPortfolio(walletAddress);
-  }, [loadPortfolio, portfolio?.wallet, walletAddress]);
+  }, [loadPortfolio, panelOpen, portfolio?.wallet, walletAddress]);
 
   useEffect(() => {
     if (!panelOpen) return;

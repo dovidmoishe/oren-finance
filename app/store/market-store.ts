@@ -1,7 +1,7 @@
 "use client";
 
 import { create } from "zustand";
-import { getMarketOpportunities, getStocks, getTrendingStocks, searchStocks } from "@/services";
+import { getMarketOpportunities, getStocks, getTrendingStocks, searchStocks } from "@/services/market-service";
 import type { StockSummary } from "@/types";
 
 interface MarketState {
@@ -23,6 +23,8 @@ interface MarketState {
 
 const STOCKS_PAGE_SIZE = 20;
 let searchRequestId = 0;
+let initialRequest: Promise<void> | undefined;
+let featuredRequest: Promise<void> | undefined;
 
 function mergeStocks(existing: StockSummary[], incoming: StockSummary[]) {
   if (!existing.length) {
@@ -47,38 +49,39 @@ export const useMarketStore = create<MarketState>((set, get) => ({
   isSearching: false,
   hasMore: true,
   nextPage: 1,
-  async loadMarkets() {
-    if (get().isLoading) return;
-
-    const { hasMore: previousHasMore, nextPage, stocks } = get();
+  loadMarkets() {
+    if (initialRequest) return initialRequest;
     set({ isLoading: true, error: undefined });
-    try {
-      const [stockPage, trendingResult, opportunitiesResult] = await Promise.all([
-        getStocks(1, STOCKS_PAGE_SIZE),
-        getTrendingStocks().catch(() => []),
-        getMarketOpportunities().catch(() => []),
-      ]);
+    // Publish primary rows independently of optional featured data.
+    const stocks = getStocks(1, STOCKS_PAGE_SIZE).then((stockPage) => {
+      const current = get();
       set({
-        opportunities: opportunitiesResult,
-        stocks: mergeStocks(stocks, stockPage.items),
-        trending: trendingResult,
-        hasMore: stocks.length > stockPage.items.length ? previousHasMore : stockPage.pagination.hasMore,
-        nextPage: Math.max(nextPage, 2),
+        stocks: mergeStocks(current.stocks, stockPage.items),
+        hasMore: current.stocks.length > stockPage.items.length ? current.hasMore : stockPage.pagination.hasMore,
+        nextPage: Math.max(current.nextPage, 2),
         isLoading: false,
       });
-    } catch (error) {
+    }).catch((error: unknown) => {
       set({ error: error instanceof Error ? error.message : "Unable to load markets", isLoading: false });
+    });
+    if (!featuredRequest) {
+      const trending = getTrendingStocks().then((trending) => set({ trending })).catch(() => {});
+      const opportunities = getMarketOpportunities().then((opportunities) => set({ opportunities })).catch(() => {});
+      featuredRequest = Promise.all([trending, opportunities]).then(() => {}).finally(() => { featuredRequest = undefined; });
     }
+    // A failed primary read can retry even while optional cards are pending.
+    initialRequest = stocks.finally(() => { initialRequest = undefined; });
+    return initialRequest;
   },
   async loadNextStocks() {
-    const { hasMore, isLoading, isLoadingMore, nextPage, stocks } = get();
+    const { hasMore, isLoading, isLoadingMore, nextPage } = get();
     if (!hasMore || isLoading || isLoadingMore) return;
 
     set({ isLoadingMore: true, loadMoreError: undefined });
     try {
       const stockPage = await getStocks(nextPage, STOCKS_PAGE_SIZE);
       set({
-        stocks: mergeStocks(stocks, stockPage.items),
+        stocks: mergeStocks(get().stocks, stockPage.items),
         hasMore: stockPage.pagination.hasMore,
         nextPage: nextPage + 1,
         isLoadingMore: false,

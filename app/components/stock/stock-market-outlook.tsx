@@ -24,8 +24,10 @@ const trendKeys = {
   range: { none: "stock.trendRange", up: "stock.trendRangeMomentumUp", down: "stock.trendRangeMomentumDown" },
 } as const satisfies Record<"uptrend" | "downtrend" | "range", Record<"none" | "up" | "down", MessageKey>>;
 
-export function StockMarketOutlook({ stock, analysis, news }: {
+export function StockMarketOutlook({ stock, analysis, news, analysisLoading = false, newsLoading = false }: {
   stock: StockDetail;
+  analysisLoading?: boolean;
+  newsLoading?: boolean;
   analysis?: StockAnalysis;
   news: NewsItem[];
 }) {
@@ -91,7 +93,7 @@ export function StockMarketOutlook({ stock, analysis, news }: {
               </dl>
               {risk ? <div className="mt-4 flex items-start gap-2.5 rounded-xl bg-panel-subtle px-3 py-3"><ShieldAlert aria-hidden="true" className="mt-0.5 shrink-0 text-muted" size={15} strokeWidth={1.7} /><p className="text-xs leading-5 text-muted"><span className="font-medium text-foreground">{t("stock.watchFor")}</span>{risk}</p></div> : null}
             </>
-          ) : <p className="mt-3 text-sm text-muted">{t("stock.analysisUnavailable")}</p>}
+          ) : <p aria-busy={analysisLoading} className="mt-3 text-sm text-muted">{t(analysisLoading ? "common.loading" : "stock.analysisUnavailable")}</p>}
         </div>
 
         <aside aria-labelledby="outlook-news-title" className={cn("min-w-0 border-t border-border/70 bg-panel-subtle/30", relevantNews.length ? "p-5 @lg/outlook:p-6 @3xl/outlook:border-s @3xl/outlook:border-t-0" : "flex flex-wrap items-center gap-x-3 gap-y-1 px-5 py-3 @lg/outlook:px-6")}>
@@ -103,7 +105,7 @@ export function StockMarketOutlook({ stock, analysis, news }: {
                 <h4 className="text-sm font-medium leading-6">{item.url && /^https?:\/\//i.test(item.url) ? <a className="group flex items-start gap-2 hover:underline focus-visible:rounded focus-visible:outline-2 focus-visible:outline-focus" href={item.url} rel="noopener noreferrer" target="_blank"><span className="min-w-0 flex-1">{item.headline}</span><ArrowUpRight aria-hidden="true" className="mt-1 shrink-0 text-muted group-hover:text-foreground" size={14} /></a> : item.headline}</h4>
               </article>
             ))}
-          </div> : <p className="text-xs leading-5 text-muted">{t("stock.noNews")}</p>}
+          </div> : <p aria-busy={newsLoading} className="text-xs leading-5 text-muted">{t(newsLoading ? "common.loading" : "stock.noNews")}</p>}
         </aside>
       </div>
 

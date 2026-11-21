@@ -14,6 +14,7 @@ import {
 } from "@/components/auth/wallet-modal-context";
 import { useT } from "@/i18n/i18n";
 import { reloadOnceForChunkFailure } from "@/lib/chunk-reload";
+import { recordPerformanceMetric } from "@/lib/performance-client";
 
 const appId = process.env.NEXT_PUBLIC_PRIVY_APP_ID?.trim();
 
@@ -111,9 +112,10 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
 }
 
 /** Auth while Privy loads: not ready, signed out, with sign-in/deposit requests queued. */
-function createLoadingSession() {
+function createLoadingSession(start: () => void) {
   const queued = { signIn: false, deposit: false };
   const signIn = () => {
+    start();
     queued.signIn = true;
   };
   const auth: OrenAuth = {
@@ -128,6 +130,7 @@ function createLoadingSession() {
     walletPreparing: false,
     depositOpen: false,
     openDeposit() {
+      start();
       queued.deposit = true;
     },
     closeDeposit() {
@@ -179,11 +182,29 @@ function DeferredPrivy({
 }) {
   const t = useT();
   const [session, setSession] = useState<PublishedSession>();
-  const [loading] = useState(createLoadingSession);
+  const [restoreStarted] = useState(() => Date.now());
+  const [startPrivy, setStartPrivy] = useState(false);
+  const [loading] = useState(() => createLoadingSession(() => setStartPrivy(true)));
   const [moduleLoaded, setModuleLoaded] = useState(false);
   const [stillLoading, setStillLoading] = useState(false);
   const [restoreTimedOut, setRestoreTimedOut] = useState(false);
   const [restoreError, setRestoreError] = useState<string>();
+
+  useEffect(() => {
+    if (session?.auth.ready) recordPerformanceMetric({ name: "account-ready", value: Date.now() - restoreStarted });
+  }, [restoreStarted, session?.auth.ready]);
+
+  useEffect(() => {
+    if (startPrivy) return;
+    // Allow the shell/data requests to start first, but always restore existing
+    // sessions. Explicit sign-in/deposit requests bypass the idle delay.
+    if (typeof window.requestIdleCallback === "function") {
+      const idle = window.requestIdleCallback(() => setStartPrivy(true), { timeout: 500 });
+      return () => window.cancelIdleCallback(idle);
+    }
+    const timer = window.setTimeout(() => setStartPrivy(true), 0);
+    return () => window.clearTimeout(timer);
+  }, [startPrivy]);
 
   useEffect(() => {
     return subscribePrivyModule((state) => {
@@ -257,7 +278,7 @@ function DeferredPrivy({
         </WalletContext.Provider>
       </AuthContext.Provider>
       {/* Rendered beside the app so Privy loading in never remounts the page. */}
-      <PrivyAuth appId={appId} onSession={setSession} />
+      {startPrivy ? <PrivyAuth appId={appId} onSession={setSession} /> : null}
     </>
   );
 }
