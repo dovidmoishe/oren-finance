@@ -75,11 +75,9 @@ test('production images build ahead of the CI gate and only a verified SHA deplo
   assert.doesNotMatch(preview, /types: \[in_progress\]|waitForPreviewCi|ci-gate/);
   assert.match(preview, /workflow_run\.conclusion == 'success'/);
   assert.doesNotMatch(preview.split('\njobs:\n')[0], /^concurrency:/m);
-  assert.doesNotMatch(preview, /group: production-deploy/);
+  assert.doesNotMatch(preview, /group: production-deploy|pr-preview-/);
   const admitted = job(preview, 'resolve');
-  assert.match(admitted, /format\('pr-preview-\{0\}', github\.event\.workflow_run\.head_branch\)/);
-  assert.match(admitted, /format\('pr-preview-skip-\{0\}', github\.run_id\)/);
-  assert.match(admitted, /cancel-in-progress: true/);
+  assert.doesNotMatch(admitted, /concurrency:/);
   assert.match(admitted, /workflow_run\.head_repository\.full_name == github\.repository/);
   assert.match(admitted, /workflow_run\.conclusion == 'success'/);
   assert.match(admitted, /requirePreviewCi/);
@@ -91,7 +89,8 @@ test('production images build ahead of the CI gate and only a verified SHA deplo
   assert.match(previewDeploy, /cancel-in-progress: false/);
   assert.doesNotMatch(previewDeploy, /cancel-in-progress: true/);
   assert.match(previewDeploy, /JOB_STATUS === 'cancelled'/);
-  assert.match(previewDeploy, /ownsStatus && !cancelled/);
+  assert.match(previewDeploy, /Preview cancelled; redeploy/);
+  assert.match(previewDeploy, /if \(current && ownsStatus\)/);
   assert.match(previewDeploy, /requirePreviewCi/);
   assert.match(previewDeploy, /not deploying this preview/);
   assert.doesNotMatch(job(production, 'ci-gate'), /actions: write|coordinateReleaseGate/);
