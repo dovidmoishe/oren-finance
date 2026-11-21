@@ -30,9 +30,19 @@ function setup() {
         return Promise.resolve({
           userId: 'did:privy:alice',
           email: 'alice@example.test',
+          emailVerified: true,
         });
       if (token === 'Bearer bob')
-        return Promise.resolve({ userId: 'did:privy:bob' });
+        return Promise.resolve({
+          userId: 'did:privy:bob',
+          emailVerified: false,
+        });
+      if (token === 'Bearer unverified')
+        return Promise.resolve({
+          userId: 'did:privy:unverified',
+          email: 'unverified@example.test',
+          emailVerified: false,
+        });
       return Promise.reject(new UnauthorizedException());
     }),
   };
@@ -44,6 +54,17 @@ function setup() {
 }
 
 describe('account preferences', () => {
+  it('does not enable email features for an address without verified ownership', async () => {
+    const { controller, query } = setup();
+    expect((await controller.get('Bearer unverified')).emailEligible).toBe(
+      false,
+    );
+    query.mockClear();
+    await expect(
+      controller.put(draft, 'Bearer unverified'),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(query).not.toHaveBeenCalled();
+  });
   it('stores one set per authenticated user and can revoke either opt-in independently', async () => {
     const { controller } = setup();
     const alice = 'Bearer alice';
@@ -113,7 +134,7 @@ describe('account preferences', () => {
     { briefTime: '24:00' },
     { timeZone: '+01:00' },
     { timeZone: 'Africa/Invalid' },
-    { userId: 'did:privy:bob' },
+    { userId: 'did:privy:bob', emailVerified: false },
     { email: 'other@example.test' },
   ])('rejects malformed or identity fields %p', async (change) => {
     const { controller, query } = setup();

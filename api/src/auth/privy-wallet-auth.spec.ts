@@ -173,6 +173,46 @@ describe('PrivyWalletAuth', () => {
     );
     expect(getUser).toHaveBeenCalledWith('did:privy:user');
   });
+  it('supports external reviewed approvals without making the external wallet a server signer', async () => {
+    await expect(
+      auth.requireApprovalWallet('Bearer token', 'owned'),
+    ).resolves.toEqual({
+      userId: 'did:privy:user',
+      walletId: 'external:owned',
+      signingMode: 'external',
+    });
+    expect(getWallet).not.toHaveBeenCalled();
+    await expect(
+      auth.requireSigner('Bearer token', 'owned'),
+    ).rejects.toMatchObject({ status: 403 });
+    await expect(
+      auth.requireApprovalWallet('Bearer token', 'unlinked'),
+    ).rejects.toMatchObject({ status: 403 });
+    await expect(
+      auth.requireApprovalWallet(undefined, 'owned'),
+    ).rejects.toMatchObject({ status: 401 });
+  });
+  it('uses a verified linked external wallet for email holdings without querying Privy wallet signing APIs', async () => {
+    getUser.mockResolvedValue({
+      linked_accounts: [
+        { type: 'email', address: 'owner@example.test', verified_at: 1 },
+        {
+          type: 'wallet',
+          chain_type: 'solana',
+          wallet_client_type: 'phantom',
+          address: 'external',
+          verified_at: 2,
+        },
+      ],
+    });
+    await expect(
+      auth.getNotificationIdentity('did:privy:user'),
+    ).resolves.toEqual({ email: 'owner@example.test', wallet: 'external' });
+    expect(getWallet).not.toHaveBeenCalled();
+    await expect(
+      auth.getNotificationIdentity('did:privy:user', 'unlinked'),
+    ).resolves.toEqual({ email: 'owner@example.test', wallet: undefined });
+  });
   it('binds research identity to the verified linked wallet', async () => {
     await expect(
       auth.requireResearchIdentity('Bearer token', 'owned'),

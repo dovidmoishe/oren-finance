@@ -98,9 +98,11 @@ function fixture(asset: 'USDC' | 'SOL' | 'STOCK' = 'USDC') {
     }),
   };
   const auth = {
-    requireSigner: jest
-      .fn()
-      .mockResolvedValue({ userId: 'user', walletId: 'embedded' }),
+    requireApprovalWallet: jest.fn().mockResolvedValue({
+      userId: 'user',
+      walletId: 'embedded',
+      signingMode: 'privy',
+    }),
   };
   const approvals = {
     findReference: jest.fn().mockResolvedValue(undefined),
@@ -362,7 +364,7 @@ describe('withdrawal transaction construction with real Solana libraries', () =>
 
   it('requires wallet ownership before querying balances', async () => {
     const f = fixture();
-    f.auth.requireSigner.mockRejectedValue(new Error('Not linked'));
+    f.auth.requireApprovalWallet.mockRejectedValue(new Error('Not linked'));
     await expect(f.service.prepare('Bearer token', f.input)).rejects.toThrow(
       'Not linked',
     );
@@ -427,5 +429,22 @@ describe('withdrawal transaction construction with real Solana libraries', () =>
       'Simulation failed',
     );
     expect(f.approvals.create).not.toHaveBeenCalled();
+  });
+  it('prepares external-wallet withdrawals in external signing mode with the same transfer checks', async () => {
+    const f = fixture();
+    f.auth.requireApprovalWallet.mockResolvedValue({
+      userId: 'user',
+      walletId: `external:${f.input.wallet}`,
+      signingMode: 'external',
+    });
+    const result = await f.service.prepare('Bearer token', f.input);
+    expect(result.details).toMatchObject({
+      signingMode: 'external',
+      recipient: f.input.recipient,
+    });
+    expect(f.inspect.inspect).toHaveBeenCalled();
+    expect(f.approvals.create).toHaveBeenCalledWith(
+      expect.objectContaining({ walletId: `external:${f.input.wallet}` }),
+    );
   });
 });

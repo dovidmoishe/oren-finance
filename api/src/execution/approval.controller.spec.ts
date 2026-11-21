@@ -44,6 +44,29 @@ describe('approval endpoint contract', () => {
         .expect(400);
       expect(approvals.prepare).not.toHaveBeenCalled();
       expect(approvals.approve).not.toHaveBeenCalled();
+      const path =
+        '/execution/approvals/00000000-0000-4000-8000-000000000000/approve';
+      await request(app.getHttpServer() as Server)
+        .post(path)
+        .send({ approved: true, signedTransaction: 'a'.repeat(1645) })
+        .expect(400);
+      await request(app.getHttpServer() as Server)
+        .post(path)
+        .send({ approved: true, signedTransaction: 'not base64'.repeat(15) })
+        .expect(400);
+      expect(approvals.approve).not.toHaveBeenCalled();
+      const signed = Buffer.alloc(200).toString('base64');
+      await request(app.getHttpServer() as Server)
+        .post(path)
+        .set('Authorization', 'Bearer owner')
+        .send({ approved: true, signedTransaction: signed })
+        .expect(201);
+      expect(approvals.approve).toHaveBeenCalledWith(
+        'Bearer owner',
+        '00000000-0000-4000-8000-000000000000',
+        undefined,
+        signed,
+      );
     } finally {
       await app.close();
     }

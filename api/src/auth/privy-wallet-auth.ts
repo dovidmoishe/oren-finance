@@ -116,32 +116,37 @@ export class PrivyWalletAuth {
     );
     const wallets = user.linked_accounts
       .flatMap((account) => {
-        if (
-          account.type !== 'wallet' ||
-          account.chain_type !== 'solana' ||
-          account.wallet_client_type !== 'privy' ||
-          !('id' in account) ||
-          !account.id
-        )
+        if (account.type !== 'wallet' || account.chain_type !== 'solana')
           return [];
         return [
           {
-            id: account.id,
+            id: 'id' in account ? account.id : undefined,
+            embedded: account.wallet_client_type === 'privy',
             address: account.address,
             verified: account.first_verified_at ?? account.verified_at,
           },
         ];
       })
-      .sort((a, b) => a.verified - b.verified || a.id.localeCompare(b.id));
-    const linked =
-      wallets.find((wallet) => wallet.address === preferredWallet) ??
-      wallets[0];
+      .sort(
+        (a, b) => a.verified - b.verified || a.address.localeCompare(b.address),
+      );
+    const linked = preferredWallet
+      ? wallets.find((wallet) => wallet.address === preferredWallet)
+      : wallets[0];
     let wallet: string | undefined;
     if (linked && includeWallet) {
-      const owned = await this.client.wallets().get(linked.id);
-      if (owned.chain_type !== 'solana' || owned.address !== linked.address)
-        throw new ServiceUnavailableException('Unable to verify brief wallet');
-      wallet = owned.address;
+      if (linked.embedded) {
+        if (!linked.id)
+          throw new ServiceUnavailableException(
+            'Unable to verify brief wallet',
+          );
+        const owned = await this.client.wallets().get(linked.id);
+        if (owned.chain_type !== 'solana' || owned.address !== linked.address)
+          throw new ServiceUnavailableException(
+            'Unable to verify brief wallet',
+          );
+      }
+      wallet = linked.address;
     }
     return {
       email: email?.type === 'email' ? email.address.trim() : undefined,
@@ -234,6 +239,37 @@ export class PrivyWalletAuth {
       throw new ForbiddenException('Wallet ownership could not be verified');
   }
 
+  /** Identity for reviewed approvals. External keys never enter Privy's signing API. */
+  async requireApprovalWallet(
+    authorization: string | undefined,
+    wallet: string,
+  ) {
+    const { userId, user } = await this.verifiedUser(authorization);
+    const account = user.linked_accounts.find(
+      (item) =>
+        item.type === 'wallet' &&
+        item.chain_type === 'solana' &&
+        item.address === wallet,
+    );
+    if (!account || account.type !== 'wallet')
+      throw new ForbiddenException('Wallet is not linked to this account');
+    if (account.wallet_client_type !== 'privy') {
+      // Namespaced identity fits the existing durable approval schema. It is
+      // never a Privy wallet id and cannot be used for delegated signing.
+      return {
+        userId,
+        walletId: `external:${wallet}`,
+        signingMode: 'external' as const,
+      };
+    }
+    if (!('id' in account) || !account.id)
+      throw new ForbiddenException(
+        'This wallet is not available for server-side signing',
+      );
+    await this.verifyEmbeddedAddress(account.id, wallet);
+    return { userId, walletId: account.id, signingMode: 'privy' as const };
+  }
+
   async requireSigner(authorization: string | undefined, wallet: string) {
     const { userId, user } = await this.verifiedUser(authorization);
     const account = user.linked_accounts.find(
@@ -253,8 +289,17 @@ export class PrivyWalletAuth {
         'This wallet is not available for server-side signing',
       );
     }
+    await this.verifyEmbeddedAddress(account.id, wallet);
+    return {
+      userId,
+      walletId: account.id,
+      token: /^Bearer\s+(\S+)$/i.exec(authorization!)![1],
+    };
+  }
+
+  private async verifyEmbeddedAddress(walletId: string, wallet: string) {
     const owned = await this.client!.wallets()
-      .get(account.id)
+      .get(walletId)
       .catch(() => {
         throw new ServiceUnavailableException(
           'Unable to verify wallet ownership',
@@ -262,11 +307,6 @@ export class PrivyWalletAuth {
       });
     if (owned.address !== wallet || owned.chain_type !== 'solana')
       throw new ForbiddenException('Wallet ownership could not be verified');
-    return {
-      userId,
-      walletId: account.id,
-      token: /^Bearer\s+(\S+)$/i.exec(authorization!)![1],
-    };
   }
 
   signingRequest(

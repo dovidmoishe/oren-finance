@@ -31,6 +31,12 @@ class ConfirmApprovalDto {
   @MaxLength(256)
   @Matches(/^[A-Za-z0-9+/]+={0,2}$/)
   authorizationSignature?: string;
+  @IsOptional()
+  @IsString()
+  @MinLength(100)
+  @MaxLength(1644)
+  @Matches(/^[A-Za-z0-9+/]+={0,2}$/)
+  signedTransaction?: string;
 }
 @Controller('execution/approvals')
 export class ApprovalController {
@@ -50,7 +56,12 @@ export class ApprovalController {
   ) {
     if (body.approved !== true)
       throw new BadRequestException('Explicit approval is required');
-    return this.approvals.approve(auth, id, body.authorizationSignature);
+    return this.approvals.approve(
+      auth,
+      id,
+      body.authorizationSignature,
+      body.signedTransaction,
+    );
   }
   @Get(':id/authorization')
   authorizationRequest(

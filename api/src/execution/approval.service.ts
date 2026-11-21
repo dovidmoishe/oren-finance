@@ -35,6 +35,10 @@ function sponsored(row: ApprovalRow) {
   return row.kind !== 'withdrawal' && row.details.gasSponsorship === true;
 }
 
+function external(row: ApprovalRow) {
+  return row.details.signingMode === 'external';
+}
+
 export type ApprovalKind = 'swap' | 'limit' | 'cancel';
 @Injectable()
 export class ApprovalService {
@@ -60,7 +64,10 @@ export class ApprovalService {
       throw new ServiceUnavailableException(
         'Server trading is only available on Solana mainnet',
       );
-    const owner = await this.auth.requireSigner(authorization, input.wallet);
+    const owner = await this.auth.requireApprovalWallet(
+      authorization,
+      input.wallet,
+    );
     let prepared: {
       transaction: string;
       executionId: string;
@@ -113,6 +120,7 @@ export class ApprovalService {
       };
     }
     const useSponsorship =
+      owner.signingMode !== 'external' &&
       this.env.PRIVY_REVIEWED_GAS_SPONSORSHIP === true &&
       sponsorshipEligible(prepared.transaction, input.wallet);
     if (useSponsorship) {
@@ -145,7 +153,7 @@ export class ApprovalService {
       transaction: prepared.transaction,
       feeLamports,
       expiresAt: new Date(expiresAt),
-      details,
+      details: { ...details, signingMode: owner.signingMode },
     });
     return this.view(row);
   }
@@ -165,8 +173,15 @@ export class ApprovalService {
     const row = await this.approvals.get(id);
     if (!row) throw new NotFoundException('Approval not found');
     if (signing) {
-      const owner = await this.auth.requireSigner(authorization, row.wallet);
-      if (owner.userId !== row.userId || owner.walletId !== row.walletId)
+      const owner = await this.auth.requireApprovalWallet(
+        authorization,
+        row.wallet,
+      );
+      if (
+        owner.userId !== row.userId ||
+        owner.walletId !== row.walletId ||
+        (owner.signingMode === 'external') !== external(row)
+      )
         throw new ForbiddenException(
           'Approval does not belong to this account',
         );
@@ -185,6 +200,16 @@ export class ApprovalService {
       throw new BadRequestException(
         'Approval expired or already processed. Review a fresh quote.',
       );
+    if (external(row)) {
+      return {
+        signingMode: 'external' as const,
+        approvalId: row.id,
+        wallet: row.wallet,
+        transaction: row.transaction,
+        expiresAt: row.expiresAt.toISOString(),
+        network: 'mainnet' as const,
+      };
+    }
     return this.auth.signingRequest(
       row.walletId,
       row.transaction,
@@ -198,10 +223,15 @@ export class ApprovalService {
     authorization: string | undefined,
     id: string,
     authorizationSignature?: string,
+    signedTransaction?: string,
   ) {
     assertFinancialExecutionEnabled();
     const owned = await this.owned(authorization, id);
     let row = owned.row;
+    if (external(row) ? !!authorizationSignature : !!signedTransaction)
+      throw new BadRequestException(
+        'Use the signing method for the reviewed wallet.',
+      );
     if (row.status === 'submitted') {
       if (sponsored(row)) return this.status(authorization, id);
       await this.track(row);
@@ -219,9 +249,16 @@ export class ApprovalService {
         'This approval cannot be used again. Request a fresh quote.',
       );
     if (row.status === 'prepared') {
-      if (!authorizationSignature)
+      if (external(row) ? !signedTransaction : !authorizationSignature)
         throw new BadRequestException(
           'Authorize this trade in Oren before confirming.',
+        );
+      // Reject altered bytes and invalid signatures before claiming the approval.
+      if (external(row))
+        this.rpc.validateSigned(
+          row.transaction,
+          signedTransaction!,
+          row.wallet,
         );
       if (row.expiresAt.getTime() <= Date.now())
         throw new BadRequestException(
@@ -254,7 +291,7 @@ export class ApprovalService {
         try {
           const result = await this.auth.sendSponsoredTransaction(
             row.walletId,
-            [authorizationSignature],
+            [authorizationSignature!],
             row.transaction,
             row.id,
             row.expiresAt,
@@ -298,13 +335,15 @@ export class ApprovalService {
         }
       }
       try {
-        const signed = await this.auth.signTransaction(
-          row.walletId,
-          authorizationSignature,
-          row.transaction,
-          row.id,
-          row.expiresAt,
-        );
+        const signed = external(row)
+          ? signedTransaction!
+          : await this.auth.signTransaction(
+              row.walletId,
+              authorizationSignature!,
+              row.transaction,
+              row.id,
+              row.expiresAt,
+            );
         if (row.expiresAt.getTime() <= Date.now())
           throw new BadRequestException(
             'Approval expired before signing completed. No transaction was submitted.',
