@@ -325,6 +325,29 @@ describe('server trade approvals', () => {
     expect(f.rpc.broadcast.mock.calls).toEqual([['signed'], ['signed']]);
     expect(f.executions.updateStatus).not.toHaveBeenCalled();
   });
+  it('persists confirmed ATA coverage into the approval review', async () => {
+    const f = fixture();
+    const previous = (await f.execution.prepareWithQuote()) as {
+      prepared: { transaction: string; executionId: string; expiresAt: Date };
+      quote: typeof f.executedQuote;
+      expectation: typeof f.expectation;
+    };
+    f.execution.prepareWithQuote.mockResolvedValueOnce({
+      ...previous,
+      prepared: { ...previous.prepared, ataRentSponsored: true },
+    });
+    await f.service.prepare('Bearer token', {
+      kind: 'swap',
+      referenceId: 'quote',
+      wallet: 'wallet',
+    });
+    expect(f.approvals.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        details: expect.objectContaining({ ataRentSponsored: true }) as unknown,
+      }),
+    );
+  });
+
   it('binds the approval to the quote prepare executed, without re-reading the cache (H5)', async () => {
     const f = fixture();
     await f.service.prepare('Bearer token', {
@@ -332,10 +355,14 @@ describe('server trade approvals', () => {
       referenceId: 'quote',
       wallet: 'wallet',
     });
-    expect(f.execution.prepareWithQuote).toHaveBeenCalledWith({
-      quoteId: 'quote',
-      wallet: 'wallet',
-    });
+    expect(f.execution.prepareWithQuote).toHaveBeenCalledWith(
+      {
+        quoteId: 'quote',
+        wallet: 'wallet',
+      },
+      'direct',
+      { flow: 'user_reviewed', userId: 'user' },
+    );
     expect(f.quotes.peek).not.toHaveBeenCalled();
     expect(f.quotes.get).not.toHaveBeenCalled();
     const { routePayload: _omit, ...publicExecuted } = f.executedQuote;

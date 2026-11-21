@@ -66,6 +66,7 @@ export function BrowserTradeReview({ intentId }: { intentId: string }) {
       if (new Date(intent.expiresAt).getTime() <= Date.now())
         throw new Error('This request expired. Ask the agent for a new one.');
       const result = await getExecutionQuote({
+        reviewOrigin: 'agent',
         side: intent.side,
         assetId: intent.assetId,
         ticker: intent.ticker,

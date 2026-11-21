@@ -548,6 +548,8 @@
     "slippage": "Glissement",
     "route": "Route",
     "estimatedFee": "Frais de réseau estimés",
+    "accountSetup": "Configuration du compte",
+    "coveredByOren": "Prise en charge par Oren",
     "preparing": "Préparation…",
     "quoteExpiry": "Expiration de la cotation",
     "warningTitle": "Point d’attention",
