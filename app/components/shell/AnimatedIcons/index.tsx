@@ -18,7 +18,7 @@ export function AnimatedNavigationIcon({ name }: { name: NavigationIconName }) {
   const props = { size: 20, strokeWidth: 1.8, "aria-hidden": true, className: "shrink-0" } as const;
 
   if (name === "settings") return <MotionSettings {...props} transition={settle} variants={{ rest: { rotate: 0 }, hover: { rotate: 90 } }} />;
-  if (name === "explore") return <MotionExplore {...props} transition={settle} variants={{ rest: { rotate: 0 }, hover: { rotate: -12 } }} />;
+  if (name === "explore") return <MotionExplore {...props} transition={settle} variants={{ rest: { rotate: 0 }, hover: { rotate: 90 } }} />;
   if (name === "vault") return <MotionLock {...props} transition={settle} variants={{ rest: { scale: 1 }, hover: { scale: 1.12 } }} />;
   if (name === "calendar") return <MotionCalendar {...props} transition={settle} variants={{ rest: { rotate: 0 }, hover: { rotate: -8 } }} />;
   if (name === "leaderboard") return <MotionTrophy {...props} transition={settle} variants={{ rest: { y: 0, rotate: 0 }, hover: { y: -2, rotate: 8 } }} />;
