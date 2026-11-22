@@ -65,3 +65,10 @@ film and its research-frame poster from `oren-mcp-launch/renders/` in the main
 checkout. Keep both under `app/public/videos/` locally. Their SHA-256 hashes are
 in `videos.sha256`; upload and verify them before merging/deploying the entry.
 Preparing the changelog PR does not upload media or activate a release.
+
+The Solana wallet login changelog entry uses `/videos/oren-wallet-login-v3.mp4`
+and `/videos/oren-wallet-login-v3-poster.jpg`. The nine-second 1080p60 film
+includes the final closing beat at 7.01 seconds. Editable source and export live
+under `videos/oren-wallet-login/` in the main checkout. Both files are listed in
+`videos.sha256`; upload and verify them before merging this release into the
+production branch. The PR stages the content and hashes, not the media upload.

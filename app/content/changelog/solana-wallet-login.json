@@ -1,0 +1,40 @@
+{
+  "slug": "solana-wallet-login",
+  "date": "2026-11-22",
+  "status": "published",
+  "title": "Solana wallet login",
+  "summary": "Sign in to Oren with a Solana wallet. Add an email to the same account whenever you want.",
+  "sections": [
+    {
+      "heading": "Added",
+      "items": [
+        {
+          "title": "Start with your wallet",
+          "description": "Choose Continue with wallet and approve the sign-in request in your Solana wallet. You can create an account without an email."
+        },
+        {
+          "title": "Link an email later",
+          "description": "Add an email from Settings when you want email features, including optional notifications."
+        }
+      ]
+    }
+  ],
+  "links": [
+    {
+      "label": "Open Oren",
+      "href": "/app"
+    },
+    {
+      "label": "Manage your account",
+      "href": "/app/settings"
+    }
+  ],
+  "video": {
+    "src": "/videos/oren-wallet-login-v3.mp4",
+    "poster": "/videos/oren-wallet-login-v3-poster.jpg",
+    "label": "Solana wallet sign-in on Oren, a nine-second feature film",
+    "caption": "Continue with a Solana wallet and sign in to Oren. Illustrated sign-in flow.",
+    "width": 1920,
+    "height": 1080
+  }
+}
