@@ -110,6 +110,18 @@ export function expectationFor(
   const enforced = enforcedMinimumOut(quote);
   if (!maxIn || enforced === undefined) return undefined;
   const floor = reviewed ? BigInt(reviewed.minOutRaw) : enforced;
+  const minOut = floor > enforced ? floor : enforced;
+  const out = rawOut(quote);
+  const fee = quote.platformFee;
+  let minFee = BigInt(fee?.amountRaw ?? '0');
+  if (fee && quote.inputMint !== fee.mint) {
+    // Output fees move with actual proceeds, including stricter reviewed or
+    // venue slippage. The output floor and quoted output are already net.
+    minFee =
+      out && BigInt(out) > 0n
+        ? (minFee * minOut) / BigInt(out)
+        : minimumOut(fee.amountRaw, quote.slippageBps);
+  }
   return {
     inputMint: quote.inputMint,
     outputMint: quote.outputMint,
@@ -118,15 +130,12 @@ export function expectationFor(
       ? {
           platformFee: {
             account: quote.platformFeeAccount,
-            minAmountRaw: (quote.inputMint === quote.platformFee.mint
-              ? BigInt(quote.platformFee.amountRaw)
-              : minimumOut(quote.platformFee.amountRaw, quote.slippageBps)
-            ).toString(),
+            minAmountRaw: minFee.toString(),
           },
         }
       : {}),
     // Never expect less than either the reviewed floor or the route's own.
-    minOutRaw: (floor > enforced ? floor : enforced).toString(),
+    minOutRaw: minOut.toString(),
   };
 }
 

@@ -1,0 +1,138 @@
+{
+  "capturedAt": "2026-11-22T11:37:09.380Z",
+  "note": "Real Jupiter /swap/v1 responses with platformFeeBps=50 and instructionVersion=V2; TSLAx (Token-2022) vs classic USDC; feeAccount is the USDC ATA of 4BSBfNQq9FgdDPh67FtcAtkVQCUGMDbmpzmi7Qfna4wY. Users are public mainnet wallets used only for unsigned read-only simulation.",
+  "feeAccount": "9mmkvFYJbWDojpp8xoZM4Cy6ufDo6j8bFabtgM5izdGH",
+  "usdcMint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+  "stockMint": "XsDoVfqeBukxuZHWhdvWHBhgEHjGNst4MLodqsJHzoB",
+  "cases": {
+    "buy": {
+      "userPublicKey": "FHpcNSe6tb2n15bAdq4BkeYWGyZKFD7yLYrH92ng7wCT",
+      "quoteRequest": {
+        "inputMint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+        "outputMint": "XsDoVfqeBukxuZHWhdvWHBhgEHjGNst4MLodqsJHzoB",
+        "amount": "5000000",
+        "slippageBps": "100",
+        "platformFeeBps": "50",
+        "instructionVersion": "V2"
+      },
+      "quoteResponse": {
+        "inputMint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+        "inAmount": "5000000",
+        "outputMint": "XsDoVfqeBukxuZHWhdvWHBhgEHjGNst4MLodqsJHzoB",
+        "outAmount": "1384967",
+        "otherAmountThreshold": "1371118",
+        "swapMode": "ExactIn",
+        "slippageBps": 100,
+        "platformFee": {
+          "amount": "6959",
+          "feeBps": 50
+        },
+        "priceImpactPct": "0.000115670505166048270439533",
+        "routePlan": [
+          {
+            "swapInfo": {
+              "ammKey": "9p7abUFv31ycgu9kckvnoqMMvBy67dqTDM2m6HP9xokN",
+              "label": "Whirlpool",
+              "inputMint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+              "outputMint": "XsDoVfqeBukxuZHWhdvWHBhgEHjGNst4MLodqsJHzoB",
+              "inAmount": "5000000",
+              "outAmount": "1391926",
+              "updateContextSlot": "472526522"
+            },
+            "percent": null,
+            "bps": 10000
+          }
+        ],
+        "contextSlot": 472526553,
+        "timeTaken": 0.002782824,
+        "swapUsdValue": "4.996835211373030",
+        "mostReliableAmmsQuoteReport": {
+          "info": {
+            "8aDaBQkTrS6HVMjyc6EZebgdiaXhLYGriDWKWWp1NpFF": "1391177",
+            "BZtgQEyS6eXUXicYPHecYQ7PybqodXQMvkjUbP4R8mUU": "5007044"
+          }
+        },
+        "longtailMarketQuoteReport": null,
+        "useIncurredSlippageForQuoting": null,
+        "useRewards": null,
+        "otherRoutePlans": null,
+        "loadedLongtailToken": false,
+        "instructionVersion": "V2",
+        "transactionVersion": 0,
+        "additionalIntermediateTokens": [
+          "J368btynAg5qCa414hj9WriSmRwp6H2sgWzXoRt3pump",
+          "DCPm44cT9i39HjR13QHYgxkR7wEx9TDeniGuayB5pump",
+          "93oSAc16rd8vZVt9Wt6QWvAzHqWMAYUobqPYQMoGpump"
+        ]
+      },
+      "swapResponse": {
+        "swapTransaction": "AQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAQAFDNRSvhVAe1yj9cVoiXJqWeGOwpdD35UlNpCVxCSF+mfwF8JVsi3oh929ApSRtnWi2GZKKDTtV+qKL+abvyDp40Jf6fn6nVQb/ujvq8uMR2/jZJgLbBiGyknym7PuRsekw2d1Tal1/Sa6yYnp48PBO7YXrXFMUEa2OpmvVOMgWhP0glWofFuAf0VlHNbUaP54DDWSzZ9S52ZVTbbU53BsLv6yNYaWbyWAcQ5j26ilUUESORRJ7pAjKMxiOUuP5UVgCdaJw7Gak4VbhCxECVB/O6vnfwn/9modAWdh8+qqh4pUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADBkZv5SEXMv/srbpyw5vnvIzlu8X3EmssQ5s6QAAAAAR51VvyMcBu7nTFbs5oFQf9sbLeo/SOUQKxzaJWvBOPjJclj04kifG7PRApFI4NgwtaE5na/xCEBI572Nvp+Fm0P/on9df2SnTAmx8pWHneSwmrNt/J3VFLMhqns4zl6NOfsDE3Ob2+FnazFhjkA4qY/t5TVbeLrbatcZ5rsnaFBAgABQJndAEACAAJAyZOAAAAAAAACgYABQATBxIBAQkbAAMFFRMREgkLCQQUEhEQAA4TFQUNAwwBBgIPKbtk+swxxK8UQEtMAAAAAAAHIhUAAAAAAGQAMgAAAAEAAAAvAAAQJwABAcFxpyYqNZLJmQu2/yfED5zWcm10abhurFMyROBh34C/BMzLxtEGdAISxMrH",
+        "lastValidBlockHeight": 450540559
+      }
+    },
+    "sell": {
+      "userPublicKey": "CnTeYCBA7Hzj9r2s99SaEXKYpiWixtMUkqZWHwyNbm3g",
+      "quoteRequest": {
+        "inputMint": "XsDoVfqeBukxuZHWhdvWHBhgEHjGNst4MLodqsJHzoB",
+        "outputMint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+        "amount": "2000000",
+        "slippageBps": "100",
+        "platformFeeBps": "50",
+        "instructionVersion": "V2"
+      },
+      "quoteResponse": {
+        "inputMint": "XsDoVfqeBukxuZHWhdvWHBhgEHjGNst4MLodqsJHzoB",
+        "inAmount": "2000000",
+        "outputMint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+        "outAmount": "7144422",
+        "otherAmountThreshold": "7072978",
+        "swapMode": "ExactIn",
+        "slippageBps": 100,
+        "platformFee": {
+          "amount": "35901",
+          "feeBps": 50
+        },
+        "priceImpactPct": "0.0004365527813146980440814142",
+        "routePlan": [
+          {
+            "swapInfo": {
+              "ammKey": "9p7abUFv31ycgu9kckvnoqMMvBy67dqTDM2m6HP9xokN",
+              "label": "Whirlpool",
+              "inputMint": "XsDoVfqeBukxuZHWhdvWHBhgEHjGNst4MLodqsJHzoB",
+              "outputMint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+              "inAmount": "2000000",
+              "outAmount": "7180323",
+              "updateContextSlot": "472526522"
+            },
+            "percent": null,
+            "bps": 10000
+          }
+        ],
+        "contextSlot": 472526555,
+        "timeTaken": 0.003044676,
+        "swapUsdValue": "7.139899882901625147732",
+        "mostReliableAmmsQuoteReport": {
+          "info": {
+            "BZtgQEyS6eXUXicYPHecYQ7PybqodXQMvkjUbP4R8mUU": "7081163",
+            "8aDaBQkTrS6HVMjyc6EZebgdiaXhLYGriDWKWWp1NpFF": "7173773"
+          }
+        },
+        "longtailMarketQuoteReport": null,
+        "useIncurredSlippageForQuoting": null,
+        "useRewards": null,
+        "otherRoutePlans": null,
+        "loadedLongtailToken": false,
+        "instructionVersion": "V2",
+        "transactionVersion": 0,
+        "additionalIntermediateTokens": [
+          "HxKqU1V7L8jUfMwuScDMtww3Ex2TPWL7zYmFuCJ4Zvki",
+          "DpS3MAENo3pr2xzw9yF4mAFfcYquZGBjBJks8ahUpump"
+        ]
+      },
+      "swapResponse": {
+        "swapTransaction": "AQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAQADCq8V0pujNk+huW17P2IKl25dPcIP9Lf5z5EO/5F1oIfrF8JVsi3oh929ApSRtnWi2GZKKDTtV+qKL+abvyDp40KCVah8W4B/RWUc1tRo/ngMNZLNn1LnZlVNttTncGwu/o+XW3GI4Uk7aR6R/9pAPgvsQuemevVs0WsU6nh9w8NAqOu/Th+SCS0jBDmEB+gvyGXfGe2cBtBRjNxRg9/RQOSxczeOjGruuEoPXq0RjejVFAQLehY9KpSJVhobcPT1ceVCcyDPcSfyJJOD/oeB4KaR+Ohcr5ONW484urOHFzkAAwZGb+UhFzL/7K26csOb57yM5bvF9xJrLEObOkAAAAAEedVb8jHAbu50xW7OaBUH/bGy3qP0jlECsc2iVrwTj7Q/+if11/ZKdMCbHylYed5LCas238ndUUsyGqezjOXoLW5/cP1mKHiygEWnHMoFvyzKTN0MTFJryylPsDnbWdgCBwAFAgMbAQAIGwAEBRETEA8ICQgCEhAPDgAMERMECwUKAQYDDSm7ZPrMMcSvFICEHgAAAAAA5gNtAAAAAABkADIAAAABAAAALwEAECcAAQHBcacmKjWSyZkLtv8nxA+c1nJtdGm4bqxTMkTgYd+AvwTMy8bRBnQCEsTKxw==",
+        "lastValidBlockHeight": 450540561
+      }
+    }
+  }
+}

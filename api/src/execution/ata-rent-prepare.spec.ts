@@ -38,7 +38,8 @@ function fixture(origin: 'user_reviewed' | 'other' = 'user_reviewed') {
   const cache = new QuoteCache();
   cache.set(quote, origin);
   const repository = { insert: jest.fn().mockResolvedValue({ id: 'exec' }) };
-  const sponsor = { cover: jest.fn().mockResolvedValue(true) };
+  const sponsor = { enabled: true, cover: jest.fn().mockResolvedValue(true) };
+  const inspection = { inspect: jest.fn().mockResolvedValue('5000') };
   const service = new ExecutionService(
     router as never,
     {} as never,
@@ -53,8 +54,9 @@ function fixture(origin: 'user_reviewed' | 'other' = 'user_reviewed') {
     {} as never,
     {} as never,
     sponsor as never,
+    inspection as never,
   );
-  return { service, quote, router, cache, sponsor };
+  return { service, quote, router, cache, sponsor, inspection };
 }
 const context: AtaRentReviewContext = {
   flow: 'user_reviewed',
@@ -113,6 +115,31 @@ describe('reviewed prepare ATA boundary', () => {
       expect(f.sponsor.cover).not.toHaveBeenCalled();
     },
   );
+  it('preserves the existing prepare path when rent sponsorship is disabled', async () => {
+    const f = fixture();
+    f.sponsor.enabled = false;
+    await f.service.prepare({ quoteId: 'quote', wallet }, 'direct', context);
+    expect(f.sponsor.cover).not.toHaveBeenCalled();
+    expect(f.inspection.inspect).not.toHaveBeenCalled();
+  });
+  it('defers coverage until the approval caller has validated the swap', async () => {
+    const f = fixture();
+    const result = await f.service.prepareWithQuote(
+      { quoteId: 'quote', wallet },
+      'direct',
+      context,
+    );
+    expect(f.sponsor.cover).not.toHaveBeenCalled();
+    expect(result.coverAtaRent).toBeDefined();
+  });
+  it('does not pay rent when direct prepare simulation fails', async () => {
+    const f = fixture();
+    f.inspection.inspect.mockRejectedValueOnce(new Error('simulation failed'));
+    await expect(
+      f.service.prepare({ quoteId: 'quote', wallet }, 'direct', context),
+    ).rejects.toThrow('simulation failed');
+    expect(f.sponsor.cover).not.toHaveBeenCalled();
+  });
   it('does not promote agent/MCP quotes when they enter browser approval', async () => {
     const f = fixture('other');
     f.cache.set(f.quote, 'user_reviewed');

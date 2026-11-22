@@ -1,7 +1,7 @@
 import { randomUUID } from 'crypto';
 import type { TokenizedEquity } from '../../../types/equity';
 import type { Quote, TradeSide } from '../../../types/quote';
-import { QUOTE_TTL_MS } from '../../config/constants';
+import { QUOTE_TTL_MS, USDC_MINT } from '../../config/constants';
 import type { JupiterQuoteRaw } from './jupiter.types';
 import type { PlatformFeeConfig } from '../../config/platform-fee-config';
 import { mappedPlatformFee } from '../platform-fee';
@@ -59,6 +59,7 @@ export function mapJupiterQuoteToDomain(input: MapJupiterQuoteInput): Quote {
   const platformFee = mappedPlatformFee(
     input.raw.platformFee,
     input.platformFee,
+    input.raw.inputMint === USDC_MINT ? input.raw.inAmount : undefined,
   );
   const now = input.quotedAt ?? new Date();
   const expiresAt =

@@ -39,8 +39,10 @@ export class JupiterClient {
     url.searchParams.set('outputMint', params.outputMint);
     url.searchParams.set('amount', params.amount);
     url.searchParams.set('slippageBps', String(params.slippageBps));
-    if (params.platformFeeBps)
+    if (params.platformFeeBps && params.platformFeeBps > 0) {
       url.searchParams.set('platformFeeBps', String(params.platformFeeBps));
+      url.searchParams.set('instructionVersion', 'V2');
+    }
 
     return this.request<JupiterQuoteRaw>(
       url.toString(),

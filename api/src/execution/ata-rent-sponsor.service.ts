@@ -64,6 +64,10 @@ export class AtaRentSponsorService {
       });
   }
 
+  get enabled(): boolean {
+    return !!(this.env.ATA_RENT_SPONSORSHIP && this.env.ATA_RENT_CONFIG);
+  }
+
   /** Never rejects a prepare or exposes provider errors/addresses in logs. */
   async cover(
     quote: Quote,

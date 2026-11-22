@@ -32,14 +32,34 @@ take the fee from the input budget; sells take it from output. Output amounts,
 reviewed floors, route comparisons and balance simulations use net amounts.
 Provider amounts are retained without subtracting fees a second time.
 
-Jupiter Swap API v1 receives platformFeeBps on quote and feeAccount on every
-swap attempt, including both retry paths. Reviewed fee-bearing transactions have
-their ExactIn Jupiter route fee bps and destination checked against the pinned
-quote, resolving lookup tables independently. Unsupported instruction formats
+Jupiter Swap API v1 receives platformFeeBps and instructionVersion=V2 on every
+fee-bearing quote, and feeAccount on every swap attempt, including both retries.
+V2 is required when a swap pair includes Token-2022 (including xStocks), even
+when the fee account is classic SPL USDC; V1 can fail with error 6014. Fee-free
+quotes keep their existing parameters. V2 routePlan uses bps; percent may be null.
+Reviewed transactions validate V1 ExactIn and all four V2 route variants against
+the pinned fee bps and destination, resolving lookup tables independently. V2
+fees are u16 and the recipient is the first remaining account: index 10 for
+route_v2/exact_out_route_v2, index 12 for their shared-accounts variants. V2 emits
+no fee events; simulation checks recipient balance changes. Unsupported formats
 require a fresh compatible quote. Simulation checks input/output balances and
 receipt of the fee at the configured destination. Cached quotes cannot adopt
 a new rate or destination when configuration changes. Approval JSON stores the
 public fee details; executions store nullable bps, raw USDC amount and mint.
+Jupiter ExactIn quotes express platformFee.amount in the output mint. On USDC
+buys, Oren instead uses floor(inAmount * bps / 10000) for the displayed/stored
+USDC fee (5,000,000 input at 50 bps = 25,000). The fee fits inside inAmount;
+only inAmount minus the fee routes, and the quoted stock output stays net.
+Sells retain the quoted USDC fee, scaling its simulation minimum to the minimum
+net output so permitted slippage does not reject a valid trade.
+
+ATA rent is paid only after the gas-payer health check, swap simulation, balance
+guards and expiry checks succeed. For a missing output ATA, the unsigned sponsored
+preview uses Jupiter's idempotent ATA setup with the simulation payer covering
+that setup only; original swap/signing bytes stay unchanged. Oren then confirms
+rent coverage before returning the approval. If coverage is skipped, simulation
+rechecks the original rent obligations. Existing reservation idempotency, caps,
+budgets, minimum trade, balance floor and confirmation handling still apply.
 
 TITAN_PLATFORM_FEE_ENABLED defaults to false. When a reviewed trade owes a fee
 and Titan fee support is off, the router uses Jupiter only, including shadow

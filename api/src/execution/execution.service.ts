@@ -56,6 +56,7 @@ import {
   AtaRentSponsorService,
   type AtaRentReviewContext,
 } from './ata-rent-sponsor.service';
+import { ApprovalRpc } from './approval-rpc.service';
 import { BasketCache } from './basket-cache';
 import { ExecutionRepository } from './execution.repository';
 import { JupiterTriggerClient } from './jupiter/jupiter-trigger.client';
@@ -97,6 +98,7 @@ export class ExecutionService {
     private readonly intelligence: IntelligenceService,
     private readonly onchain: OnchainTransactions,
     @Optional() private readonly ataRentSponsor?: AtaRentSponsorService,
+    @Optional() private readonly inspection?: ApprovalRpc,
   ) {}
 
   async getQuote(
@@ -394,8 +396,22 @@ export class ExecutionService {
     reviewContext?: AtaRentReviewContext,
   ): Promise<PreparedTransaction> {
     assertFinancialExecutionEnabled();
-    return (await this.prepareWithQuote(input, featureSource, reviewContext))
-      .prepared;
+    const result = await this.prepareWithQuote(
+      input,
+      featureSource,
+      reviewContext,
+    );
+    if (result.coverAtaRent && this.inspection) {
+      // The direct prepare endpoint has no sponsored payer: validate the exact
+      // user-paid swap before making any rent payment.
+      await this.inspection.inspect(
+        result.prepared.transaction,
+        result.prepared.wallet,
+        result.expectation,
+      );
+      if (await result.coverAtaRent()) result.prepared.ataRentSponsored = true;
+    }
+    return result.prepared;
   }
 
   /**
@@ -411,6 +427,8 @@ export class ExecutionService {
     prepared: PreparedTransaction;
     quote: Quote;
     expectation?: SwapExpectation;
+    /** Internal only: invoke after gas, simulation, balance and expiry checks. */
+    coverAtaRent?: () => Promise<boolean>;
   }> {
     assertFinancialExecutionEnabled();
     const wallet = assertWallet(input.wallet);
@@ -454,23 +472,29 @@ export class ExecutionService {
 
     // The only eligible entry is an authenticated browser prepare of a browser-issued
     // stock quote. Agent, MCP, delegated, basket, and limit paths fail closed.
-    const ataRentSponsored =
-      this.ataRentSponsor &&
+    const sponsor = this.ataRentSponsor;
+    const coverAtaRent =
+      sponsor?.enabled &&
       featureSource === 'direct' &&
-      entry.origin === 'user_reviewed'
-        ? await this.ataRentSponsor
-            .cover(quote, wallet, reviewContext, prepared.transaction)
-            .catch(() => false)
-        : false;
+      entry.origin === 'user_reviewed' &&
+      quote.side === 'buy' &&
+      reviewContext?.flow === 'user_reviewed'
+        ? () =>
+            quote.expiresAt.getTime() > Date.now()
+              ? sponsor
+                  .cover(quote, wallet, reviewContext, prepared.transaction)
+                  .catch(() => false)
+              : Promise.resolve(false)
+        : undefined;
     this.cache.attachExecution(quote.id, row.id, wallet, prepared.transaction);
     return {
       prepared: {
         ...prepared,
         executionId: row.id,
-        ...(ataRentSponsored ? { ataRentSponsored: true } : {}),
       },
       quote,
       expectation,
+      ...(coverAtaRent ? { coverAtaRent } : {}),
     };
   }
 
