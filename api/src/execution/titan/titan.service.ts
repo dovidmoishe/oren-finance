@@ -2,7 +2,11 @@ import { Injectable, Logger } from '@nestjs/common';
 import bs58 from 'bs58';
 import type { PreparedTransaction } from '../../../types/execution';
 import type { Quote } from '../../../types/quote';
-import { DEFAULT_SLIPPAGE_BPS, QUOTE_TTL_MS } from '../../config/constants';
+import {
+  USDC_MINT,
+  DEFAULT_SLIPPAGE_BPS,
+  QUOTE_TTL_MS,
+} from '../../config/constants';
 import { QuoteExpiredError } from '../../common/errors/provider.errors';
 import type { JupiterQuoteContext } from '../jupiter/jupiter.service';
 import { uiAmountToRaw } from '../jupiter/jupiter.mapper';
@@ -15,6 +19,7 @@ import {
 } from './titan.mapper';
 import { TitanTxBuilder } from './titan-tx.builder';
 import type { TitanRoutePayload } from './titan.types';
+import { quoteFeeConfig, usdcPair } from '../platform-fee';
 
 export type TitanQuoteContext = JupiterQuoteContext & {
   inputMint: string;
@@ -55,6 +60,9 @@ export class TitanService {
     }
     const slippageBps = ctx.slippageBps ?? DEFAULT_SLIPPAGE_BPS;
     const amountRaw = uiAmountToRaw(ctx.amountUi, ctx.inputDecimals);
+    const platformFee = usdcPair(ctx.inputMint, ctx.outputMint)
+      ? ctx.platformFee
+      : undefined;
     const response = await this.client.quoteSwap(
       {
         inputMint: ctx.inputMint,
@@ -62,12 +70,20 @@ export class TitanService {
         amount: amountRaw,
         userPublicKey: ctx.wallet,
         slippageBps,
+        ...(platformFee
+          ? {
+              feeAccount: platformFee.account,
+              feeBps: platformFee.bps,
+              feeFromInputMint: ctx.inputMint === USDC_MINT,
+            }
+          : {}),
       },
       'background',
     );
 
     return mapTitanQuoteToDomain({
       response,
+      platformFee,
       side: ctx.side,
       assetId: ctx.assetId,
       ticker: ctx.ticker,
@@ -98,6 +114,7 @@ export class TitanService {
       throw new TitanError('no_wallet', 'Titan quotes require a valid wallet');
     }
     const previous = quote.routePayload;
+    const platformFee = quoteFeeConfig(quote);
     const slippageBps = previous.requestedSlippageBps ?? quote.slippageBps;
     const response = await this.client.quoteSwap(
       {
@@ -106,11 +123,19 @@ export class TitanService {
         amount: previous.amountRaw,
         userPublicKey: wallet,
         slippageBps,
+        ...(platformFee
+          ? {
+              feeAccount: platformFee.account,
+              feeBps: platformFee.bps,
+              feeFromInputMint: quote.inputMint === USDC_MINT,
+            }
+          : {}),
       },
       'priority',
     );
     const fresh = mapTitanQuoteToDomain({
       response,
+      platformFee,
       side: quote.side,
       assetId: quote.assetId,
       ticker: quote.ticker,

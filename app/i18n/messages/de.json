@@ -529,6 +529,7 @@
     "loadingQuote": "Kurs wird geladen"
   },
   "review": {
+    "orenFee": "Oren-Gebühr",
     "updatingQuote": "Kurs wird aktualisiert…",
     "refreshing": "Wird aktualisiert…",
     "secondsLeft": "Noch {seconds} s",

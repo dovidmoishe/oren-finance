@@ -812,3 +812,48 @@ describe('external wallet reviewed approvals', () => {
     expect(f.auth.signTransaction).not.toHaveBeenCalled();
   });
 });
+
+describe('reviewed platform fee approval details', () => {
+  it('persists the displayed fee and its net balance expectation', async () => {
+    const f = fixture();
+    const fee = { bps: 50, amountRaw: '50000', mint: 'usdc' };
+    Object.assign(f.executedQuote, {
+      platformFee: fee,
+      platformFeeAccount: 'fee-destination',
+      inputMint: 'stock',
+      outputMint: 'usdc',
+      variant: { mint: 'stock', decimals: 6 },
+      routePayload: {
+        inAmount: '10000000',
+        outAmount: '9950000',
+        otherAmountThreshold: '9900250',
+        slippageBps: 50,
+      },
+      slippageBps: 50,
+    });
+    Object.assign(f.expectation, {
+      platformFee: { account: 'fee-destination', minAmountRaw: '49750' },
+    });
+    await f.service.prepare('Bearer token', {
+      kind: 'swap',
+      referenceId: 'quote',
+      wallet: 'wallet',
+    });
+    expect(f.approvals.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        details: expect.objectContaining({
+          quote: expect.objectContaining({
+            platformFee: fee,
+            minimumOutputAmount: 9.90025,
+          }) as Record<string, unknown>,
+          expectation: f.expectation,
+        }) as Record<string, unknown>,
+      }),
+    );
+    expect(f.rpc.inspect).toHaveBeenCalledWith(
+      'unsigned',
+      'wallet',
+      f.expectation,
+    );
+  });
+});

@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common';
 import type { Quote } from '../../types/quote';
 import {
   PriceMovedError,
@@ -110,7 +111,11 @@ function titanQuote(
   });
 }
 
-function setup(mode: SwapRouterMode, titanEnabled = true) {
+function setup(
+  mode: SwapRouterMode,
+  titanEnabled = true,
+  extra: Partial<AppEnv> = {},
+) {
   const jupiter = {
     getQuoteWithContext: jest.fn(),
     validateQuote: jest.fn().mockResolvedValue(true),
@@ -148,6 +153,7 @@ function setup(mode: SwapRouterMode, titanEnabled = true) {
     titan as never,
     {
       SWAP_ROUTER_MODE: mode,
+      ...extra,
     } as AppEnv,
     fees as never,
   );
@@ -823,5 +829,100 @@ describe('swap-router helpers', () => {
       titanLatencyMs: 340,
       deltaBps: -15,
     });
+  });
+});
+
+describe('SwapRouter platform fee isolation', () => {
+  const config = { bps: 50, account: 'fee-account' };
+  const env = { PLATFORM_FEE_BPS: 50, PLATFORM_FEE_CONFIG: config };
+  const feeQuote = (q: Quote) => ({
+    ...q,
+    platformFee: { bps: 50, amountRaw: '500000', mint: USDC },
+    platformFeeAccount: config.account,
+  });
+  it.each(['best', 'shadow'] as const)(
+    'routes fee-bearing %s trades Jupiter-only until Titan is validated',
+    async (mode) => {
+      const f = setup(mode, true, env);
+      f.jupiter.getQuoteWithContext.mockResolvedValue(
+        feeQuote(jupiterQuote('398000000')),
+      );
+      await f.router.quote({ ...ctx, reviewedTrade: true });
+      expect(f.titan.getQuoteWithContext).not.toHaveBeenCalled();
+      expect(f.jupiter.getQuoteWithContext).toHaveBeenCalledWith(
+        expect.objectContaining({ platformFee: config }),
+      );
+    },
+  );
+  it('passes fees to both enabled venues and compares their net output', async () => {
+    const f = setup('best', true, { ...env, TITAN_PLATFORM_FEE_ENABLED: true });
+    f.jupiter.getQuoteWithContext.mockResolvedValue(
+      feeQuote(jupiterQuote('398000000')),
+    );
+    f.titan.getQuoteWithContext.mockResolvedValue(
+      feeQuote(titanQuote('400000000')),
+    );
+    const selected = await f.router.quote({ ...ctx, reviewedTrade: true });
+    expect(selected.provider).toMatch(/^titan/);
+    for (const provider of [f.jupiter, f.titan])
+      expect(provider.getQuoteWithContext).toHaveBeenCalledWith(
+        expect.objectContaining({ platformFee: config }),
+      );
+  });
+  it('leaves delegated quotes fee-free even when fees are configured', async () => {
+    const f = setup('best', true, env);
+    f.jupiter.getQuoteWithContext.mockResolvedValue(jupiterQuote('400000000'));
+    const q = await f.router.quote({
+      ...ctx,
+      titanEligible: false,
+      reviewedTrade: false,
+    });
+    expect(q.platformFee).toBeUndefined();
+    expect(
+      (f.jupiter.getQuoteWithContext.mock.calls as [RouterQuoteContext][])[0][0]
+        .platformFee,
+    ).toBeUndefined();
+    expect(f.titan.getQuoteWithContext).not.toHaveBeenCalled();
+    await f.router.prepare(q, WALLET);
+    expect(f.jupiter.prepareSwap).toHaveBeenCalledWith(q, WALLET);
+  });
+  it('does not charge a fee for a non-USDC pair', async () => {
+    const f = setup('jupiter', true, env);
+    f.jupiter.getQuoteWithContext.mockResolvedValue(jupiterQuote('400000000'));
+    await f.router.quote({ ...ctx, reviewedTrade: true, inputMint: STOCK });
+    expect(
+      (f.jupiter.getQuoteWithContext.mock.calls as [RouterQuoteContext][])[0][0]
+        .platformFee,
+    ).toBeUndefined();
+  });
+  it('refuses cached fee quotes when configuration changes or is disabled', async () => {
+    const f = setup('jupiter');
+    await expect(
+      f.router.prepare(feeQuote(jupiterQuote('398000000')), WALLET),
+    ).rejects.toThrow('configuration changed');
+    expect(f.jupiter.prepareSwap).not.toHaveBeenCalled();
+  });
+  it('does not silently fall back to a fee-free Jupiter quote', async () => {
+    const f = setup('best', true, { ...env, TITAN_PLATFORM_FEE_ENABLED: true });
+    const q = feeQuote(
+      titanQuote('400000000', { jupiterFallback: jupiterQuote('500000000') }),
+    );
+    f.titan.prepareSwap.mockRejectedValue(new Error('failed'));
+    await expect(f.router.prepare(q, WALLET)).rejects.toBeDefined();
+    expect(f.jupiter.prepareSwap).not.toHaveBeenCalled();
+  });
+});
+
+describe('platform fee startup warning', () => {
+  it('warns once when invalid fee configuration disables collection', () => {
+    const logger = jest
+      .spyOn(Logger.prototype, 'warn')
+      .mockImplementation(() => undefined);
+    setup('jupiter', false, { PLATFORM_FEE_CONFIG_INVALID: true });
+    expect(logger).toHaveBeenCalledTimes(1);
+    expect(logger).toHaveBeenCalledWith(
+      expect.stringContaining('Platform fee disabled'),
+    );
+    logger.mockRestore();
   });
 });

@@ -40,7 +40,15 @@ export interface TitanStep {
   contextSlot?: TitanU64;
 }
 
+export interface TitanPlatformFee {
+  amount: TitanU64;
+  /** Accept SDK snake_case and camelCase fee metadata. */
+  fee_bps?: number;
+  feeBps?: number;
+}
+
 export interface TitanRoute {
+  platformFee?: TitanPlatformFee | null;
   inAmount: TitanU64;
   outAmount: TitanU64;
   slippageBps: number;
@@ -85,6 +93,9 @@ export interface TitanQuoteResponse {
 }
 
 export interface TitanQuoteParams {
+  feeAccount?: string;
+  feeBps?: number;
+  feeFromInputMint?: boolean;
   inputMint: string;
   outputMint: string;
   /** Smallest-unit input amount (decimal string). */

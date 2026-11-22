@@ -529,6 +529,7 @@
     "loadingQuote": "Loading quote"
   },
   "review": {
+    "orenFee": "Oren fee",
     "updatingQuote": "Updating quote…",
     "refreshing": "Refreshing…",
     "secondsLeft": "{seconds}s left",

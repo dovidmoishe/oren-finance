@@ -529,6 +529,7 @@
     "loadingQuote": "Đang tải báo giá"
   },
   "review": {
+    "orenFee": "Phí Oren",
     "updatingQuote": "Đang cập nhật báo giá…",
     "refreshing": "Đang làm mới…",
     "secondsLeft": "Còn {seconds} giây",

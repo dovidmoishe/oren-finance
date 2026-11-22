@@ -149,3 +149,101 @@ describe('TitanService', () => {
     );
   });
 });
+
+describe('Titan reviewed platform fees', () => {
+  const fee = { bps: 50, account: 'fee-account' };
+  function response(sell: boolean) {
+    const raw = titanResponse();
+    if (sell) {
+      raw.inputMint = STOCK;
+      raw.outputMint = USDC;
+      raw.metadata = {
+        ...raw.metadata,
+        inputMintDecimals: 8,
+        outputMintDecimals: 6,
+      };
+      raw.amount = '10000000000';
+    }
+    for (const route of Object.values(raw.quotes)) {
+      route.platformFee = { amount: 500000, fee_bps: 50 };
+      if (sell) {
+        route.inAmount = '10000000000';
+        route.outAmount = '99500000';
+      }
+    }
+    return raw;
+  }
+  it.each([false, true])(
+    'passes USDC-side fee params and retains them on requote (sell=%s)',
+    async (sell) => {
+      const f = setup();
+      f.client.quoteSwap.mockResolvedValue(response(sell));
+      const request = sell
+        ? {
+            ...ctx,
+            side: 'sell' as const,
+            inputMint: STOCK,
+            outputMint: USDC,
+            inputDecimals: 8,
+            outputDecimals: 6,
+          }
+        : ctx;
+      const quote = await f.service.getQuoteWithContext({
+        ...request,
+        platformFee: fee,
+      });
+      expect(quote.platformFee).toEqual({
+        bps: 50,
+        amountRaw: '500000',
+        mint: USDC,
+      });
+      expect(f.client.quoteSwap).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          feeBps: 50,
+          feeAccount: fee.account,
+          feeFromInputMint: !sell,
+        }),
+        'background',
+      );
+      const fresh = await f.service.requote(quote, WALLET);
+      expect(fresh.platformFee).toEqual(quote.platformFee);
+      expect(fresh.platformFeeAccount).toBe(fee.account);
+      expect(f.client.quoteSwap).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          feeBps: 50,
+          feeAccount: fee.account,
+          feeFromInputMint: !sell,
+        }),
+        'priority',
+      );
+      const payload = quote.routePayload as TitanRoutePayload;
+      await f.service.prepareSwap(quote, WALLET);
+      expect(f.builder.build).toHaveBeenCalledWith(payload, WALLET);
+      expect(payload.route.instructions).toEqual(
+        response(sell).quotes['Titan-DART'].instructions,
+      );
+      if (sell) expect(quote.outputAmount).toBe(99.5);
+    },
+  );
+  it('rejects a provider that silently omits the configured fee', async () => {
+    const f = setup();
+    await expect(
+      f.service.getQuoteWithContext({ ...ctx, platformFee: fee }),
+    ).rejects.toThrow('requested platform fee');
+  });
+  it('keeps delegated/default Titan calls and quotes fee-free', async () => {
+    const f = setup();
+    const q = await f.service.getQuoteWithContext(ctx);
+    expect(q.platformFee).toBeUndefined();
+    expect(
+      (
+        f.client.quoteSwap.mock.calls as unknown as [Record<string, unknown>][]
+      )[0][0],
+    ).not.toHaveProperty('feeAccount');
+    expect(
+      (
+        f.client.quoteSwap.mock.calls as unknown as [Record<string, unknown>][]
+      )[0][0],
+    ).not.toHaveProperty('feeBps');
+  });
+});

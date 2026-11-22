@@ -1,7 +1,9 @@
 import { randomUUID } from 'crypto';
 import type { TokenizedEquity } from '../../../types/equity';
 import type { Quote, TradeSide } from '../../../types/quote';
-import { QUOTE_TTL_MS } from '../../config/constants';
+import { QUOTE_TTL_MS, USDC_MINT } from '../../config/constants';
+import type { PlatformFeeConfig } from '../../config/platform-fee-config';
+import { mappedPlatformFee } from '../platform-fee';
 import { rawAmountToUi } from '../jupiter/jupiter.mapper';
 import { TitanError } from './titan.errors';
 import type {
@@ -12,6 +14,7 @@ import type {
 } from './titan.types';
 
 export interface MapTitanQuoteInput {
+  platformFee?: PlatformFeeConfig;
   response: TitanQuoteResponse;
   side: TradeSide;
   assetId: string;
@@ -182,7 +185,20 @@ export function mapTitanQuoteToDomain(input: MapTitanQuoteInput): Quote {
   const { providerId, route } = selectTitanWinner(input.response);
   validateTitanResponse(input, input.response, route, providerId);
 
-  const inAmountRaw = u64ToString(route.inAmount, 'inAmount');
+  const platformFee = mappedPlatformFee(
+    route.platformFee
+      ? {
+          amount: u64ToString(route.platformFee.amount, 'platformFee.amount'),
+          feeBps: route.platformFee.feeBps ?? route.platformFee.fee_bps!,
+        }
+      : undefined,
+    input.platformFee,
+  );
+  // A buy's input budget includes its USDC fee, never an additional debit.
+  const inAmountRaw =
+    platformFee && input.inputMint === USDC_MINT
+      ? input.amountRaw
+      : u64ToString(route.inAmount, 'inAmount');
   const outAmountRaw = u64ToString(route.outAmount, 'outAmount');
   const inputAmount = rawAmountToUi(inAmountRaw, input.inputDecimals);
   const outputAmount = rawAmountToUi(outAmountRaw, input.outputDecimals);
@@ -242,6 +258,9 @@ export function mapTitanQuoteToDomain(input: MapTitanQuoteInput): Quote {
     slippageBps: route.slippageBps,
     provider: `titan:${providerId}`,
     routePayload: payload,
+    ...(platformFee
+      ? { platformFee, platformFeeAccount: input.platformFee!.account }
+      : {}),
     expiresAt: new Date(now.getTime() + QUOTE_TTL_MS),
     quotedAt: now,
   };

@@ -163,9 +163,7 @@ export class ApprovalRpc {
         !!simulationPayer,
       );
       if (!check.ok) {
-        this.logger.warn(
-          `swap balance check failed for ${wallet}: ${check.reason}`,
-        );
+        this.logger.warn(`swap balance check failed: ${check.reason}`);
         throw new BadRequestException(
           'This trade no longer matches the terms you reviewed. Review a fresh quote.',
         );

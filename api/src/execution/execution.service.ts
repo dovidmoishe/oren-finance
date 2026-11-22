@@ -123,7 +123,11 @@ export class ExecutionService {
       throw new BadRequestException('amount must be > 0 for sells');
     }
 
-    const { quote } = await this.selector.selectAndQuote(intent);
+    const { quote } = await this.selector.selectAndQuote(
+      intent,
+      false,
+      !intent.jupiterOnly,
+    );
     stampQuoteMarketSession(quote);
     this.cache.set(quote, origin);
     return quote;
@@ -201,6 +205,9 @@ export class ExecutionService {
           : routed.quote.inputAmount,
       amountUsd: routed.quote.amountUsd,
       provider: routed.quote.provider,
+      ...(routed.quote.platformFee
+        ? { platformFee: routed.quote.platformFee }
+        : {}),
       featureSource: 'agent',
       status: 'awaiting_signature',
     });
@@ -440,6 +447,7 @@ export class ExecutionService {
       amount: quote.side === 'buy' ? quote.outputAmount : quote.inputAmount,
       amountUsd: quote.amountUsd,
       provider: quote.provider,
+      ...(quote.platformFee ? { platformFee: quote.platformFee } : {}),
       featureSource,
       status: 'awaiting_signature',
     });
@@ -1119,6 +1127,7 @@ export class ExecutionService {
       amountUsd,
       slippageBps: req.slippageBps ?? DEFAULT_SLIPPAGE_BPS,
       wallet: req.wallet,
+      reviewedTrade: true,
     });
 
     if (req.side === 'sell' && quote.amountUsd === 0) {

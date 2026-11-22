@@ -529,6 +529,7 @@
     "loadingQuote": "Chargement de la cotation"
   },
   "review": {
+    "orenFee": "Frais Oren",
     "updatingQuote": "Mise à jour de la cotation…",
     "refreshing": "Actualisation…",
     "secondsLeft": "{seconds} s restantes",
