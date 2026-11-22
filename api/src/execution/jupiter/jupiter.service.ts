@@ -96,9 +96,10 @@ export class JupiterService implements ExecutionProvider {
   ): Promise<Quote> {
     const slippageBps = ctx.slippageBps ?? DEFAULT_SLIPPAGE_BPS;
     const rawAmount = uiAmountToRaw(ctx.amountUi, ctx.inputDecimals);
-    const platformFee = usdcPair(ctx.inputMint, ctx.outputMint)
-      ? ctx.platformFee
-      : undefined;
+    const platformFee =
+      usdcPair(ctx.inputMint, ctx.outputMint) && (ctx.platformFee?.bps ?? 0) > 0
+        ? ctx.platformFee
+        : undefined;
 
     const raw = await this.client.getQuote({
       inputMint: ctx.inputMint,
@@ -138,7 +139,13 @@ export class JupiterService implements ExecutionProvider {
 
     let swap: JupiterSwapRaw;
     const fee = quoteFeeConfig(quote);
-    mappedPlatformFee(quoteResponse.platformFee, fee);
+    mappedPlatformFee(
+      quoteResponse.platformFee,
+      fee,
+      quoteResponse.inputMint === USDC_MINT
+        ? quoteResponse.inAmount
+        : undefined,
+    );
     const feeParams = fee ? { feeAccount: fee.account } : {};
     try {
       swap = await this.client.postSwap({

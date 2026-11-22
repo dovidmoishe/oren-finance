@@ -7,10 +7,16 @@ export interface JupiterQuoteRaw {
   otherAmountThreshold?: string;
   swapMode?: string;
   slippageBps: number;
+  instructionVersion?: 'V1' | 'V2';
   platformFee?: { amount: string; feeBps: number } | null;
   /** Ratio from 0 to 1. `0.01` is 1% price impact. */
   priceImpactPct?: string | number;
-  routePlan?: unknown[];
+  routePlan?: {
+    swapInfo: Record<string, unknown>;
+    percent?: number | null;
+    /** V2's canonical split weight, in basis points. */
+    bps?: number;
+  }[];
   contextSlot?: number;
   // Full payload is retained as routePayload for /swap
   [key: string]: unknown;

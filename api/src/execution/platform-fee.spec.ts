@@ -1,3 +1,10 @@
+import captured from '../../test/fixtures/jupiter-v2-platform-fee-tslax.json';
+import { mapJupiterQuoteToDomain } from './jupiter/jupiter.mapper';
+import { ExecutionRepository } from './execution.repository';
+import {
+  checkSimulatedBalances,
+  type SimulatedAccount,
+} from './swap-balance-guard';
 import { USDC_MINT } from '../config/constants';
 import { JupiterClient } from './jupiter/jupiter.client';
 import { JupiterService } from './jupiter/jupiter.service';
@@ -80,6 +87,11 @@ describe('reviewed platform fee Jupiter requests and net terms', () => {
           'platformFeeBps',
         ),
       ).toBe('50');
+      expect(
+        new URL(gateway.fetch.mock.calls[0][0]).searchParams.get(
+          'instructionVersion',
+        ),
+      ).toBe('V2');
       expect(q.platformFee).toEqual({
         bps: 50,
         amountRaw: '50000',
@@ -131,6 +143,11 @@ describe('reviewed platform fee Jupiter requests and net terms', () => {
     for (const body of bodies) {
       expect(body.feeAccount).toBe(config.account);
       expect(body.quoteResponse).toEqual(q.routePayload);
+      expect(
+        new URL(gateway.fetch.mock.calls[0][0]).searchParams.get(
+          'instructionVersion',
+        ),
+      ).toBe('V2');
     }
     expect(bodies[2].trackingAccount).toBeUndefined();
   });
@@ -178,6 +195,18 @@ describe('reviewed platform fee Jupiter requests and net terms', () => {
       trackingAccount: 'tracking',
     });
   });
+  it('does not request V2 for an explicitly zero fee', async () => {
+    const { service, gateway } = fixture();
+    await service.getQuoteWithContext({
+      ...context(),
+      platformFee: { ...config, bps: 0 },
+    });
+    expect(
+      new URL(gateway.fetch.mock.calls[0][0]).searchParams.has(
+        'instructionVersion',
+      ),
+    ).toBe(false);
+  });
   it('rejects missing, mismatched or unexpected upstream fees', () => {
     expect(() => mappedPlatformFee(null, config)).toThrow(
       'requested platform fee',
@@ -191,5 +220,119 @@ describe('reviewed platform fee Jupiter requests and net terms', () => {
     expect(() =>
       mappedPlatformFee({ feeBps: 50, amount: '5' }, undefined),
     ).toThrow('Unexpected');
+  });
+});
+
+describe('captured V2 fee amounts, reviewed balances and persistence', () => {
+  const token = (amount: bigint): SimulatedAccount => {
+    const data = Buffer.alloc(165);
+    data.writeBigUInt64LE(amount, 64);
+    return { data: [data.toString('base64'), 'base64'] };
+  };
+  it.each(['buy', 'sell'] as const)(
+    'keeps the %s fee in USDC across the API, guard and database',
+    async (side) => {
+      const raw = captured.cases[side].quoteResponse;
+      const q = mapJupiterQuoteToDomain({
+        ...context(side === 'sell'),
+        raw: { ...raw, instructionVersion: 'V2' },
+        variant: {
+          ...context().variant,
+          mint: captured.stockMint,
+          decimals: 8,
+        },
+        inputDecimals: side === 'buy' ? 6 : 8,
+        outputDecimals: side === 'buy' ? 8 : 6,
+        platformFee: { bps: 50, account: captured.feeAccount },
+        slippageBps: 100,
+      });
+      const amountRaw = side === 'buy' ? '25000' : '35901';
+      expect(q.platformFee).toEqual({ bps: 50, amountRaw, mint: USDC_MINT });
+      expect(q.inputAmount).toBe(side === 'buy' ? 5 : 0.02);
+      expect(q.outputAmount).toBe(side === 'buy' ? 0.01384967 : 7.144422);
+      expect(publicQuote(q)).toMatchObject({
+        platformFee: { amountRaw, mint: USDC_MINT },
+      });
+      const expectation = expectationFor(q, reviewedTermsFor(q))!;
+      expect(expectation).toMatchObject({
+        maxInRaw: raw.inAmount,
+        minOutRaw: raw.otherAmountThreshold,
+        platformFee: { minAmountRaw: side === 'buy' ? '25000' : '35541' },
+      });
+      const fee = BigInt(expectation.platformFee!.minAmountRaw);
+      const probe = {
+        wallet: 'wallet',
+        feeAccount: captured.feeAccount,
+        inputAccounts: ['in'],
+        outputAccounts: ['out'],
+        pre: new Map([
+          ['in', BigInt(raw.inAmount)],
+          ['out', 0n],
+          [captured.feeAccount, 123n],
+        ]),
+        preLamports: 0n,
+      };
+      const addresses = ['wallet', 'in', 'out', captured.feeAccount];
+      const accounts = [
+        { lamports: 0 },
+        token(0n),
+        token(BigInt(raw.otherAmountThreshold)),
+        token(123n + fee),
+      ];
+      expect(
+        checkSimulatedBalances(probe, expectation, addresses, accounts, 0n).ok,
+      ).toBe(true);
+      expect(
+        checkSimulatedBalances(
+          probe,
+          expectation,
+          addresses,
+          [...accounts.slice(0, 3), token(122n + fee)],
+          0n,
+        ).ok,
+      ).toBe(false);
+      expect(
+        checkSimulatedBalances(
+          {
+            ...probe,
+            pre: new Map([...probe.pre, ['in', BigInt(raw.inAmount) + 1n]]),
+          },
+          expectation,
+          addresses,
+          accounts,
+          0n,
+        ).ok,
+      ).toBe(false);
+      // The floor follows the reviewed minimum, even when it is stricter than slippage.
+      const stricter = expectationFor(q, {
+        ...reviewedTermsFor(q)!,
+        minOutRaw: raw.outAmount,
+      })!;
+      expect(stricter.platformFee!.minAmountRaw).toBe(amountRaw);
+      const returning = jest.fn().mockResolvedValue([{ id: 'execution' }]);
+      const values = jest.fn().mockReturnValue({ returning });
+      const repository = new ExecutionRepository({
+        insert: jest.fn().mockReturnValue({ values }),
+      } as never);
+      await repository.insert({
+        walletAddress: 'offline-wallet',
+        type: side === 'buy' ? 'stock_purchase' : 'stock_sale',
+        status: 'awaiting_signature',
+        platformFee: q.platformFee,
+      });
+      expect(values).toHaveBeenCalledWith(
+        expect.objectContaining({
+          platformFeeBps: 50,
+          platformFeeAmountRaw: amountRaw,
+          platformFeeMint: USDC_MINT,
+        }),
+      );
+    },
+  );
+  it('floors fractional input fees using bigint arithmetic', () => {
+    expect(
+      mappedPlatformFee({ feeBps: 50, amount: '6959' }, config, '5000199')
+        ?.amountRaw,
+    ).toBe('25000');
   });
 });

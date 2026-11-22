@@ -11,9 +11,20 @@ import { isTitanPayload } from './titan/titan.mapper';
 import idl from '../mcp-auth/jupiter-shared-route.idl.json';
 
 const JUPITER = 'JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4';
-// Swap v1 ExactIn route and shared_accounts_route; final argument is a u8 fee.
-const ROUTE = 'e517cb977ae3ad2a';
-const SHARED_ROUTE = 'c1209b3341d69c81';
+// Jupiter v6 IDL: https://solscan.io/account/JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4#programIdl
+// V2 puts the fee account FIRST in remaining_accounts, after 10 ordinary or
+// 12 shared accounts (including event_authority/program). V1 has a named slot.
+const ROUTES: Record<
+  string,
+  { shared: boolean; v2: boolean; feeIndex: number }
+> = {
+  e517cb977ae3ad2a: { shared: false, v2: false, feeIndex: 6 },
+  c1209b3341d69c81: { shared: true, v2: false, feeIndex: 9 },
+  bb64facc31c4af14: { shared: false, v2: true, feeIndex: 10 }, // route_v2
+  d19853937cfed8e9: { shared: true, v2: true, feeIndex: 12 }, // shared_accounts_route_v2
+  '9d8ab85215f4f324': { shared: false, v2: true, feeIndex: 10 }, // exact_out_route_v2
+  '3560e5cad8bbfa18': { shared: true, v2: true, feeIndex: 12 }, // shared_accounts_exact_out_route_v2
+};
 
 type IdlType =
   | string
@@ -33,8 +44,22 @@ const definitions = new Map<string, IdlDefinition>(
   idl.types.map((item) => [item.name, item.type as unknown as IdlDefinition]),
 );
 
+// RoutePlanStepV2 uses the same Swap enum as V1, with u16 bps replacing u8 percent.
+definitions.set('RoutePlanStepV2', {
+  kind: 'struct',
+  fields: [
+    { type: { defined: { name: 'Swap' } } },
+    { type: 'u16' },
+    { type: 'u8' },
+    { type: 'u8' },
+  ],
+});
+
 /** Walk the canonical route plan so trailing bytes cannot disguise another rate. */
-function routeFeeBps(data: Buffer, shared: boolean): number {
+function routeFeeBps(
+  data: Buffer,
+  { shared, v2 }: { shared: boolean; v2: boolean },
+): number {
   let offset = shared ? 9 : 8;
   const take = (size: number) => {
     if (size < 0 || offset + size > data.length)
@@ -87,6 +112,17 @@ function routeFeeBps(data: Buffer, shared: boolean): number {
       for (let i = 0; i < count; i++) read(member);
     }
   };
+  if (v2) {
+    // ExactIn: in_amount, quoted_out_amount; ExactOut: out_amount, quoted_in_amount.
+    // Both then have u16 slippage_bps, platform_fee_bps, positive_slippage_bps,
+    // followed by Vec<RoutePlanStepV2>. The shared variants prepend a u8 id.
+    take(18);
+    const fee = data.readUInt16LE(take(2));
+    take(2);
+    read({ vec: { defined: { name: 'RoutePlanStepV2' } } });
+    if (offset !== data.length) throw new Error('Invalid V2 route arguments');
+    return fee;
+  }
   read({ vec: { defined: { name: 'RoutePlanStep' } } });
   if (offset + 19 !== data.length)
     throw new Error('Invalid ExactIn route arguments');
@@ -151,16 +187,16 @@ export class ReviewedPlatformFeeGuard {
     if (swaps.length !== 1) return reject();
     const ix = swaps[0];
     const tag = ix.data.subarray(0, 8).toString('hex');
-    const index = tag === ROUTE ? 6 : tag === SHARED_ROUTE ? 9 : -1;
-    const account = ix.keys[index];
+    const route = ROUTES[tag];
+    if (!route) return reject();
+    const account = ix.keys[route.feeIndex];
     let bps: number;
     try {
-      bps = routeFeeBps(Buffer.from(ix.data), tag === SHARED_ROUTE);
+      bps = routeFeeBps(Buffer.from(ix.data), route);
     } catch {
       return reject();
     }
     if (
-      index < 0 ||
       bps !== fee.bps ||
       account?.pubkey.toBase58() !== fee.account ||
       !account.isWritable ||

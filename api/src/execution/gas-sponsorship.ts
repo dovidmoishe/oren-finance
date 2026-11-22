@@ -1,5 +1,11 @@
 import { BadRequestException } from '@nestjs/common';
-import { MessageV0, PublicKey, VersionedTransaction } from '@solana/web3.js';
+import {
+  AddressLookupTableAccount,
+  MessageV0,
+  PublicKey,
+  VersionedTransaction,
+} from '@solana/web3.js';
+import { associatedTokenAddresses, ATA_PROGRAM_ID } from './swap-balance-guard';
 import { createPublicKey, verify } from 'node:crypto';
 import bs58 from 'bs58';
 
@@ -62,13 +68,18 @@ export function sponsorshipEligible(
 
 /**
  * Unsigned simulation only: prepend a funded system account as fee payer while
- * preserving every instruction's original account, including ATA rent payers.
+ * preserving the trade instructions. An optional rent preview also substitutes
+ * the payer of the user's idempotent output-ATA setup, before rent is paid.
  * These bytes are never authorized, signed or submitted.
  */
 export function sponsorshipSimulation(
   transaction: string,
   wallet: string,
   payer: string,
+  rentPreview?: {
+    outputMint: string;
+    lookupTables: AddressLookupTableAccount[];
+  },
 ): string {
   if (!sponsorshipEligible(transaction, wallet))
     throw new BadRequestException(
@@ -82,11 +93,37 @@ export function sponsorshipSimulation(
   if (message.staticAccountKeys.some((key) => key.equals(payerKey)))
     throw new BadRequestException('Simulation payer overlaps a trade account');
   const keys = [payerKey, ...message.staticAccountKeys];
-  const instructions = message.compiledInstructions.map((instruction) => ({
-    programIdIndex: instruction.programIdIndex + 1,
-    accountKeyIndexes: instruction.accountKeyIndexes.map((index) => index + 1),
-    data: instruction.data,
-  }));
+  const resolved = rentPreview
+    ? message.getAccountKeys({
+        addressLookupTableAccounts: rentPreview.lookupTables,
+      })
+    : undefined;
+  const outputAtas = rentPreview
+    ? associatedTokenAddresses(wallet, rentPreview.outputMint)
+    : [];
+  const instructions = message.compiledInstructions.map((instruction) => {
+    const accounts = instruction.accountKeyIndexes;
+    const key = (index: number) => resolved?.get(accounts[index])?.toBase58();
+    // Preview only the user's output ATA, never another setup/transfer or an
+    // AMM instruction. The signed transaction retains the original rent payer.
+    const previewRent =
+      rentPreview &&
+      message.staticAccountKeys[instruction.programIdIndex]?.toBase58() ===
+        ATA_PROGRAM_ID &&
+      instruction.data.length === 1 &&
+      instruction.data[0] === 1 &&
+      key(0) === wallet &&
+      key(2) === wallet &&
+      key(3) === rentPreview.outputMint &&
+      outputAtas.includes(key(1) ?? '');
+    return {
+      programIdIndex: instruction.programIdIndex + 1,
+      accountKeyIndexes: accounts.map((index, position) =>
+        previewRent && position === 0 ? 0 : index + 1,
+      ),
+      data: instruction.data,
+    };
+  });
   return Buffer.from(
     new VersionedTransaction(
       new MessageV0({

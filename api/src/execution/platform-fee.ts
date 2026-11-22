@@ -11,6 +11,8 @@ export function usdcPair(inputMint: string, outputMint: string): boolean {
 export function mappedPlatformFee(
   raw: { amount: string; feeBps: number } | null | undefined,
   expected: PlatformFeeConfig | undefined,
+  /** Jupiter ExactIn reports output-mint fees even for USDC-input fees. */
+  usdcInputAmountRaw?: string,
 ): PlatformFee | undefined {
   if (!expected) {
     if (raw?.feeBps) throw new QuoteExpiredError('Unexpected platform fee');
@@ -20,7 +22,19 @@ export function mappedPlatformFee(
     throw new QuoteExpiredError(
       'Provider did not return the requested platform fee',
     );
-  return { bps: raw.feeBps, amountRaw: raw.amount, mint: USDC_MINT };
+  if (usdcInputAmountRaw !== undefined && !/^\d+$/.test(usdcInputAmountRaw))
+    throw new QuoteExpiredError('Invalid platform fee input amount');
+  return {
+    bps: raw.feeBps,
+    amountRaw:
+      usdcInputAmountRaw === undefined
+        ? raw.amount
+        : (
+            (BigInt(usdcInputAmountRaw) * BigInt(raw.feeBps)) /
+            10_000n
+          ).toString(),
+    mint: USDC_MINT,
+  };
 }
 
 export function quoteFeeConfig(quote: Quote): PlatformFeeConfig | undefined {
