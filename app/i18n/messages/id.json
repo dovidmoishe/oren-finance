@@ -529,6 +529,7 @@
     "loadingQuote": "Memuat kuotasi"
   },
   "review": {
+    "orenFee": "Biaya Oren",
     "updatingQuote": "Memperbarui kuotasi…",
     "refreshing": "Menyegarkan…",
     "secondsLeft": "Sisa {seconds} dtk",

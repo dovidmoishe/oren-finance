@@ -3,6 +3,12 @@ import type { MarketSession } from './market-session';
 
 export type TradeSide = 'buy' | 'sell';
 
+export interface PlatformFee {
+  bps: number;
+  amountRaw: string;
+  mint: string;
+}
+
 /**
  * Executable swap quote (Jupiter or Titan, chosen by SwapRouter).
  * Distinct from indicative Tokens API market prices.
@@ -26,6 +32,11 @@ export interface Quote {
 
   priceImpactPercent: number;
   networkFeeUsd?: number;
+  /** Omitted on fee-free quotes, including all delegated trades. */
+  platformFee?: PlatformFee | null;
+  /** Server-only destination pinned when quoted. */
+  platformFeeAccount?: string;
+  minimumOutputAmount?: number;
   slippageBps: number;
 
   /** Execution venue — "jupiter" or "titan:<provider>" (e.g. titan:Titan-DART). */

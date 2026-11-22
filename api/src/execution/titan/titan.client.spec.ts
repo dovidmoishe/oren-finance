@@ -202,3 +202,25 @@ describe('TitanClient', () => {
     expect(await codeOf(client.quoteSwap(params))).toBe('invalid_response');
   });
 });
+
+describe('Titan platform fee serialization', () => {
+  it.each([true, false])(
+    'serializes fee params with feeFromInputMint=%s',
+    async (input) => {
+      const f = setup();
+      f.fetchImpl.mockResolvedValue(json(titanResponse()));
+      await f.client.quoteSwap({
+        ...params,
+        feeBps: 50,
+        feeAccount: 'configured-fee-account',
+        feeFromInputMint: input,
+      });
+      const url = new URL(
+        (f.fetchImpl.mock.calls as [string, RequestInit][])[0][0],
+      );
+      expect(url.searchParams.get('feeBps')).toBe('50');
+      expect(url.searchParams.get('feeAccount')).toBe('configured-fee-account');
+      expect(url.searchParams.get('feeFromInputMint')).toBe(String(input));
+    },
+  );
+});

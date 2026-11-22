@@ -115,6 +115,46 @@ describe('ExecutionService basket support', () => {
     );
   });
 
+  it('includes Oren fees in the buy input cap instead of adding another debit', async () => {
+    const quoted = makeQuote('NVDA', 10);
+    quoted.platformFee = { bps: 50, amountRaw: '50000', mint: 'usdc' };
+    quoteCache.get.mockReturnValue({ quote: quoted, origin: 'user_reviewed' });
+    router.prepare.mockResolvedValue({
+      quote: quoted,
+      prepared: {
+        transaction: 'tx',
+        quoteId: quoted.id,
+        expiresAt: quoted.expiresAt,
+      },
+    });
+    repository.insert.mockResolvedValue({ id: 'fee-execution' });
+    const result = await service.prepareWithQuote({
+      quoteId: quoted.id,
+      wallet,
+    });
+    expect(repository.insert).toHaveBeenCalledWith(
+      expect.objectContaining({ platformFee: quoted.platformFee }),
+    );
+    expect(result.quote.platformFee).toEqual(quoted.platformFee);
+  });
+  it('marks browser/MCP quote requests reviewed while preserving delegated eligibility', async () => {
+    selector.selectAndQuote.mockResolvedValue({ quote: makeQuote('NVDA', 10) });
+    const request = { side: 'buy' as const, ticker: 'NVDA', amountUsd: 10 };
+    await service.getQuote(request);
+    expect(selector.selectAndQuote).toHaveBeenLastCalledWith(
+      request,
+      false,
+      true,
+    );
+    const delegated = { ...request, jupiterOnly: true };
+    await service.getQuote(delegated);
+    expect(selector.selectAndQuote).toHaveBeenLastCalledWith(
+      delegated,
+      false,
+      false,
+    );
+  });
+
   it('rejects a swap signature that is not for the prepared transaction', async () => {
     quoteCache.getPendingExecution.mockReturnValue({
       executionId: 'execution-1',

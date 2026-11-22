@@ -529,6 +529,7 @@
     "loadingQuote": "正在載入報價"
   },
   "review": {
+    "orenFee": "Oren 費用",
     "updatingQuote": "正在更新報價…",
     "refreshing": "重新整理中…",
     "secondsLeft": "剩餘 {seconds} 秒",

@@ -104,3 +104,11 @@ Primary references:
 [reference lookup](https://docs.privy.io/api-reference/transactions/external-id),
 [idempotency](https://docs.privy.io/api-reference/idempotency-keys),
 [sponsorship controls](https://docs.privy.io/wallets/gas-and-asset-management/gas/security).
+
+## Platform fee revenue
+
+The independent reviewed-swap fee defaults to PLATFORM_FEE_BPS=0. See
+[platform fees](../platform-fee.md) for PLATFORM_FEE_USDC_ACCOUNT,
+PLATFORM_FEE_OWNER and TITAN_PLATFORM_FEE_ENABLED. Delegated gas policy semantics
+and its zero-platform-fee constraint are unchanged; collecting agent fees needs
+a new pinned fee policy and user re-consent.

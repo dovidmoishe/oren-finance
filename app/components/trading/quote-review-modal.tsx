@@ -92,7 +92,7 @@ export function QuoteReviewModal({
   const waitingOnRefresh = expired || isRefreshingQuote;
   const signDisabled = !quote || !review.approval || review.approval.status !== 'prepared' || review.expired || waitingOnRefresh || isBusy || submitted || confirmed || refreshFailed;
   const minimumReceived = quote
-    ? quote.outputAmount * (1 - quote.slippageBps / 10_000)
+    ? quote.minimumOutputAmount ?? quote.outputAmount * (1 - quote.slippageBps / 10_000)
     : 0;
   const route = routeVenueLabel(quote?.provider);
   const warnings = [
@@ -122,6 +122,9 @@ export function QuoteReviewModal({
             <Row label={t("review.slippage")} value={`${formatNumber(quote.slippageBps / 100, locale, 2)}%`} />
             {route ? <Row label={t("review.route")} value={route} /> : null}
             <Row label={t("review.estimatedFee")} value={review.approval ? `${Number(review.approval.feeLamports) / 1e9} SOL` : t("review.preparing")} />
+            {quote.platformFee && quote.platformFee.bps > 0 ? (
+              <Row label={t("review.orenFee")} value={formatNumber(quote.platformFee.bps / 100, locale, 2) + "% \u00b7 " + formatCurrency(Number(quote.platformFee.amountRaw) / 1e6, locale, 6) + " USDC"} />
+            ) : null}
             {review.approval?.details.ataRentSponsored === true ? (
               <Row label={t("review.accountSetup")} value={t("review.coveredByOren")} />
             ) : null}

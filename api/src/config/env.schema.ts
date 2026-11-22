@@ -1,6 +1,10 @@
 import { deploymentCapabilities } from './deployment';
 import { DEFAULT_VAULT_PROGRAM_ID } from './constants';
 import { ataRentConfig, type AtaRentConfig } from './ata-rent-config';
+import {
+  platformFeeConfig,
+  type PlatformFeeConfig,
+} from './platform-fee-config';
 
 export type SolanaNetwork = 'mainnet' | 'devnet';
 
@@ -53,6 +57,12 @@ export interface AppEnv {
   PRIVY_GAS_SIMULATION_PAYER?: string;
   ATA_RENT_SPONSORSHIP?: boolean;
   ATA_RENT_CONFIG?: AtaRentConfig;
+  PLATFORM_FEE_BPS?: number;
+  PLATFORM_FEE_CONFIG?: PlatformFeeConfig;
+  PLATFORM_FEE_USDC_ACCOUNT?: string;
+  PLATFORM_FEE_OWNER?: string;
+  PLATFORM_FEE_CONFIG_INVALID?: boolean;
+  TITAN_PLATFORM_FEE_ENABLED?: boolean;
   MCP_DELEGATED_TRADES_ENABLED: boolean;
   MCP_DELEGATED_BUYS_ENABLED: boolean;
   MCP_DELEGATED_SELLS_ENABLED: boolean;
@@ -319,6 +329,13 @@ export function validateEnv(env: EnvSource = process.env): AppEnv {
   }
 
   const deployment = deploymentCapabilities(env);
+  const platformFee = platformFeeConfig(env);
+  const feeBps = readEnv(env, 'PLATFORM_FEE_BPS') ?? '0';
+  const platformFeeInvalid =
+    !platformFee &&
+    (readBool(env, 'PLATFORM_FEE_CONFIG_INVALID', false) ||
+      !/^\d+$/.test(feeBps) ||
+      Number(feeBps) !== 0);
   const reviewedSponsorship = readBool(
     env,
     'PRIVY_REVIEWED_GAS_SPONSORSHIP',
@@ -397,6 +414,16 @@ export function validateEnv(env: EnvSource = process.env): AppEnv {
     PRIVY_GAS_SIMULATION_PAYER: simulationPayer,
     ATA_RENT_SPONSORSHIP: readBool(env, 'ATA_RENT_SPONSORSHIP', false),
     ATA_RENT_CONFIG: ataRentConfig(env),
+    PLATFORM_FEE_BPS: platformFee?.bps ?? 0,
+    PLATFORM_FEE_CONFIG: platformFee,
+    PLATFORM_FEE_USDC_ACCOUNT: readEnv(env, 'PLATFORM_FEE_USDC_ACCOUNT'),
+    PLATFORM_FEE_OWNER: readEnv(env, 'PLATFORM_FEE_OWNER'),
+    PLATFORM_FEE_CONFIG_INVALID: platformFeeInvalid,
+    TITAN_PLATFORM_FEE_ENABLED: readBool(
+      env,
+      'TITAN_PLATFORM_FEE_ENABLED',
+      false,
+    ),
     MCP_DELEGATED_TRADES_ENABLED: delegatedEnabled,
     MCP_DELEGATED_BUYS_ENABLED:
       delegatedEnabled && readBool(env, 'MCP_DELEGATED_BUYS_ENABLED', false),

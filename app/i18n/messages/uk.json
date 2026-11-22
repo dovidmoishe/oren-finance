@@ -529,6 +529,7 @@
     "loadingQuote": "Завантаження котирування"
   },
   "review": {
+    "orenFee": "Комісія Oren",
     "updatingQuote": "Оновлюємо котирування…",
     "refreshing": "Оновлення…",
     "secondsLeft": "Залишилося {seconds} с",

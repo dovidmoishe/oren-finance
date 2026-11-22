@@ -45,6 +45,8 @@ export interface QuoteResponse {
   amountUsd: number;
   priceImpactPercent: number;
   networkFeeUsd?: number;
+  platformFee?: { bps: number; amountRaw: string; mint: string } | null;
+  minimumOutputAmount?: number;
   slippageBps: number;
   provider: string;
   routePayload?: unknown;

@@ -27,6 +27,7 @@ export interface SwapExpectation {
   outputMint: string;
   /** Most of the input token the wallet may spend (raw units). */
   maxInRaw: string;
+  platformFee?: { account: string; minAmountRaw: string };
   /** Least output the wallet must receive (raw units). */
   minOutRaw: string;
 }
@@ -113,6 +114,17 @@ export function expectationFor(
     inputMint: quote.inputMint,
     outputMint: quote.outputMint,
     maxInRaw: maxIn,
+    ...(quote.platformFee && quote.platformFeeAccount
+      ? {
+          platformFee: {
+            account: quote.platformFeeAccount,
+            minAmountRaw: (quote.inputMint === quote.platformFee.mint
+              ? BigInt(quote.platformFee.amountRaw)
+              : minimumOut(quote.platformFee.amountRaw, quote.slippageBps)
+            ).toString(),
+          },
+        }
+      : {}),
     // Never expect less than either the reviewed floor or the route's own.
     minOutRaw: (floor > enforced ? floor : enforced).toString(),
   };
@@ -122,6 +134,20 @@ export function expectationFor(
 export function publicQuote<T extends Quote | undefined>(quote: T): T {
   if (!quote) return quote;
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const { routePayload, ...rest } = quote;
+  const { routePayload, platformFeeAccount, ...rest } = quote;
+  if (quote.platformFee?.bps) {
+    const floor = enforcedMinimumOut(quote);
+    const decimals = isTitanPayload(routePayload)
+      ? routePayload.outputDecimals
+      : quote.outputMint === quote.variant.mint
+        ? (quote.variant.decimals ?? 6)
+        : 6;
+    return {
+      ...rest,
+      ...(floor !== undefined
+        ? { minimumOutputAmount: Number(floor) / 10 ** decimals }
+        : {}),
+    } as T;
+  }
   return rest as T;
 }

@@ -7,6 +7,7 @@ export interface JupiterQuoteRaw {
   otherAmountThreshold?: string;
   swapMode?: string;
   slippageBps: number;
+  platformFee?: { amount: string; feeBps: number } | null;
   /** Ratio from 0 to 1. `0.01` is 1% price impact. */
   priceImpactPct?: string | number;
   routePlan?: unknown[];

@@ -564,6 +564,9 @@ export const executions = pgTable(
     amount: numeric('amount', { precision: 40, scale: 18 }),
     amountUsd: numeric('amount_usd', { precision: 20, scale: 8 }),
     provider: text('provider'),
+    platformFeeBps: integer('platform_fee_bps'),
+    platformFeeAmountRaw: text('platform_fee_amount_raw'),
+    platformFeeMint: text('platform_fee_mint'),
     featureSource: executionFeatureEnum('feature_source')
       .notNull()
       .default('direct'),

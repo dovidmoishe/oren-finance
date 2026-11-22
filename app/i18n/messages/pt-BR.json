@@ -529,6 +529,7 @@
     "loadingQuote": "Carregando cotação"
   },
   "review": {
+    "orenFee": "Taxa Oren",
     "updatingQuote": "Atualizando cotação…",
     "refreshing": "Atualizando…",
     "secondsLeft": "{seconds}s restantes",

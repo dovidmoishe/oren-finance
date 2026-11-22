@@ -90,3 +90,11 @@ wallets remain operator decisions.
 Run `node --test scripts/test-ata-rent.mjs` in `api/` for offline real-SDK transaction
 and Privy request checks, in addition to the standard Jest and authorization suites.
 No test needs credentials or contacts a real RPC/Privy endpoint.
+
+## Platform fee revenue
+
+Reviewed market swaps can independently collect an Oren USDC fee to help cover
+sponsorship costs. It defaults off, has broader reviewed-trade coverage than the
+ATA subsidy, and does not change subsidy admission. See [platform fees](platform-fee.md)
+for PLATFORM_FEE_BPS, PLATFORM_FEE_USDC_ACCOUNT, PLATFORM_FEE_OWNER and
+TITAN_PLATFORM_FEE_ENABLED.

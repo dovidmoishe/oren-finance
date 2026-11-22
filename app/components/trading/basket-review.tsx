@@ -117,6 +117,12 @@ export function BasketReview({ basket, progress }: BasketReviewProps) {
                 </div>
 
                 {allocation.rationale ? <p className="mt-3 text-sm leading-6 text-muted">{allocation.rationale}</p> : null}
+                {leg?.quote?.platformFee && leg.quote.platformFee.bps > 0 ? (
+                  <p className="mt-3 flex justify-between gap-3 text-xs text-muted">
+                    <span>{t("review.orenFee")}</span>
+                    <span className="font-mono">{formatNumber(leg.quote.platformFee.bps / 100, locale, 2)}% &middot; {formatCurrency(Number(leg.quote.platformFee.amountRaw) / 1e6, locale, 6)} USDC</span>
+                  </p>
+                ) : null}
                 {leg?.error ? <p className="mt-3 rounded-[12px] bg-error-surface p-3 text-xs leading-5 text-error">{leg.error}</p> : null}
               </article>
             );
