@@ -21,6 +21,30 @@ function loadSource(url) {
 const { sponsorshipEligible, sponsorshipSimulation, validateSponsoredTransaction } = loadSource(new URL('../src/execution/gas-sponsorship.ts', import.meta.url));
 const encode = tx => Buffer.from(tx.serialize()).toString('base64');
 const captured = JSON.parse(readFileSync(new URL('../test/fixtures/privy-ata-rent.json', import.meta.url), 'utf8'));
+const jupiter = JSON.parse(readFileSync(new URL('../test/fixtures/jupiter-v2-platform-fee-tslax.json', import.meta.url), 'utf8'));
+
+for (const side of ['buy', 'sell']) {
+  test(`preserves the captured Jupiter ${side} route while simulating native sponsorship`, () => {
+    const proof = jupiter.cases[side];
+    const unsigned = proof.swapResponse.swapTransaction;
+    const original = VersionedTransaction.deserialize(Buffer.from(unsigned, 'base64'));
+    const payer = Keypair.generate().publicKey.toBase58();
+    const simulation = VersionedTransaction.deserialize(Buffer.from(sponsorshipSimulation(unsigned, proof.userPublicKey, payer), 'base64'));
+    const before = original.message;
+    const after = simulation.message;
+    assert.equal(after.compiledInstructions.length, before.compiledInstructions.length);
+    assert.equal(JSON.stringify(after.addressTableLookups), JSON.stringify(before.addressTableLookups));
+    assert.equal(after.recentBlockhash, before.recentBlockhash);
+    before.compiledInstructions.forEach((ix, position) => {
+      const changed = after.compiledInstructions[position];
+      const program = before.staticAccountKeys[ix.programIdIndex].toBase58();
+      assert.equal(changed.programIdIndex, ix.programIdIndex + 1);
+      assert.deepEqual(Buffer.from(changed.data), Buffer.from(ix.data));
+      assert.deepEqual(Array.from(changed.accountKeyIndexes), Array.from(ix.accountKeyIndexes, (index, account) => program === 'ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL' && account === 0 ? 0 : index + 1));
+    });
+    assert.ok(simulation.signatures.every(sig => sig.every(byte => byte === 0)));
+  });
+}
 
 for (const proof of captured.cases) {
   test(`accepts the confirmed native Privy ${proof.name} rent rewrite and both real signatures`, () => {

@@ -117,7 +117,11 @@ function fixture(
       ],
     }).compileToV0Message(options.lookup ? [table] : []),
   );
-  const transaction = Buffer.from(tx.serialize()).toString('base64');
+  // Exercise the actual captured Jupiter buy in addition to the minimal setup
+  // fixture. The native rewrite must leave its route and lookup table intact.
+  const transaction = options.lookup
+    ? captured.cases.buy.swapResponse.swapTransaction
+    : Buffer.from(tx.serialize()).toString('base64');
   const expectation = expectationFor(quote, reviewedTermsFor(quote))!;
   const router = {
     prepare: jest.fn().mockResolvedValue({
