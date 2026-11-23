@@ -245,7 +245,7 @@ describe('ExecutionService basket support', () => {
       amountUsd: 25,
     });
     expect(stockQuote.marketSession?.state).toEqual(expect.any(String));
-    expect(quoteCache.set).toHaveBeenCalledWith(stockQuote, 'other');
+    expect(quoteCache.set).toHaveBeenCalledWith(stockQuote);
 
     router.quote.mockImplementation((ctx: { assetId: string }) => ({
       ...makeQuote('TOKEN', 1),
@@ -423,7 +423,7 @@ describe('ExecutionService basket support', () => {
     await expect(
       service.prepareWithQuote({ quoteId: reviewed.id, wallet }),
     ).rejects.toBe(err);
-    expect(quoteCache.set).toHaveBeenCalledWith(alternative, undefined);
+    expect(quoteCache.set).toHaveBeenCalledWith(alternative);
     expect(repository.insert).not.toHaveBeenCalled();
   });
 

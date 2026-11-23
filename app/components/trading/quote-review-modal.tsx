@@ -125,9 +125,6 @@ export function QuoteReviewModal({
             {quote.platformFee && quote.platformFee.bps > 0 ? (
               <Row label={t("review.orenFee")} value={formatNumber(quote.platformFee.bps / 100, locale, 2) + "% \u00b7 " + formatCurrency(Number(quote.platformFee.amountRaw) / 1e6, locale, 6) + " USDC"} />
             ) : null}
-            {review.approval?.details.ataRentSponsored === true ? (
-              <Row label={t("review.accountSetup")} value={t("review.coveredByOren")} />
-            ) : null}
             <Row label={t("review.quoteExpiry")} value={formatExpiryLabel(t, secondsLeft, isRefreshingQuote)} />
           </div>
 

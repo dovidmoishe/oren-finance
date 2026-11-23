@@ -76,7 +76,6 @@ export class ApprovalService {
     let details: Record<string, unknown>;
     let expiresAt = Date.now() + 60_000;
     let expectation: SwapExpectation | undefined;
-    let coverAtaRent: (() => Promise<boolean>) | undefined;
     if (input.kind === 'swap') {
       // Bind the approval to the quote and bytes prepare actually produced
       // (a refreshed Titan route or the Jupiter fallback), never to a later
@@ -87,16 +86,13 @@ export class ApprovalService {
           wallet: input.wallet,
         },
         'direct',
-        { flow: 'user_reviewed', userId: owner.userId },
       );
       prepared = result.prepared;
       expectation = result.expectation;
-      coverAtaRent = result.coverAtaRent;
       details = {
         quote: publicQuote(result.quote),
         expectation,
         expiresAfterSlot: result.prepared.expiresAfterSlot,
-        ...(result.prepared.ataRentSponsored ? { ataRentSponsored: true } : {}),
       };
       expiresAt = Math.min(expiresAt, result.quote.expiresAt.getTime());
     } else if (input.kind === 'limit') {
@@ -138,19 +134,11 @@ export class ApprovalService {
       details.gasSponsorship = true;
       details.gasSimulationPayer = this.env.PRIVY_GAS_SIMULATION_PAYER;
     }
-    // A missing output ATA is created by Jupiter's idempotent setup during the
-    // preview. Only its rent payer changes; the provider swap stays byte-identical.
-    const previewAtaRent = !!(useSponsorship && coverAtaRent && expectation);
-    const inspectionOptions: [string?, boolean?] = previewAtaRent
-      ? [this.env.PRIVY_GAS_SIMULATION_PAYER, true]
-      : useSponsorship
-        ? [this.env.PRIVY_GAS_SIMULATION_PAYER]
-        : [];
     const feeLamports = await this.rpc.inspect(
       prepared.transaction,
       input.wallet,
       expectation,
-      ...inspectionOptions,
+      ...(useSponsorship ? [this.env.PRIVY_GAS_SIMULATION_PAYER] : []),
     );
     // The latest blockhash after simulation gives a conservative validity bound
     // for the reviewed transaction without changing its message or blockhash.
@@ -158,23 +146,6 @@ export class ApprovalService {
     expiresAt = Math.min(expiresAt, new Date(prepared.expiresAt).getTime());
     if (expiresAt <= Date.now())
       throw new BadRequestException('Trade expired. Request a fresh quote.');
-    // Spending happens only after every read-only prepare check succeeded.
-    if (coverAtaRent) {
-      const covered = await coverAtaRent();
-      if (covered) details.ataRentSponsored = true;
-      else if (previewAtaRent) {
-        // Subsidy can be skipped (budget/cap/timeout). Do not approve a swap
-        // that only passed because the preview supplied the missing rent.
-        await this.rpc.inspect(
-          prepared.transaction,
-          input.wallet,
-          expectation,
-          this.env.PRIVY_GAS_SIMULATION_PAYER,
-        );
-      }
-      if (expiresAt <= Date.now())
-        throw new BadRequestException('Trade expired. Request a fresh quote.');
-    }
     const row = await this.approvals.create({
       userId: owner.userId,
       walletId: owner.walletId,

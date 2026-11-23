@@ -1,6 +1,5 @@
 import { deploymentCapabilities } from './deployment';
 import { DEFAULT_VAULT_PROGRAM_ID } from './constants';
-import { ataRentConfig, type AtaRentConfig } from './ata-rent-config';
 import {
   platformFeeConfig,
   type PlatformFeeConfig,
@@ -55,8 +54,6 @@ export interface AppEnv {
   PRIVY_MCP_GAS_SPONSORSHIP?: boolean;
   /** Public funded system account used ONLY for unsigned fee-free simulations. */
   PRIVY_GAS_SIMULATION_PAYER?: string;
-  ATA_RENT_SPONSORSHIP?: boolean;
-  ATA_RENT_CONFIG?: AtaRentConfig;
   PLATFORM_FEE_BPS?: number;
   PLATFORM_FEE_CONFIG?: PlatformFeeConfig;
   PLATFORM_FEE_USDC_ACCOUNT?: string;
@@ -412,8 +409,6 @@ export function validateEnv(env: EnvSource = process.env): AppEnv {
     PRIVY_REVIEWED_GAS_SPONSORSHIP: reviewedSponsorship,
     PRIVY_MCP_GAS_SPONSORSHIP: mcpSponsorship,
     PRIVY_GAS_SIMULATION_PAYER: simulationPayer,
-    ATA_RENT_SPONSORSHIP: readBool(env, 'ATA_RENT_SPONSORSHIP', false),
-    ATA_RENT_CONFIG: ataRentConfig(env),
     PLATFORM_FEE_BPS: platformFee?.bps ?? 0,
     PLATFORM_FEE_CONFIG: platformFee,
     PLATFORM_FEE_USDC_ACCOUNT: readEnv(env, 'PLATFORM_FEE_USDC_ACCOUNT'),

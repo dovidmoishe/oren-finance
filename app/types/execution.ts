@@ -4,7 +4,6 @@ export type TradeSide = "buy" | "sell";
 
 export interface TradeIntent {
   /** Agent browser review remains ineligible for ATA subsidies. */
-  reviewOrigin?: 'agent';
   wallet?: string;
   assetId?: string;
   ticker: string;
@@ -61,7 +60,6 @@ export interface PrepareExecutionRequest {
 }
 
 export interface ExecutionPreparedTransaction {
-  ataRentSponsored?: boolean;
   executionId: string;
   quoteId: string;
   wallet: string;

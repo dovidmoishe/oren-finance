@@ -6,7 +6,6 @@ import { type ReviewedTerms, reviewedTermsFor } from './swap-terms';
 
 export interface CachedQuoteEntry {
   quote: Quote;
-  readonly origin?: 'user_reviewed' | 'other';
   /** Set after prepare. */
   executionId?: string;
   /**
@@ -32,12 +31,11 @@ export class QuoteCache {
     }
   >();
 
-  set(quote: Quote, origin: 'user_reviewed' | 'other' = 'other'): void {
+  set(quote: Quote): void {
     // Re-setting an id never resets the floor the user already reviewed.
     const existing = this.quotes.get(quote.id);
     this.quotes.set(quote.id, {
       quote,
-      origin: existing?.origin ?? origin,
       storedAt: Date.now(),
       reviewed: existing?.reviewed ?? reviewedTermsFor(quote),
     });

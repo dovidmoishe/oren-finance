@@ -1,11 +1,4 @@
 import { Module } from '@nestjs/common';
-import { AtaRentSponsorService } from './ata-rent-sponsor.service';
-import { AtaRentSponsorRepository } from './ata-rent-sponsor.repository';
-import { AtaRentSponsorRpc } from './ata-rent-sponsor.rpc';
-import {
-  AtaRentSponsorSigner,
-  PrivyAtaRentSponsorSigner,
-} from './ata-rent-sponsor.signer';
 import { WithdrawalController } from './withdrawal.controller';
 import { WithdrawalService } from './withdrawal.service';
 import { WithdrawalStocksService } from './withdrawal-stocks.service';
@@ -52,10 +45,6 @@ import { OnchainTransactions } from './onchain-transaction';
   ],
   controllers: [ExecutionController, ApprovalController, WithdrawalController],
   providers: [
-    AtaRentSponsorService,
-    AtaRentSponsorRepository,
-    AtaRentSponsorRpc,
-    { provide: AtaRentSponsorSigner, useClass: PrivyAtaRentSponsorSigner },
     WithdrawalService,
     WithdrawalStocksService,
     ApprovalService,

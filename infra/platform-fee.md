@@ -1,8 +1,8 @@
 # Reviewed trade platform fees
 
 OFF by default. Fees help cover Oren-paid gas sponsorship and associated token
-account rent. They are independent of PRIVY_REVIEWED_GAS_SPONSORSHIP and
-ATA_RENT_SPONSORSHIP; a fee does not promise either subsidy.
+account rent. They are independent of PRIVY_REVIEWED_GAS_SPONSORSHIP; a platform fee does not
+promise sponsored execution. Native Privy sponsorship covers eligible ATA rent.
 
 ## Enable
 

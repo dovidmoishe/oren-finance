@@ -60,26 +60,16 @@ describe('ExecutionController', () => {
     });
   });
 
-  it('passes only the authenticated user into reviewed preparation', async () => {
+  it('authenticates the wallet before preparing', async () => {
     auth.requireWallet.mockResolvedValue('verified-user');
     await controller.prepare('Bearer token', {
       quoteId: 'q',
       wallet: 'wallet',
     });
-    expect(execution.prepare).toHaveBeenCalledWith(
-      { quoteId: 'q', wallet: 'wallet' },
-      'direct',
-      { flow: 'user_reviewed', userId: 'verified-user' },
-    );
-  });
-
-  it('marks agent browser review quotes ineligible', async () => {
-    await controller.quote({
-      side: 'buy',
-      ticker: 'STOCK',
-      reviewOrigin: 'agent',
+    expect(execution.prepare).toHaveBeenCalledWith({
+      quoteId: 'q',
+      wallet: 'wallet',
     });
-    expect(execution.getQuote).toHaveBeenCalledWith(expect.anything(), 'other');
   });
 
   describe('signature-reporting routes require the wallet owner', () => {

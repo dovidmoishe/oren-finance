@@ -1,11 +1,6 @@
 import { BadRequestException } from '@nestjs/common';
-import {
-  AddressLookupTableAccount,
-  MessageV0,
-  PublicKey,
-  VersionedTransaction,
-} from '@solana/web3.js';
-import { associatedTokenAddresses, ATA_PROGRAM_ID } from './swap-balance-guard';
+import { MessageV0, PublicKey, VersionedTransaction } from '@solana/web3.js';
+import { ATA_PROGRAM_ID } from './swap-balance-guard';
 import { createPublicKey, verify } from 'node:crypto';
 import bs58 from 'bs58';
 
@@ -31,6 +26,32 @@ export function isSponsoredRequest(request: Record<string, unknown>): boolean {
   return body?.method === 'signAndSendTransaction' && body.sponsor === true;
 }
 
+/** The ATA program enforces derivation and initialization during simulation.
+ * Only its six-account CreateIdempotent layout with the user's ownership is
+ * eligible. Mint/destination lookup-table identities stay bound unchanged.
+ */
+function walletAtaCreation(
+  message: VersionedTransaction['message'],
+  instruction: VersionedTransaction['message']['compiledInstructions'][number],
+  wallet: string,
+  rentPayer: string,
+): boolean {
+  const accounts = instruction.accountKeyIndexes;
+  const key = (position: number) =>
+    message.staticAccountKeys[accounts[position]]?.toBase58();
+  return (
+    message.staticAccountKeys[instruction.programIdIndex]?.toBase58() ===
+      ATA_PROGRAM_ID &&
+    instruction.data.length === 1 &&
+    instruction.data[0] === 1 &&
+    accounts.length === 6 &&
+    key(0) === rentPayer &&
+    key(2) === wallet &&
+    message.isAccountSigner(accounts[0]) &&
+    message.isAccountWritable(accounts[0])
+  );
+}
+
 /** Only unsigned, single-wallet transactions can safely have their payer replaced. */
 export function sponsorshipEligible(
   transaction: string,
@@ -45,7 +66,11 @@ export function sponsorshipEligible(
       tx.message.staticAccountKeys[0]?.toBase58() === wallet &&
       tx.message.compiledInstructions.every(
         (instruction) =>
-          instruction.programIdIndex < tx.message.staticAccountKeys.length,
+          instruction.programIdIndex < tx.message.staticAccountKeys.length &&
+          (tx.message.staticAccountKeys[
+            instruction.programIdIndex
+          ].toBase58() !== ATA_PROGRAM_ID ||
+            walletAtaCreation(tx.message, instruction, wallet, wallet)),
       ) &&
       tx.signatures.every((signature) =>
         signature.every((byte) => byte === 0),
@@ -68,18 +93,14 @@ export function sponsorshipEligible(
 
 /**
  * Unsigned simulation only: prepend a funded system account as fee payer while
- * preserving the trade instructions. An optional rent preview also substitutes
- * the payer of the user's idempotent output-ATA setup, before rent is paid.
+ * preserving trade instructions except the user's idempotent ATA rent payer.
+ * This mirrors Privy's native rent sponsorship; no separate setup is submitted.
  * These bytes are never authorized, signed or submitted.
  */
 export function sponsorshipSimulation(
   transaction: string,
   wallet: string,
   payer: string,
-  rentPreview?: {
-    outputMint: string;
-    lookupTables: AddressLookupTableAccount[];
-  },
 ): string {
   if (!sponsorshipEligible(transaction, wallet))
     throw new BadRequestException(
@@ -93,33 +114,13 @@ export function sponsorshipSimulation(
   if (message.staticAccountKeys.some((key) => key.equals(payerKey)))
     throw new BadRequestException('Simulation payer overlaps a trade account');
   const keys = [payerKey, ...message.staticAccountKeys];
-  const resolved = rentPreview
-    ? message.getAccountKeys({
-        addressLookupTableAccounts: rentPreview.lookupTables,
-      })
-    : undefined;
-  const outputAtas = rentPreview
-    ? associatedTokenAddresses(wallet, rentPreview.outputMint)
-    : [];
   const instructions = message.compiledInstructions.map((instruction) => {
     const accounts = instruction.accountKeyIndexes;
-    const key = (index: number) => resolved?.get(accounts[index])?.toBase58();
-    // Preview only the user's output ATA, never another setup/transfer or an
-    // AMM instruction. The signed transaction retains the original rent payer.
-    const previewRent =
-      rentPreview &&
-      message.staticAccountKeys[instruction.programIdIndex]?.toBase58() ===
-        ATA_PROGRAM_ID &&
-      instruction.data.length === 1 &&
-      instruction.data[0] === 1 &&
-      key(0) === wallet &&
-      key(2) === wallet &&
-      key(3) === rentPreview.outputMint &&
-      outputAtas.includes(key(1) ?? '');
+    const sponsorRent = walletAtaCreation(message, instruction, wallet, wallet);
     return {
       programIdIndex: instruction.programIdIndex + 1,
       accountKeyIndexes: accounts.map((index, position) =>
-        previewRent && position === 0 ? 0 : index + 1,
+        sponsorRent && position === 0 ? 0 : index + 1,
       ),
       data: instruction.data,
     };
@@ -155,20 +156,30 @@ function semanticMessage(tx: VersionedTransaction, wallet: string) {
       ),
     ),
   ];
-  return message.compiledInstructions.map((instruction) => ({
-    program: keys[instruction.programIdIndex],
-    accounts: instruction.accountKeyIndexes.map((index) => ({
-      key: keys[index],
-      signer: message.isAccountSigner(index),
-      // The original fee payer is implicitly writable even if only used as authority.
-      writable:
-        keys[index] === wallet ? true : message.isAccountWritable(index),
-    })),
-    data: Buffer.from(instruction.data).toString('base64'),
-  }));
+  return message.compiledInstructions.map((instruction) => {
+    const sponsoredRent = walletAtaCreation(
+      message,
+      instruction,
+      wallet,
+      keys[0],
+    );
+    return {
+      program: keys[instruction.programIdIndex],
+      accounts: instruction.accountKeyIndexes.map((index, position) => ({
+        // Normalize only the proven rent-payer position. Owner, mint, ATA,
+        // programs, instruction bytes and every other privilege must match.
+        key: sponsoredRent && position === 0 ? wallet : keys[index],
+        signer: message.isAccountSigner(index),
+        // The original fee payer is implicitly writable even if only used as authority.
+        writable:
+          keys[index] === wallet ? true : message.isAccountWritable(index),
+      })),
+      data: Buffer.from(instruction.data).toString('base64'),
+    };
+  });
 }
 
-/** Permit only the documented fee-payer/blockhash rewrite, never changed trade instructions. */
+/** Permit fee-payer/blockhash and user-owned idempotent ATA rent-payer rewrites only. */
 export function validateSponsoredTransaction(
   unsigned: string,
   signed: string,

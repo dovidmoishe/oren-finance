@@ -10,7 +10,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 const source = new URL('../components/trading/quote-review-modal.tsx', import.meta.url);
 const sourceRequire = createRequire(source);
 const english = JSON.parse(readFileSync(new URL('../i18n/messages/en.json', import.meta.url), 'utf8'));
-function render(coverage, platformFee, minimumOutputAmount) {
+function render(platformFee, minimumOutputAmount) {
   const exports = {};
   const quote = { id: 'quote', side: 'buy', ticker: 'STOCK', provider: 'jupiter', inputAmount: 10,
     outputAmount: 1, inputSymbol: 'USDC', outputSymbol: 'STOCK', slippageBps: 50, estimatedPriceUsd: 10, priceImpactPercent: 0 };
@@ -20,7 +20,7 @@ function render(coverage, platformFee, minimumOutputAmount) {
     '@/services/environment': { financialExecutionEnabled: true },
     '@/services/route-label': { routeVenueLabel: () => 'Jupiter' },
     '@/hooks/use-approval-review': { useApprovalReview: () => ({ approval: { id: 'approval', status: 'prepared',
-      feeLamports: '5000', details: { quote, ataRentSponsored: coverage } }, secondsLeft: 30 }) },
+      feeLamports: '5000', details: { quote } }, secondsLeft: 30 }) },
     '@/i18n/i18n': { useI18n: () => ({ locale: 'en', t: key => key.split('.').reduce((value, part) => value?.[part], english) ?? key }) },
     '@/components/ui': {
       Modal: ({ children }) => React.createElement('main', null, children),
@@ -36,31 +36,17 @@ function render(coverage, platformFee, minimumOutputAmount) {
   return renderToStaticMarkup(React.createElement(exports.QuoteReviewModal,
     { open: true, quote, status: 'quoted', onClose() {}, async onSign() {} }));
 }
-test('review displays confirmed ATA setup coverage alongside the existing network fee', () => {
-  const html = render(true);
-  assert.match(html, /Account setup/);
-  assert.match(html, /Covered by Oren/);
-  assert.match(html, /0\.000005 SOL/);
-});
-test('review never claims setup coverage for omitted, failed, or untrusted flags', () => {
-  for (const coverage of [undefined, false, 'true']) {
-    const html = render(coverage);
-    assert.doesNotMatch(html, /Account setup|Covered by Oren/);
-    assert.match(html, /0\.000005 SOL/);
-  }
-});
-
 test('review renders the approved Oren USDC fee and its percentage', () => {
-  const html = render(false, { bps: 50, amountRaw: '50000', mint: 'USDC' });
+  const html = render({ bps: 50, amountRaw: '50000', mint: 'USDC' });
   assert.match(html, /Oren fee/);
   assert.match(html, /0.5%.*\$0.05 USDC/);
 });
 test('review hides absent and zero Oren fees', () => {
   for (const fee of [undefined, null, { bps: 0, amountRaw: '0', mint: 'USDC' }])
-    assert.doesNotMatch(render(false, fee), /Oren fee/);
+    assert.doesNotMatch(render(fee), /Oren fee/);
 });
 test('review shows the server net minimum when the provider threshold differs', () => {
-  assert.match(render(false, { bps: 50, amountRaw: '1', mint: 'USDC' }, 0.98), /0.98 STOCK/);
+  assert.match(render({ bps: 50, amountRaw: '1', mint: 'USDC' }, 0.98), /0.98 STOCK/);
 });
 
 function renderBasket(platformFee) {
