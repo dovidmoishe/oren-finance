@@ -19,7 +19,7 @@
     "test:mcp:guard": "jest --config jest.delegated.config.cjs --runInBand",
     "test:withdrawals": "jest --config jest.withdrawal.config.cjs --runInBand",
     "test:mcp:gate": "node --test scripts/test-signer-gate-lifecycle.mjs",
-    "test:approval:crypto": "node --test scripts/test-approval-crypto.mjs",
+    "test:approval:crypto": "node --test scripts/test-approval-crypto.mjs scripts/test-native-ata-sponsorship.mjs",
     "test:mcp:registration": "node scripts/test-mcp-oauth-registration.mjs",
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",

@@ -45,6 +45,7 @@ import { publicQuote } from './swap-terms';
 
 /** Accepts either TradeIntent or mint-level QuoteRequest fields. */
 class ExecutionQuoteDto {
+  // Accepted for older browser clients; manual subsidy provenance is retired.
   @IsOptional()
   @IsIn(['agent'])
   reviewOrigin?: 'agent';
@@ -284,10 +285,7 @@ export class ExecutionController {
     // Route payloads (instructions, lookup tables) stay server-side, keyed
     // by quote id in the QuoteCache; clients only ever send the id back.
     return publicQuote(
-      await this.execution.getQuote(
-        body as TradeIntent | QuoteRequest,
-        body.reviewOrigin === 'agent' ? 'other' : 'user_reviewed',
-      ),
+      await this.execution.getQuote(body as TradeIntent | QuoteRequest),
     );
   }
 
@@ -296,11 +294,8 @@ export class ExecutionController {
     @Headers('authorization') authorization: string | undefined,
     @Body() body: ExecutionPrepareDto,
   ): Promise<PostExecutionPrepareResponse> {
-    const userId = await this.auth.requireWallet(authorization, body.wallet);
-    return this.execution.prepare(body, 'direct', {
-      flow: 'user_reviewed',
-      userId,
-    });
+    await this.auth.requireWallet(authorization, body.wallet);
+    return this.execution.prepare(body);
   }
 
   @Post('confirm')

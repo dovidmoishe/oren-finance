@@ -9,10 +9,7 @@ import {
   simulationReason,
   slippageExceededMessage,
 } from './simulation-reason';
-import {
-  AddressLookupTableAccount,
-  VersionedTransaction,
-} from '@solana/web3.js';
+import { VersionedTransaction } from '@solana/web3.js';
 import { createPublicKey, verify } from 'node:crypto';
 import bs58 from 'bs58';
 import { AlchemyClient } from '../alchemy/alchemy.client';
@@ -63,7 +60,6 @@ export class ApprovalRpc {
     wallet: string,
     expectation?: SwapExpectation,
     simulationPayer?: string,
-    previewAtaRent = false,
   ) {
     const tx = this.decode(transaction, wallet);
     if (simulationPayer) {
@@ -83,37 +79,7 @@ export class ApprovalRpc {
         throw new BadRequestException(
           'Gas sponsorship simulation is unavailable',
         );
-      const lookupTables =
-        previewAtaRent && expectation
-          ? await Promise.all(
-              tx.message.addressTableLookups.map(async (lookup) => {
-                const result = await this.rpc.call<{
-                  value: SimulatedAccount | null;
-                }>('getAccountInfo', [
-                  lookup.accountKey.toBase58(),
-                  { encoding: 'base64', commitment: 'confirmed' },
-                ]);
-                if (!result.value?.data?.[0])
-                  throw new BadRequestException(
-                    'Swap lookup table is unavailable',
-                  );
-                return new AddressLookupTableAccount({
-                  key: lookup.accountKey,
-                  state: AddressLookupTableAccount.deserialize(
-                    Buffer.from(result.value.data[0], 'base64'),
-                  ),
-                });
-              }),
-            )
-          : [];
-      transaction = sponsorshipSimulation(
-        transaction,
-        wallet,
-        simulationPayer,
-        previewAtaRent && expectation
-          ? { outputMint: expectation.outputMint, lookupTables }
-          : undefined,
-      );
+      transaction = sponsorshipSimulation(transaction, wallet, simulationPayer);
     }
     const simulatedTx = simulationPayer
       ? VersionedTransaction.deserialize(Buffer.from(transaction, 'base64'))

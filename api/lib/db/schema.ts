@@ -15,7 +15,7 @@ import {
   uniqueIndex,
 } from 'drizzle-orm/pg-core';
 
-/** Subsidy admission ledger only. Never delete attempts or recycle wallet/mint pairs. */
+/** Retired manual ATA subsidy audit history. Preserve existing rows; no runtime writes. */
 export const ataRentSponsorships = pgTable(
   'ata_rent_sponsorships',
   {
@@ -503,7 +503,10 @@ export const cachedStocks = pgTable(
   'cached_stocks',
   {
     sectorId: text('sector_id'),
-    alertVariants: jsonb('alert_variants').$type<Array<{ mint: string; symbol: string }>>().notNull().default([]),
+    alertVariants: jsonb('alert_variants')
+      .$type<Array<{ mint: string; symbol: string }>>()
+      .notNull()
+      .default([]),
     assetId: text('asset_id').primaryKey(),
     ticker: text('ticker').notNull(),
     name: text('name').notNull(),
