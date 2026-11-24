@@ -743,7 +743,6 @@
     "ttmGrowthExplanation": "Par rapport aux 12 mois précédents",
     "reportDetails": "Détails et sources",
     "staleSummary": "Ces chiffres peuvent être dépassés.",
-
     "filings": "Documents de la société",
     "filingsNote": "Données de dépôts, pas le Score Oren, pas une recommandation.",
     "sourceFilings": "Dépôts sources",
@@ -1127,5 +1126,13 @@
     "system": "Système",
     "light": "Clair",
     "dark": "Sombre"
+  },
+  "cashFlow": {
+    "cash": "Solde disponible",
+    "cashNote": "Détenu en USDC. Valeurs en USD.",
+    "addMoney": "Ajouter de l’argent",
+    "sendMoney": "Envoyer de l’argent",
+    "showQr": "Afficher le code QR",
+    "transferMethod": "Transférer des USDC sur Solana"
   }
 }

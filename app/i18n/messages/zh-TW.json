@@ -743,7 +743,6 @@
     "ttmGrowthExplanation": "與此前12個月相比",
     "reportDetails": "詳細資料與來源",
     "staleSummary": "這些資料可能已過時。",
-
     "filings": "公司申報文件",
     "filingsNote": "申報資料，不是 Oren 評分，也不構成建議。",
     "sourceFilings": "來源申報文件",
@@ -1127,5 +1126,13 @@
     "system": "跟隨系統",
     "light": "淺色",
     "dark": "深色"
+  },
+  "cashFlow": {
+    "cash": "現金",
+    "cashNote": "以 USDC 持有，金額以美元顯示。",
+    "addMoney": "加入資金",
+    "sendMoney": "轉帳",
+    "showQr": "顯示 QR 碼",
+    "transferMethod": "透過 Solana 轉入 USDC"
   }
 }

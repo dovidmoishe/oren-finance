@@ -743,7 +743,6 @@
     "ttmGrowthExplanation": "Im Vergleich zu den vorherigen 12 Monaten",
     "reportDetails": "Details und Quellen",
     "staleSummary": "Diese Zahlen sind möglicherweise veraltet.",
-
     "filings": "Unternehmensberichte",
     "filingsNote": "Angaben aus Pflichtmeldungen, nicht der Oren-Score, keine Empfehlung.",
     "sourceFilings": "Quellmeldungen",
@@ -1127,5 +1126,13 @@
     "system": "System",
     "light": "Hell",
     "dark": "Dunkel"
+  },
+  "cashFlow": {
+    "cash": "Guthaben",
+    "cashNote": "Als USDC gehalten. Werte in USD.",
+    "addMoney": "Geld hinzufügen",
+    "sendMoney": "Geld senden",
+    "showQr": "QR-Code anzeigen",
+    "transferMethod": "USDC über Solana senden"
   }
 }

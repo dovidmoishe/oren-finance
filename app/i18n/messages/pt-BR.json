@@ -743,7 +743,6 @@
     "ttmGrowthExplanation": "Em relação aos 12 meses anteriores",
     "reportDetails": "Detalhes e fontes",
     "staleSummary": "Estes números podem estar desatualizados.",
-
     "filings": "Documentos da empresa",
     "filingsNote": "Dados de registros, não a Pontuação Oren, não é uma recomendação.",
     "sourceFilings": "Registros de origem",
@@ -1127,5 +1126,13 @@
     "system": "Sistema",
     "light": "Claro",
     "dark": "Escuro"
+  },
+  "cashFlow": {
+    "cash": "Saldo",
+    "cashNote": "Mantido em USDC. Valores em USD.",
+    "addMoney": "Adicionar dinheiro",
+    "sendMoney": "Enviar dinheiro",
+    "showQr": "Mostrar código QR",
+    "transferMethod": "Transferir USDC na Solana"
   }
 }

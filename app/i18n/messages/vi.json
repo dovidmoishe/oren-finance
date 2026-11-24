@@ -743,7 +743,6 @@
     "ttmGrowthExplanation": "So với 12 tháng trước đó",
     "reportDetails": "Chi tiết và nguồn",
     "staleSummary": "Những số liệu này có thể đã cũ.",
-
     "filings": "Hồ sơ công ty",
     "filingsNote": "Dữ liệu hồ sơ, không phải Điểm Oren, không phải khuyến nghị.",
     "sourceFilings": "Hồ sơ nguồn",
@@ -1127,5 +1126,13 @@
     "system": "Hệ thống",
     "light": "Sáng",
     "dark": "Tối"
+  },
+  "cashFlow": {
+    "cash": "Tiền mặt",
+    "cashNote": "Được giữ bằng USDC. Giá trị hiển thị bằng USD.",
+    "addMoney": "Thêm tiền",
+    "sendMoney": "Gửi tiền",
+    "showQr": "Hiện mã QR",
+    "transferMethod": "Chuyển USDC trên Solana"
   }
 }
