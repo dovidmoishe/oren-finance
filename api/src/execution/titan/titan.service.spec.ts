@@ -152,7 +152,8 @@ describe('TitanService', () => {
 
 describe('Titan reviewed platform fees', () => {
   const fee = { bps: 50, account: 'fee-account' };
-  function response(sell: boolean) {
+  // Titan never echoes integrator fees; the route pays our fee account.
+  function response(sell: boolean, options: { paysFee?: boolean } = {}) {
     const raw = titanResponse();
     if (sell) {
       raw.inputMint = STOCK;
@@ -165,7 +166,9 @@ describe('Titan reviewed platform fees', () => {
       raw.amount = '10000000000';
     }
     for (const route of Object.values(raw.quotes)) {
-      route.platformFee = { amount: 500000, fee_bps: 50 };
+      route.platformFee = null;
+      if (options.paysFee !== false)
+        route.instructions[0].a.push({ p: fee.account, s: false, w: true });
       if (sell) {
         route.inAmount = '10000000000';
         route.outAmount = '99500000';
@@ -225,11 +228,51 @@ describe('Titan reviewed platform fees', () => {
       if (sell) expect(quote.outputAmount).toBe(99.5);
     },
   );
-  it('rejects a provider that silently omits the configured fee', async () => {
+  it('fails closed when the route never writes to the fee account', async () => {
     const f = setup();
+    f.client.quoteSwap.mockResolvedValue(response(false, { paysFee: false }));
     await expect(
       f.service.getQuoteWithContext({ ...ctx, platformFee: fee }),
-    ).rejects.toThrow('requested platform fee');
+    ).rejects.toThrow('does not pay the requested platform fee');
+  });
+  it('rejects a read-only or signer fee account meta', async () => {
+    for (const meta of [
+      { s: false, w: false },
+      { s: true, w: true },
+    ]) {
+      const f = setup();
+      const raw = response(false, { paysFee: false });
+      for (const route of Object.values(raw.quotes))
+        route.instructions[0].a.push({ p: fee.account, ...meta });
+      f.client.quoteSwap.mockResolvedValue(raw);
+      await expect(
+        f.service.getQuoteWithContext({ ...ctx, platformFee: fee }),
+      ).rejects.toThrow('does not pay the requested platform fee');
+    }
+  });
+  it('accepts an echo of our own fee but rejects any other routing fee', async () => {
+    const echoed = response(false);
+    for (const route of Object.values(echoed.quotes))
+      route.platformFee = { amount: 500000, fee_bps: 50 };
+    const ok = setup();
+    ok.client.quoteSwap.mockResolvedValue(echoed);
+    await expect(
+      ok.service.getQuoteWithContext({ ...ctx, platformFee: fee }),
+    ).resolves.toMatchObject({ platformFee: { bps: 50, amountRaw: '500000' } });
+
+    const other = response(false);
+    for (const route of Object.values(other.quotes))
+      route.platformFee = { amount: 100, fee_bps: 2 };
+    const bad = setup();
+    bad.client.quoteSwap.mockResolvedValue(other);
+    await expect(
+      bad.service.getQuoteWithContext({ ...ctx, platformFee: fee }),
+    ).rejects.toThrow('Unexpected platform fee');
+    const free = setup();
+    free.client.quoteSwap.mockResolvedValue(other);
+    await expect(free.service.getQuoteWithContext(ctx)).rejects.toThrow(
+      'Unexpected platform fee',
+    );
   });
   it('keeps delegated/default Titan calls and quotes fee-free', async () => {
     const f = setup();
