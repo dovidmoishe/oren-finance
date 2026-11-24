@@ -193,25 +193,27 @@ async function access(url: string, apply: boolean) {
   if (expiresAt && Number.isNaN(Date.parse(expiresAt))) {
     throw new Error('--expires-at must be an ISO timestamp');
   }
+  const grant = {
+    principal: 'marketing_bot',
+    permission: 'marketing.bot.read',
+    apply,
+    expiresAt,
+  };
+  if (!apply) {
+    console.log(JSON.stringify(grant));
+    return;
+  }
   const token = newMachineToken();
-  console.log(
-    JSON.stringify({
-      principal: 'marketing_bot',
-      permission: 'marketing.bot.read',
-      apply,
-      expiresAt,
-      token: apply ? token : undefined,
-    }),
-  );
-  if (!apply) return;
   const sql = postgres(url, { max: 1 });
   try {
-    await sql`
+    const [row] = await sql`
       insert into growth_access_grants
         (permission, principal_kind, token_hash, label, expires_at)
       values
         ('marketing.bot.read', 'marketing_bot', ${tokenHash(token)}, ${label}, ${expiresAt})
+      returning id
     `;
+    console.log(JSON.stringify({ ...grant, id: row.id, token }));
   } finally {
     await sql.end({ timeout: 5 });
   }
@@ -237,23 +239,26 @@ async function adminAccount(
   const plaintext = temporaryPassword();
   const passwordHash = await hashPassword(plaintext);
   const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
-  console.log(
-    JSON.stringify({
-      action,
-      email,
-      apply,
-      permissions: action === 'bootstrap' ? permissions : undefined,
-      expiresAt,
-      temporaryPassword: apply ? plaintext : undefined,
-    }),
-  );
-  if (!apply) return;
+  const summary = {
+    action,
+    email,
+    apply,
+    permissions: action === 'bootstrap' ? permissions : undefined,
+    expiresAt,
+  };
+  if (!apply) {
+    console.log(JSON.stringify(summary));
+    return;
+  }
   const sql = postgres(url, { max: 1 });
   try {
     if (action === 'bootstrap') {
-      const existing = await sql`select id from admin_accounts where is_master`;
-      if (existing.length > 0) throw new Error('A master admin already exists');
       await sql.begin(async (tx) => {
+        await tx`lock table admin_accounts in share row exclusive mode`;
+        const existing =
+          await tx`select id from admin_accounts where is_master`;
+        if (existing.length > 0)
+          throw new Error('A master admin already exists');
         const [account] = await tx`
           insert into admin_accounts (
             email, password_hash, is_master, status, must_change_password, temp_password_expires_at
@@ -265,6 +270,7 @@ async function adminAccount(
           await tx`insert into admin_permissions (account_id, permission) values (${account.id as string}, ${permission})`;
         }
       });
+      console.log(JSON.stringify({ ...summary, temporaryPassword: plaintext }));
       return;
     }
     const masters = await sql`
@@ -286,6 +292,7 @@ async function adminAccount(
       `;
       await tx`update admin_sessions set revoked_at = now() where account_id = ${id} and revoked_at is null`;
     });
+    console.log(JSON.stringify({ ...summary, temporaryPassword: plaintext }));
   } finally {
     await sql.end({ timeout: 5 });
   }

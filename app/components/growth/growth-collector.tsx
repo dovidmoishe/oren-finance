@@ -30,7 +30,7 @@ export function GrowthCollector() {
       visitorId: next.visitorId,
       sessionId: session.sessionId,
       host: window.location.host,
-      referrer: document.referrer,
+      referrer: document.referrer ? new URL(document.referrer).origin : undefined,
       userAgent: navigator.userAgent,
       utm: utm ?? undefined,
     });

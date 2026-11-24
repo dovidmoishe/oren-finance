@@ -1,5 +1,5 @@
-import { Inject, Injectable } from '@nestjs/common';
-import { and, eq, gte, isNull, sql } from 'drizzle-orm';
+import { Inject, Injectable, UnauthorizedException } from '@nestjs/common';
+import { and, eq, gt, gte, isNull, sql } from 'drizzle-orm';
 import { DRIZZLE } from '../../config/constants';
 import type { Database } from '../../database/database.provider';
 import {
@@ -71,61 +71,79 @@ export class AdminAuthRepository {
     createdBy: string | null;
     permissions: AdminPermission[];
   }): Promise<string> {
-    const [row] = await this.db
-      .insert(adminAccounts)
-      .values({
-        email: input.email,
-        passwordHash: input.passwordHash,
-        isMaster: input.isMaster,
-        status: input.status,
-        mustChangePassword: input.mustChangePassword,
-        tempPasswordExpiresAt: input.tempPasswordExpiresAt,
-        createdBy: input.createdBy,
-      })
-      .returning({ id: adminAccounts.id });
-    if (input.permissions.length > 0) {
-      await this.db.insert(adminPermissions).values(
-        input.permissions.map((permission) => ({
-          accountId: row.id,
-          permission,
-        })),
-      );
-    }
-    return row.id;
-  }
-
-  async markTemporaryUsed(id: string, at: Date): Promise<void> {
-    await this.db
-      .update(adminAccounts)
-      .set({ tempPasswordUsedAt: at })
-      .where(eq(adminAccounts.id, id));
+    return this.db.transaction(async (tx) => {
+      const [row] = await tx
+        .insert(adminAccounts)
+        .values({
+          email: input.email,
+          passwordHash: input.passwordHash,
+          isMaster: input.isMaster,
+          status: input.status,
+          mustChangePassword: input.mustChangePassword,
+          tempPasswordExpiresAt: input.tempPasswordExpiresAt,
+          createdBy: input.createdBy,
+        })
+        .returning({ id: adminAccounts.id });
+      if (input.permissions.length > 0) {
+        await tx.insert(adminPermissions).values(
+          input.permissions.map((permission) => ({
+            accountId: row.id,
+            permission,
+          })),
+        );
+      }
+      return row.id;
+    });
   }
 
   async replacePassword(
     id: string,
     passwordHash: string,
     at: Date,
+    currentHash: string,
   ): Promise<void> {
-    await this.db
-      .update(adminAccounts)
-      .set({
-        passwordHash,
-        mustChangePassword: false,
-        status: 'active',
-        tempPasswordExpiresAt: null,
-        tempPasswordUsedAt: null,
-        passwordChangedAt: at,
-      })
-      .where(eq(adminAccounts.id, id));
-    await this.revokeSessions(id, at);
+    await this.db.transaction(async (tx) => {
+      const updated = await tx
+        .update(adminAccounts)
+        .set({
+          passwordHash,
+          mustChangePassword: false,
+          status: 'active',
+          tempPasswordExpiresAt: null,
+          tempPasswordUsedAt: null,
+          passwordChangedAt: at,
+        })
+        .where(
+          and(
+            eq(adminAccounts.id, id),
+            eq(adminAccounts.passwordHash, currentHash),
+            isNull(adminAccounts.revokedAt),
+          ),
+        )
+        .returning({ id: adminAccounts.id });
+      if (!updated.length) throw new UnauthorizedException();
+      await tx
+        .update(adminSessions)
+        .set({ revokedAt: at })
+        .where(
+          and(eq(adminSessions.accountId, id), isNull(adminSessions.revokedAt)),
+        );
+    });
   }
 
   async revokeAccount(id: string, at: Date): Promise<void> {
-    await this.db
-      .update(adminAccounts)
-      .set({ status: 'revoked', revokedAt: at })
-      .where(eq(adminAccounts.id, id));
-    await this.revokeSessions(id, at);
+    await this.db.transaction(async (tx) => {
+      await tx
+        .update(adminAccounts)
+        .set({ status: 'revoked', revokedAt: at })
+        .where(eq(adminAccounts.id, id));
+      await tx
+        .update(adminSessions)
+        .set({ revokedAt: at })
+        .where(
+          and(eq(adminSessions.accountId, id), isNull(adminSessions.revokedAt)),
+        );
+    });
   }
 
   async rotateTemporary(
@@ -133,26 +151,67 @@ export class AdminAuthRepository {
     passwordHash: string,
     expiresAt: Date,
   ): Promise<void> {
-    await this.db
-      .update(adminAccounts)
-      .set({
-        passwordHash,
-        mustChangePassword: true,
-        status: 'invited',
-        tempPasswordExpiresAt: expiresAt,
-        tempPasswordUsedAt: null,
-      })
-      .where(eq(adminAccounts.id, id));
-    await this.revokeSessions(id, new Date());
+    await this.db.transaction(async (tx) => {
+      await tx
+        .update(adminAccounts)
+        .set({
+          passwordHash,
+          mustChangePassword: true,
+          status: 'invited',
+          tempPasswordExpiresAt: expiresAt,
+          tempPasswordUsedAt: null,
+        })
+        .where(eq(adminAccounts.id, id));
+      await tx
+        .update(adminSessions)
+        .set({ revokedAt: new Date() })
+        .where(
+          and(eq(adminSessions.accountId, id), isNull(adminSessions.revokedAt)),
+        );
+    });
   }
 
-  async createSession(input: {
-    idHash: string;
-    accountId: string;
-    csrfHash: string;
-    expiresAt: Date;
-  }): Promise<void> {
-    await this.db.insert(adminSessions).values(input);
+  async createSession(
+    input: {
+      idHash: string;
+      accountId: string;
+      csrfHash: string;
+      expiresAt: Date;
+    },
+    passwordHash: string,
+  ): Promise<void> {
+    await this.db.transaction(async (tx) => {
+      const [account] = await tx
+        .select()
+        .from(adminAccounts)
+        .where(
+          and(
+            eq(adminAccounts.id, input.accountId),
+            eq(adminAccounts.passwordHash, passwordHash),
+            isNull(adminAccounts.revokedAt),
+          ),
+        )
+        .for('update');
+      if (!account || account.status === 'revoked')
+        throw new UnauthorizedException('Invalid email or password');
+      if (account.mustChangePassword) {
+        const now = new Date();
+        const used = await tx
+          .update(adminAccounts)
+          .set({ tempPasswordUsedAt: now })
+          .where(
+            and(
+              eq(adminAccounts.id, account.id),
+              isNull(adminAccounts.tempPasswordUsedAt),
+              gt(adminAccounts.tempPasswordExpiresAt, now),
+            ),
+          )
+          .returning({ id: adminAccounts.id });
+        if (!used.length)
+          throw new UnauthorizedException('Invalid email or password');
+      }
+      await tx.insert(adminSessions).values(input);
+    });
   }
 
   async findSession(idHash: string): Promise<{
@@ -180,18 +239,6 @@ export class AdminAuthRepository {
       .set({ revokedAt: at })
       .where(
         and(eq(adminSessions.idHash, idHash), isNull(adminSessions.revokedAt)),
-      );
-  }
-
-  async revokeSessions(accountId: string, at: Date): Promise<void> {
-    await this.db
-      .update(adminSessions)
-      .set({ revokedAt: at })
-      .where(
-        and(
-          eq(adminSessions.accountId, accountId),
-          isNull(adminSessions.revokedAt),
-        ),
       );
   }
 

@@ -150,11 +150,25 @@ export class GrowthReportService {
     const grouping =
       groupBy === 'week' || groupBy === 'campaign' ? groupBy : 'none';
     const bounds = rangeBounds(from, to, 'UTC');
-    const [events, connections, trades] = await Promise.all([
-      this.repository.funnelEvents(bounds.start, bounds.end),
-      this.repository.connections(bounds.start, bounds.end),
-      this.repository.tradeFacts(bounds.start, bounds.end),
-    ]);
+    const asOf = new Date();
+    const followUpEnd = new Date(
+      Math.min(asOf.getTime(), bounds.end.getTime() + 30 * 86_400_000),
+    );
+    const [events, connections, trades, laterEvents, laterTrades] =
+      await Promise.all([
+        this.repository.funnelEvents(bounds.start, bounds.end),
+        this.repository.connections(bounds.start, bounds.end),
+        this.repository.tradeFacts(bounds.start, bounds.end),
+        this.repository.funnelEvents(bounds.end, followUpEnd),
+        this.repository.tradeFacts(bounds.end, followUpEnd),
+      ]);
+    const activity = researchAndTrades(
+      [...events, ...laterEvents],
+      {
+        intents: [...trades.intents, ...laterTrades.intents],
+      },
+      this.pepper,
+    );
     const facts: FunnelFact[] = events.map((event) => ({
       occurredAt: event.occurredAt.toISOString(),
       eventType: event.eventType as FunnelFact['eventType'],
@@ -172,6 +186,7 @@ export class GrowthReportService {
       ...buildFunnel({
         facts,
         connections: connections.map((row) => ({
+          campaign: row.campaign,
           grantId: row.grantId,
           accountHash: digest(this.pepper, 'account', row.userId),
           createdAt: row.createdAt.toISOString(),
@@ -183,18 +198,18 @@ export class GrowthReportService {
       }),
       trades: countTrades(trades),
       researchRetention7d: retention({
-        events: researchAndTrades(events, trades, this.pepper),
+        events: activity,
         cohortFrom: from,
         cohortTo: to,
         windowDays: 7,
-        asOf: new Date(),
+        asOf,
       }),
       researchRetention30d: retention({
-        events: researchAndTrades(events, trades, this.pepper),
+        events: activity,
         cohortFrom: from,
         cohortTo: to,
         windowDays: 30,
-        asOf: new Date(),
+        asOf,
       }),
       liveTradesVerified: false,
     };
@@ -245,7 +260,8 @@ export class GrowthReportService {
       if (event.eventType === 'oauth_completed') group.connections += 1;
       if (
         event.eventType === 'research_success' &&
-        event.toolName === 'getStockResearch' &&
+        (event.toolName === 'getStockResearch' ||
+          event.toolName === 'get_stock_research') &&
         event.accountHash
       ) {
         group.research.add(event.accountHash);
@@ -377,7 +393,8 @@ function researchAndTrades(
       .filter(
         (event) =>
           event.eventType === 'research_success' &&
-          event.toolName === 'getStockResearch' &&
+          (event.toolName === 'getStockResearch' ||
+            event.toolName === 'get_stock_research') &&
           event.accountHash,
       )
       .map((event) => ({

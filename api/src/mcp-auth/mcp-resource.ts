@@ -63,6 +63,12 @@ export interface McpResourceDeps {
       accountId?: string;
       sourceId: string;
     }): Promise<void>;
+    recordResearch?(input: {
+      accountId: string;
+      sourceId: string;
+      lane: 'mcp';
+      tool: 'get_stock_research';
+    }): Promise<void>;
     recordMcpStockContext?(input: {
       accountId: string;
       sourceId: string;
@@ -232,6 +238,12 @@ export async function handleMcpRequest(
             },
             { audience: 'mcp' },
           );
+          void deps.growth?.recordResearch?.({
+            accountId: connection.userId,
+            sourceId: `mcp:${connection.grantId}:get_stock_research:${requestId}`,
+            lane: 'mcp',
+            tool: 'get_stock_research',
+          });
           return {
             content: [{ type: 'text' as const, text: JSON.stringify(result) }],
           };

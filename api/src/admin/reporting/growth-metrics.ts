@@ -99,6 +99,8 @@ function emptyFunnel() {
     refused: 0,
     failed: 0,
     expired: 0,
+    mcpResearchCalls: 0,
+    mcpResearchAccounts: new Set<string>(),
     researchCalls: 0,
     researchAccounts: new Set<string>(),
     repeatResearchAccounts: new Set<string>(),
@@ -119,9 +121,7 @@ function addFact(
   } else if (fact.eventType === 'oauth_refused') bucket.refused += 1;
   else if (fact.eventType === 'oauth_failed') bucket.failed += 1;
   else if (fact.eventType === 'oauth_expired') bucket.expired += 1;
-  else if (fact.eventType === 'oauth_revoked' && fact.accountHash) {
-    bucket.revokedGrants.add(fact.accountHash);
-  } else if (
+  else if (
     fact.eventType === 'research_success' &&
     fact.toolName === RESEARCH_TOOL &&
     fact.lane !== 'mcp'
@@ -133,6 +133,13 @@ function addFact(
       bucket.researchAccounts.add(fact.accountHash);
       if (count > 1) bucket.repeatResearchAccounts.add(fact.accountHash);
     }
+  } else if (
+    fact.eventType === 'research_success' &&
+    fact.toolName === 'get_stock_research' &&
+    fact.lane === 'mcp'
+  ) {
+    bucket.mcpResearchCalls += 1;
+    if (fact.accountHash) bucket.mcpResearchAccounts.add(fact.accountHash);
   } else if (
     fact.eventType === 'mcp_stock_context' &&
     fact.toolName === 'get_stock'
@@ -169,10 +176,10 @@ function publish(key: string, bucket: ReturnType<typeof emptyFunnel>) {
       accounts: bucket.researchAccounts.size,
     },
     mcpResearchActivation: {
-      status: 'unavailable' as const,
-      value: null,
-      reason: 'no_mcp_research_tool',
-      tool: null,
+      status: 'exact' as const,
+      tool: 'get_stock_research',
+      calls: bucket.mcpResearchCalls,
+      accounts: bucket.mcpResearchAccounts.size,
     },
     mcpStockContext: {
       tool: 'get_stock',
@@ -180,7 +187,7 @@ function publish(key: string, bucket: ReturnType<typeof emptyFunnel>) {
       accounts: bucket.stockContextAccounts.size,
       note: 'Successful canonical stock detail. Not a research report.',
     },
-    note: 'A setup click is not a connection. In-app research and MCP stock detail are separate. MCP research activation is unavailable.',
+    note: 'Setup sessions, confirmed connections and successful tool calls are measured independently.',
   };
 }
 
@@ -198,7 +205,7 @@ export const FUNNEL_DEFINITIONS = {
   connection:
     'A server-confirmed OAuth grant row. A click, a refused prompt, a failed prompt, and an expired or revoked grant are not connections.',
   research:
-    'Successful in-app getStockResearch only. MCP has no research-report tool, so MCP research activation is unavailable. get_stock is counted separately as stock context.',
+    'Successful research calls are grouped by in-app getStockResearch and MCP get_stock_research. Stock context counts successful get_stock calls.',
   mcpStockContext:
     'A successful MCP get_stock call. It returns canonical stock detail, not a research report.',
   accounts:
@@ -255,7 +262,10 @@ export function retention(input: {
   const later = new Map<string, number[]>();
   for (const event of input.events) {
     const at = Date.parse(event.at);
-    if (event.kind === 'research' && !firstResearch.has(event.accountHash)) {
+    if (
+      event.kind === 'research' &&
+      at < (firstResearch.get(event.accountHash) ?? Infinity)
+    ) {
       firstResearch.set(event.accountHash, at);
     }
     const list = later.get(event.accountHash) ?? [];

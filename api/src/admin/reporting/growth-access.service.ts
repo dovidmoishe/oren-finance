@@ -20,7 +20,7 @@ export class GrowthAccessService {
     origin: string | undefined,
   ): Promise<void> {
     if (browserReportRequest(origin)) throw new ForbiddenException();
-    const token = authorization?.replace(/^Bearer\s+/i, '').trim() ?? '';
+    const token = /^Bearer\s+(\S+)$/i.exec(authorization ?? '')?.[1];
     if (!token || !isMachineToken(token)) throw new UnauthorizedException();
     const rows = await this.repository.grantsFor(tokenHash(token));
     const now = new Date();

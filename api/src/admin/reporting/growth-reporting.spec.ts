@@ -201,6 +201,9 @@ describe('reporting access', () => {
     };
     const service = new GrowthAccessService(repository as never);
     await expect(
+      service.authenticate(botToken(), undefined),
+    ).rejects.toBeInstanceOf(UnauthorizedException);
+    await expect(
       service.authenticate(undefined, undefined),
     ).rejects.toBeInstanceOf(UnauthorizedException);
     await expect(
@@ -448,6 +451,13 @@ describe('funnel, trades, and comparisons', () => {
           accountHash: 'a',
         },
         {
+          occurredAt: '2026-11-03T00:30:00.000Z',
+          eventType: 'research_success',
+          toolName: 'get_stock_research',
+          lane: 'mcp',
+          accountHash: 'a',
+        },
+        {
           occurredAt: '2026-11-03T01:00:00.000Z',
           eventType: 'mcp_stock_context',
           toolName: 'get_stock',
@@ -473,8 +483,9 @@ describe('funnel, trades, and comparisons', () => {
       researchCalls: 1,
       researchAccounts: 1,
       mcpResearchActivation: {
-        status: 'unavailable',
-        reason: 'no_mcp_research_tool',
+        status: 'exact',
+        calls: 1,
+        accounts: 1,
       },
       mcpStockContext: { tool: 'get_stock', calls: 1, accounts: 1 },
     });

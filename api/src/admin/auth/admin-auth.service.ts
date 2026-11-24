@@ -44,6 +44,8 @@ export class AdminAuthService {
     maxAgeSeconds: number;
     mustChangePassword: boolean;
   }> {
+    if (typeof input.email !== 'string' || typeof input.password !== 'string')
+      throw new UnauthorizedException(INVALID);
     const email = normalizeEmail(input.email);
     const emailKey = secretHash(
       `email:${email ?? input.email.trim().toLowerCase()}`,
@@ -77,18 +79,18 @@ export class AdminAuthService {
       throw new UnauthorizedException(INVALID);
     }
     const now = new Date();
-    if (principal.mustChangePassword) {
-      await this.repository.markTemporaryUsed(account.id, now);
-    }
     const sessionId = newSecret();
     const csrfToken = secretHash(`csrf:${sessionId}`);
     const lifetime = sessionLifetime(principal.mustChangePassword);
-    await this.repository.createSession({
-      idHash: secretHash(sessionId),
-      accountId: account.id,
-      csrfHash: secretHash(csrfToken),
-      expiresAt: new Date(now.getTime() + lifetime),
-    });
+    await this.repository.createSession(
+      {
+        idHash: secretHash(sessionId),
+        accountId: account.id,
+        csrfHash: secretHash(csrfToken),
+        expiresAt: new Date(now.getTime() + lifetime),
+      },
+      account.passwordHash,
+    );
     await this.repository.recordAttempt(emailKey, true);
     await this.repository.audit({
       actorId: account.id,
@@ -179,6 +181,7 @@ export class AdminAuthService {
       account.id,
       await hashPassword(input.nextPassword),
       new Date(),
+      account.passwordHash,
     );
     await this.repository.audit({
       actorId: account.id,
@@ -200,6 +203,8 @@ export class AdminAuthService {
   }> {
     const actor = await this.requireAccount(input.sessionId, input.csrfToken);
     if (!canManageAccounts(toPrincipal(actor))) throw new ForbiddenException();
+    if (typeof input.email !== 'string' || !Array.isArray(input.permissions))
+      throw new BadRequestException('Invalid invitation');
     const email = normalizeEmail(input.email);
     const permissions = invitationPermissions(input.permissions);
     if (!email || !permissions)

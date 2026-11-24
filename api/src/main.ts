@@ -699,19 +699,27 @@ async function bootstrap() {
         try {
           const details = await oauth.provider.interactionDetails(req, res);
           if (details.uid !== req.params.uid) return res.sendStatus(403);
+          const redirect = await oauth.provider.interactionResult(
+            req,
+            res,
+            {
+              error: 'access_denied',
+              error_description: 'Connection declined',
+            },
+            { mergeWithLastSubmission: false },
+          );
           void growth?.recordOauth({
             eventType: 'oauth_refused',
             sourceId: `deny:${details.uid}`,
             attribution,
           });
-          return res.sendStatus(403);
+          res.setHeader('Cache-Control', 'no-store');
+          return res.json({ redirect });
         } catch {
           return res.sendStatus(400);
         }
       }
       let stage = 'details';
-      let savedGrantId: string | undefined;
-      let savedUserId: string | undefined;
       try {
         const details = await oauth.provider.interactionDetails(req, res);
         if (details.uid !== req.params.uid) return res.sendStatus(403);
@@ -811,8 +819,6 @@ async function bootstrap() {
         // Keep that check satisfied while the resource grant remains required.
         grant.addOIDCScope(oidcScopes);
         const grantId = await grant.save();
-        savedGrantId = grantId;
-        savedUserId = owner.userId;
         await db.insert(mcpConnections).values({
           grantId,
           clientId,
@@ -843,14 +849,7 @@ async function bootstrap() {
         });
         return res.json({ redirect });
       } catch (error) {
-        if (savedGrantId && savedUserId) {
-          void growth?.recordOauth({
-            eventType: 'oauth_completed',
-            accountId: savedUserId,
-            sourceId: savedGrantId,
-            attribution,
-          });
-        } else if (stage === 'save') {
+        if (stage === 'save') {
           void growth?.recordOauth({
             eventType: 'oauth_failed',
             sourceId: `fail:${String(req.params.uid)}`,

@@ -21,6 +21,7 @@ function fixture(walletKind, scope = 'oren.read oren.trade.prepare') {
     '@/services/mcp-api-origin': { mcpApiOrigin: () => 'https://api.example.com' },
     '@/services/mcp-connector': { mcpConnector: () => undefined },
     '@/services/mcp-enrollment-flow': { mcpEnrollmentLinks: () => ({ settings: '/app/settings?mcp=resume' }) },
+    '@/components/growth/growth-collector': { consentAttributionHeader: () => ({}) },
     '@/components/brand/oren-logo': { OrenLogo: () => null },
     '@/components/ui': { formatDateTime() {}, formatNumber: String },
     'next/link': { default: ({ children, ...props }) => React.createElement('a', props, children) },

@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, eq, gte, inArray, isNull, lt, or, sql } from 'drizzle-orm';
+import { and, eq, gte, inArray, isNull, lt, lte, or, sql } from 'drizzle-orm';
 import { DRIZZLE } from '../../config/constants';
 import type { Database } from '../../database/database.provider';
 import {
@@ -122,16 +122,16 @@ export class GrowthRepository {
       utmTerm: input.utm?.term,
       isFirst: input.isFirst ?? false,
     };
-    try {
-      await this.db.insert(growthFunnelEvents).values(values);
-    } catch (error) {
-      if (!input.isFirst || !isUniqueViolation(error)) throw error;
+    const rows = await this.db
+      .insert(growthFunnelEvents)
+      .values(values)
+      .onConflictDoNothing()
+      .returning({ id: growthFunnelEvents.id });
+    if (input.isFirst && !rows.length) {
       await this.db
         .insert(growthFunnelEvents)
         .values({ ...values, isFirst: false })
-        .onConflictDoNothing({
-          target: [growthFunnelEvents.eventType, growthFunnelEvents.sourceId],
-        });
+        .onConflictDoNothing();
     }
   }
 
@@ -177,6 +177,34 @@ export class GrowthRepository {
         ],
         set: row,
       });
+  }
+
+  async accountTouch(
+    accountHash: string,
+    model: 'first' | 'last',
+    since: Date,
+    now: Date,
+  ) {
+    const rows = await this.db
+      .select()
+      .from(growthAttributionTouches)
+      .where(
+        and(
+          eq(growthAttributionTouches.subjectKind, 'account'),
+          eq(growthAttributionTouches.subjectHash, accountHash),
+          gte(growthAttributionTouches.touchedAt, since),
+          lte(growthAttributionTouches.touchedAt, now),
+        ),
+      );
+    const row = rows.find((entry) => entry.touch === model) ?? rows[0];
+    if (!row) return undefined;
+    return {
+      source: row.utmSource ?? undefined,
+      medium: row.utmMedium ?? undefined,
+      campaign: row.utmCampaign ?? undefined,
+      content: row.utmContent ?? undefined,
+      term: row.utmTerm ?? undefined,
+    };
   }
 
   async grantsFor(tokenHashValue: string) {
@@ -292,12 +320,20 @@ export class GrowthRepository {
   async connections(from: Date, to: Date) {
     return this.db
       .select({
+        campaign: growthFunnelEvents.utmCampaign,
         grantId: mcpConnections.grantId,
         userId: mcpConnections.userId,
         createdAt: mcpConnections.createdAt,
         revokedAt: mcpConnections.revokedAt,
       })
       .from(mcpConnections)
+      .leftJoin(
+        growthFunnelEvents,
+        and(
+          eq(growthFunnelEvents.sourceId, mcpConnections.grantId),
+          eq(growthFunnelEvents.eventType, 'oauth_completed'),
+        ),
+      )
       .where(
         and(
           gte(mcpConnections.createdAt, from),
@@ -559,13 +595,4 @@ function shiftDay(day: string, delta: number): string {
   const date = new Date(`${day}T00:00:00.000Z`);
   date.setUTCDate(date.getUTCDate() + delta);
   return date.toISOString().slice(0, 10);
-}
-
-function isUniqueViolation(error: unknown): boolean {
-  return (
-    typeof error === 'object' &&
-    error !== null &&
-    'code' in error &&
-    (error as { code?: string }).code === '23505'
-  );
 }

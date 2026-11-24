@@ -26,7 +26,11 @@ export function normalizeEmail(email: string): string | null {
 }
 
 export function passwordAcceptable(password: string): boolean {
-  return password.length >= 12 && password.length <= 200;
+  return (
+    typeof password === 'string' &&
+    password.length >= 12 &&
+    password.length <= 200
+  );
 }
 
 export function invitationPermissions(

@@ -52,7 +52,7 @@ export function cleanUtm(input: {
 }
 
 function clean(value: string | undefined): string | undefined {
-  if (!value) return undefined;
+  if (typeof value !== 'string') return undefined;
   const trimmed = value.trim();
   if (!FIELD.test(trimmed)) return undefined;
   if (/oren_rpt_|did:privy|bearer\s/i.test(trimmed)) return undefined;

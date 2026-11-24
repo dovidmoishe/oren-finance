@@ -38,11 +38,9 @@ describe('admin dashboard HTTP authorization', () => {
     failureCount: jest.fn(() => 0),
     recordAttempt: jest.fn(() => undefined),
     audit: jest.fn(() => undefined),
-    markTemporaryUsed: jest.fn((_id: string, at: Date) => {
-      account.tempPasswordUsedAt = at;
-    }),
     createSession: jest.fn(
       (input: Parameters<AdminAuthRepository['createSession']>[0]) => {
+        if (account.mustChangePassword) account.tempPasswordUsedAt = new Date();
         storedSessionHash = input.idHash;
         storedSession = { ...input, revokedAt: null };
       },

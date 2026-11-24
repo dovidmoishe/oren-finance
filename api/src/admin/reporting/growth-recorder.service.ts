@@ -127,20 +127,33 @@ export class GrowthRecorder {
   recordResearch(input: {
     accountId: string;
     sourceId: string;
-    lane: 'in_app';
-    tool: 'getStockResearch';
+    lane: 'in_app' | 'mcp';
+    tool: 'getStockResearch' | 'get_stock_research';
   }): Promise<void> {
-    return observeGrowth(() =>
-      this.repository.insertFunnel({
-        occurredAt: new Date(),
+    return observeGrowth(async () => {
+      const occurredAt = new Date();
+      const accountHash = digest(this.pepper, 'account', input.accountId);
+      const since = new Date(
+        occurredAt.getTime() -
+          this.env.GROWTH_ATTRIBUTION_WINDOW_DAYS * 86_400_000,
+      );
+      const utm = await this.repository.accountTouch(
+        accountHash,
+        this.env.GROWTH_ATTRIBUTION_MODEL,
+        since,
+        occurredAt,
+      );
+      await this.repository.insertFunnel({
+        occurredAt,
         eventType: 'research_success',
-        accountHash: digest(this.pepper, 'account', input.accountId),
-        sourceId: input.sourceId,
+        accountHash,
+        sourceId: digest(this.pepper, 'research-call', input.sourceId),
         lane: input.lane,
         toolName: input.tool,
+        utm,
         isFirst: true,
-      }),
-    );
+      });
+    });
   }
 
   /** Successful MCP get_stock. This is stock detail, not research activation. */

@@ -106,20 +106,29 @@ function McpConnection({ uid }: { uid: string }) {
     return () => controller.abort();
   }, [requestsExecute, authenticated, requiresEmbeddedWallet, getAccessToken, apiOrigin]);
 
+  async function resumeInteraction(response: Response) {
+    const body = (await response.json()) as { redirect?: string };
+    const redirect = new URL(body.redirect ?? '');
+    if (redirect.origin !== apiOrigin || !redirect.pathname.startsWith('/oauth/'))
+      throw new Error('Invalid authorization redirect.');
+    window.location.assign(redirect.href);
+  }
+
   async function refuse() {
     if (!apiOrigin || !uid) return;
     setBusy(true);
     try {
-      await fetch(`${apiOrigin}/oauth/interaction/${encodeURIComponent(uid)}`, {
+      const response = await fetch(`${apiOrigin}/oauth/interaction/${encodeURIComponent(uid)}`, {
         method: 'POST',
         credentials: 'include',
         headers: { 'X-Oren-Consent-Decision': 'deny', ...consentAttributionHeader() },
       });
+      if (!response.ok) throw new Error();
+      await resumeInteraction(response);
     } catch {
-      // A missed refusal report must not trap the person on this page.
+      setError('Unable to cancel this connection. Try again.');
+      setBusy(false);
     }
-    setError('Connection cancelled. You can start again from your app.');
-    setBusy(false);
   }
 
   async function authorize() {
@@ -140,11 +149,7 @@ function McpConnection({ uid }: { uid: string }) {
         },
       });
       if (!response.ok) throw new Error('Unable to authorize this connection. Start again in your agent.');
-      const body = (await response.json()) as { redirect?: string };
-      const redirect = new URL(body.redirect ?? '');
-      if (redirect.origin !== apiOrigin || !redirect.pathname.startsWith('/oauth/'))
-        throw new Error('Invalid authorization redirect.');
-      window.location.assign(redirect.href);
+      await resumeInteraction(response);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Unable to connect.');
       setBusy(false);

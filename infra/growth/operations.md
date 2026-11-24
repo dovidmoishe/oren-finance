@@ -26,7 +26,7 @@ Suggested limits, already the defaults:
 
 ## Migration
 
-`api/lib/db/migrations/0015_growth_reporting.sql` creates the tables and grants them to `oren_api_runtime` when that role exists. The normal `api-migrate` service applies it. It does not insert visits, imports, or grants.
+`api/lib/db/migrations/0025_growth_reporting.sql` creates the tables and grants them to `oren_api_runtime` when that role exists. The normal `api-migrate` service applies it. It does not insert visits, imports, or grants.
 
 Rollback before any report data matters: drop the `growth_*` tables in reverse dependency order (`growth_import_observations` before `growth_import_batches`). Do not drop them after production collection without an export. Upgrade is the next migration; these tables are additive.
 
@@ -34,9 +34,9 @@ Rollback before any report data matters: drop the `growth_*` tables in reverse d
 
 `GET /api/admin/reports/daily?from=YYYY-MM-DD&to=YYYY-MM-DD&timezone=Africa/Lagos&format=csv`
 
-The same path with `format=json` returns the traffic report. Both require the marketing bot bearer.
+The same path with `format=json` returns the traffic report. Both accept the marketing bot bearer or an authorized admin session.
 
-Other read routes, all under `/api/admin/reports`, use that same bearer:
+Other read routes, all under `/api/admin/reports`, accept the same report credentials:
 
 - `GET /coverage`
 - `GET /traffic`
@@ -52,6 +52,14 @@ There is no HTTP import route. Aggregate import is the offline command below. Th
 Two callers can read reports after an approved deployment. Ordinary product logins cannot.
 
 **Marketing bot.** Run `access issue --manual --label marketing-bot` and add `--apply` only on the database you mean to change. The command prints the bearer once. Store it in the bot's secret manager and send `Authorization: Bearer` from the bot's server. Do not put it in a browser. Revoke with `access revoke --manual --id <grant-uuid> --apply`.
+
+The bot can fetch its activation report from a server process using its issued token. Supply the token through its secret manager as `OREN_REPORT_TOKEN`. Save the grant ID returned at issuance for revocation.
+
+```bash
+curl --fail --silent --show-error \
+  -H "Authorization: Bearer ${OREN_REPORT_TOKEN}" \
+  'https://api.oren.finance/api/admin/reports/funnel?from=2026-11-01&to=2026-11-07'
+```
 
 **Admin accounts.** There is no public signup and no email sender. Bootstrap the first master offline:
 
