@@ -35,6 +35,9 @@ export function buildInstructions(
   options?: { includeDrip?: boolean },
 ): string {
   const sections = [OREN_AGENT_PROMPT];
+  sections.push(
+    'For a swing-trade investigation, call getTradingSkill with factor-research, data-validation, or risk-journal as appropriate. Follow its guidance using tools available in this session. Base conclusions on tool results.',
+  );
   if (options?.includeDrip) sections.push(DRIP_AGENT_GUIDANCE);
   else
     sections.push(

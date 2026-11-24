@@ -8,9 +8,10 @@ import {
 } from '@nestjs/common';
 import { APP_ENV } from '../config/constants';
 import type { AppEnv } from '../config/env.schema';
-import { PAPER_MODEL, PAPER_STRATEGIES } from '../../types/paper';
+import { PAPER_MODEL } from '../../types/paper';
 import { PaperService } from './paper.service';
 import { DAY } from './strategy';
+import { MarketBenchmark } from './market-benchmark';
 
 // This opt-in belongs to the experiment PR. The preview DB persists across redeploys.
 const experiment = {
@@ -27,6 +28,7 @@ export class PreviewBenchmark {
   constructor(
     @Inject(APP_ENV) private readonly env: AppEnv,
     private readonly paper: PaperService,
+    private readonly market: MarketBenchmark,
   ) {}
 
   get enabled() {
@@ -42,32 +44,9 @@ export class PreviewBenchmark {
     this.lastError = null;
     try {
       const runs = await this.paper.list(experiment.owner);
-      const first =
-        runs.at(-1) ??
-        (await this.paper.start(
-          experiment.owner,
-          experiment.asset,
-          'buy-hold-v1',
-        ));
-      const endsAt = +first.createdAt + experiment.duration;
-      if (Date.now() >= endsAt) {
-        for (const run of runs.filter((r) => r.active))
-          await this.paper.setActive(experiment.owner, run.id, false);
-        return;
-      }
-      for (const strategy of PAPER_STRATEGIES) {
-        if (
-          strategy !== first.strategy &&
-          !runs.some((r) => r.strategy === strategy)
-        )
-          await this.paper.start(
-            experiment.owner,
-            experiment.asset,
-            strategy,
-            first.mint,
-          );
-      }
-      await this.paper.tick({ owner: experiment.owner, endsAt });
+      for (const run of runs.filter((r) => r.active))
+        await this.paper.setActive(experiment.owner, run.id, false);
+      await this.market.poll();
     } catch (error) {
       this.lastError = 'benchmark_poll_failed';
       throw error;
@@ -120,17 +99,27 @@ export class PreviewBenchmark {
         };
       }),
     );
+    const comparison = await this.market.report();
     return {
+      ...comparison,
+      archivedNvda: {
+        asset: experiment.asset,
+        startedAt,
+        originalDeadline: endsAt,
+        trials,
+      },
       asset: experiment.asset,
       pr: experiment.pr,
       deployedCommit: this.env.COMMIT_SHA,
-      startedAt,
-      endsAt,
-      status: !endsAt
-        ? 'starting'
-        : Date.now() < +endsAt
-          ? 'observing'
-          : 'ended',
+      startedAt: comparison.accounts[0]?.startedAt ?? null,
+      endsAt: comparison.accounts[0]?.endsAt ?? null,
+      status:
+        comparison.accounts.length &&
+        comparison.accounts.every((a) => a.status === 'ended')
+          ? 'ended'
+          : comparison.accounts.some((a) => a.status === 'observing')
+            ? 'observing'
+            : 'starting',
       lastPollAt: this.lastPollAt,
       pollError: this.lastError,
       trials,

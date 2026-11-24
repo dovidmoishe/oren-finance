@@ -23,6 +23,33 @@ import type {
   PaperStrategy,
 } from '../../types/paper';
 
+import type {
+  MarketBook,
+  MarketPolicy,
+  MarketRound,
+  ScreenRow,
+} from '../../types/paper-market';
+
+export const paperMarketScreens = pgTable('paper_market_screens', {
+  epoch: integer('epoch').primaryKey(),
+  capturedAt: timestamp('captured_at', { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+  universe: jsonb('universe').$type<ScreenRow[]>().notNull(),
+});
+export const paperMarketAccounts = pgTable('paper_market_accounts', {
+  policy: text('policy').$type<MarketPolicy>().primaryKey(),
+  startedAt: timestamp('started_at', { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+  epoch: integer('epoch').default(-1).notNull(),
+  revision: integer('revision').default(0).notNull(),
+  lastError: text('last_error'),
+  nextAt: timestamp('next_at', { withTimezone: true }).defaultNow().notNull(),
+  state: jsonb('state').$type<MarketBook>().notNull(),
+  rounds: jsonb('rounds').$type<MarketRound[]>().default([]).notNull(),
+});
+
 export const paperRuns = pgTable(
   'paper_runs',
   {

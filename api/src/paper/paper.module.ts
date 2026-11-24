@@ -6,6 +6,10 @@ import { PAPER_QUOTES, type PaperQuotes } from './quotes';
 import { AuthModule } from '../auth/auth.module';
 import { PaperController } from './paper.controller';
 import { PaperService } from './paper.service';
+import { MarketModule } from '../market/market.module';
+import { MarketBenchmark } from './market-benchmark';
+import { openAiClientProvider } from '../agent/openai.provider';
+import { PaperResearchAgent } from './paper-research';
 import { PaperWorker } from './paper.worker';
 import {
   PreviewBenchmark,
@@ -13,9 +17,12 @@ import {
 } from './preview-benchmark';
 
 @Module({
-  imports: [TokensModule, JupiterClientModule, AuthModule],
+  imports: [TokensModule, JupiterClientModule, AuthModule, MarketModule],
   controllers: [PaperController, PreviewBenchmarkController],
   providers: [
+    MarketBenchmark,
+    openAiClientProvider,
+    PaperResearchAgent,
     PaperService,
     PaperWorker,
     PreviewBenchmark,

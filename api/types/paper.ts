@@ -59,3 +59,12 @@ export interface PaperJournalEntry {
   result: PaperValuation | null;
   error: string | null;
 }
+
+export interface PaperResearch {
+  version: string;
+  model: string;
+  tools: string[];
+  rationale: string;
+  selected: 'breakout-v1' | 'pullback-v1' | 'cash' | null;
+  error?: string;
+}

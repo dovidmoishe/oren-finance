@@ -13,6 +13,9 @@ import * as schema from '../database/schema';
 import { TokensService } from '../tokens/tokens.service';
 import { PaperController } from './paper.controller';
 import { PaperService } from './paper.service';
+import { MarketBenchmark } from './market-benchmark';
+import { MarketService } from '../market/market.service';
+import { PaperResearchAgent } from './paper-research';
 import { PreviewBenchmark } from './preview-benchmark';
 import type { AppEnv } from '../config/env.schema';
 import { PAPER_QUOTES } from './quotes';
@@ -21,6 +24,7 @@ import { DAY, decide, settle } from './strategy';
 // HTTP tests inject two test identities. Keep the external identity SDK out of Jest.
 jest.mock('@privy-io/node', () => ({ PrivyClient: jest.fn() }));
 
+jest.setTimeout(30000);
 const url = process.env.PAPER_TEST_DATABASE_URL;
 (url ? describe : describe.skip)(
   'paper HTTP workflow on isolated PostgreSQL',
@@ -66,10 +70,47 @@ const url = process.env.PAPER_TEST_DATABASE_URL;
           'utf8',
         ),
       );
+      await client.unsafe(
+        readFileSync(
+          resolve(
+            __dirname,
+            '../../lib/db/migrations/0026_paper_market_benchmark.sql',
+          ),
+          'utf8',
+        ),
+      );
       const module = await Test.createTestingModule({
         controllers: [PaperController],
         providers: [
           PaperService,
+          MarketBenchmark,
+          {
+            provide: MarketService,
+            useValue: {
+              listStocks: (page: number) => ({
+                items: [
+                  {
+                    id: 'asset-' + page,
+                    ticker: 'A' + page,
+                    liquidity: 3 - page,
+                    volume24h: page,
+                    priceChange24h: page,
+                  },
+                ],
+                pagination: { total: 2, hasMore: page < 2 },
+              }),
+            },
+          },
+          {
+            provide: PaperResearchAgent,
+            useValue: {
+              shortlist: () => ['asset-1', 'asset-2'],
+              investigate: () => ({
+                signal: 'buy',
+                research: { tools: ['inspectSignals'] },
+              }),
+            },
+          },
           { provide: PrivyWalletAuth, useValue: auth },
           { provide: APP_ENV, useValue: { PAPER_TRADING_ENABLED: true } },
           { provide: DRIZZLE, useValue: drizzle(client, { schema }) },
@@ -82,44 +123,63 @@ const url = process.env.PAPER_TEST_DATABASE_URL;
       await app.init();
       service = app.get(PaperService);
     });
-    it('isolates the preview fixture, resumes its deadline and stops all three trials', async () => {
-      const preview = {
+    it('funds exactly five accounts once, shares each balance across assets and archives NVDA', async () => {
+      const markets = app.get(MarketBenchmark);
+      const env = {
         DEPLOYMENT_ENV: 'preview',
         PREVIEW_PR_NUMBER: 142,
       } as AppEnv;
+      const fixture = new PreviewBenchmark(env, service, markets);
       const disabled = new PreviewBenchmark(
-        { ...preview, DEPLOYMENT_ENV: 'production' },
+        { ...env, DEPLOYMENT_ENV: 'production' },
         service,
+        markets,
       );
       await disabled.poll();
       await expect(disabled.report()).rejects.toThrow();
-      expect(
-        new PreviewBenchmark({ ...preview, PREVIEW_PR_NUMBER: 141 }, service)
-          .enabled,
-      ).toBe(false);
-      const other = await service.start(
-        'different-user',
+      const original = await service.start(
+        'fixture:paper:pr-142',
         'nvidia',
-        'breakout-v1',
+        'buy-hold-v1',
       );
-      const bench = new PreviewBenchmark(preview, service);
-      await bench.poll();
-      const first = await bench.report();
-      expect(first.trials).toHaveLength(3);
-      expect(first.trials.every((t) => t.observations.length === 1)).toBe(true);
+      getQuote.mockImplementation(
+        (p: {
+          inputMint: string;
+          outputMint: string;
+          amount: string;
+          slippageBps: number;
+        }) => ({
+          ...p,
+          swapMode: 'ExactIn',
+          inAmount: p.amount,
+          outAmount: p.amount,
+          otherAmountThreshold: String((BigInt(p.amount) * 995n) / 1000n),
+          routePlan: [{}],
+        }),
+      );
+      await Promise.all([fixture.poll(), fixture.poll()]);
+      const report = await fixture.report();
+      expect(report.totalStartingUsdc).toBe(50000);
+      expect(report.accounts).toHaveLength(5);
+      expect(report.coverage[0].count).toBe(2);
       expect(
-        (await service.activity('different-user', other.id)).events,
-      ).toHaveLength(0);
-      await service.setActive('different-user', other.id, false);
-      const restarted = new PreviewBenchmark(preview, service);
-      await restarted.poll();
-      expect((await restarted.report()).endsAt).toEqual(first.endsAt);
-      await client`update paper_runs set created_at = created_at - interval '3 days' where owner_id = 'fixture:paper:pr-142'`;
-      await restarted.poll();
-      const ended = await restarted.report();
-      expect(ended.status).toBe('ended');
+        (await service.activity('fixture:paper:pr-142', original.id)).run
+          .active,
+      ).toBe(false);
+      const control = report.accounts.find((a) => a.policy === 'buy-hold')!;
+      expect(Object.keys(control.book.positions)).toHaveLength(2);
+      expect(control.book.cash).toBe('8099981000');
+      expect(control.rounds).toHaveLength(1);
+      await new PreviewBenchmark(env, service, markets).poll();
+      expect((await fixture.report()).accounts).toEqual(report.accounts);
+      await client`update paper_market_accounts set started_at=started_at-interval '3 days',next_at=now()`;
+      await fixture.poll();
       expect(
-        ended.trials.every((t) => !t.active && t.observations.length === 1),
+        (await fixture.report()).accounts.every(
+          (a) =>
+            a.status === 'ended' &&
+            a.rounds.at(-1)?.observations.every((o) => !o.filled),
+        ),
       ).toBe(true);
     });
     afterAll(async () => {

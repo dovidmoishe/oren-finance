@@ -235,7 +235,7 @@ export class PaperService {
     );
   }
 
-  private async route(mint: string, side: 'buy' | 'sell', amount: bigint) {
+  async route(mint: string, side: 'buy' | 'sell', amount: bigint) {
     const buy = side === 'buy';
     const requestedAt = Date.now();
     const raw = await this.quotes.getQuote({

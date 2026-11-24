@@ -1,5 +1,10 @@
 import { BadRequestException, Injectable, Optional } from '@nestjs/common';
 import { PaidProviderToolBudget } from '../../common/rate-limit';
+import {
+  tradingSkills,
+  tradingSkillSource,
+  tradingSkillVersion,
+} from '../trading-skills';
 import type { AgentArtifact } from '../../../types/agent';
 import type { TradeIntent } from '../../../types/execution';
 import type { ChartRange } from '../../../types/market';
@@ -106,6 +111,15 @@ export class AgentToolRegistry {
     this.chargePaidTool(name, context);
 
     switch (name) {
+      case 'getTradingSkill': {
+        const skill = required(input, 'skill');
+        if (!Object.hasOwn(tradingSkills, skill))
+          throw new BadRequestException('Unknown trading skill');
+        const { guidance, chatTools } = tradingSkills[skill as keyof typeof tradingSkills];
+        return {
+          output: { skill, version: tradingSkillVersion, source: tradingSkillSource, guidance, tools: chatTools },
+        };
+      }
       case 'getPortfolio': {
         const portfolio = await this.portfolio.getPortfolio(
           connectedWallet(context),
@@ -590,6 +604,11 @@ const nullableNumberSchema = { type: ['number', 'null'] };
 const nullableBooleanSchema = { type: ['boolean', 'null'] };
 
 const TOOL_SCHEMAS: ToolDefinition[] = [
+  tool(
+    'getTradingSkill',
+    'Read a reviewed Oren swing-trading skill and its relevant chat tools.',
+    { skill: { type: 'string', enum: Object.keys(tradingSkills) } },
+  ),
   tool(
     'getPortfolio',
     'Get the latest portfolio for the connected wallet. Use the attached snapshot for conversational advice; call this before trade sizing or quotes when balances may have changed.',

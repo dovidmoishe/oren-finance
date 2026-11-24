@@ -183,6 +183,13 @@
       "when": 1795392000000,
       "tag": "0025_paper_trading",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1795392001000,
+      "tag": "0026_paper_market_benchmark",
+      "breakpoints": true
     }
   ]
 }
