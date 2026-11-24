@@ -41,9 +41,9 @@ export function Panel({
 }) {
   return (
     <section
-      className={`mb-5 min-w-0 overflow-hidden rounded-md border border-border bg-white ${className}`}
+      className={`mb-5 min-w-0 overflow-hidden rounded-xl border border-border bg-white ${className}`}
     >
-      <div className="flex flex-wrap items-center justify-between gap-3 px-5 pt-4 pb-3 [&_h2]:text-[15px] [&_h2]:font-semibold [&_p]:mt-1 [&_p]:text-xs [&_p]:text-muted">
+      <div className="flex flex-wrap items-center justify-between gap-3 px-5 pt-4 pb-3 [&_h2]:text-base [&_h2]:font-semibold [&_h2]:tracking-tight [&_p]:mt-1 [&_p]:text-xs [&_p]:text-muted">
         <div>
           <h2>{title}</h2>
           {subtitle && <p>{subtitle}</p>}
@@ -58,22 +58,24 @@ export function Metric({
   label,
   value,
   note,
+  compact = false,
 }: {
   label: string;
   value: ReactNode;
-  note: string;
+  note?: string;
+  compact?: boolean;
 }) {
   return (
-    <section className="flex min-h-32 min-w-0 flex-col justify-between gap-2 rounded-md border border-border bg-white p-5 mobile:p-4 [&_p]:text-[11px] [&_p]:leading-relaxed [&_p]:text-muted">
-      <span className="text-[11px] font-semibold tracking-wider text-muted uppercase">
-        {label}
-      </span>
+    <section
+      className={`flex min-w-0 flex-col gap-2 rounded-xl border border-border bg-white p-5 mobile:p-3 [&_p]:text-[11px] [&_p]:leading-relaxed [&_p]:text-muted ${compact ? "max-[899px]:col-span-2 max-[899px]:flex-row max-[899px]:items-center max-[899px]:justify-between min-[900px]:min-h-24" : "min-h-24"}`}
+    >
+      <span className="text-xs font-medium text-muted">{label}</span>
       <strong
         className={`leading-tight font-medium tracking-tight tabular-nums ${value === "Unavailable" ? "text-lg text-muted" : "text-3xl mobile:text-2xl"}`}
       >
         {value}
       </strong>
-      <p>{note}</p>
+      {note && <p>{note}</p>}
     </section>
   );
 }
@@ -113,10 +115,7 @@ export function Empty({
         <Icon icon={RefreshCw} size={23} />
       </div>
       <h3>{title}</h3>
-      <p>
-        {children ||
-          "Try another date range. New activity will appear here when it is recorded."}
-      </p>
+      <p>{children || "Try another date range."}</p>
     </div>
   );
 }
@@ -210,7 +209,7 @@ export function DateFilters({ utcOnly = false }: { utcOnly?: boolean }) {
             state.update(initialRange(utcOnly ? "UTC" : state.timezone))
           }
         >
-          Last 14 days
+          Reset to 14 days
         </button>
         <button
           className={iconButton}
@@ -227,11 +226,6 @@ export function DateFilters({ utcOnly = false }: { utcOnly?: boolean }) {
           Choose valid dates, with the end after the start, spanning at most 366
           days.
         </div>
-      )}
-      {utcOnly && (
-        <p className="mb-4 text-xs text-muted">
-          Funnel, campaign and retention reports use UTC calendar days.
-        </p>
       )}
     </>
   );

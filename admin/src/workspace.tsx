@@ -30,7 +30,7 @@ const MotionLink = motion.create(Link);
 
 const navigation = [
   {
-    label: "Workspace",
+    label: "Analytics",
     items: [
       {
         to: "/",
@@ -62,6 +62,12 @@ const navigation = [
         icon: ChartLine,
         permission: "reports.read",
       },
+      {
+        to: "/coverage",
+        label: "Data coverage",
+        icon: Layers,
+        permission: "reports.read",
+      },
     ],
   },
   {
@@ -84,12 +90,6 @@ const navigation = [
         label: "Trade activity",
         icon: Activity,
         permission: "dashboard.access",
-      },
-      {
-        to: "/coverage",
-        label: "Data coverage",
-        icon: Layers,
-        permission: "reports.read",
       },
     ],
   },
@@ -117,34 +117,19 @@ const navigation = [
     ],
   },
 ] as const;
-export const pageInfo: Record<string, [string, string]> = {
-  "/": ["Overview", "A little perspective on how Oren is growing."],
-  "/traffic": ["Traffic", "Every visit is part of a bigger story."],
-  "/funnel": [
-    "Activation funnel",
-    "From discovery to a useful first interaction.",
-  ],
-  "/retention": ["Retention", "See which research accounts come back."],
-  "/campaigns": [
-    "Campaigns",
-    "Understand the paths bringing accounts to Oren.",
-  ],
-  "/users": ["Connected accounts", "Accounts with a recorded MCP connection."],
-  "/connections": [
-    "Agent connections",
-    "A read-only view of connected clients and scopes.",
-  ],
-  "/trades": [
-    "Trade activity",
-    "Follow agent intents from preparation to confirmation.",
-  ],
-  "/coverage": [
-    "Data coverage",
-    "Know what each number can—and cannot—tell you.",
-  ],
-  "/accounts": ["Team & access", "Give your team the access they need."],
-  "/audit": ["Audit log", "A record of admin access and account changes."],
-  "/security": ["Password & security", "Keep your admin account secure."],
+const pageTitles: Record<string, string> = {
+  "/": "Overview",
+  "/traffic": "Traffic",
+  "/funnel": "Activation funnel",
+  "/retention": "Retention",
+  "/campaigns": "Campaigns",
+  "/users": "Connected accounts",
+  "/connections": "Agent connections",
+  "/trades": "Trade activity",
+  "/coverage": "Data coverage",
+  "/accounts": "Team & access",
+  "/audit": "Audit log",
+  "/security": "Password & security",
 };
 
 export function Workspace() {
@@ -160,6 +145,7 @@ export function Workspace() {
   const [logoutError, setLogoutError] = useState("");
   const [loggingOut, setLoggingOut] = useState(false);
   const path = useRouterState({ select: (state) => state.location.pathname });
+  const title = pageTitles[path] ?? "Workspace";
   useEffect(() => {
     const media = window.matchMedia("(max-width: 700px)");
     const change = () => {
@@ -176,8 +162,10 @@ export function Workspace() {
   }, [mobileOpen]);
   useEffect(() => {
     setMobileOpen(false);
-    document.title = `${pageInfo[path]?.[0] || "Workspace"} · Oren Admin`;
   }, [path]);
+  useEffect(() => {
+    document.title = `${title} ? Oren Admin`;
+  }, [title]);
   useEffect(() => {
     const close = (event: KeyboardEvent) => {
       if (event.key === "Escape") setMobileOpen(false);
@@ -223,21 +211,16 @@ export function Workspace() {
       )}
       <aside
         inert={isMobile && !mobileOpen}
-        className={`fixed inset-y-0 left-0 z-30 flex w-[216px] flex-col overflow-y-auto border-r border-sidebar-line bg-sidebar px-3 pt-6 text-white mobile:w-60 motion-safe:transition-transform ${mobileOpen ? "translate-x-0" : "mobile:-translate-x-full"}`}
+        className={`fixed inset-y-0 left-0 z-30 flex w-[216px] flex-col overflow-y-auto border-r border-border bg-panel px-3 text-foreground mobile:w-60 motion-safe:transition-transform ${mobileOpen ? "translate-x-0" : "mobile:-translate-x-full"}`}
       >
-        <div className="mb-6 flex items-center gap-2 px-2">
+        <div className="mb-3 flex min-h-16 shrink-0 items-center gap-2 px-2">
           <Link
             to="/"
-            className="inline-flex items-center gap-1.5 font-sans text-[25px] leading-none font-semibold tracking-tight [&>img]:size-6"
+            className="inline-flex items-center gap-2 text-lg font-semibold tracking-tight [&>img]:size-7"
           >
             <img src="/oren-mark.svg" alt="" />
-            <span>
-              oren<span className="text-emerald-300">.</span>
-            </span>
+            <span>Oren Admin</span>
           </Link>
-          <span className="border-l border-sidebar-line pl-2 text-[11px] text-sidebar-muted">
-            Admin
-          </span>
           <button
             ref={closeRef}
             className="ml-auto hidden size-9 cursor-pointer items-center justify-center rounded hover:bg-nav-active mobile:inline-flex"
@@ -253,8 +236,8 @@ export function Workspace() {
               permitted(item.permission),
             );
             return items.length ? (
-              <div className="mb-5 grid gap-0.5" key={group.label}>
-                <span className="mb-1 px-2.5 text-[10px] font-semibold tracking-wider text-sidebar-muted uppercase">
+              <div className="mb-5 grid gap-1" key={group.label}>
+                <span className="mb-1 px-3 text-xs font-medium text-muted">
                   {group.label}
                 </span>
                 {items.map((item) => (
@@ -265,7 +248,8 @@ export function Workspace() {
                     whileFocus={reducedMotion ? undefined : "hover"}
                     key={item.to}
                     to={item.to}
-                    className={`flex min-h-9 items-center gap-2.5 rounded-md px-2.5 py-1.5 text-xs hover:bg-nav-active hover:text-white focus-visible:bg-nav-active focus-visible:text-white ${path === item.to ? "bg-nav-active text-white" : "text-sidebar-muted"}`}
+                    onClick={() => setMobileOpen(false)}
+                    className={`flex min-h-9 items-center gap-2.5 rounded-lg px-3 text-sm pointer-coarse:min-h-11 ${path === item.to ? "bg-nav-active font-medium text-foreground [&_svg]:text-brand" : "text-muted hover:bg-nav-active hover:text-foreground"}`}
                     aria-current={path === item.to ? "page" : undefined}
                   >
                     <AnimatedSidebarIcon icon={item.icon} size={16} />
@@ -281,13 +265,13 @@ export function Workspace() {
             href="https://oren.finance"
             target="_blank"
             rel="noreferrer"
-            className="mb-1 flex items-center justify-between rounded-md px-2 py-2 text-xs text-sidebar-muted hover:bg-nav-active hover:text-white"
+            className="mb-1 flex items-center justify-between rounded-lg px-3 py-2 text-sm text-muted hover:bg-nav-active hover:text-foreground"
           >
             View Oren
             <Icon icon={ArrowUpRight} size={16} />
           </a>
-          <div className="flex min-w-0 items-center gap-2 border-t border-sidebar-line px-1 py-4 [&>div]:min-w-0 [&>div]:flex-1 [&_strong]:block [&_strong]:truncate [&_strong]:text-xs [&_div>span]:block [&_div>span]:text-[11px] [&_div>span]:text-sidebar-muted">
-            <span className="grid size-8 shrink-0 place-items-center rounded-full border border-sidebar-line bg-nav-active text-xs font-semibold">
+          <div className="flex min-w-0 items-center gap-2 border-t border-border px-1 py-4 [&>div]:min-w-0 [&>div]:flex-1 [&_strong]:block [&_strong]:truncate [&_strong]:text-xs [&_div>span]:block [&_div>span]:text-[11px] [&_div>span]:text-muted">
+            <span className="grid size-8 shrink-0 place-items-center rounded-full border border-border bg-nav-active text-xs font-semibold">
               {session.email.slice(0, 1).toUpperCase()}
             </span>
             <div>
@@ -305,7 +289,7 @@ export function Workspace() {
             </button>
           </div>
           {logoutError && (
-            <p className="pb-3 text-xs text-red-200" role="alert">
+            <p className="pb-3 text-xs text-red-700" role="alert">
               {logoutError}
             </p>
           )}
@@ -315,38 +299,26 @@ export function Workspace() {
         className="min-w-0 ml-[216px] mobile:ml-0"
         inert={isMobile && mobileOpen}
       >
-        <header className="hidden min-h-14 items-center justify-between border-b border-border px-4 text-xs mobile:flex [&>div]:flex [&>div]:items-center [&>div]:gap-2">
-          <div>
-            <button
-              className="inline-flex size-9 cursor-pointer items-center justify-center rounded-md hover:bg-panel"
-              ref={menuRef}
-              aria-label="Open navigation"
-              aria-expanded={mobileOpen}
-              onClick={() => setMobileOpen(true)}
-            >
-              <Icon icon={Menu} />
-            </button>
-            <span className="text-muted">Workspace</span>
-            <span className="text-muted/60">/</span>
-            <strong>{pageInfo[path]?.[0] || "Workspace"}</strong>
-          </div>
-          <span className="hidden">
-            <Icon icon={Shield} size={15} />
-            Private workspace
-          </span>
+        <header className="sticky top-0 z-10 flex min-h-16 items-center gap-3 border-b border-border bg-white px-8 mobile:px-4">
+          <button
+            className="hidden size-9 cursor-pointer items-center justify-center rounded-lg hover:bg-panel mobile:inline-flex"
+            ref={menuRef}
+            aria-label="Open navigation"
+            aria-expanded={mobileOpen}
+            onClick={() => setMobileOpen(true)}
+          >
+            <Icon icon={Menu} />
+          </button>
+          <h1 className="text-lg font-semibold tracking-tight">{title}</h1>
         </header>
         <main
           id="main"
-          className="mx-auto w-full max-w-[1520px] px-8 py-8 mobile:px-4 mobile:py-6"
+          tabIndex={-1}
+          className="mx-auto w-full max-w-[1440px] scroll-mt-16 px-8 py-7 mobile:px-4 mobile:py-5"
         >
           {import.meta.env.DEV && session.preview && (
-            <div className="mb-5 rounded-md border border-border bg-panel px-3 py-2 text-xs text-muted">
-              Local fixture · sample data · no production connection
-            </div>
+            <p className="mb-5 text-xs text-muted">Sample data</p>
           )}
-          <div className="mb-6 [&>h1]:text-[29px] [&>h1]:leading-tight [&>h1]:font-semibold [&>h1]:tracking-tight mobile:[&>h1]:text-[26px]">
-            <h1>{pageInfo[path]?.[0] || "Workspace"}</h1>
-          </div>
           <Outlet />
         </main>
       </div>

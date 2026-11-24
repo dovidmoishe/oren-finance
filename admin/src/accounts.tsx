@@ -58,7 +58,7 @@ function Modal({
       }}
       aria-labelledby="modal-title"
     >
-      <div className="-mx-6 -mt-6 mb-4 flex items-center justify-between gap-3 bg-sidebar px-5 py-3 text-white [&_h2]:font-semibold">
+      <div className="-mx-6 -mt-6 mb-4 flex items-center justify-between gap-3 border-b border-border bg-panel px-5 py-3 text-foreground [&_h2]:font-semibold">
         <h2 id="modal-title">{title}</h2>
         <button
           className={iconButton}
@@ -139,7 +139,6 @@ export function AccountsPage() {
     <>
       <Panel
         title="Admin accounts"
-        subtitle="Manage invitations, permissions and account access."
         action={
           <button
             className={primaryButton}
