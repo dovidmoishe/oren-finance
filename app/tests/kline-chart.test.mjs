@@ -47,7 +47,7 @@ test('missing and invalid volumes are not fabricated as zero; portfolio observat
 
 function harness() {
   const calls = [], tasks = [], indicators = new Map(), drawings = new Map();
-  let loader, crosshair, disconnected = false, drawingId = 0;
+  let loader, crosshair, disconnected = false, drawingId = 0, palette = '#123456';
   const chart = {
     setSymbol: symbol => calls.push(['symbol', symbol]),
     setPeriod: period => calls.push(['period', period]),
@@ -65,13 +65,13 @@ function harness() {
   };
   const library = { init: () => chart, registerLocale() {}, dispose: () => calls.push(['dispose']) };
   const engine = load('../components/charts/kline-engine.ts', { './kline-data': model }, {
-    Intl, queueMicrotask: fn => tasks.push(fn), getComputedStyle: () => ({ fontFamily: 'sans-serif', getPropertyValue: () => '#123456' }),
+    Intl, queueMicrotask: fn => tasks.push(fn), getComputedStyle: () => ({ fontFamily: 'sans-serif', getPropertyValue: () => palette }),
     ResizeObserver: class { observe() {} disconnect() { disconnected = true; } },
   });
   let selectedBar;
   const session = engine.createKlineChart(library, { clientWidth: 600 }, { symbol: 'NVDA', locale: 'en', timeZone: 'UTC', labels: {}, technical: true,
     onCrosshair: bar => { selectedBar = bar; }, onDrawingEnd: () => calls.push(['drawingEnd']) });
-  return { session, calls, chart, indicators, drawings, tasks, get loader() { return loader; },
+  return { session, calls, chart, indicators, drawings, tasks, setPalette: value => { palette = value; }, get loader() { return loader; },
     get disconnected() { return disconnected; }, crosshair: bar => { crosshair({ kLineData: bar }); return selectedBar; } };
 }
 
@@ -108,6 +108,16 @@ test('mode/theme and indicator changes retain drawings, respect actual volume, a
   h.session.setMode('candles');
   h.session.setMode('line');
   h.session.updateColors();
+  const light = h.calls.filter(call => call[0] === 'styles').at(-1)[1];
+  assert.equal(light.grid.horizontal.color, '#123456');
+  assert.equal(light.xAxis.tickText.color, '#123456');
+  h.setPalette('#abcdef');
+  h.session.updateColors();
+  const dark = h.calls.filter(call => call[0] === 'styles').at(-1)[1];
+  assert.equal(dark.grid.horizontal.color, '#abcdef');
+  assert.equal(dark.xAxis.tickText.color, '#abcdef');
+  assert.equal(dark.crosshair.horizontal.text.backgroundColor, '#abcdef');
+  assert.equal(dark.overlay.text.backgroundColor, '#abcdef');
   assert.equal(h.drawings.has(id), true);
   h.session.setIndicators(['MACD'], true);
   assert.deepEqual([...h.indicators.keys()], ['MACD']);

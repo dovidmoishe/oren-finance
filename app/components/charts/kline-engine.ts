@@ -36,8 +36,7 @@ export function createKlineChart(library: Library, container: HTMLElement, optio
   const updateColors = () => {
     if (!active) return;
     const computed = getComputedStyle(container);
-    const terminal: Record<string, string> = { 'chart-up': '#36c93f', 'chart-down': '#e65358', 'chart-text': '#96969b', 'chart-grid': '#262629', 'chart-crosshair': '#636368', 'chart-crosshair-soft': '#404044', 'chart-line': '#c4c4cc', 'chart-area': '#9a9aa5', 'panel': '#0d0d0f', 'panel-subtle': '#202023', 'border': '#252528' };
-    const color = (name: string) => options.technical ? terminal[name] ?? '#96969b' : computed.getPropertyValue(`--${name}`).trim();
+    const color = (name: string) => computed.getPropertyValue(`--${name}`).trim();
     const upColor = color("chart-up"), downColor = color("chart-down"), neutral = color("chart-text");
     const font = computed.fontFamily;
     const text = { color: neutral, family: font, size: 10 };

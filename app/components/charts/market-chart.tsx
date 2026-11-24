@@ -46,7 +46,7 @@ interface MarketChartProps {
 
 const EMPTY_LINES: MarketLinePoint[] = [];
 const EMPTY_CANDLES: MarketCandlePoint[] = [];
-const terminalTool = "grid size-7 shrink-0 place-items-center rounded text-[#96969e] transition-colors hover:bg-[#232327] hover:text-[#eeeeef] aria-pressed:bg-[#232327] aria-pressed:text-white focus-visible:outline-2 focus-visible:outline-offset-1 disabled:opacity-35";
+const terminalTool = "grid size-7 shrink-0 place-items-center rounded text-muted transition-colors hover:bg-panel-subtle hover:text-foreground aria-pressed:bg-panel-subtle aria-pressed:text-foreground focus-visible:outline-2 focus-visible:outline-offset-1 disabled:opacity-35";
 const toolClass = "inline-flex min-h-8 items-center gap-1.5 rounded-lg px-2 text-[11px] text-muted transition-colors hover:bg-panel-subtle hover:text-foreground aria-pressed:bg-panel-subtle aria-pressed:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-40";
 
 export function MarketChart({
@@ -146,24 +146,24 @@ export function MarketChart({
     <button type="button" className={technical ? terminalTool : toolClass} aria-label={t("common.candleMode")} aria-pressed={effectiveMode === "candles"} title={t("common.candleChart")} disabled={!canUseCandles} onClick={() => onModeChange("candles")}><ChartCandlestick size={15} /></button>
   </>;
 
-  if (technical) return <section className={cn("w-full min-w-0 rounded-[16px] border border-[#28282c] bg-[#0d0d0f] text-[#a0a0a6]", className)}>
-    <div className="flex h-14 min-w-0 items-center gap-4 border-b border-[#242427] px-3 sm:gap-6">
-      <span className="shrink-0 rounded-lg border border-[#2b2b30] px-2 py-1.5 text-sm font-semibold text-[#f0f0f2]">{symbol}</span>
-      <div><p className="text-[10px] leading-4">{t("chart.price")}</p><p className="font-money text-base font-semibold leading-5 tabular-nums text-[#f0f0f2]">{formatCurrency(value, locale)}</p></div>
-      <div><p className="text-[10px] leading-4">{t("chart.change24h")}</p><p className={cn("font-money text-sm font-semibold leading-5 tabular-nums", (changePct ?? 0) < 0 ? "text-[#e65358]" : "text-[#36c93f]")}>{formatPercent(changePct, locale)}</p></div>
+  if (technical) return <section className={cn("w-full min-w-0 rounded-[16px] border border-border bg-panel text-muted", className)}>
+    <div className="flex h-14 min-w-0 items-center gap-4 border-b border-border px-3 sm:gap-6">
+      <span className="shrink-0 rounded-lg border border-border px-2 py-1.5 text-sm font-semibold text-foreground">{symbol}</span>
+      <div><p className="text-[10px] leading-4">{t("chart.price")}</p><p className="font-money text-base font-semibold leading-5 tabular-nums text-foreground">{formatCurrency(value, locale)}</p></div>
+      <div><p className="text-[10px] leading-4">{t("chart.change24h")}</p><p className={cn("font-money text-sm font-semibold leading-5 tabular-nums", (changePct ?? 0) < 0 ? "text-negative" : "text-positive")}>{formatPercent(changePct, locale)}</p></div>
       <div className="ml-auto flex items-center gap-0.5">{modeButtons}</div>
     </div>
     <div className="flex h-10 min-w-0 items-center gap-1 px-2 text-xs">
       <div className="flex min-w-0 items-center gap-0.5 overflow-x-auto" role="group" aria-label={t("chart.interval")}>
-        {(["1m", "5m", "15m", "1H", "4H", "1D"] as const).map(item => <button type="button" key={item} className="h-7 shrink-0 rounded px-2 text-[#96969e] hover:bg-[#202023] aria-pressed:bg-[#242427] aria-pressed:font-semibold aria-pressed:text-white focus-visible:outline-2 focus-visible:outline-offset-1" aria-pressed={interval === item} disabled={!onIntervalChange} onClick={() => onIntervalChange?.(item)}>{item.replace("H", "h")}</button>)}
+        {(["1m", "5m", "15m", "1H", "4H", "1D"] as const).map(item => <button type="button" key={item} className="h-7 shrink-0 rounded px-2 text-muted hover:bg-panel-subtle aria-pressed:bg-panel-subtle aria-pressed:font-semibold aria-pressed:text-foreground focus-visible:outline-2 focus-visible:outline-offset-1" aria-pressed={interval === item} disabled={!onIntervalChange} onClick={() => onIntervalChange?.(item)}>{item.replace("H", "h")}</button>)}
       </div>
-      <span aria-hidden className="mx-1 h-4 w-px shrink-0 bg-[#2b2b30]" />
+      <span aria-hidden className="mx-1 h-4 w-px shrink-0 bg-border" />
       <div ref={menuRef} className="relative shrink-0">
-        <button type="button" className="flex h-7 items-center gap-1.5 rounded px-2 hover:bg-[#202023] focus-visible:outline-2 focus-visible:outline-offset-1" aria-expanded={indicatorsOpen} aria-controls={menuId} onClick={() => setIndicatorsOpen(open => !open)}><SlidersHorizontal size={13} /><span className="hidden sm:inline">{t("chart.indicators")}</span><ChevronDown size={11} /></button>
-        {indicatorsOpen && <div id={menuId} className="absolute right-0 top-full z-30 mt-1 w-52 origin-top-right rounded-lg border border-[#333338] bg-[#19191c] p-1.5 shadow-xl transition-[opacity,transform] duration-250 starting:scale-97 starting:opacity-0 motion-reduce:transition-none" role="group" aria-label={t("chart.indicators")}>
-          {INDICATORS.map(indicator => <label key={indicator.name} className="flex min-h-8 cursor-pointer items-center gap-2 rounded px-2 text-xs hover:bg-[#29292e] has-disabled:cursor-not-allowed has-disabled:opacity-40">
+        <button type="button" className="flex h-7 items-center gap-1.5 rounded px-2 hover:bg-panel-subtle focus-visible:outline-2 focus-visible:outline-offset-1" aria-expanded={indicatorsOpen} aria-controls={menuId} onClick={() => setIndicatorsOpen(open => !open)}><SlidersHorizontal size={13} /><span className="hidden sm:inline">{t("chart.indicators")}</span><ChevronDown size={11} /></button>
+        {indicatorsOpen && <div id={menuId} className="absolute right-0 top-full z-30 mt-1 w-52 origin-top-right rounded-lg border border-border bg-panel p-1.5 shadow-xl transition-[opacity,transform] duration-250 starting:scale-97 starting:opacity-0 motion-reduce:transition-none" role="group" aria-label={t("chart.indicators")}>
+          {INDICATORS.map(indicator => <label key={indicator.name} className="flex min-h-8 cursor-pointer items-center gap-2 rounded px-2 text-xs hover:bg-panel-subtle has-disabled:cursor-not-allowed has-disabled:opacity-40">
             <input className="peer sr-only" type="checkbox" checked={indicators.includes(indicator.name) && (indicator.name !== "VOL" || hasVolume)} disabled={disabled || !canUseCandles || (indicator.name === "VOL" && !hasVolume)} onChange={() => toggleIndicator(indicator.name)} />
-            <span className="grid size-3.5 place-items-center rounded border border-[#64646c] peer-checked:border-[#c4c4cc] peer-checked:bg-[#c4c4cc] peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2">{indicators.includes(indicator.name) && (indicator.name !== "VOL" || hasVolume) && <Check size={10} className="text-[#131315]" />}</span>
+            <span className="grid size-3.5 place-items-center rounded border border-border-strong peer-checked:border-primary peer-checked:bg-primary peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2">{indicators.includes(indicator.name) && (indicator.name !== "VOL" || hasVolume) && <Check size={10} className="text-primary-foreground" />}</span>
             {indicator.name === "VOL" ? t("chart.volume") : indicator.label}
           </label>)}
           {!hasVolume && <p className="px-2 py-1 text-[10px] leading-4">{t("chart.volumeUnavailable")}</p>}
@@ -171,22 +171,22 @@ export function MarketChart({
       </div>
     </div>
     <div className="flex h-5 items-center gap-2 overflow-hidden whitespace-nowrap pl-11 pr-2 font-mono text-[9px] tabular-nums" aria-label={t("chart.barValues")}>
-      {(["open", "high", "low", "close"] as const).map((field, index) => <span key={field} title={t(`chart.${field}`)}>{["O", "H", "L", "C"][index]} <span className="text-[#c5c5cb]">{formatCurrency(bar?.[field], locale)}</span></span>)}
+      {(["open", "high", "low", "close"] as const).map((field, index) => <span key={field} title={t(`chart.${field}`)}>{["O", "H", "L", "C"][index]} <span className="text-foreground">{formatCurrency(bar?.[field], locale)}</span></span>)}
       <span className="hidden sm:inline">{t("chart.volume")} {typeof bar?.volume === "number" ? new Intl.NumberFormat(locale, { notation: "compact", maximumFractionDigits: 1 }).format(bar.volume) : "?"}</span>
     </div>
     <div className="flex min-w-0">
-      <div className="flex w-9 shrink-0 flex-col items-center gap-0.5 border-r border-[#242427] py-1" role="group" aria-label={t("chart.drawingTools")}>
+      <div className="flex w-9 shrink-0 flex-col items-center gap-0.5 border-r border-border py-1" role="group" aria-label={t("chart.drawingTools")}>
         <button type="button" className={terminalTool} disabled={disabled} title={t("chart.crosshair")} aria-label={t("chart.crosshair")} aria-pressed={!drawing} onClick={() => session?.cancelDrawing()}><Crosshair size={16} /></button>
         <button type="button" className={terminalTool} disabled={disabled} title={t("chart.trendLine")} aria-label={t("chart.trendLine")} aria-pressed={drawing === "segment"} onClick={() => draw("segment")}><MoveUpRight size={17} /></button>
         <button type="button" className={terminalTool} disabled={disabled} title={t("chart.priceLevel")} aria-label={t("chart.priceLevel")} aria-pressed={drawing === "horizontalStraightLine"} onClick={() => draw("horizontalStraightLine")}><Minus size={18} /></button>
         <button type="button" className={terminalTool} disabled={disabled} title={t("chart.fibonacci")} aria-label={t("chart.fibonacci")} aria-pressed={drawing === "fibonacciLine"} onClick={() => draw("fibonacciLine")}><Rows3 size={16} /></button>
-        <span aria-hidden className="my-1 h-px w-5 bg-[#2b2b30]" />
+        <span aria-hidden className="my-1 h-px w-5 bg-border" />
         <button type="button" className={terminalTool} disabled={disabled} title={t("chart.resetView")} aria-label={t("chart.resetView")} onClick={() => session?.fit()}><RotateCcw size={15} /></button>
         <button type="button" className={terminalTool} disabled={disabled} title={t("chart.clearDrawings")} aria-label={t("chart.clearDrawings")} onClick={() => session?.clearDrawings()}><Trash2 size={15} /></button>
       </div>
       <div className="relative h-[280px] min-w-0 flex-1 sm:h-[320px]">{chartCanvas}</div>
     </div>
-    {(drawing || indicators.some(name => { const item = INDICATORS.find(i => i.name === name); return item && name !== "VOL" && bars.length < Math.max(item.minimum, name === "MA" ? 50 : 0); })) && <p className="border-t border-[#242427] px-3 py-1 text-[10px] leading-4" role="status">{drawing ? t("chart.drawHint") : t("chart.historyHint")}</p>}
+    {(drawing || indicators.some(name => { const item = INDICATORS.find(i => i.name === name); return item && name !== "VOL" && bars.length < Math.max(item.minimum, name === "MA" ? 50 : 0); })) && <p className="border-t border-border px-3 py-1 text-[10px] leading-4" role="status">{drawing ? t("chart.drawHint") : t("chart.historyHint")}</p>}
   </section>;
 
   return <section className={cn("flex flex-col rounded-[24px] border border-border bg-panel shadow-[0_18px_60px_rgba(23,23,23,0.025)]", compact ? "p-3" : "p-[var(--app-card-padding,1.5rem)]", className)}>
