@@ -10,7 +10,6 @@ import { ButtonLink } from "@/components/ui";
 import { ProductIntroduction } from "@/components/landing/product-introduction";
 import { ProductFoundations } from "@/components/landing/product-foundations";
 import { LandingHeader } from "@/components/landing/landing-header";
-import { StockMix } from "@/components/landing/stock-mix";
 import { TradingSteps } from "@/components/landing/trading-steps";
 import { LandingFaqCta } from "@/components/landing/landing-faq-cta";
 import { LandingFooter } from "@/components/landing/landing-footer";
@@ -65,7 +64,6 @@ export default function Home() {
         <ProductIntroduction />
       </section>
       <ProductFoundations />
-      <StockMix />
       <TradingSteps />
       <LandingFaqCta />
       </main>

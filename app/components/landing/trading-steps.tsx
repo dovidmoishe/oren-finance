@@ -35,6 +35,6 @@ export function TradingSteps() {
         </div>
       </article>)}
     </div>
-    <a className="mx-auto mt-[28px] flex w-fit items-center justify-center gap-[9px] py-[8px] text-[12px] text-[#817568] [&:hover]:text-[#342e26] focus-visible:rounded-[2px] focus-visible:outline-2 focus-visible:outline-offset-[6px] focus-visible:outline-[#a28eba]" href="#stock-mix">Try it with Stock mix <span aria-hidden><ArrowUpRightIcon size={16} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className="inline-block shrink-0 align-middle" /></span></a>
+    <a className="mx-auto mt-[28px] flex w-fit items-center justify-center gap-[9px] py-[8px] text-[12px] text-[#817568] [&:hover]:text-[#342e26] focus-visible:rounded-[2px] focus-visible:outline-2 focus-visible:outline-offset-[6px] focus-visible:outline-[#a28eba]" href="/app">Build your portfolio <span aria-hidden><ArrowUpRightIcon size={16} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className="inline-block shrink-0 align-middle" /></span></a>
   </section>;
 }

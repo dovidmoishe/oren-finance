@@ -37,7 +37,7 @@ const Outlook = loadOutlook();
 test('outlook keeps deterministic metrics, bounds its score and omits unrelated news', () => {
   const analysis = { opportunityScore: 120, signals: { momentum7d: 8.84, volatility30d: 2.27 }, highlights: [], analyzedAt: '2026-11-14T12:00:00Z', riskLabel: 'moderate' };
   const html = renderToStaticMarkup(createElement(Outlook, { stock, analysis, news: [item('XRP TWO factors')] }));
-  for (const label of ['Market outlook', '+8.84%', '2.27%', 'No recent coverage.', 'View technical details']) assert.ok(html.includes(label), label);
+  for (const label of ['Market outlook', '+8.84%', '2.27%', 'No matching stories available from the connected feed.', 'View technical details']) assert.ok(html.includes(label), label);
   assert.match(html, /role="meter"/);
   assert.match(html, /aria-valuenow="100"/);
   assert.doesNotMatch(html, /XRP TWO factors/);

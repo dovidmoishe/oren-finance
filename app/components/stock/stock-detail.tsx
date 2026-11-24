@@ -5,6 +5,7 @@ import { ChevronLeft as ChevronLeftIcon, RefreshCw as RefreshCwIcon } from "luci
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { MarketChart, type MarketChartMode, type MarketChartRange } from "@/components/charts";
+import { MarketStockLogo } from "@/components/markets/market-stock-logo";
 import { StockPriceAlerts } from "@/components/stock/price-alerts";
 import { StockMarketOutlook } from "@/components/stock/stock-market-outlook";
 import { StockResearchPanel } from "@/components/stock/stock-research";
@@ -14,10 +15,11 @@ import {
   ErrorState,
   Skeleton,
   cn,
+  formatRelativeTime,
 } from "@/components/ui";
 import { useStockStore } from "@/store";
-import type { ChartRange } from "@/types";
-import { useT } from "@/i18n/i18n";
+import type { ChartInterval, ChartRange } from "@/types";
+import { useI18n } from "@/i18n/i18n";
 
 const rangeMap: Record<MarketChartRange, ChartRange> = {
   "24H": "1D",
@@ -41,6 +43,7 @@ function DetailSkeleton() {
 }
 
 export function StockDetail({ assetId }: { assetId: string }) {
+  const requestedAssetId = useStockStore((state) => state.requestedAssetId);
   const stock = useStockStore((state) => state.selected);
   const chart = useStockStore((state) => state.chart);
   const analysis = useStockStore((state) => state.analysis);
@@ -54,12 +57,13 @@ export function StockDetail({ assetId }: { assetId: string }) {
   const loadStock = useStockStore((state) => state.loadStock);
   const loadChart = useStockStore((state) => state.loadChart);
   const reset = useStockStore((state) => state.reset);
-  const [range, setRange] = useState<MarketChartRange>("30D");
-  const [mode, setMode] = useState<MarketChartMode>("line");
-  const t = useT();
+  const [range, setRange] = useState<MarketChartRange>("7D");
+  const [interval, setInterval] = useState<ChartInterval>("1H");
+  const [mode, setMode] = useState<MarketChartMode>("candles");
+  const { locale, t } = useI18n();
 
   useEffect(() => {
-    void loadStock(assetId, "1M");
+    void loadStock(assetId, "1W", "1H");
     return reset;
   }, [assetId, loadStock, reset]);
 
@@ -68,14 +72,16 @@ export function StockDetail({ assetId }: { assetId: string }) {
     [chart],
   );
 
-  if (isLoading && !stock) return <DetailSkeleton />;
+  // The first render precedes the loading effect; an idle or previous route's
+  // state is not a failed request for this stock.
+  if (requestedAssetId !== assetId || (isLoading && !stock)) return <DetailSkeleton />;
 
   if (!stock) {
     return (
       <div className="mx-auto max-w-3xl py-16">
         <ErrorState
           description={error ?? t("stock.loadFailed")}
-          onRetry={() => void loadStock(assetId, rangeMap[range])}
+          onRetry={() => void loadStock(assetId, rangeMap[range], interval)}
           title={t("stock.unavailableTitle")}
         />
       </div>
@@ -84,10 +90,15 @@ export function StockDetail({ assetId }: { assetId: string }) {
 
   const handleRangeChange = (nextRange: MarketChartRange) => {
     setRange(nextRange);
-    void loadChart(assetId, rangeMap[nextRange]);
+    void loadChart(assetId, rangeMap[nextRange], interval);
   };
 
-  const handleTradeConfirmed = () => loadStock(assetId, rangeMap[range]);
+  const handleIntervalChange = (next: ChartInterval) => {
+    setInterval(next);
+    void loadChart(assetId, rangeMap[range], next);
+  };
+
+  const handleTradeConfirmed = () => loadStock(assetId, rangeMap[range], interval);
 
   return (
     <div className="mx-auto max-w-[1360px] space-y-4 pb-12">
@@ -100,18 +111,23 @@ export function StockDetail({ assetId }: { assetId: string }) {
           <span aria-hidden className="text-border-strong">/</span>
           <h1 className="truncate font-display text-base font-semibold">{stock.name} <span className="ml-1 font-mono text-xs font-normal text-muted">${stock.ticker}</span></h1>
         </div>
-        <Button aria-label={t("stock.refresh")} className="h-8 w-8" disabled={isLoading} onClick={() => void loadStock(assetId, rangeMap[range])} size="icon" variant="ghost">
+        <Button aria-label={t("stock.refresh")} className="h-8 w-8" disabled={isLoading} onClick={() => void loadStock(assetId, rangeMap[range], interval)} size="icon" variant="ghost">
           <RefreshCwIcon className={cn(isLoading && "animate-spin")} color="currentColor" size={15} strokeWidth={1.8} />
         </Button>
       </div>
 
-      <div className="grid items-stretch gap-4 @3xl:grid-cols-[minmax(0,1fr)_320px]">
+      <div className="grid grid-cols-1 items-start gap-4 @3xl:grid-cols-[minmax(0,1fr)_320px]">
         <MarketChart
           compact
+          technical
+          symbol={stock.ticker}
+          symbolLogo={<MarketStockLogo stock={stock} />}
+          interval={interval}
+          onIntervalChange={handleIntervalChange}
           activeRange={range}
           candleData={chart}
           changePct={stock.change24hPct}
-          className="h-full min-w-0 rounded-[24px]"
+          className="min-w-0 rounded-[16px]"
           emptyDescription={t("stock.noCandles")}
           error={chartError}
           lineData={lineData}
@@ -130,6 +146,7 @@ export function StockDetail({ assetId }: { assetId: string }) {
       </div>
 
       <StockPriceAlerts stock={stock} />
+      {stock.marketData ? <p className="text-xs leading-5 text-muted">{t('stock.sourceRetrieved', { source: stock.marketData.source, time: formatRelativeTime(stock.marketData.retrievedAt, locale, { justNow: t('common.justNow'), unknown: t('common.unknown') }) })}</p> : null}
       <StockMarketOutlook analysis={analysis} news={news} stock={stock} analysisLoading={isAnalysisLoading} newsLoading={isNewsLoading} />
       <StockResearchPanel assetId={stock.assetId} />
     </div>

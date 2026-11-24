@@ -6,23 +6,26 @@ import {
   ArrowRight as ArrowRightIcon,
   Check as CheckIcon,
   ArrowUp as ArrowUpIcon,
+  Pause, Play, RotateCcw,
 } from "lucide-react";
 
 import { useEffect, useId, useRef, useState } from "react";
 import Image from "next/image";
 import { OrenLogo } from "@/components/brand/oren-logo";
 import { stockLogos } from "./stock-logos";
+import { getLandingSnapshot, type LandingSnapshot } from '@/services/market-service';
+import { formatCurrency, formatPercent, formatRelativeTime } from '@/components/ui/utils';
+import { chartGeometry, STEP_DURATIONS, STEP_STARTS, WALKTHROUGH_DURATION, walkthroughPosition } from './walkthrough-timing';
+const currency = (value: number) => formatCurrency(value, 'en');
+const percentage = (value: number, signed = true) => formatPercent(value, 'en', signed);
 
 const walkthroughPositiveClass = "text-[#3f865c]";
 
 const walkthroughMutedClass = "text-[11px] text-[#84837b]";
 
-const STEP_MS = 1200;
-const SCENE_MS = 6000;
-const DURATION = STEP_MS * 4;
 // Discrete UI changes do not need a React render on every animation tick.
 const milestones = [[481, 561, 1001, 1200], [561, 1001, 1200], [440, 461, 721, 841, 1081, 1200], [1200]];
-const stocks = [
+const sampleStocks = [
   { symbol: "NVDA", name: "NVIDIA", price: "$186.42", change: "+3.28%", logo: stockLogos.NVDA },
   { symbol: "AAPL", name: "Apple", price: "$268.75", change: "+1.46%", logo: stockLogos.AAPL },
   { symbol: "MSFT", name: "Microsoft", price: "$528.36", change: "+2.17%", logo: stockLogos.MSFT },
@@ -43,10 +46,7 @@ const chartPrices = [
   182.7, 181.8, 182.4, 181.1, 180.5, 181.3, 182.2, 183.7, 183.1, 184.6,
   185.4, 184.8, 185.7, 186.1, 185.5, 186.42,
 ];
-const chartY = (price: number) => 195 - (price - 168) / 20 * 180;
-const chart = chartPrices.map((price, i) => `${i ? "L" : "M"}${(i / (chartPrices.length - 1) * 500).toFixed(2)} ${chartY(price).toFixed(2)}`).join(" ");
-
-function StockMark({ stock }: { stock: typeof stocks[number] }) {
+function StockMark({ stock }: { stock: typeof sampleStocks[number] }) {
   return <span className="w-[30px] h-[30px] rounded-[50%] shrink-0 grid place-items-center font-semibold text-[12px] at-most-640:w-[26px] at-most-640:h-[26px] at-most-640:text-[10px]"><Image alt={`${stock.name} logo`} src={stock.logo} width={30} height={30} className="h-full w-full rounded-full object-cover" /></span>;
 }
 
@@ -54,28 +54,28 @@ function DemoCursor({ clicking }: { clicking: boolean }) {
   return <span aria-hidden className="walkthrough-cursor" data-clicking={clicking}><MousePointer2Icon size={23} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className="inline-block shrink-0 align-middle" /></span>;
 }
 
-function PriceChart({ reveal }: { reveal: boolean }) {
+function PriceChart({ reveal, prices, sample }: { reveal: boolean; prices: number[]; sample: boolean }) {
+  const { path: chart, ticks, y: chartY } = chartGeometry(prices);
   const id = useId().replace(/:/g, "");
   return (
     <div className="flex gap-[12px] mt-[20px]">
-      <svg aria-label="Illustrative NVIDIA 30-day price chart, ending at 186 dollars and 42 cents" className="block w-full min-w-0 h-[160px] overflow-visible at-most-640:h-[120px]" viewBox="0 0 500 210" preserveAspectRatio="none" role="img">
+      <svg aria-label={`${sample ? "Sample" : "Market snapshot"} NVIDIA 30-day price chart`} className="block w-full min-w-0 h-[160px] overflow-visible at-most-640:h-[120px]" viewBox="0 0 500 210" preserveAspectRatio="none" role="img">
         <defs>
           <linearGradient id={`${id}-fill`} x1="0" x2="0" y1="0" y2="1"><stop stopColor="#dcd5f5" stopOpacity=".38" /><stop offset="1" stopColor="#dcd5f5" stopOpacity="0" /></linearGradient>
           <clipPath id={`${id}-reveal`}><rect className={reveal ? "walkthrough-chart-reveal" : undefined} x="0" y="0" width="500" height="210" /></clipPath>
         </defs>
-        {[188, 182, 176, 170].map((price) => <path key={price} d={`M0 ${chartY(price)}H500`} stroke="#eeede9" strokeDasharray="3 5" vectorEffect="non-scaling-stroke" />)}
+        {ticks.map((price) => <path key={price} d={`M0 ${chartY(price)}H500`} stroke="#eeede9" strokeDasharray="3 5" vectorEffect="non-scaling-stroke" />)}
         <g clipPath={`url(#${id}-reveal)`}>
           <path d={`${chart} L500 210 H0 Z`} fill={`url(#${id}-fill)`} />
           <path d={chart} fill="none" stroke="#68615f" strokeWidth="1.7" strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
         </g>
       </svg>
-      <div aria-hidden className="walkthrough-price-axis">{[188, 182, 176, 170].map((price) => <span key={price} style={{ top: `${chartY(price) / 210 * 100}%` }}>${price}</span>)}</div>
+      <div aria-hidden className="walkthrough-price-axis">{ticks.map((price) => <span key={price} style={{ top: `${chartY(price) / 210 * 100}%` }}>{currency(price)}</span>)}</div>
     </div>
   );
 }
 
-function DemoAnswer({ active }: { active: boolean }) {
-  const text = "NVIDIA is up 3.28% today. Momentum is positive, with moderate volatility over the past month.";
+function DemoAnswer({ active, text }: { active: boolean; text: string }) {
   const output = useRef<HTMLSpanElement>(null);
   const elapsed = useRef(0);
   useEffect(() => {
@@ -84,32 +84,59 @@ function DemoAnswer({ active }: { active: boolean }) {
     let frame: number;
     const update = (now: number) => {
       elapsed.current = now - started;
-      const count = Math.min(text.length, Math.floor(elapsed.current / 4) + 1);
+      const count = Math.min(text.length, Math.floor(elapsed.current / 1400 * text.length) + 1);
       if (output.current) output.current.textContent = text.slice(0, count);
       if (count < text.length) frame = requestAnimationFrame(update);
     };
     frame = requestAnimationFrame(update);
     return () => cancelAnimationFrame(frame);
   }, [active, text]);
-  return <p><span className="sr-only">{text}</span><span aria-hidden="true" ref={output}>{text.slice(0, 1)}</span></p>;
+  return active ? <p><span className="sr-only">{text}</span><span aria-hidden="true" ref={output}>{text.slice(0, 1)}</span></p> : <p>{text}</p>;
 }
 
 export function ProductWalkthrough() {
   const root = useRef<HTMLDivElement>(null);
   const started = useRef(false);
+  const [snapshot, setSnapshot] = useState<LandingSnapshot>();
+  const [marketStatus, setMarketStatus] = useState<'loading' | 'ready' | 'unavailable'>('loading');
   const [elapsed, setElapsed] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [visible, setVisible] = useState(false);
   const [foreground, setForeground] = useState(true);
-  const step = Math.min(3, Math.floor(elapsed / STEP_MS));
-  // Scale all reveals together so a pace change keeps each scene complete.
-  const local = (elapsed - step * STEP_MS) / STEP_MS * SCENE_MS;
-  const ended = elapsed >= DURATION;
+  const { step, local, ended } = walkthroughPosition(elapsed);
   const running = playing && visible && foreground && !ended;
+  const stocks = sampleStocks.map(stock => {
+    const live = snapshot?.data.stocks.find(item => item.ticker === stock.symbol);
+    return live ? { ...stock, price: currency(live.price), change: percentage(live.priceChange24h), positive: live.priceChange24h >= 0 } : { ...stock, positive: !stock.change.includes('−') };
+  });
+  const prices = snapshot ? snapshot.data.candles.map(c => c.close) : chartPrices;
+  const liveNvidia = snapshot?.data.stocks.find(stock => stock.ticker === 'NVDA');
+  const score = snapshot?.data.analysis.opportunityScore ?? 84;
+  const signals = snapshot?.data.analysis.signals;
+  const trend = snapshot ? snapshot.data.analysis.technicalBrief?.regime ?? 'unavailable' : 'uptrend';
+  const momentum = signals?.momentum7d ?? (snapshot ? undefined : 6.84);
+  const volatility = signals?.volatility30d ?? (snapshot ? undefined : 3.12);
+  const signed = (n?: number, sign = true) => typeof n === 'number' && Number.isFinite(n) ? percentage(n, sign) : 'Unavailable';
+  const answer = snapshot
+    ? `NVIDIA is ${liveNvidia!.priceChange24h >= 0 ? 'up' : 'down'} ${percentage(Math.abs(liveNvidia!.priceChange24h), false)} over 24 hours. The longer-term technical trend is ${trend}. Daily-return volatility over 30 bars is ${signed(volatility, false)}.`
+    : 'NVIDIA is up 3.28% over 24 hours in this example. Momentum is positive, with moderate volatility.';
+  const price = liveNvidia?.price ?? 186.42;
+  const chartDates = snapshot ? [snapshot.data.candles[0], snapshot.data.candles[Math.floor(snapshot.data.candles.length / 2)], snapshot.data.candles.at(-1)!].map(c => new Date(c.timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })) : ['Oct 1', 'Oct 15', 'Oct 30'];
+
+  useEffect(() => {
+    if (!visible || !foreground) return;
+    let active = true;
+    void getLandingSnapshot().then(value => {
+      if (!active) return;
+      if (!['NVDA', 'AAPL', 'MSFT', 'TSLA'].every(ticker => value.data.stocks.some(stock => stock.ticker === ticker && stock.price > 0 && Number.isFinite(stock.price) && Number.isFinite(stock.priceChange24h))) || value.data.candles.length < 2 || value.data.candles.some(c => !Number.isFinite(c.close))) throw new Error('Incomplete snapshot');
+      setSnapshot(value); setMarketStatus('ready');
+    }).catch(() => { if (active) setMarketStatus('unavailable'); });
+    return () => { active = false; };
+  }, [visible, foreground]);
 
   useEffect(() => {
     const media = window.matchMedia("(prefers-reduced-motion: reduce)");
-    const motionChanged = () => { if (media.matches) { setPlaying(false); setElapsed(DURATION); } };
+    const motionChanged = () => { if (media.matches) { setPlaying(false); setElapsed(WALKTHROUGH_DURATION); } };
     const visibilityChanged = () => setForeground(!document.hidden);
     const observer = new IntersectionObserver(([entry]) => {
       setVisible(entry.isIntersecting);
@@ -117,7 +144,7 @@ export function ProductWalkthrough() {
       if (entry.isIntersecting && !started.current) {
         started.current = true;
         setPlaying(!media.matches);
-        if (media.matches) setElapsed(DURATION);
+        if (media.matches) setElapsed(WALKTHROUGH_DURATION);
       }
     }, { threshold: .2 });
     if (root.current) observer.observe(root.current);
@@ -128,13 +155,16 @@ export function ProductWalkthrough() {
 
   useEffect(() => {
     if (!running) return;
-    const sceneTime = elapsed - step * STEP_MS;
-    const next = milestones[step].find((time) => time > sceneTime) ?? STEP_MS;
-    const timer = window.setTimeout(() => setElapsed((step * STEP_MS + next) % DURATION), next - sceneTime);
+    const sceneTime = elapsed - STEP_STARTS[step];
+    const next = milestones[step].map(time => time / 1200 * STEP_DURATIONS[step]).find(time => time > sceneTime + .01) ?? STEP_DURATIONS[step];
+    const timer = window.setTimeout(() => {
+      const position = STEP_STARTS[step] + next;
+      setElapsed(position >= WALKTHROUGH_DURATION ? 0 : position);
+    }, next - sceneTime);
     return () => window.clearTimeout(timer);
   }, [elapsed, running, step]);
 
-  function selectStep(index: number) { setElapsed(index * STEP_MS); setPlaying(true); }
+  function selectStep(index: number, autoplay = true) { setElapsed(STEP_STARTS[index] + (autoplay ? 0 : STEP_DURATIONS[index] - 1)); setPlaying(autoplay); }
 
   return (
     <div className="walkthrough-walkthrough" ref={root} data-playing={running} data-step={step}>
@@ -142,7 +172,7 @@ export function ProductWalkthrough() {
         <header className="h-[64px] [padding:0_24px] flex items-center justify-between gap-[16px] [border-bottom:1px_solid_#eeede9] at-most-640:[padding:0_14px] at-most-640:h-[52px]">
           <span className="flex items-center gap-[9px] font-semibold text-[15px]"><OrenLogo size={25} className="h-[25px] w-[25px]" /> Oren</span>
           <div className="flex gap-[30px] text-[12px] text-[#8a8982] at-most-900:gap-[18px] at-most-640:hidden" aria-hidden><span>Dashboard</span><span className="text-[#232320]">Market</span><span>Portfolio</span></div>
-          <span className="walkthrough-demo-label"><span /> Product demo</span>
+          <span className="walkthrough-demo-label"><span /> {snapshot ? "Market snapshot" : "Sample data"}</span>
         </header>
         <div className="grid grid-cols-[minmax(0,_1fr)_310px] h-[600px] [contain:layout] at-most-900:grid-cols-[minmax(0,1fr)_270px] at-most-640:flex at-most-640:flex-col at-most-640:h-[480px]">
           <div className="walkthrough-market-area">
@@ -150,14 +180,14 @@ export function ProductWalkthrough() {
               <div className="walkthrough-scene" key="markets">
                 <div className="walkthrough-section-heading"><div><span className={walkthroughMutedClass}>Explore</span><h3>Market</h3></div><span className="walkthrough-search"><SearchIcon size={16} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className="inline-block shrink-0 align-middle" /> <span>Search stocks</span></span></div>
                 <div className="walkthrough-highlights">
-                  <div><span>Trending</span><strong><Image alt="NVIDIA logo" src={stockLogos.NVDA} width={24} height={24} className="rounded-full" />NVDA</strong><small>NVIDIA <b>+3.28%</b></small></div>
-                  <div><span>Oren Opportunity</span><strong><Image alt="Microsoft logo" src={stockLogos.MSFT} width={24} height={24} className="rounded-full" />MSFT</strong><small>Microsoft <b>82 / 100</b></small></div>
+                  <div><span>In focus</span><strong><Image alt="NVIDIA logo" src={stockLogos.NVDA} width={24} height={24} className="rounded-full" />NVDA</strong><small>NVIDIA <b className={stocks[0].positive ? walkthroughPositiveClass : "walkthrough-negative"}>{stocks[0].change}</b></small></div>
+                  <div><span>Oren score</span><strong><Image alt="NVIDIA logo" src={stockLogos.NVDA} width={24} height={24} className="rounded-full" />NVDA</strong><small>NVIDIA <b>{Math.round(score)} / 100</b></small></div>
                 </div>
-                <div className="walkthrough-table-head"><span>Stock</span><span>Price</span><span>Today</span></div>
+                <div className="walkthrough-table-head"><span>Stock</span><span>Price</span><span>24h</span></div>
                 {stocks.map((stock, i) => (
                   <button disabled={i !== 0} className={`walkthrough-stock-row walkthrough-action-target ${i === 0 && local > 2400 ? "walkthrough-highlight-row" : ""}`} key={stock.symbol} onClick={() => selectStep(1)} aria-label={i === 0 ? "Explore NVIDIA in the demo" : `${stock.name} sample stock`}>
                     <span className="walkthrough-stock-name"><StockMark stock={stock} /><span><strong>{stock.name}</strong><small>{stock.symbol}</small></span></span>
-                    <span>{stock.price}</span><span className={i === 3 ? "walkthrough-negative" : walkthroughPositiveClass}>{stock.change}</span>
+                    <span>{stock.price}</span><span className={!stock.positive ? "walkthrough-negative" : walkthroughPositiveClass}>{stock.change}</span>
                     {i === 0 && running && local > 2800 && <DemoCursor clicking={local > 5000} />}
                   </button>
                 ))}
@@ -166,11 +196,11 @@ export function ProductWalkthrough() {
             ) : (
               <div className="walkthrough-scene" key="stock">
                 <div className="walkthrough-stock-heading"><StockMark stock={stocks[0]} /><div><h3>NVIDIA</h3><span className={walkthroughMutedClass}>NVDA · Tokenized stock</span></div><span className="ml-auto text-[10px] [padding:5px_9px] rounded-[5px] bg-[#f7f6f2] text-[#86847e]">Technology</span></div>
-                <div className="walkthrough-price"><strong>$186.42</strong><span className={walkthroughPositiveClass}>+3.28% <span className={walkthroughMutedClass}>today</span></span></div>
-                <PriceChart reveal={step === 1} />
-                <div className="flex justify-between pr-[42px] text-[9px] text-[#a4a198] mt-[5px]"><span>Oct 1</span><span>Oct 15</span><span>Oct 30</span></div>
+                <div className="walkthrough-price"><strong>{stocks[0].price}</strong><span className={stocks[0].positive ? walkthroughPositiveClass : "walkthrough-negative"}>{stocks[0].change} <span className={walkthroughMutedClass}>24h</span></span></div>
+                <PriceChart reveal={step === 1} prices={prices} sample={!snapshot} />
+                <div className="flex justify-between pr-[42px] text-[9px] text-[#a4a198] mt-[5px]">{chartDates.map((date, i) => <span key={i}>{date}</span>)}</div>
                 <div className="flex gap-[17px] items-center text-[10px] text-[#848179] mt-[14px]"><span>24H</span><span>7D</span><span className="bg-[#f1f0eb] [padding:5px_9px] rounded-[5px] text-[#232320]">30D</span><span>90D</span><span>1Y</span></div>
-                <div className="walkthrough-outlook"><div><span>Market outlook</span><span className="text-[10px] text-[#6f6860] bg-[#eeeadf] [padding:2px_6px] rounded-[4px]">84 / 100</span></div><p>Positive momentum. Moderate volatility.</p><div className="walkthrough-metrics"><span>7D momentum<strong className={walkthroughPositiveClass}>+6.84%</strong></span><span>30D volatility<strong>3.12%</strong></span><span>Trend<strong>Uptrend</strong></span></div></div>
+                <div className="walkthrough-outlook"><div><span>Market outlook</span><span className="text-[10px] text-[#6f6860] bg-[#eeeadf] [padding:2px_6px] rounded-[4px]">{Math.round(score)} / 100</span></div><p>{snapshot ? `Longer-term trend: ${trend}.` : "Positive momentum. Moderate volatility."}</p><div className="walkthrough-metrics"><span>7-bar momentum<strong className={(momentum ?? 0) >= 0 ? walkthroughPositiveClass : "walkthrough-negative"}>{signed(momentum)}</strong></span><span>Daily volatility<strong>{signed(volatility, false)}</strong></span><span>Trend<strong className="capitalize">{trend}</strong></span></div></div>
               </div>
             )}
           </div>
@@ -184,14 +214,14 @@ export function ProductWalkthrough() {
             ) : step === 2 ? (
               <div className="walkthrough-conversation walkthrough-scene" key="conversation">
                 <p className="bg-[#eeece6] [border-radius:12px_12px_3px_12px] ml-[15px] p-[12px] text-[12px] leading-[1.6]">What&apos;s happening with NVIDIA?</p>
-                <div className="walkthrough-answer"><span className="text-[#878173] text-[10px]">Oren</span><DemoAnswer active={running} /></div>
-                {local > 2300 && <div className="walkthrough-insight-card walkthrough-scene"><span>Portfolio context</span><p>NVIDIA is 18% of your holdings.</p><small>A $100 buy would bring it to 20%.</small></div>}
+                <div className="walkthrough-answer"><span className="text-[#878173] text-[10px]">Oren</span><DemoAnswer active={running} text={answer} /></div>
+                {local > 2300 && <div className="walkthrough-insight-card walkthrough-scene"><span>Example portfolio</span><p>NVIDIA is 18% of your holdings.</p><small>A $100 buy would bring it to 20%.</small></div>}
                 {local > 3600 && <button className="walkthrough-primary-button walkthrough-action-target" onClick={() => selectStep(3)}>Review a $100 buy <span><ArrowRightIcon size={16} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className="inline-block shrink-0 align-middle" /></span>{running && local > 4200 && <DemoCursor clicking={local > 5400} />}</button>}
               </div>
             ) : (
               <div className="walkthrough-review walkthrough-scene" key="review">
                 <span className="flex items-center gap-[7px] text-[11px] text-[#918b80]"><Image alt="NVIDIA logo" src={stockLogos.NVDA} width={22} height={22} className="rounded-full" />Buy NVIDIA</span><strong className="walkthrough-trade-amount">$100<span>USDC</span></strong>
-                <dl><div><dt>You receive</dt><dd>≈ 0.5364 NVDA</dd></div><div><dt>Price</dt><dd>$186.42</dd></div><div><dt>Network</dt><dd>Solana</dd></div><div><dt>Estimated fee</dt><dd>$0.01</dd></div></dl>
+                <dl><div><dt>Illustrative amount</dt><dd>≈ {(100 / price).toFixed(4)} NVDA</dd></div><div><dt>Reference price</dt><dd>{stocks[0].price}</dd></div><div><dt>Network</dt><dd>Solana</dd></div><div><dt>Fees</dt><dd>Shown at review</dd></div></dl>
                 <div className="walkthrough-review-notice"><span aria-hidden><CheckIcon size={16} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className="inline-block shrink-0 align-middle" /></span> You review every trade before it moves.</div>
                 <div className="flex justify-between [padding:12px_14px] rounded-[9px] bg-[#252521] text-white text-[11px]">Approve trade <span aria-hidden><ArrowRightIcon size={16} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className="inline-block shrink-0 align-middle" /></span></div>
                 <p className="text-[9px] text-[#999185] mt-[12px] text-center">Sample trade · No funds will move</p>
@@ -201,6 +231,14 @@ export function ProductWalkthrough() {
           </aside>
         </div>
       </div></div>
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-xs text-[#676762]">
+        <div className="flex flex-wrap items-center gap-1" aria-label="Demo playback controls">
+          <button className="inline-flex min-h-9 items-center gap-1.5 rounded-lg px-2 hover:bg-black/5 focus-visible:outline-2 focus-visible:outline-offset-2" type="button" onClick={() => { if (ended) setElapsed(0); setPlaying(value => ended || !value); }} aria-label={playing && !ended ? 'Pause demo' : 'Play demo'}>{playing && !ended ? <Pause size={14} /> : <Play size={14} />}{playing && !ended ? 'Pause' : 'Play'}</button>
+          <button className="inline-flex min-h-9 items-center gap-1.5 rounded-lg px-2 hover:bg-black/5 focus-visible:outline-2 focus-visible:outline-offset-2" type="button" onClick={() => { setElapsed(0); setPlaying(true); }}><RotateCcw size={14} /> Replay</button>
+          {['Markets', 'Stock', 'Agent', 'Review'].map((label, i) => <button key={label} className="min-h-9 rounded-lg px-2 hover:bg-black/5 aria-[current=step]:bg-black/5 aria-[current=step]:text-[#232320] focus-visible:outline-2 focus-visible:outline-offset-2" type="button" aria-current={step === i ? 'step' : undefined} onClick={() => selectStep(i, false)}>{label}</button>)}
+        </div>
+        <p className="max-w-xl leading-5">{snapshot ? `${snapshot.stale || marketStatus === 'unavailable' ? 'Cached market data' : 'Market data'}: ${snapshot.data.source} · Retrieved ${formatRelativeTime(snapshot.retrievedAt, 'en')}.` : marketStatus === 'loading' ? 'Sample market data · Loading market snapshot…' : 'Sample market data · Market snapshot unavailable.'} Portfolio and trade are examples.</p>
+      </div>
     </div>
   );
 }

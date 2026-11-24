@@ -58,7 +58,14 @@ export class IntelligenceService {
     const { signals, dimensions, limitedHistory } =
       await this.computeSignalsDetailed(equity);
 
-    await this.repository.upsert(signals);
+    try {
+      await this.repository.upsert(signals);
+    } catch {
+      // Persistence is app memory, not a prerequisite for this live read.
+      this.logger.warn(
+        `Signal persistence failed for ${equity.id}; returning live analysis`,
+      );
+    }
 
     const price = equity.price ?? signals.sma20;
     const highlights = buildHighlights(signals, dimensions, {
@@ -74,7 +81,10 @@ export class IntelligenceService {
       // risk optional
     }
 
-    const riskLabel = riskLabelFromVolatility(signals.volatility30d, tokensRisk);
+    const riskLabel = riskLabelFromVolatility(
+      signals.volatility30d,
+      tokensRisk,
+    );
     const [dailyBars, hourlyBars, newsFeed] = await Promise.all([
       this.fetchTaBars(equity.id, TA_DAILY_LOOKBACK_DAYS, '1D'),
       this.fetchTaBars(equity.id, TA_HOURLY_LOOKBACK_DAYS, '1H'),

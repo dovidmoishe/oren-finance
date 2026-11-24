@@ -6,7 +6,7 @@ import { TechnicalBriefPanel } from "@/components/stock/technical-brief-panel";
 import { cn, formatCurrency, formatNumber, formatPercent, formatRelativeTime } from "@/components/ui/utils";
 import { filterStockNews } from "@/services/stock-news";
 import type { NewsItem, StockAnalysis, StockDetail } from "@/types";
-import { useI18n, type MessageKey, type MessageValues, type Translate } from "@/i18n/i18n";
+import { useI18n, type MessageKey, type Translate } from "@/i18n/i18n";
 
 const trendLabels: Record<"uptrend" | "downtrend" | "range", MessageKey> = { uptrend: "stock.uptrend", downtrend: "stock.downtrend", range: "stock.range" };
 
@@ -17,12 +17,6 @@ function percent(t: Translate, locale: string, value?: number, signed = true) {
 function metric(t: Translate, locale: string, value?: number) {
   return typeof value === "number" && Number.isFinite(value) ? formatNumber(value, locale, 2) : t("stock.unavailable");
 }
-
-const trendKeys = {
-  uptrend: { none: "stock.trendUp", up: "stock.trendUpMomentum", down: "stock.trendUpMomentumDown" },
-  downtrend: { none: "stock.trendDown", up: "stock.trendDownMomentumUp", down: "stock.trendDownMomentum" },
-  range: { none: "stock.trendRange", up: "stock.trendRangeMomentumUp", down: "stock.trendRangeMomentumDown" },
-} as const satisfies Record<"uptrend" | "downtrend" | "range", Record<"none" | "up" | "down", MessageKey>>;
 
 export function StockMarketOutlook({ stock, analysis, news, analysisLoading = false, newsLoading = false }: {
   stock: StockDetail;
@@ -36,12 +30,12 @@ export function StockMarketOutlook({ stock, analysis, news, analysisLoading = fa
   const trend = brief ? t(trendLabels[brief.regime]) : t("stock.unavailable");
   const momentum = analysis?.signals.momentum7d;
   const hasMomentum = typeof momentum === "number" && Number.isFinite(momentum);
-  const momentumValues: MessageValues = hasMomentum ? { ticker: stock.ticker, percent: formatPercent(Math.abs(momentum), locale, false) } : { ticker: stock.ticker };
-  const takeaway = brief
-    ? t(trendKeys[brief.regime][hasMomentum ? (momentum >= 0 ? "up" : "down") : "none"], momentumValues)
-    : hasMomentum
-      ? t(momentum >= 0 ? "stock.momentumUp" : "stock.momentumDown", momentumValues)
-      : t("stock.noOutlook");
+  const dailyChange = stock.change24hPct;
+  const hasDailyChange = typeof dailyChange === 'number' && Number.isFinite(dailyChange);
+  const recentMove = hasDailyChange
+    ? t(dailyChange >= 0 ? 'stock.dailyUp' : 'stock.dailyDown', { ticker: stock.ticker, percent: formatPercent(Math.abs(dailyChange), locale, false) })
+    : '';
+  const takeaway = [recentMove, brief ? t('stock.longerTrendRead', { trend }) : ''].filter(Boolean).join(' ') || t('stock.noOutlook');
   const risk = brief?.risks[0] ?? (typeof analysis?.signals.volatility30d === "number"
     ? t("stock.volatilityRisk", { percent: percent(t, locale, analysis.signals.volatility30d, false) })
     : undefined);
@@ -79,18 +73,19 @@ export function StockMarketOutlook({ stock, analysis, news, analysisLoading = fa
               <p className="max-w-2xl text-balance font-display text-lg font-medium leading-7 tracking-tight @lg/outlook:text-xl">{takeaway}</p>
               <dl className="mt-5 grid grid-cols-3 divide-x divide-border rounded-xl border border-border bg-panel-subtle/50">
                 {[
-                  [t("stock.trend"), trend],
+                  [t("stock.longerTrendLabel"), trend],
                   [t("stock.momentum7d"), percent(t, locale, momentum)],
                   [t("stock.volatility30d"), percent(t, locale, analysis.signals.volatility30d, false)],
                 ].map(([label, value]) => (
                   <div className="min-w-0 px-3 py-3.5 @lg/outlook:px-4" key={label}>
                     <dt className="text-[11px] leading-4 text-muted">{label}</dt>
-                    <dd className={cn("mt-2 flex items-center gap-1.5 text-sm font-medium", label !== t("stock.trend") && "font-money tabular-nums", label === t("stock.momentum7d") && hasMomentum && (momentum > 0 ? "text-positive" : momentum < 0 ? "text-negative" : "text-foreground"))}>
-                      {label === t("stock.trend") && <TrendIcon aria-hidden="true" className="hidden shrink-0 @lg/outlook:block" size={15} strokeWidth={1.8} />}<span className="min-w-0 break-words">{value}</span>
+                    <dd className={cn("mt-2 flex items-center gap-1.5 text-sm font-medium", label !== t("stock.longerTrendLabel") && "font-money tabular-nums", label === t("stock.momentum7d") && hasMomentum && (momentum > 0 ? "text-positive" : momentum < 0 ? "text-negative" : "text-foreground"))}>
+                      {label === t("stock.longerTrendLabel") && <TrendIcon aria-hidden="true" className="hidden shrink-0 @lg/outlook:block" size={15} strokeWidth={1.8} />}<span className="min-w-0 break-words">{value}</span>
                     </dd>
                   </div>
                 ))}
               </dl>
+              <p className="mt-3 text-xs leading-5 text-muted">{t("stock.periodNote")}</p>
               {risk ? <div className="mt-4 flex items-start gap-2.5 rounded-xl bg-panel-subtle px-3 py-3"><ShieldAlert aria-hidden="true" className="mt-0.5 shrink-0 text-muted" size={15} strokeWidth={1.7} /><p className="text-xs leading-5 text-muted"><span className="font-medium text-foreground">{t("stock.watchFor")}</span>{risk}</p></div> : null}
             </>
           ) : <p aria-busy={analysisLoading} className="mt-3 text-sm text-muted">{t(analysisLoading ? "common.loading" : "stock.analysisUnavailable")}</p>}

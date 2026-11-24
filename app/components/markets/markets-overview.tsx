@@ -3,6 +3,7 @@
 import { Search as SearchIcon } from "lucide-react";
 
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { Button, Skeleton, cn, formatCompactCurrency, formatCurrency, formatPercent } from "@/components/ui";
 import { getStockChart } from "@/services/market-service";
@@ -17,6 +18,8 @@ import { MarketStockLogo } from "./market-stock-logo";
 const readSparkline = createSharedReadCache<MarketCandle[]>();
 
 const marketColumns = "grid grid-cols-[minmax(0,1fr)_4.75rem_4.25rem] items-center gap-2.5 px-3 @lg:grid-cols-[minmax(0,1fr)_minmax(5.5rem,0.55fr)_minmax(4rem,0.5fr)_minmax(5rem,0.55fr)] @3xl:grid-cols-[minmax(0,1fr)_minmax(5.5rem,0.55fr)_minmax(4rem,0.5fr)_minmax(6rem,0.65fr)_minmax(5rem,0.55fr)] @lg:gap-4 @lg:px-4";
+
+const FeedbackModal = dynamic(() => import("@/components/feedback/feedback-modal").then(module => module.FeedbackModal), { ssr: false });
 
 function buildSparklinePoints(candles: MarketCandle[]) {
   const closes = candles
@@ -183,6 +186,7 @@ export function MarketsOverview() {
   const search = useMarketStore((state) => state.search);
   const loadMoreRef = useRef<HTMLDivElement>(null);
   const [query, setQuery] = useState("");
+  const [requestedStock, setRequestedStock] = useState<string>();
   const t = useT();
 
   useEffect(() => {
@@ -294,9 +298,11 @@ export function MarketsOverview() {
               : searching
                 ? t("markets.noResults", { query: query.trim() })
                 : t("markets.empty")}
+            {searching && !error ? <div className="mx-auto mt-3 max-w-md"><p className="text-xs leading-5">{t("markets.coverageNote")}</p><Button className="mt-4" size="sm" variant="secondary" onClick={() => setRequestedStock(query.trim())}>{t("markets.requestStock")}</Button></div> : null}
           </div>
         ) : null}
       </section>
+      {requestedStock ? <FeedbackModal onClose={() => setRequestedStock(undefined)} initialSubject={t("markets.stockRequestSubject", { query: requestedStock }).slice(0, 120)} initialMessage={t("markets.stockRequestMessage", { query: requestedStock })} /> : null}
     </div>
   );
 }

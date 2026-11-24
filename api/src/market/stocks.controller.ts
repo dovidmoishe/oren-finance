@@ -22,7 +22,7 @@ import type {
   GetStocksResponse,
   SearchStocksResponse,
 } from '../../types/api';
-import type { ChartRange } from '../../types/market';
+import type { ChartInterval, ChartRange } from '../../types/market';
 import { IntelligenceService } from '../intelligence/intelligence.service';
 import { MarketService } from './market.service';
 
@@ -47,10 +47,14 @@ class ListStocksDto {
   limit?: number;
 }
 
-class ChartQueryDto {
+export class ChartQueryDto {
   @IsOptional()
   @IsIn(['1D', '1W', '1M', '3M', '1Y', 'ALL'])
   range?: ChartRange;
+
+  @IsOptional()
+  @IsIn(['1m', '5m', '15m', '1H', '4H', '1D'])
+  interval?: ChartInterval;
 }
 
 @Controller('stocks')
@@ -80,7 +84,7 @@ export class StocksController {
     @Query() query: ChartQueryDto,
   ): Promise<GetStockChartResponse> {
     const range: ChartRange = query.range ?? '1M';
-    return this.market.getChart(assetId, range);
+    return this.market.getChart(assetId, range, query.interval);
   }
 
   @Get(':assetId/analysis')

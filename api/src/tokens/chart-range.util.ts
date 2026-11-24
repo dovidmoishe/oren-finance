@@ -1,4 +1,4 @@
-import type { ChartRange } from '../../types/market';
+import type { ChartInterval, ChartRange } from '../../types/market';
 
 export interface ChartWindow {
   interval: '1m' | '5m' | '15m' | '1H' | '4H' | '1D' | '1W';
@@ -8,8 +8,23 @@ export interface ChartWindow {
 
 const DAY = 24 * 60 * 60;
 
-export function chartRangeToWindow(range: ChartRange): ChartWindow {
+export function chartRangeToWindow(
+  range: ChartRange,
+  interval?: ChartInterval,
+): ChartWindow {
   const to = Math.floor(Date.now() / 1000);
+  if (interval) {
+    const seconds: Record<ChartInterval, number> = {
+      '1m': 60,
+      '5m': 300,
+      '15m': 900,
+      '1H': 3600,
+      '4H': 14400,
+      '1D': DAY,
+    };
+    // Explicit interval requests use a bounded window independent of lookback tabs.
+    return { interval, from: to - 200 * seconds[interval], to };
+  }
 
   switch (range) {
     case '1D':

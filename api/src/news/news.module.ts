@@ -9,6 +9,7 @@ import { TokensModule } from '../tokens/tokens.module';
 import { NewsController } from './news.controller';
 import { NewsRepository } from './news.repository';
 import { NewsService } from './news.service';
+import { EquityNewsService } from './equity-news.service';
 
 @Module({
   imports: [TokensModule, PortfolioModule, AuthModule],
@@ -16,6 +17,7 @@ import { NewsService } from './news.service';
   providers: [
     NewsRepository,
     NewsService,
+    EquityNewsService,
     NewsFeedService,
     NewsCurator,
     openAiClientProvider,

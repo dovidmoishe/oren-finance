@@ -19,6 +19,7 @@ export interface Equity {
   volume24h?: number;
   liquidity?: number;
   sector?: string;
+  marketData?: { source: string; retrievedAt: string };
   variants: TokenizedEquity[];
 }
 
