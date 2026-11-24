@@ -38,6 +38,7 @@ export interface Slice {
   researchCalls: number;
   researchAccounts: number;
   repeatResearchAccounts: number;
+  mcpResearchActivation: { calls: number; accounts: number };
   mcpStockContext: { calls: number; accounts: number };
 }
 export interface Retention extends Count {

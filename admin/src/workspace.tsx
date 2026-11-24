@@ -1,25 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, Outlet, useRouterState } from "@tanstack/react-router";
-import DashboardSquare01Icon from "@hugeicons/core-free-icons/DashboardSquare01Icon";
-import AnalyticsUpIcon from "@hugeicons/core-free-icons/AnalyticsUpIcon";
-import FilterHorizontalIcon from "@hugeicons/core-free-icons/FilterHorizontalIcon";
-import UserGroupIcon from "@hugeicons/core-free-icons/UserGroupIcon";
-import LinkSquare02Icon from "@hugeicons/core-free-icons/LinkSquare02Icon";
-import ChartLineData01Icon from "@hugeicons/core-free-icons/ChartLineData01Icon";
-import Shield01Icon from "@hugeicons/core-free-icons/Shield01Icon";
-import Activity01Icon from "@hugeicons/core-free-icons/Activity01Icon";
-import Logout01Icon from "@hugeicons/core-free-icons/Logout01Icon";
-import Menu01Icon from "@hugeicons/core-free-icons/Menu01Icon";
-import Cancel01Icon from "@hugeicons/core-free-icons/Cancel01Icon";
-import ArrowUpRight01Icon from "@hugeicons/core-free-icons/ArrowUpRight01Icon";
-import Layers01Icon from "@hugeicons/core-free-icons/Layers01Icon";
-import Calendar03Icon from "@hugeicons/core-free-icons/Calendar03Icon";
-import LockPasswordIcon from "@hugeicons/core-free-icons/LockPasswordIcon";
+import { LayoutDashboard, TrendingUp, ListFilter, Users, Link2, ChartLine, Shield, Activity, LogOut, Menu, X, ArrowUpRight, Layers, CalendarDays, LockKeyhole } from "lucide-react";
 import { post } from "./api";
 import { AuthScreen } from "./auth";
 import { hasPermission } from "./model";
 import { useAuth } from "./state";
-import { Badge, Icon, Loading } from "./ui";
+import { Icon, Loading } from "./ui";
 
 const navigation = [
   {
@@ -28,31 +14,31 @@ const navigation = [
       {
         to: "/",
         label: "Overview",
-        icon: DashboardSquare01Icon,
+        icon: LayoutDashboard,
         permission: "reports.read",
       },
       {
         to: "/traffic",
         label: "Traffic",
-        icon: AnalyticsUpIcon,
+        icon: TrendingUp,
         permission: "reports.read",
       },
       {
         to: "/funnel",
         label: "Activation funnel",
-        icon: FilterHorizontalIcon,
+        icon: ListFilter,
         permission: "reports.read",
       },
       {
         to: "/retention",
         label: "Retention",
-        icon: Calendar03Icon,
+        icon: CalendarDays,
         permission: "reports.read",
       },
       {
         to: "/campaigns",
         label: "Campaigns",
-        icon: ChartLineData01Icon,
+        icon: ChartLine,
         permission: "reports.read",
       },
     ],
@@ -63,25 +49,25 @@ const navigation = [
       {
         to: "/users",
         label: "Connected accounts",
-        icon: UserGroupIcon,
+        icon: Users,
         permission: "dashboard.access",
       },
       {
         to: "/connections",
         label: "Agent connections",
-        icon: LinkSquare02Icon,
+        icon: Link2,
         permission: "dashboard.access",
       },
       {
         to: "/trades",
         label: "Trade activity",
-        icon: Activity01Icon,
+        icon: Activity,
         permission: "dashboard.access",
       },
       {
         to: "/coverage",
         label: "Data coverage",
-        icon: Layers01Icon,
+        icon: Layers,
         permission: "reports.read",
       },
     ],
@@ -92,19 +78,19 @@ const navigation = [
       {
         to: "/accounts",
         label: "Team & access",
-        icon: Shield01Icon,
+        icon: Shield,
         permission: "master",
       },
       {
         to: "/audit",
         label: "Audit log",
-        icon: Activity01Icon,
+        icon: Activity,
         permission: "master",
       },
       {
         to: "/security",
         label: "Password & security",
-        icon: LockPasswordIcon,
+        icon: LockKeyhole,
         permission: "self",
       },
     ],
@@ -225,13 +211,13 @@ export function Workspace() {
               oren<span className="brand-dot">.</span>
             </span>
           </Link>
-          <Badge>admin</Badge>
+          <span className="sidebar-context">Admin</span>
           <button
             className="mobile-close icon-button"
             aria-label="Close navigation"
             onClick={() => setMobileOpen(false)}
           >
-            <Icon icon={Cancel01Icon} />
+            <Icon icon={X} />
           </button>
         </div>
         <nav aria-label="Admin navigation">
@@ -249,9 +235,8 @@ export function Workspace() {
                     className={`nav-item ${path === item.to ? "active" : ""}`}
                     aria-current={path === item.to ? "page" : undefined}
                   >
-                    <Icon icon={item.icon} />
+                    <Icon icon={item.icon} size={16} />
                     <span>{item.label}</span>
-                    {path === item.to && <span className="active-dot" />}
                   </Link>
                 ))}
               </div>
@@ -259,11 +244,6 @@ export function Workspace() {
           })}
         </nav>
         <div className="sidebar-bottom">
-          {import.meta.env.DEV && session.preview && (
-            <div className="preview-note">
-              LOCAL FIXTURE<span>Sample data · no production connection</span>
-            </div>
-          )}
           <a
             href="https://oren.finance"
             target="_blank"
@@ -271,7 +251,7 @@ export function Workspace() {
             className="view-product"
           >
             View Oren
-            <Icon icon={ArrowUpRight01Icon} size={16} />
+            <Icon icon={ArrowUpRight} size={16} />
           </a>
           <div className="user-card">
             <span className="user-avatar">
@@ -288,7 +268,7 @@ export function Workspace() {
               disabled={loggingOut}
               onClick={() => void logout()}
             >
-              <Icon icon={Logout01Icon} size={18} />
+              <Icon icon={LogOut} size={18} />
             </button>
           </div>
           {logoutError && (
@@ -308,14 +288,14 @@ export function Workspace() {
               aria-expanded={mobileOpen}
               onClick={() => setMobileOpen(true)}
             >
-              <Icon icon={Menu01Icon} />
+              <Icon icon={Menu} />
             </button>
             <span className="breadcrumb">Workspace</span>
             <span className="breadcrumb-separator">/</span>
             <strong>{pageInfo[path]?.[0] || "Workspace"}</strong>
           </div>
           <span className="private-label">
-            <Icon icon={Shield01Icon} size={15} />
+            <Icon icon={Shield} size={15} />
             Private workspace
           </span>
         </header>
@@ -326,9 +306,7 @@ export function Workspace() {
             </div>
           )}
           <div className="page-heading">
-            <div>
-              <h1>{pageInfo[path]?.[0] || "Workspace"}</h1>
-            </div>
+            <h1>{pageInfo[path]?.[0] || "Workspace"}</h1>
           </div>
           <Outlet />
         </main>

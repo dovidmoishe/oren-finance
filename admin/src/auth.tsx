@@ -2,7 +2,7 @@ import { useState, type FormEvent } from "react";
 import { post, setCsrfToken } from "./api";
 import { useAuth } from "./state";
 import { Icon } from "./ui";
-import ArrowRight01Icon from "@hugeicons/core-free-icons/ArrowRight01Icon";
+import { ArrowRight } from "lucide-react";
 
 export function AuthScreen({ changing = false }: { changing?: boolean }) {
   const { refresh, clear, error: sessionError } = useAuth();
@@ -105,7 +105,7 @@ export function AuthScreen({ changing = false }: { changing?: boolean }) {
                     maxLength={200}
                   />
                 </label>
-                <p className="form-help">
+                <p className="form-help text-pretty">
                   Use 12–200 characters. You’ll sign in again after saving.
                 </p>
               </>
@@ -122,10 +122,10 @@ export function AuthScreen({ changing = false }: { changing?: boolean }) {
             )}
             <button className="primary" disabled={pending}>
               {pending ? "Please wait…" : changing ? "Set password" : "Sign in"}
-              <Icon icon={ArrowRight01Icon} size={18} />
+              <Icon icon={ArrowRight} size={18} />
             </button>
           </form>
-          <p className="auth-help">
+          <p className="auth-help text-pretty">
             {changing
               ? "Your temporary password is single-use. If this session expires, ask your master admin for a replacement."
               : "Access is invitation only. Contact your master admin if you need an account or password recovery."}

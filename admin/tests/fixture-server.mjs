@@ -147,6 +147,7 @@ const server = http.createServer(async (request, response) => {
     researchCalls: 91,
     researchAccounts: 32,
     repeatResearchAccounts: 14,
+    mcpResearchActivation: { calls: 5, accounts: 3 },
     mcpStockContext: { calls: 213, accounts: 38 },
   };
   if (path === "reports/funnel" || path === "reports/retention")

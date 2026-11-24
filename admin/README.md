@@ -50,7 +50,7 @@ Fixture sign-in: `admin@example.test` / `local-preview-only`. Both servers bind 
 
 These routes require the admin marker header and a live admin cookie. Machine reporting credentials do not authorize operational routes. All admin auth/operational responses use `Cache-Control: no-store`. The operational repository explicitly selects safe fields; it does not return OAuth payloads, signing material or transaction bodies. Existing report authorization remains unchanged.
 
-The UI keeps unknown values separate from zero, gaps separate from observed days, daily uniques separate from lifetime counts, and MCP stock context separate from research activation. Traffic can use UTC or Lagos days; funnel/comparison/retention use UTC. The current retention API observes only the selected range, so returns after its end are not included. That limitation is visible on the retention screen. External syncs remain unconnected and historical imports remain offline.
+The UI keeps unknown values separate from zero, gaps separate from observed days, daily uniques separate from lifetime counts, and MCP stock context separate from research activation. Traffic can use UTC or Lagos days; funnel/comparison/retention use UTC. Retention follows accounts for 7 or 30 days after their first research in the selected period. External syncs remain unconnected and historical imports remain offline.
 
 ## Checks
 
@@ -71,4 +71,4 @@ docker build -t oren-admin:local admin
 
 The runtime is static Caddy on port 8080, with `ADMIN_API_UPSTREAM` defaulting to the pinned production API container name `oren-api-1:3000`. Put it on the appropriate API network and publish it through the existing TLS edge on the chosen admin host. The runtime proxies only `/api/admin/*`; other `/api/*` paths return 404. SPA routes fall back to `index.html`; hashed assets are immutable and HTML revalidates. CSP blocks third-party scripts and framing.
 
-There are no automatic deployment changes, DNS changes, production accounts, permission grants, historical imports, or financial actions in this implementation. Production deployment must use the API containing these additions and the two existing #87 migrations (`0015_growth_reporting`, `0016_admin_auth`).
+There are no automatic deployment changes, DNS changes, production accounts, permission grants, historical imports, or financial actions in this implementation. Production deployment must use the API containing these additions and the two existing #87 migrations (`0025_growth_reporting`, `0026_admin_auth`).

@@ -106,6 +106,8 @@ function TrafficPage({ overview }: { overview: boolean }) {
     (day) => day.value != null && day.status !== "unavailable",
   );
   const complete = traffic.daily.filter((day) => day.status === "exact").length;
+  const dayCount = traffic.daily.length;
+  const coverage = dayCount ? complete / dayCount : 0;
   async function download() {
     setExportError("");
     setExporting(true);
@@ -118,77 +120,105 @@ function TrafficPage({ overview }: { overview: boolean }) {
     }
   }
   return (
-    <>
-      <div className={`metric-grid ${overview ? "overview-metrics" : ""}`}>
-        <Metric
-          label="Pageviews"
-          value={formatCount(traffic.pageviews)}
-          note="Complete, closed days in this range"
-          tone="mint"
-        />
-        <Metric
-          label="New durable visitors"
-          value={formatCount(traffic.distinctDurableVisitorsFirstSeenInRange)}
-          note="First seen in range · visitor IDs, not people"
-          tone="lavender"
-        />
-        {!overview && (
-          <>
-            <Metric
-              label="Complete days"
-              value={`${complete} / ${traffic.daily.length}`}
-              note="Missing days are never counted as zero"
-              tone="peach"
-            />
-            <Metric
-              label="Report timezone"
-              value={traffic.timezone === "Africa/Lagos" ? "WAT" : "UTC"}
-              note={
-                traffic.timezone === "Africa/Lagos"
-                  ? "Africa/Lagos · UTC +01:00"
-                  : "Coordinated Universal Time"
-              }
-            />
-          </>
+    <div className={overview ? "overview-layout" : undefined}>
+      <div className="traffic-main">
+        <div className={`metric-grid ${overview ? "overview-metrics" : ""}`}>
+          <Metric
+            label="Pageviews"
+            value={formatCount(traffic.pageviews)}
+            note="Complete, closed days in this range"
+            tone="mint"
+          />
+          <Metric
+            label="New durable visitors"
+            value={formatCount(traffic.distinctDurableVisitorsFirstSeenInRange)}
+            note="First seen in range · visitor IDs, not people"
+            tone="lavender"
+          />
+          {!overview && (
+            <>
+              <Metric
+                label="Complete days"
+                value={`${complete} / ${traffic.daily.length}`}
+                note="Missing days are never counted as zero"
+                tone="peach"
+              />
+              <Metric
+                label="Report timezone"
+                value={traffic.timezone === "Africa/Lagos" ? "WAT" : "UTC"}
+                note={
+                  traffic.timezone === "Africa/Lagos"
+                    ? "Africa/Lagos · UTC +01:00"
+                    : "Coordinated Universal Time"
+                }
+              />
+            </>
+          )}
+        </div>
+        {exportError && (
+          <div className="notice error" role="alert">
+            {exportError}
+          </div>
         )}
+        <Panel
+          title="Pageviews"
+          subtitle="Accepted pageviews, day by day"
+          action={
+            <button
+              className={overview ? "primary" : "button"}
+              onClick={() => void download()}
+              disabled={exporting}
+            >
+              <Icon icon={icons.download} size={16} />
+              {exporting ? "Exporting…" : "Export CSV"}
+            </button>
+          }
+        >
+          {known.length ? (
+            <TrafficChart days={traffic.daily} />
+          ) : (
+            <Empty title="No traffic observations yet">
+              Collection may not have started for this range. Check data
+              coverage or select different dates.
+            </Empty>
+          )}
+          <div className="chart-caption">
+            <span>
+              <span className="legend-dot" />
+              Pageviews
+            </span>
+            <span>Gaps and partial days are shown separately</span>
+          </div>
+        </Panel>
       </div>
-      {exportError && (
-        <div className="notice error" role="alert">
-          {exportError}
-        </div>
-      )}
-      <Panel
-        title="Pageviews"
-        subtitle="Accepted pageviews, day by day"
-        action={
-          <button
-            className="button"
-            onClick={() => void download()}
-            disabled={exporting}
-          >
-            <Icon icon={icons.download} size={16} />
-            {exporting ? "Exporting…" : "Export CSV"}
-          </button>
-        }
-      >
-        {known.length ? (
-          <TrafficChart days={traffic.daily} />
-        ) : (
-          <Empty title="No traffic observations yet">
-            Collection may not have started for this range. Check data coverage
-            or select different dates.
-          </Empty>
-        )}
-        <div className="chart-caption">
-          <span>
-            <span className="legend-dot" />
-            Pageviews
-          </span>
-          <span>Gaps and partial days are shown separately</span>
-        </div>
-      </Panel>
       {overview ? (
-        <OverviewActivity />
+        <aside className="overview-summary" aria-label="Overview summary">
+          <Panel title="Reporting coverage">
+            <div className="coverage-summary">
+              <div
+                className="coverage-gauge"
+                aria-hidden="true"
+                style={{
+                  background: `conic-gradient(var(--green) ${coverage}turn, var(--line) 0)`,
+                }}
+              >
+                <strong>
+                  {complete}
+                  <span> / {dayCount}</span>
+                </strong>
+              </div>
+              <p>
+                {dayCount
+                  ? `${complete} of ${dayCount} days complete`
+                  : "No days available"}
+              </p>
+              <Link className="text-link" to="/coverage">
+                View coverage <Icon icon={icons.arrow} size={14} />
+              </Link>
+            </div>
+          </Panel>
+          <OverviewActivity />
+        </aside>
       ) : (
         <Panel
           title="Daily observations"
@@ -235,7 +265,7 @@ function TrafficPage({ overview }: { overview: boolean }) {
           </p>
         </Panel>
       )}
-    </>
+    </div>
   );
 }
 
@@ -304,7 +334,7 @@ function TrafficChart({ days }: { days: Day[] }) {
             key={index}
             d={path}
             fill="none"
-            stroke="#222222"
+            stroke="var(--green)"
             strokeWidth="2.6"
             strokeLinejoin="round"
           />
@@ -316,7 +346,7 @@ function TrafficChart({ days }: { days: Day[] }) {
               cx={x(index)}
               cy={y(day.value)}
               r={day.status === "partial" ? 5 : 3}
-              fill={day.status === "partial" ? "#888888" : "#222222"}
+              fill={day.status === "partial" ? "#788694" : "var(--green)"}
             >
               <title>
                 {day.day}: {day.value.toLocaleString()} pageviews ({day.status})
@@ -374,16 +404,7 @@ function OverviewActivity() {
   const slice = totalSlice(query.data.slices);
   return (
     <div>
-      <Panel
-        title="Activity"
-        subtitle="UTC date range · stages describe distinct actions"
-        action={
-          <Link className="text-link" to="/funnel">
-            Explore funnel
-            <Icon icon={icons.arrow} size={14} />
-          </Link>
-        }
-      >
+      <Panel title="Activation" subtitle="Selected dates · UTC">
         {slice ? (
           <div className="mini-funnel">
             {[
@@ -393,9 +414,8 @@ function OverviewActivity() {
                 label: "In-app research accounts",
                 value: slice.researchAccounts,
               },
-            ].map((item, index) => (
+            ].map((item) => (
               <div className="mini-funnel-row" key={item.label}>
-                <span className="stage-number">0{index + 1}</span>
                 <span>{item.label}</span>
                 <strong>{item.value.toLocaleString()}</strong>
               </div>
@@ -404,6 +424,11 @@ function OverviewActivity() {
         ) : (
           <Empty title="No funnel activity yet" />
         )}
+        <div className="summary-footer">
+          <Link className="text-link" to="/funnel">
+            Explore funnel <Icon icon={icons.arrow} size={14} />
+          </Link>
+        </div>
       </Panel>
     </div>
   );
@@ -458,6 +483,11 @@ function FunnelPage() {
                 note: `${slice.researchCalls} successful calls`,
               },
               {
+                label: "MCP research",
+                value: slice.mcpResearchActivation.accounts,
+                note: `${slice.mcpResearchActivation.calls} successful research calls`,
+              },
+              {
                 label: "MCP stock context",
                 value: slice.mcpStockContext.accounts,
                 note: `${slice.mcpStockContext.calls} get_stock calls`,
@@ -504,10 +534,7 @@ function FunnelPage() {
             );
           })}
           <p className="panel-note">
-            These stages aren’t a single attributed conversion cohort. In-app
-            research and MCP stock context are separate channels. MCP research
-            activation is unavailable because there is no MCP research-report
-            tool. Distinct counts across groups are not additive.
+            Each stage counts observed activity in the selected period. An account can appear in several groups.
           </p>
         </>
       )}
@@ -562,9 +589,7 @@ function RetentionPage() {
           <strong>Give cohorts time to mature</strong>
           <p>
             Only accounts whose full follow-up window has elapsed enter the
-            denominator. The current API includes activity within the selected
-            date range; returns after its end aren’t included. These are
-            in-range research cohorts, not lifetime first-research cohorts.
+            denominator. Returns can fall after the selected end date. Each cohort starts with an account?s earliest research in the selected period.
           </p>
         </div>
       </div>

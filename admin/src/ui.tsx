@@ -1,23 +1,19 @@
 import type { ReactNode } from "react";
-import { HugeiconsIcon } from "@hugeicons/react";
-import AlertCircleIcon from "@hugeicons/core-free-icons/AlertCircleIcon";
-import ArrowReloadHorizontalIcon from "@hugeicons/core-free-icons/ArrowReloadHorizontalIcon";
-import ArrowRight01Icon from "@hugeicons/core-free-icons/ArrowRight01Icon";
-import Download04Icon from "@hugeicons/core-free-icons/Download04Icon";
+import type { LucideIcon } from "lucide-react";
+import { CircleAlert, RefreshCw, ArrowRight, Download } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useReport } from "./state";
 import { initialRange, readable } from "./model";
 
 export function Icon({
-  icon,
+  icon: Glyph,
   size = 19,
 }: {
-  icon: typeof AlertCircleIcon;
+  icon: LucideIcon;
   size?: number;
 }) {
   return (
-    <HugeiconsIcon
-      icon={icon}
+    <Glyph
       size={size}
       strokeWidth={1.65}
       aria-hidden="true"
@@ -25,9 +21,9 @@ export function Icon({
   );
 }
 export const icons = {
-  refresh: ArrowReloadHorizontalIcon,
-  arrow: ArrowRight01Icon,
-  download: Download04Icon,
+  refresh: RefreshCw,
+  arrow: ArrowRight,
+  download: Download,
 };
 export function Panel({
   title,
@@ -95,7 +91,7 @@ export function Empty({
   return (
     <div className="empty">
       <div className="empty-symbol">
-        <Icon icon={ArrowReloadHorizontalIcon} size={23} />
+        <Icon icon={RefreshCw} size={23} />
       </div>
       <h3>{title}</h3>
       <p>
@@ -114,7 +110,7 @@ export function ErrorState({
 }) {
   return (
     <div className="notice error" role="alert">
-      <Icon icon={AlertCircleIcon} />
+      <Icon icon={CircleAlert} />
       <div>
         <strong>We couldn’t load this view</strong>
         <p>{error.message}</p>
@@ -157,7 +153,7 @@ export function DateFilters({ utcOnly = false }: { utcOnly?: boolean }) {
             />
           </label>
           <span className="range-arrow">
-            <Icon icon={ArrowRight01Icon} size={15} />
+            <Icon icon={ArrowRight} size={15} />
           </span>
           <label>
             To

@@ -6,10 +6,7 @@ import {
   type ReactNode,
 } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import Add01Icon from "@hugeicons/core-free-icons/Add01Icon";
-import Cancel01Icon from "@hugeicons/core-free-icons/Cancel01Icon";
-import Copy01Icon from "@hugeicons/core-free-icons/Copy01Icon";
-import Shield01Icon from "@hugeicons/core-free-icons/Shield01Icon";
+import { Plus, X, Copy } from "lucide-react";
 import { api, post } from "./api";
 import { useAuth } from "./state";
 import type { Account, Permission, TemporaryCredential } from "./types";
@@ -57,7 +54,7 @@ function Modal({
           aria-label="Close dialog"
           onClick={close}
         >
-          <Icon icon={Cancel01Icon} />
+          <Icon icon={X} />
         </button>
       </div>
       {children}
@@ -129,19 +126,9 @@ export function AccountsPage() {
   }
   return (
     <>
-      <div className="notice">
-        <Icon icon={Shield01Icon} />
-        <div>
-          <strong>Access with intention</strong>
-          <p>
-            Reports and operational data are separate permissions. Invited
-            admins cannot invite teammates or become a master admin.
-          </p>
-        </div>
-      </div>
       <Panel
-        title="The people behind Oren"
-        subtitle="Separate admin accounts · independent from product sign-in"
+        title="Admin accounts"
+        subtitle="Manage invitations, permissions and account access."
         action={
           <button
             className="primary"
@@ -150,7 +137,7 @@ export function AccountsPage() {
               setInviteOpen(true);
             }}
           >
-            <Icon icon={Add01Icon} size={16} />
+            <Icon icon={Plus} size={16} />
             Invite admin
           </button>
         }
@@ -179,10 +166,17 @@ export function AccountsPage() {
                 {query.data.map((account) => (
                   <tr key={account.id}>
                     <td>
-                      <span className="strong">{account.email}</span>
-                      {account.id === session.id && (
-                        <span className="cell-note">You</span>
-                      )}
+                      <div className="account-identity">
+                        <span className="account-initial" aria-hidden="true">
+                          {account.email.charAt(0).toUpperCase()}
+                        </span>
+                        <div>
+                          <span className="strong">{account.email}</span>
+                          {account.id === session.id && (
+                            <span className="cell-note">You</span>
+                          )}
+                        </div>
+                      </div>
                     </td>
                     <td>
                       <Badge>
@@ -242,9 +236,8 @@ export function AccountsPage() {
         <ErrorState error={mutation.error} />
       )}
       <p className="panel-note">
-        Master bootstrap and recovery remain offline operator commands.
-        Invitations do not send email. Password changes and revocation
-        invalidate existing sessions.
+        Share temporary passwords directly with invited admins. Only the master
+        admin can invite teammates, reset their passwords or revoke access.
       </p>
       {inviteOpen && (
         <Modal
@@ -387,7 +380,7 @@ export function AccountsPage() {
                 }
               }}
             >
-              <Icon icon={Copy01Icon} size={16} />
+              <Icon icon={Copy} size={16} />
               {copied ? "Copied" : "Copy"}
             </button>
           </div>

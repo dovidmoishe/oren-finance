@@ -1,8 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
-import Search01Icon from "@hugeicons/core-free-icons/Search01Icon";
-import ArrowLeft01Icon from "@hugeicons/core-free-icons/ArrowLeft01Icon";
-import ArrowRight01Icon from "@hugeicons/core-free-icons/ArrowRight01Icon";
+import { Search, ArrowLeft, ArrowRight } from "lucide-react";
 import { api } from "./api";
 import { hasPermission, readable, shortId } from "./model";
 import { useAuth, useReportQuery } from "./state";
@@ -110,7 +108,7 @@ export function OperationsPage({ view }: { view: View }) {
       >
         <div className="table-toolbar">
           <label className="search-box">
-            <Icon icon={Search01Icon} size={17} />
+            <Icon icon={Search} size={17} />
             <input
               aria-label="Search this page"
               placeholder="Search this page…"
@@ -178,7 +176,7 @@ export function OperationsPage({ view }: { view: View }) {
                     setSearch("");
                   }}
                 >
-                  <Icon icon={ArrowLeft01Icon} size={15} />
+                  <Icon icon={ArrowLeft} size={15} />
                   Previous
                 </button>
                 <button
@@ -190,7 +188,7 @@ export function OperationsPage({ view }: { view: View }) {
                   }}
                 >
                   Next
-                  <Icon icon={ArrowRight01Icon} size={15} />
+                  <Icon icon={ArrowRight} size={15} />
                 </button>
               </div>
             </div>
