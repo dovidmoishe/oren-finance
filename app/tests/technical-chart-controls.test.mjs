@@ -26,8 +26,8 @@ function harness() {
     if (id === './kline-engine') return {};
     return require(id);
   } });
-  const render = () => { cursor = 0; return exports.MarketChart({ technical: true, symbol: 'NVDA', mode: 'candles', candleData: candles, activeRange: '7D', interval: '1H', onRangeChange() {}, onIntervalChange: value => intervals.push(value) }); };
-  return { render, intervals };
+  const render = (props = {}) => { cursor = 0; return exports.MarketChart({ technical: true, symbol: 'NVDA', mode: 'candles', candleData: candles, activeRange: '7D', interval: '1H', onRangeChange() {}, onIntervalChange: value => intervals.push(value), ...props }); };
+  return { render, intervals, hover: bar => { slots[1] = bar; } };
 }
 function all(tree, predicate) {
   if (Array.isArray(tree)) return tree.flatMap(child => all(child, predicate));
@@ -59,4 +59,23 @@ test('indicator menu toggles native checkboxes and keeps only one oscillator pan
   inputs = all(h.render(), e => e.type === 'input');
   assert.equal(inputs[4].props.checked, false);
   assert.equal(inputs[5].props.checked, true);
+});
+
+test('portfolio and trader line charts expose historical value/date even with the summary hidden', () => {
+  const h = harness();
+  const timestamp = '2026-11-01T12:00:00Z';
+  const props = { technical: false, mode: 'line', showSummary: false, candleData: [], lineData: [{ timestamp, value: 12 }, { timestamp: '2026-11-02T12:00:00Z', value: 20 }] };
+  const text = node => Array.isArray(node) ? node.map(text).join(' ') : node?.props ? text(node.props.children) : node == null ? '' : String(node);
+  assert.equal(all(h.render(props), e => e.props.role === 'status').length, 0);
+  h.hover({ timestamp: Date.parse(timestamp), close: 12 });
+  let tree = h.render(props);
+  const [tooltip] = all(tree, e => e.props.role === 'status');
+  assert.ok(text(tooltip).includes('$12'));
+  assert.ok(text(tooltip).includes('Nov 1, 2026'));
+  assert.ok(!text(tooltip).includes('$20'), 'show the hovered observation instead of the latest total');
+  const newWindow = { ...props, lineData: [{ timestamp: '2026-11-03T12:00:00Z', value: 30 }] };
+  assert.equal(all(h.render(newWindow), e => e.props.role === 'status').length, 0, 'old-range hover values must not survive a range change');
+  tree = h.render(props);
+  all(tree, e => e.props['data-chart-engine'])[0].props.onMouseLeave();
+  assert.equal(all(h.render(props), e => e.props.role === 'status').length, 0);
 });

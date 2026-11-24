@@ -73,7 +73,8 @@ export function MarketChart({
   const hasData = bars.length > 0;
   const shouldInitialize = hasData || session !== null;
   const hasVolume = canUseCandles && candles.every(bar => typeof bar.volume === "number");
-  const bar = (hoveredBar && bars.find(item => item.timestamp === hoveredBar.timestamp)) || bars.at(-1);
+  const hoveredValue = hoveredBar && bars.find(item => item.timestamp === hoveredBar.timestamp);
+  const bar = hoveredValue || bars.at(-1);
   const formattedDate = dateLabel ?? formatDate(lineData.at(-1)?.timestamp ?? candleData.at(-1)?.timestamp, locale, timeZone, t("common.notUpdated"));
   const labels: Locales = useMemo(() => ({
     time: t("chart.time"), open: t("chart.open"), high: t("chart.high"), low: t("chart.low"), close: t("chart.close"),
@@ -135,7 +136,7 @@ export function MarketChart({
   const disabled = !hasData || loading || !!error || libraryFailed || !session;
 
   const chartCanvas = <>
-    <div className={cn("absolute inset-0 overflow-hidden", (loading || error || libraryFailed || !hasData) && "invisible")} ref={containerRef} role="img" aria-label={t("chart.canvasLabel", { symbol })} data-chart-engine="klinecharts" />
+    <div className={cn("absolute inset-0 overflow-hidden", (loading || error || libraryFailed || !hasData) && "invisible")} ref={containerRef} role="img" aria-label={t("chart.canvasLabel", { symbol })} data-chart-engine="klinecharts" onMouseLeave={() => setHoveredBar(undefined)} />
     {loading ? <div className="absolute inset-0 flex items-center justify-center"><LoadingState label={t("common.loadingChart")} /></div>
       : error || libraryFailed ? <EmptyState title={t("common.chartUnavailable")} description={error || t("common.chartLoadFailed")} />
       : !hasData ? <EmptyState title={t("common.noChartHistory")} description={technical ? t("chart.intervalEmpty") : emptyDescription ?? t("common.chartEmptyDefault")} /> : null}
@@ -190,7 +191,13 @@ export function MarketChart({
 
   return <section className={cn("flex flex-col rounded-[24px] border border-border bg-panel shadow-[0_18px_60px_rgba(23,23,23,0.025)]", compact ? "p-3" : "p-[var(--app-card-padding,1.5rem)]", className)}>
     {showSummary && <div><p className={cn("font-money font-semibold tabular-nums", compact ? "text-3xl" : "text-6xl")}>{formatCurrency(value, locale)}</p><div className="mt-1 flex items-center gap-3 text-xs"><span className={cn((changePct ?? 0) < 0 ? "text-negative" : "text-positive")}>{formatPercent(changePct, locale)}</span><span className="text-muted">{formattedDate}</span></div></div>}
-    <div className={cn("relative min-w-0", compact ? "mt-4 h-[220px] min-h-[200px] flex-1 sm:h-[260px] sm:min-h-[240px]" : "mt-[var(--app-chart-gap,2rem)] h-[var(--app-chart-height,430px)] min-h-[var(--app-chart-min-height,340px)]")}>{chartCanvas}</div>
+    <div className={cn("relative min-w-0", compact ? "mt-4 h-[220px] min-h-[200px] flex-1 sm:h-[260px] sm:min-h-[240px]" : "mt-[var(--app-chart-gap,2rem)] h-[var(--app-chart-height,430px)] min-h-[var(--app-chart-min-height,340px)]")}>
+      {chartCanvas}
+      {hoveredValue && !loading && !error && !libraryFailed && <div role="status" aria-live="off" className="pointer-events-none absolute left-3 top-3 z-10 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-[10px] border border-border bg-panel px-2.5 py-1.5 text-xs text-foreground shadow-sm">
+        <span className="font-money font-medium tabular-nums">{formatCurrency(hoveredValue.close, locale)}</span>
+        <span className="text-muted">{new Intl.DateTimeFormat(locale, { timeZone, dateStyle: "medium", timeStyle: "short" }).format(hoveredValue.timestamp)}</span>
+      </div>}
+    </div>
     <div className={cn("flex shrink-0 flex-wrap items-center justify-between gap-3", compact ? "mt-3" : "mt-6")}><Tabs ariaLabel={t("common.chartRange")} items={ranges} onValueChange={onRangeChange} value={activeRange} /><div className="flex gap-1">{modeButtons}</div></div>
   </section>;
 }
