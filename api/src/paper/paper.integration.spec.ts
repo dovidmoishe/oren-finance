@@ -58,6 +58,8 @@ const url = process.env.PAPER_TEST_DATABASE_URL;
           close,
         })),
     };
+    const makeDue = (id: string) =>
+      client`update paper_runs set next_at = now() - interval '1 minute' where id=${id}`;
     beforeAll(async () => {
       if (!['127.0.0.1', 'localhost', '[::1]'].includes(new URL(url!).hostname))
         throw new Error('Use a disposable local database');
@@ -297,6 +299,7 @@ const url = process.env.PAPER_TEST_DATABASE_URL;
         routePlan: [{}],
       });
       getQuote.mockImplementation(quote);
+      await makeDue(id);
       await Promise.all([service.tick(), service.tick()]);
       const bought = await read();
       expect(bought.events).toHaveLength(1);
@@ -317,9 +320,7 @@ const url = process.env.PAPER_TEST_DATABASE_URL;
         evidence.result,
       );
       closes.push(80);
-      const due = () =>
-        client`update paper_runs set next_at=now() where id=${id}`;
-      await due();
+      await makeDue(id);
       let started!: () => void, release!: () => void;
       const waiting = new Promise<void>((resolve) => {
         started = resolve;
@@ -335,7 +336,12 @@ const url = process.env.PAPER_TEST_DATABASE_URL;
         },
       );
       const inFlight = service.tick();
-      await waiting;
+      await Promise.race([
+        waiting,
+        inFlight.then(() => {
+          throw new Error('Due run finished before requesting its exit quote');
+        }),
+      ]);
       await api
         .put(detail + '/active')
         .set('Authorization', 'Bearer alice')
@@ -357,7 +363,7 @@ const url = process.env.PAPER_TEST_DATABASE_URL;
       ]);
       expect(sold.run.book).toEqual({ cash: '10092291000', position: '0' });
       expect(sold.performance.netPnlUsdcRaw).toBe('92291000');
-      await due();
+      await makeDue(id);
       await service.tick();
       expect((await read()).events).toHaveLength(2);
     });
@@ -400,6 +406,7 @@ const url = process.env.PAPER_TEST_DATABASE_URL;
         )
         .mockRejectedValueOnce(new Error('unavailable'));
       const run = await service.start('bob', 'nvidia', 'breakout-v1');
+      await makeDue(run.id);
       await service.tick();
       const result = await service.activity('bob', run.id);
       expect(result.run.lastError).toBe('route_or_fill_unavailable');
