@@ -1,0 +1,34 @@
+{
+  "name": "@oren/admin",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.22.0",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "tsc --noEmit && vite build",
+    "typecheck": "tsc --noEmit",
+    "preview": "vite preview --host 127.0.0.1",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@oren/animated-icons": "file:../app/components/shell/AnimatedIcons",
+    "@tanstack/react-query": "^5.90.0",
+    "@tanstack/react-router": "^1.132.0",
+    "lucide-react": "^1.72.0",
+    "motion": "^14.13.0",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "@vitejs/plugin-react": "^5.0.0",
+    "typescript": "^5.9.0",
+    "vite": "^7.1.0",
+    "vitest": "^3.2.0",
+    "tailwindcss": "^4",
+    "@tailwindcss/postcss": "^4"
+  }
+}

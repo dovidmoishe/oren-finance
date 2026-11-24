@@ -1,17 +1,25 @@
 "use client";
 
-import { CalendarDays, Compass, LockKeyhole, Settings, Trophy } from "lucide-react";
+import { CalendarDays, Compass, LockKeyhole, Settings, Trophy, type LucideIcon } from "lucide-react";
 import { motion, type Variants } from "motion/react";
 
 export type NavigationIconName = "portfolio" | "markets" | "explore" | "activity" | "vault" | "calendar" | "leaderboard" | "settings";
 
 const MotionSettings = motion.create(Settings);
-const MotionLock = motion.create(LockKeyhole);
 const MotionCalendar = motion.create(CalendarDays);
 const MotionTrophy = motion.create(Trophy);
 const MotionExplore = motion.create(Compass);
 const settle = { type: "spring", stiffness: 220, damping: 20 } as const;
 const stroke: Variants = { rest: { pathLength: 1 }, hover: { pathLength: [0, 1], transition: { duration: 0.4, ease: "easeOut" } } };
+
+export function AnimatedSidebarIcon({ icon: Glyph, size = 20 }: { icon: LucideIcon; size?: number }) {
+  return (
+    <motion.span aria-hidden="true" className="inline-flex shrink-0" transition={settle}
+      variants={{ rest: { scale: 1 }, hover: { scale: 1.12 } }}>
+      <Glyph size={size} strokeWidth={1.8} />
+    </motion.span>
+  );
+}
 
 /** Original motion behaviours with Lucide geometry. See LICENSE for the SVG shapes. */
 export function AnimatedNavigationIcon({ name }: { name: NavigationIconName }) {
@@ -19,7 +27,7 @@ export function AnimatedNavigationIcon({ name }: { name: NavigationIconName }) {
 
   if (name === "settings") return <MotionSettings {...props} transition={settle} variants={{ rest: { rotate: 0 }, hover: { rotate: 90 } }} />;
   if (name === "explore") return <MotionExplore {...props} transition={settle} variants={{ rest: { rotate: 0 }, hover: { rotate: 90 } }} />;
-  if (name === "vault") return <MotionLock {...props} transition={settle} variants={{ rest: { scale: 1 }, hover: { scale: 1.12 } }} />;
+  if (name === "vault") return <AnimatedSidebarIcon icon={LockKeyhole} />;
   if (name === "calendar") return <MotionCalendar {...props} transition={settle} variants={{ rest: { rotate: 0 }, hover: { rotate: -8 } }} />;
   if (name === "leaderboard") return <MotionTrophy {...props} transition={settle} variants={{ rest: { y: 0, rotate: 0 }, hover: { y: -2, rotate: 8 } }} />;
 

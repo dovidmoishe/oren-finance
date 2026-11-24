@@ -1,0 +1,24 @@
+@import "tailwindcss";
+
+@font-face {
+  font-family: "Instrument Sans";
+  src: url("/fonts/instrument-sans-latin-wght-normal.woff2") format("woff2");
+  font-display: swap;
+  font-weight: 400 700;
+}
+
+@theme {
+  --font-sans: "Instrument Sans", sans-serif;
+  --color-foreground: #17212b;
+  --color-muted: #5e6a75;
+  --color-border: #e3e8ec;
+  --color-panel: #f6f8fa;
+  --color-brand: #36745e;
+  --color-sidebar: #101b26;
+  --color-sidebar-line: #293744;
+  --color-sidebar-muted: #aebcca;
+  --color-nav-active: #253544;
+  --color-focus: #477eae;
+}
+
+@custom-variant mobile (@media (max-width: 700px));
