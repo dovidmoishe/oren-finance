@@ -19,6 +19,12 @@ The paper module uses the shared market-data and Jupiter transport services. Its
 
 Both strategies use observations available at decision time. A new rule or cost assumption should receive a new version before comparing it with existing trials. Relative-strength rotation would additionally require a synchronized, point-in-time universe of eligible stocks. Earnings strategies would require timestamped release and expectation data.
 
+## PR 142 forward benchmark
+
+The preview API starts a wallet-free NVDA test account on its first successful poll. It runs breakout, pullback and a buy-and-hold control with the same virtual funding, entry allocation, daily bars and Jupiter cost model. The control buys on its first eligible observation with a valid round-trip quote and holds. Each minute the preview checks only these test books for due work. Its deadline is 48 hours from the first book's creation and survives process restarts and ordinary redeployments. Preview reset or deletion removes the experiment database.
+
+After unlocking the PR preview, open `/api/paper/benchmark` for the start and end times, worker heartbeat, provider errors, signals, fill counts, net returns, available daily liquidation marks and observed drawdowns. A stale heartbeat or missing daily marks indicates an observation gap. Compare the strategies to the control over matching observation times. Two days can establish operational behavior and may contain very few trading signals.
+
 ## Run a historical experiment
 
 From `api/`, supply a JSON array of 22 to 20,000 chronological, completed daily OHLC bars. Each element uses the form `{"timestamp":"2025-01-02T00:00:00Z","open":100,"high":105,"low":98,"close":103}`. Timestamps identify the start of a daily bar. Keep the price source, adjustment convention and instrument consistent across the file.

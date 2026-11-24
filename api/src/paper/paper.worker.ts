@@ -9,6 +9,7 @@ import type { AppEnv } from '../config/env.schema';
 import { APP_ENV } from '../config/constants';
 import { backgroundWorkersEnabled } from '../config/deployment';
 import { PaperService } from './paper.service';
+import { PreviewBenchmark } from './preview-benchmark';
 
 @Injectable()
 export class PaperWorker implements OnModuleInit, OnModuleDestroy {
@@ -18,19 +19,27 @@ export class PaperWorker implements OnModuleInit, OnModuleDestroy {
   constructor(
     @Inject(APP_ENV) private readonly env: AppEnv,
     private readonly service: PaperService,
+    private readonly benchmark: PreviewBenchmark,
   ) {}
   onModuleInit() {
-    if (!this.env.PAPER_TRADING_ENABLED || !backgroundWorkersEnabled()) return;
-    this.timer = setInterval(() => {
-      this.running ??= this.service
-        .tick()
-        .catch(() => {
-          this.log.error('Paper worker poll failed');
-        })
-        .finally(() => {
-          this.running = undefined;
-        });
-    }, 15000);
+    const preview = this.benchmark.enabled;
+    if (
+      !preview &&
+      (!this.env.PAPER_TRADING_ENABLED || !backgroundWorkersEnabled())
+    )
+      return;
+    this.timer = setInterval(
+      () => {
+        this.running ??= (preview ? this.benchmark.poll() : this.service.tick())
+          .catch(() => {
+            this.log.error('Paper worker poll failed');
+          })
+          .finally(() => {
+            this.running = undefined;
+          });
+      },
+      preview ? 60000 : 15000,
+    );
     this.timer.unref();
   }
   async onModuleDestroy() {

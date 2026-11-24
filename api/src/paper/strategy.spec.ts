@@ -28,6 +28,10 @@ describe('daily paper strategies', () => {
     );
     expect(decide('pullback-v1', rows, INITIAL)).toBe('buy');
     expect(decide('breakout-v1', rows, INITIAL)).toBe('hold');
+    expect(decide('buy-hold-v1', rows, INITIAL)).toBe('buy');
+    expect(
+      decide('buy-hold-v1', rows, { cash: '9000000000', position: '1' }),
+    ).toBe('hold');
   });
   it('records a long gap and resumes when the signal window recovers', () => {
     const sample = bars([...Array<number>(45).fill(100), 110, 105]);

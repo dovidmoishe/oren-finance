@@ -1,4 +1,8 @@
-export const PAPER_STRATEGIES = ['breakout-v1', 'pullback-v1'] as const;
+export const PAPER_STRATEGIES = [
+  'breakout-v1',
+  'pullback-v1',
+  'buy-hold-v1',
+] as const;
 export type PaperStrategy = (typeof PAPER_STRATEGIES)[number];
 export type PaperSignal = 'buy' | 'hold' | 'sell';
 

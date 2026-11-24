@@ -7,13 +7,18 @@ import { AuthModule } from '../auth/auth.module';
 import { PaperController } from './paper.controller';
 import { PaperService } from './paper.service';
 import { PaperWorker } from './paper.worker';
+import {
+  PreviewBenchmark,
+  PreviewBenchmarkController,
+} from './preview-benchmark';
 
 @Module({
   imports: [TokensModule, JupiterClientModule, AuthModule],
-  controllers: [PaperController],
+  controllers: [PaperController, PreviewBenchmarkController],
   providers: [
     PaperService,
     PaperWorker,
+    PreviewBenchmark,
     {
       provide: PAPER_QUOTES,
       inject: [JupiterClient],

@@ -69,6 +69,8 @@ export function decide(
   const recent = prior.slice(-5);
   const holding = book.position !== '0';
   switch (strategy) {
+    case 'buy-hold-v1':
+      return holding ? 'hold' : 'buy';
     case 'breakout-v1':
       if (holding)
         return close < Math.min(...recent.map((r) => r.low)) ? 'sell' : 'hold';

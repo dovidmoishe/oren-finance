@@ -65,7 +65,12 @@ export class PaperService {
       .orderBy(desc(paperRuns.createdAt));
   }
 
-  async start(owner: string, assetId: string, strategy: Strategy) {
+  async start(
+    owner: string,
+    assetId: string,
+    strategy: Strategy,
+    pinnedMint?: string,
+  ) {
     const identity = and(
       eq(paperRuns.ownerId, owner),
       eq(paperRuns.assetId, assetId),
@@ -75,7 +80,13 @@ export class PaperService {
     if (existing) return existing;
     const equity = await this.tokens.getStock(assetId);
     const variant = equity.variants
-      .filter((v) => v.tradable && v.mint && v.mint !== USDC_MINT)
+      .filter(
+        (v) =>
+          v.tradable &&
+          v.mint &&
+          v.mint !== USDC_MINT &&
+          (!pinnedMint || v.mint === pinnedMint),
+      )
       .sort((a, b) => (b.liquidity ?? 0) - (a.liquidity ?? 0))[0];
     if (!variant || equity.id !== assetId)
       throw new BadRequestException(
@@ -164,14 +175,21 @@ export class PaperService {
     });
   }
 
-  async tick() {
+  async tick(scope?: { owner: string; endsAt: number }) {
     const due = await this.db
       .select()
       .from(paperRuns)
-      .where(and(eq(paperRuns.active, true), lte(paperRuns.nextAt, new Date())))
+      .where(
+        and(
+          eq(paperRuns.active, true),
+          lte(paperRuns.nextAt, new Date()),
+          scope ? eq(paperRuns.ownerId, scope.owner) : undefined,
+        ),
+      )
       .orderBy(asc(paperRuns.nextAt))
       .limit(16);
     for (const candidate of due) {
+      if (scope && Date.now() >= scope.endsAt) return;
       const [run] = await this.db
         .update(paperRuns)
         .set({
@@ -189,7 +207,7 @@ export class PaperService {
         .returning();
       if (!run) continue;
       try {
-        await this.observe(run);
+        await this.observe(run, scope?.endsAt);
       } catch (err) {
         const message =
           err instanceof Error &&
@@ -234,7 +252,7 @@ export class PaperService {
     };
   }
 
-  private async observe(run: Run) {
+  private async observe(run: Run, endsAt?: number) {
     const asOf = new Date();
     const bars = await this.tokens.getOHLCV(run.assetId, {
       mint: run.mint,
@@ -293,6 +311,7 @@ export class PaperService {
           : 'route_or_fill_unavailable';
     }
     const observedAt = new Date();
+    if (endsAt !== undefined && +observedAt >= endsAt) return;
     await this.db.transaction(async (tx) => {
       const updated = await tx
         .update(paperRuns)
