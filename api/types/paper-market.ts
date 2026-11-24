@@ -4,14 +4,14 @@ import type {
   PaperResearch,
   PaperSignal,
 } from './paper';
-export const marketPolicies = [
-  'breakout',
-  'pullback',
-  'momentum',
-  'buy-hold',
-  'guided',
+export const aiAccountIds = [
+  'trader-1',
+  'trader-2',
+  'trader-3',
+  'trader-4',
+  'trader-5',
 ] as const;
-export type MarketPolicy = (typeof marketPolicies)[number];
+export type AiAccountId = (typeof aiAccountIds)[number];
 export interface ScreenRow {
   id: string;
   ticker: string;

@@ -3,21 +3,21 @@ import { and, eq, lt, lte, sql } from 'drizzle-orm';
 import { DRIZZLE, USDC_MINT } from '../config/constants';
 import type { Database } from '../database/database.provider';
 import {
-  paperMarketAccounts as accounts,
-  paperMarketScreens as screens,
+  paperAiAccounts as accounts,
+  paperMarketAccounts as previousAccounts,
+  paperAiScreens as screens,
 } from '../database/schema';
 import { MarketService } from '../market/market.service';
 import { TokensService } from '../tokens/tokens.service';
 import { PAPER_MODEL, type PaperSignal } from '../../types/paper';
 import {
-  marketPolicies,
+  aiAccountIds,
   type MarketBook,
   type MarketObservation,
-  type MarketPolicy,
   type MarketRound,
   type ScreenRow,
 } from '../../types/paper-market';
-import { DAY, decide, history, orderInput, settle } from './strategy';
+import { DAY, history, orderInput, settle } from './strategy';
 import { PaperService } from './paper.service';
 import { PaperResearchAgent } from './paper-research';
 
@@ -26,27 +26,6 @@ export const startingBook = (): MarketBook => ({
   cash: PAPER_MODEL.startingUsdcRaw,
   positions: {},
 });
-
-export function screenCandidates(
-  policy: Exclude<MarketPolicy, 'guided'>,
-  universe: ScreenRow[],
-) {
-  const score = (r: ScreenRow) =>
-    policy === 'buy-hold'
-      ? r.liquidity
-      : policy === 'pullback'
-        ? r.change === null
-          ? null
-          : -r.change
-        : policy === 'momentum'
-          ? r.volume
-          : r.change;
-  return universe
-    .filter((r) => score(r) !== null)
-    .sort((a, b) => score(b)! - score(a)! || a.id.localeCompare(b.id))
-    .slice(0, 3)
-    .map((r) => r.id);
-}
 
 @Injectable()
 export class MarketBenchmark {
@@ -63,7 +42,7 @@ export class MarketBenchmark {
     await this.db
       .insert(accounts)
       .values(
-        marketPolicies.map((policy) => ({ policy, state: startingBook() })),
+        aiAccountIds.map((accountId) => ({ accountId, state: startingBook() })),
       )
       .onConflictDoNothing();
     const due = await this.db
@@ -84,14 +63,14 @@ export class MarketBenchmark {
         })
         .where(
           and(
-            eq(accounts.policy, account.policy),
+            eq(accounts.accountId, account.accountId),
             eq(accounts.revision, account.revision),
           ),
         )
         .returning();
       if (!claimed) continue;
       const fence = and(
-        eq(accounts.policy, claimed.policy),
+        eq(accounts.accountId, claimed.accountId),
         eq(accounts.revision, claimed.revision),
       );
       try {
@@ -173,12 +152,7 @@ export class MarketBenchmark {
     };
     if (epoch < 2) {
       try {
-        round.candidates =
-          account.policy === 'guided'
-            ? await this.agent.shortlist(universe, book)
-            : account.policy === 'buy-hold' && account.rounds.length
-              ? account.rounds[0].candidates
-              : screenCandidates(account.policy, universe);
+        round.candidates = await this.agent.shortlist(universe, book);
       } catch {
         round.screenError = 'shortlist_unavailable';
       }
@@ -221,39 +195,15 @@ export class MarketBenchmark {
             ?.observations.find((o) => o.asset === asset)
             ?.rows?.at(-1)?.time;
           if (prev === undefined || rows.at(-1)!.time > prev) {
-            switch (account.policy) {
-              case 'guided': {
-                const analysis = await this.agent.investigate(
-                  asset,
-                  mint,
-                  rows,
-                  local,
-                  book,
-                );
-                obs.research = analysis.research;
-                signal = analysis.signal;
-                break;
-              }
-              case 'momentum':
-                signal =
-                  rows.at(-1)!.close > rows[0].close
-                    ? holding
-                      ? 'hold'
-                      : 'buy'
-                    : holding
-                      ? 'sell'
-                      : 'hold';
-                break;
-              case 'breakout':
-                signal = decide('breakout-v1', rows, local);
-                break;
-              case 'pullback':
-                signal = decide('pullback-v1', rows, local);
-                break;
-              case 'buy-hold':
-                signal = decide('buy-hold-v1', rows, local);
-                break;
-            }
+            const analysis = await this.agent.investigate(
+              asset,
+              mint,
+              rows,
+              local,
+              book,
+            );
+            obs.research = analysis.research;
+            signal = analysis.signal;
           }
         }
         obs.signal = signal;
@@ -308,7 +258,10 @@ export class MarketBenchmark {
   }
 
   async report() {
-    const all = await this.db.select().from(accounts).orderBy(accounts.policy);
+    const all = await this.db
+      .select()
+      .from(accounts)
+      .orderBy(accounts.accountId);
     const coverage = await this.db
       .select({
         epoch: screens.epoch,
@@ -318,6 +271,16 @@ export class MarketBenchmark {
       .from(screens)
       .orderBy(screens.epoch);
     return {
+      experiment: 'five-ai-v1',
+      archivedMixed: await this.db
+        .select({
+          policy: previousAccounts.policy,
+          startedAt: previousAccounts.startedAt,
+          book: previousAccounts.state,
+          rounds: previousAccounts.rounds,
+        })
+        .from(previousAccounts)
+        .orderBy(previousAccounts.policy),
       startingUsdcPerAccount: 10000,
       totalStartingUsdc: all.length * 10000,
       coverage,
@@ -338,7 +301,8 @@ export class MarketBenchmark {
           drawdown = Math.max(drawdown, 100 * (1 - value / peak));
         }
         return {
-          policy: a.policy,
+          accountId: a.accountId,
+          policy: 'guided' as const,
           startedAt: a.startedAt,
           endsAt: new Date(+a.startedAt + 2 * DAY),
           status: a.epoch === 2 ? 'ended' : latest ? 'observing' : 'starting',

@@ -79,6 +79,15 @@ const url = process.env.PAPER_TEST_DATABASE_URL;
           'utf8',
         ),
       );
+      await client.unsafe(
+        readFileSync(
+          resolve(
+            __dirname,
+            '../../lib/db/migrations/0027_paper_ai_accounts.sql',
+          ),
+          'utf8',
+        ),
+      );
       const module = await Test.createTestingModule({
         controllers: [PaperController],
         providers: [
@@ -104,11 +113,11 @@ const url = process.env.PAPER_TEST_DATABASE_URL;
           {
             provide: PaperResearchAgent,
             useValue: {
-              shortlist: () => ['asset-1', 'asset-2'],
-              investigate: () => ({
+              shortlist: jest.fn(() => ['asset-1', 'asset-2']),
+              investigate: jest.fn(() => ({
                 signal: 'buy',
                 research: { tools: ['inspectSignals'] },
-              }),
+              })),
             },
           },
           { provide: PrivyWalletAuth, useValue: auth },
@@ -123,7 +132,7 @@ const url = process.env.PAPER_TEST_DATABASE_URL;
       await app.init();
       service = app.get(PaperService);
     });
-    it('funds exactly five accounts once, shares each balance across assets and archives NVDA', async () => {
+    it('runs independent AI calls for all five funded accounts and preserves earlier studies', async () => {
       const markets = app.get(MarketBenchmark);
       const env = {
         DEPLOYMENT_ENV: 'preview',
@@ -142,6 +151,12 @@ const url = process.env.PAPER_TEST_DATABASE_URL;
         'nvidia',
         'buy-hold-v1',
       );
+      await client`insert into paper_market_accounts(policy,state) values ('breakout', '{"cash":"777","positions":{}}'::jsonb)`;
+      await client`insert into paper_market_screens(epoch,universe) values (0,'[]'::jsonb)`;
+      const agent = jest.mocked(app.get(PaperResearchAgent));
+      agent.shortlist
+        .mockRejectedValueOnce(new Error('provider timeout'))
+        .mockResolvedValueOnce([]);
       getQuote.mockImplementation(
         (p: {
           inputMint: string;
@@ -166,13 +181,51 @@ const url = process.env.PAPER_TEST_DATABASE_URL;
         (await service.activity('fixture:paper:pr-142', original.id)).run
           .active,
       ).toBe(false);
-      const control = report.accounts.find((a) => a.policy === 'buy-hold')!;
-      expect(Object.keys(control.book.positions)).toHaveLength(2);
-      expect(control.book.cash).toBe('8099981000');
-      expect(control.rounds).toHaveLength(1);
+      expect(report.experiment).toBe('five-ai-v1');
+      expect(report.accounts.map((a) => a.accountId)).toEqual([
+        'trader-1',
+        'trader-2',
+        'trader-3',
+        'trader-4',
+        'trader-5',
+      ]);
+      expect(report.archivedMixed).toMatchObject([
+        { policy: 'breakout', book: { cash: '777' } },
+      ]);
+      expect(agent.shortlist.mock.calls).toHaveLength(5);
+      expect(agent.investigate.mock.calls).toHaveLength(6);
+      for (const [universe, book] of agent.shortlist.mock.calls) {
+        expect(universe.map((r) => r.id)).toEqual(['asset-1', 'asset-2']);
+        expect(book).toHaveProperty('positions');
+      }
+      expect(
+        report.accounts.every(
+          (a) => a.policy === 'guided' && a.rounds.length === 1,
+        ),
+      ).toBe(true);
+      const invested = report.accounts.filter(
+        (a) => Object.keys(a.book.positions).length === 2,
+      );
+      expect(invested).toHaveLength(3);
+      for (const a of invested) {
+        expect(a.book.cash).toBe('8099981000');
+        expect(
+          a.rounds[0].observations.every((o) =>
+            o.research?.tools.includes('inspectSignals'),
+          ),
+        ).toBe(true);
+      }
+      const flat = report.accounts.filter(
+        (a) => Object.keys(a.book.positions).length === 0,
+      );
+      expect(flat).toHaveLength(2);
+      expect(flat.every((a) => a.book.cash === '10000000000')).toBe(true);
+      expect(
+        flat.filter((a) => a.rounds[0].screenError === 'shortlist_unavailable'),
+      ).toHaveLength(1);
       await new PreviewBenchmark(env, service, markets).poll();
       expect((await fixture.report()).accounts).toEqual(report.accounts);
-      await client`update paper_market_accounts set started_at=started_at-interval '3 days',next_at=now()`;
+      await client`update paper_ai_accounts set started_at=started_at-interval '3 days',next_at=now()`;
       await fixture.poll();
       expect(
         (await fixture.report()).accounts.every(
@@ -181,6 +234,8 @@ const url = process.env.PAPER_TEST_DATABASE_URL;
             a.rounds.at(-1)?.observations.every((o) => !o.filled),
         ),
       ).toBe(true);
+      expect(agent.shortlist.mock.calls).toHaveLength(5);
+      expect(agent.investigate.mock.calls).toHaveLength(6);
     });
     afterAll(async () => {
       await app?.close();

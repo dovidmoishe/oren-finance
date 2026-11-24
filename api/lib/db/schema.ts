@@ -25,20 +25,19 @@ import type {
 
 import type {
   MarketBook,
-  MarketPolicy,
+  AiAccountId,
   MarketRound,
   ScreenRow,
 } from '../../types/paper-market';
 
-export const paperMarketScreens = pgTable('paper_market_screens', {
+const marketScreenColumns = () => ({
   epoch: integer('epoch').primaryKey(),
   capturedAt: timestamp('captured_at', { withTimezone: true })
     .defaultNow()
     .notNull(),
   universe: jsonb('universe').$type<ScreenRow[]>().notNull(),
 });
-export const paperMarketAccounts = pgTable('paper_market_accounts', {
-  policy: text('policy').$type<MarketPolicy>().primaryKey(),
+const marketAccountColumns = () => ({
   startedAt: timestamp('started_at', { withTimezone: true })
     .defaultNow()
     .notNull(),
@@ -48,6 +47,23 @@ export const paperMarketAccounts = pgTable('paper_market_accounts', {
   nextAt: timestamp('next_at', { withTimezone: true }).defaultNow().notNull(),
   state: jsonb('state').$type<MarketBook>().notNull(),
   rounds: jsonb('rounds').$type<MarketRound[]>().default([]).notNull(),
+});
+
+export const paperMarketScreens = pgTable(
+  'paper_market_screens',
+  marketScreenColumns(),
+);
+export const paperMarketAccounts = pgTable('paper_market_accounts', {
+  policy: text('policy').primaryKey(),
+  ...marketAccountColumns(),
+});
+export const paperAiScreens = pgTable(
+  'paper_ai_screens',
+  marketScreenColumns(),
+);
+export const paperAiAccounts = pgTable('paper_ai_accounts', {
+  accountId: text('account_id').$type<AiAccountId>().primaryKey(),
+  ...marketAccountColumns(),
 });
 
 export const paperRuns = pgTable(
