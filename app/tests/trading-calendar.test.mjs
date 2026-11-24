@@ -80,6 +80,8 @@ function screen({ timeZone, now, calendar }) {
       if (name === 'react') return hooks;
       if (name === 'react/jsx-runtime') return require('react/jsx-runtime');
       if (name === '@/components/auth/auth-context') return { useOrenAuth: () => ({ authenticated: true, ready: true }) };
+      if (name === '@/components/auth/restore-actions') return { RestoreActions: () => null, restoreBlocked: () => false };
+      if (name === 'lucide-react') return new Proxy({}, { get: () => () => null });
       if (name === '@/store') return {
         usePortfolioStore: (select) => select(portfolio),
         useWalletStore: (select) => select(wallet),
