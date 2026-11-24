@@ -9,11 +9,8 @@ import {
 import { backgroundWorkersEnabled } from '../../config/deployment';
 import { APP_ENV } from '../../config/constants';
 import type { AppEnv } from '../../config/env.schema';
-import { rollPageviews, type RawPageview } from './growth-maintenance';
-import { dayBounds, retentionBoundary, zonedDay } from './growth-time';
+import { retentionBoundary } from './growth-time';
 import { GrowthRepository } from './growth.repository';
-
-const MAX_RAW_ROWS = 50_000;
 
 /** One leased pass. A second process skips until the lease expires. */
 @Injectable()
@@ -40,7 +37,6 @@ export class GrowthRollupService implements OnModuleInit, OnModuleDestroy {
 
   onModuleDestroy() {
     if (this.timer) clearInterval(this.timer);
-    void this.repository.releaseRollup(this.owner);
   }
 
   async tick(): Promise<void> {
@@ -56,33 +52,11 @@ export class GrowthRollupService implements OnModuleInit, OnModuleDestroy {
         now,
         this.env.GROWTH_RAW_RETENTION_DAYS,
       );
-      const aged = await this.repository.pageviewsBetween(
-        new Date(0),
-        boundary.purgeBefore,
-      );
-      if (aged.length > MAX_RAW_ROWS) {
-        this.logger.warn(
-          'Growth rollup left aged raw rows in place because the window is too large',
-        );
-      } else if (aged.length > 0) {
-        await this.writeRollup(aged.map(toRaw), boundary.cutoff, 'freeze');
-        await this.repository.purgeRaw(boundary.purgeBefore, MAX_RAW_ROWS);
-      }
-      const recent = await this.repository.pageviewsBetween(
-        boundary.purgeBefore,
+      await this.repository.rollupPageviews(
         now,
+        boundary.cutoff,
+        boundary.purgeBefore,
       );
-      if (recent.length <= MAX_RAW_ROWS) {
-        await this.writeRollup(
-          recent.map(toRaw),
-          boundary.cutoff,
-          'provisional',
-        );
-      } else {
-        this.logger.warn(
-          'Growth rollup left the open window unrolled because it is too large',
-        );
-      }
       await this.repository.purgeIdentities(
         new Date(
           now.getTime() -
@@ -95,58 +69,15 @@ export class GrowthRollupService implements OnModuleInit, OnModuleDestroy {
         `Growth rollup failed: ${error instanceof Error ? error.name : 'Error'}`,
       );
     } finally {
-      if (leased) await this.repository.releaseRollup(this.owner);
-      this.running = false;
+      try {
+        if (leased) await this.repository.releaseRollup(this.owner);
+      } catch {
+        this.logger.warn(
+          'Growth rollup lease will expire after release failure',
+        );
+      } finally {
+        this.running = false;
+      }
     }
   }
-
-  private async writeRollup(
-    rows: RawPageview[],
-    cutoff: Date,
-    mode: 'freeze' | 'provisional',
-  ): Promise<void> {
-    for (const timezone of ['UTC', 'Africa/Lagos'] as const) {
-      const rolled = rollPageviews(rows, timezone, (instant) =>
-        zonedDay(instant, timezone),
-      ).filter((row) =>
-        mode === 'freeze'
-          ? dayBounds(row.day, timezone).end <= cutoff
-          : dayBounds(row.day, timezone).end > cutoff,
-      );
-      await this.repository.replaceRollup(
-        timezone,
-        rolled.map((row) => ({
-          day: row.day,
-          grain: row.grain,
-          dimension: row.dimension,
-          source: row.source,
-          pageviews: row.pageviews,
-          sessions: row.sessions,
-          dailyUniques: row.dailyUniques,
-        })),
-        [...new Set(rolled.map((row) => row.day))],
-        mode === 'freeze',
-      );
-    }
-  }
-}
-
-function toRaw(row: {
-  occurredAt: Date;
-  path: string;
-  visitorHash: string;
-  sessionHash: string;
-  utmCampaign: string | null;
-  source: 'beacon' | 'caddy';
-  visitorStability: 'durable' | 'day';
-}): RawPageview {
-  return {
-    occurredAt: row.occurredAt.toISOString(),
-    path: row.path,
-    visitorHash: row.visitorHash,
-    sessionHash: row.sessionHash,
-    campaign: row.utmCampaign ?? '',
-    source: row.source,
-    stability: row.visitorStability,
-  };
 }

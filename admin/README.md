@@ -61,7 +61,7 @@ pnpm build
 
 `build` runs TypeScript then produces `dist/`. `.github/workflows/admin.yml` validates admin-only changes independently. API changes remain covered by existing API CI. The existing main web CI may still run for an admin-only PR; consolidating repository-wide path filters belongs to the CI rollout, not this app.
 
-New HTTP authorization/lifecycle coverage lives in `api/src/admin/dashboard/dashboard-access.spec.ts`. It uses an isolated Nest test app and mocked repositories, not a live database. Live migration/production acceptance is a separate step.
+New HTTP authorization/lifecycle coverage lives in `api/src/admin/dashboard/dashboard-access.spec.ts`. It uses an isolated Nest test app. With MCP_TEST_POSTGRES_URL set to the disposable local oren_mcp_test database, admin.integration.spec.ts also exercises migrations, concurrent login, report reads, and daily rollups against PostgreSQL.
 
 ## Independent container
 

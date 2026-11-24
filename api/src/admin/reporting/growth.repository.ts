@@ -30,68 +30,76 @@ export class GrowthRepository {
   async insertPageview(
     draft: PageviewDraft,
   ): Promise<'inserted' | 'duplicate'> {
-    const rows = await this.db
-      .insert(growthPageviews)
-      .values({
-        occurredAt: draft.occurredAt,
-        path: draft.path,
-        visitorHash: draft.visitorHash,
-        sessionHash: draft.sessionHash,
-        visitorStability: draft.visitorStability,
-        utmSource: draft.utmSource,
-        utmMedium: draft.utmMedium,
-        utmCampaign: draft.utmCampaign,
-        utmContent: draft.utmContent,
-        utmTerm: draft.utmTerm,
-        referrerHost: draft.referrerHost,
-        source: draft.source,
-        ingestKey: draft.ingestKey,
-        excluded: draft.excluded,
-        excludeReason: draft.excludeReason,
-      })
-      .onConflictDoNothing({ target: growthPageviews.ingestKey })
-      .returning({ id: growthPageviews.id });
-    if (rows.length === 0 || draft.excluded) {
-      return rows.length === 0 ? 'duplicate' : 'inserted';
-    }
-    await this.db
-      .insert(growthVisitors)
-      .values({
-        visitorHash: draft.visitorHash,
-        firstSeenAt: draft.occurredAt,
-        lastSeenAt: draft.occurredAt,
-        stability: draft.visitorStability,
-      })
-      .onConflictDoUpdate({
-        target: growthVisitors.visitorHash,
-        set: { lastSeenAt: draft.occurredAt },
-      });
-    await this.db
-      .insert(growthSessions)
-      .values({
-        sessionHash: draft.sessionHash,
-        visitorHash: draft.visitorHash,
-        firstSeenAt: draft.occurredAt,
-        lastSeenAt: draft.occurredAt,
-      })
-      .onConflictDoUpdate({
-        target: growthSessions.sessionHash,
-        set: { lastSeenAt: draft.occurredAt },
-      });
-    await this.db
-      .insert(growthCoverage)
-      .values({
-        source: draft.source,
-        startedAt: draft.occurredAt,
-        notes: 'First accepted pageview for this collector.',
-      })
-      .onConflictDoUpdate({
-        target: growthCoverage.source,
-        set: {
-          startedAt: sql`least(${growthCoverage.startedAt}, excluded.started_at)`,
-        },
-      });
-    return 'inserted';
+    return this.db.transaction(async (tx) => {
+      const rows = await tx
+        .insert(growthPageviews)
+        .values({
+          occurredAt: draft.occurredAt,
+          path: draft.path,
+          visitorHash: draft.visitorHash,
+          sessionHash: draft.sessionHash,
+          visitorStability: draft.visitorStability,
+          utmSource: draft.utmSource,
+          utmMedium: draft.utmMedium,
+          utmCampaign: draft.utmCampaign,
+          utmContent: draft.utmContent,
+          utmTerm: draft.utmTerm,
+          referrerHost: draft.referrerHost,
+          source: draft.source,
+          ingestKey: draft.ingestKey,
+          excluded: draft.excluded,
+          excludeReason: draft.excludeReason,
+        })
+        .onConflictDoNothing({ target: growthPageviews.ingestKey })
+        .returning({ id: growthPageviews.id });
+      if (rows.length === 0 || draft.excluded) {
+        return rows.length === 0 ? 'duplicate' : 'inserted';
+      }
+      await tx
+        .insert(growthVisitors)
+        .values({
+          visitorHash: draft.visitorHash,
+          firstSeenAt: draft.occurredAt,
+          lastSeenAt: draft.occurredAt,
+          stability: draft.visitorStability,
+        })
+        .onConflictDoUpdate({
+          target: growthVisitors.visitorHash,
+          set: {
+            firstSeenAt: sql`least(${growthVisitors.firstSeenAt}, excluded.first_seen_at)`,
+            lastSeenAt: sql`greatest(${growthVisitors.lastSeenAt}, excluded.last_seen_at)`,
+          },
+        });
+      await tx
+        .insert(growthSessions)
+        .values({
+          sessionHash: draft.sessionHash,
+          visitorHash: draft.visitorHash,
+          firstSeenAt: draft.occurredAt,
+          lastSeenAt: draft.occurredAt,
+        })
+        .onConflictDoUpdate({
+          target: growthSessions.sessionHash,
+          set: {
+            firstSeenAt: sql`least(${growthSessions.firstSeenAt}, excluded.first_seen_at)`,
+            lastSeenAt: sql`greatest(${growthSessions.lastSeenAt}, excluded.last_seen_at)`,
+          },
+        });
+      await tx
+        .insert(growthCoverage)
+        .values({
+          source: draft.source,
+          startedAt: draft.occurredAt,
+          notes: 'First accepted pageview for this collector.',
+        })
+        .onConflictDoUpdate({
+          target: growthCoverage.source,
+          set: {
+            startedAt: sql`least(${growthCoverage.startedAt}, excluded.started_at)`,
+          },
+        });
+      return 'inserted';
+    });
   }
 
   async insertFunnel(input: {
@@ -269,30 +277,6 @@ export class GrowthRepository {
       );
   }
 
-  async pageviewsBetween(start: Date, end: Date) {
-    return this.db
-      .select({
-        occurredAt: growthPageviews.occurredAt,
-        path: growthPageviews.path,
-        visitorHash: growthPageviews.visitorHash,
-        sessionHash: growthPageviews.sessionHash,
-        utmCampaign: growthPageviews.utmCampaign,
-        utmContent: growthPageviews.utmContent,
-        utmTerm: growthPageviews.utmTerm,
-        source: growthPageviews.source,
-        visitorStability: growthPageviews.visitorStability,
-      })
-      .from(growthPageviews)
-      .where(
-        and(
-          eq(growthPageviews.excluded, false),
-          gte(growthPageviews.occurredAt, start),
-          lt(growthPageviews.occurredAt, end),
-        ),
-      )
-      .limit(50001);
-  }
-
   async funnelEvents(from: Date, to: Date) {
     return this.db
       .select({
@@ -461,47 +445,47 @@ export class GrowthRepository {
     return 'inserted';
   }
 
-  async replaceRollup(
-    timezone: 'UTC' | 'Africa/Lagos',
-    rows: Array<{
-      day: string;
-      grain: 'site' | 'path' | 'campaign';
-      dimension: string;
-      source: 'beacon' | 'caddy';
-      pageviews: number;
-      sessions: number;
-      dailyUniques: number;
-    }>,
-    days: string[],
-    frozen: boolean,
+  async rollupPageviews(
+    now: Date,
+    cutoff: Date,
+    purgeBefore: Date,
   ): Promise<void> {
-    await this.db.transaction(async (tx) => {
-      for (const day of days) {
+    // Both calendars must observe the same raw rows before retention removes them.
+    await this.db.transaction(
+      async (tx) => {
+        for (const zone of ['UTC', 'Africa/Lagos']) {
+          await tx.execute(sql`
+          WITH visits AS (
+            SELECT (occurred_at AT TIME ZONE ${zone})::date AS day, source, path,
+              coalesce(nullif(utm_campaign, ''), '(none)') AS campaign, session_hash, visitor_hash
+            FROM growth_pageviews
+            WHERE NOT excluded AND occurred_at <= ${now.toISOString()}::timestamptz
+          )
+          INSERT INTO growth_daily_metrics
+            (day, timezone, grain, dimension, source, pageviews, sessions, daily_uniques, frozen)
+          SELECT v.day, ${zone}, CASE WHEN grouping(path) = 0 THEN 'path'
+              WHEN grouping(campaign) = 0 THEN 'campaign' ELSE 'site' END,
+            coalesce(path, campaign, ''), v.source, count(*),
+            count(DISTINCT session_hash), count(DISTINCT visitor_hash),
+            ((v.day + 1)::timestamp AT TIME ZONE ${zone}) <= ${cutoff.toISOString()}::timestamptz
+          FROM visits v
+          WHERE NOT EXISTS (
+            SELECT 1 FROM growth_daily_metrics m WHERE m.day = v.day AND m.timezone = ${zone}
+              AND m.grain = 'site' AND m.dimension = '' AND m.source = v.source AND m.frozen
+          )
+          GROUP BY v.day, v.source, GROUPING SETS ((), (path), (campaign))
+          ON CONFLICT (day, timezone, grain, source, dimension) DO UPDATE SET
+            pageviews = excluded.pageviews, sessions = excluded.sessions,
+            daily_uniques = excluded.daily_uniques, frozen = excluded.frozen, rolled_at = now()
+          WHERE NOT growth_daily_metrics.frozen
+        `);
+        }
         await tx
-          .delete(growthDailyMetrics)
-          .where(
-            and(
-              eq(growthDailyMetrics.day, day),
-              eq(growthDailyMetrics.timezone, timezone),
-              eq(growthDailyMetrics.frozen, false),
-            ),
-          );
-      }
-      if (rows.length > 0) {
-        await tx
-          .insert(growthDailyMetrics)
-          .values(rows.map((row) => ({ ...row, timezone, frozen })))
-          .onConflictDoNothing({
-            target: [
-              growthDailyMetrics.day,
-              growthDailyMetrics.timezone,
-              growthDailyMetrics.grain,
-              growthDailyMetrics.source,
-              growthDailyMetrics.dimension,
-            ],
-          });
-      }
-    });
+          .delete(growthPageviews)
+          .where(lt(growthPageviews.occurredAt, purgeBefore));
+      },
+      { isolationLevel: 'repeatable read' },
+    );
   }
 
   async claimRollup(
@@ -552,25 +536,14 @@ export class GrowthRepository {
     return row?.identitiesExact ?? true;
   }
 
-  async purgeRaw(cutoff: Date, limit: number): Promise<number> {
-    const rows = await this.db.execute<{ id: string }>(sql`
-      DELETE FROM growth_pageviews
-      WHERE id IN (
-        SELECT id FROM growth_pageviews WHERE occurred_at < ${cutoff} LIMIT ${limit}
-      )
-      RETURNING id
-    `);
-    return Array.isArray(rows) ? rows.length : 0;
-  }
-
   async purgeIdentities(cutoff: Date): Promise<number> {
     const visitors = await this.db
       .delete(growthVisitors)
-      .where(sql`${growthVisitors.lastSeenAt} < ${cutoff}`)
+      .where(lt(growthVisitors.lastSeenAt, cutoff))
       .returning({ visitorHash: growthVisitors.visitorHash });
     await this.db
       .delete(growthSessions)
-      .where(sql`${growthSessions.lastSeenAt} < ${cutoff}`);
+      .where(lt(growthSessions.lastSeenAt, cutoff));
     if (visitors.length > 0) {
       await this.db
         .update(growthCheckpoints)

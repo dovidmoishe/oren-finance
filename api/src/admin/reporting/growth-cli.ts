@@ -206,7 +206,7 @@ async function access(url: string, apply: boolean) {
   const token = newMachineToken();
   const sql = postgres(url, { max: 1 });
   try {
-    const [row] = await sql`
+    const [row] = await sql<{ id: string }[]>`
       insert into growth_access_grants
         (permission, principal_kind, token_hash, label, expires_at)
       values

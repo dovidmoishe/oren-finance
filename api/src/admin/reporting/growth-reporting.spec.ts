@@ -23,7 +23,6 @@ import {
   resolveDaily,
   resolveWindow,
 } from './growth-import';
-import { planMaintenance, rollPageviews } from './growth-maintenance';
 import {
   additivePageviews,
   allTimeFromDailyUniques,
@@ -581,33 +580,6 @@ describe('funnel, trades, and comparisons', () => {
     });
     expect(() => assertPublicReport({ note: 'oren_rpt_secret' })).toThrow();
   });
-
-  it('rolls a shared visitor once per day and does not treat that sum as lifetime', () => {
-    const rolled = rollPageviews(
-      [
-        row('2026-10-29T10:00:00.000Z', 'v1', 's1'),
-        row('2026-10-29T11:00:00.000Z', 'v1', 's2'),
-        row('2026-10-30T10:00:00.000Z', 'v1', 's3'),
-      ],
-      'UTC',
-      (instant) => zonedDay(instant, 'UTC'),
-    );
-    const site = rolled.filter((item) => item.grain === 'site');
-    expect(site.map((item) => item.dailyUniques)).toEqual([1, 1]);
-    expect(site.reduce((sum, item) => sum + item.dailyUniques, 0)).toBe(2);
-    expect(allTimeFromDailyUniques().reason).toBe(
-      'summing_daily_uniques_is_not_lifetime_uniques',
-    );
-    expect(
-      planMaintenance({
-        today: '2026-11-07',
-        lookbackDays: 3,
-        rawRetentionDays: 30,
-        daysWithRaw: ['2026-10-01', '2026-11-06'],
-        frozenDays: [],
-      }),
-    ).toEqual({ recompute: ['2026-11-06'], freeze: ['2026-10-01'] });
-  });
 });
 
 describe('reporting failures stay off the core path', () => {
@@ -620,16 +592,4 @@ describe('reporting failures stay off the core path', () => {
 
 function botToken(): string {
   return `oren_rpt_${'a'.repeat(43)}`;
-}
-
-function row(occurredAt: string, visitorHash: string, sessionHash: string) {
-  return {
-    occurredAt,
-    path: '/agents',
-    visitorHash,
-    sessionHash,
-    campaign: 'launch',
-    source: 'beacon' as const,
-    stability: 'durable' as const,
-  };
 }

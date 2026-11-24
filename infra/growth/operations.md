@@ -17,10 +17,9 @@ Suggested limits, already the defaults:
 | `GROWTH_RAW_RETENTION_DAYS` | 30 |
 | `GROWTH_IDENTITY_RETENTION_DAYS` | 400 |
 | `GROWTH_IDEMPOTENCY_RETENTION_DAYS` | 90 |
-| `GROWTH_ROLLUP_LOOKBACK_DAYS` | 3 |
 | `TRUST_PROXY_HOPS` | 1 |
 
-`GROWTH_HASH_KEY` should be set before the first collected visit and then left alone. It is a server secret. The examples leave it empty. A tick that sees more than 50,000 raw rows in the retention window skips the recompute instead of growing without a bound.
+`GROWTH_HASH_KEY` should be set before the first collected visit and then left alone. It is a server secret. The examples leave it empty. Postgres aggregates visits by calendar day, source, path and campaign. UTC and Lagos rollups share one snapshot before raw rows expire.
 
 `TRUST_PROXY_HOPS=1` matches Caddy. The forwarded address is used only for the collect rate limit and is not stored.
 

@@ -160,7 +160,6 @@ export interface AppEnv {
   GROWTH_ATTRIBUTION_MODEL: 'first' | 'last';
   GROWTH_MIN_COMPARISON_SAMPLE: number;
   GROWTH_ROLLUP_INTERVAL_MS: number;
-  GROWTH_ROLLUP_LOOKBACK_DAYS: number;
   GROWTH_HASH_KEY?: string;
   GROWTH_EXCLUDE_HOSTS: string[];
   /** How many reverse-proxy hops may set X-Forwarded-For. Never stored. */
@@ -620,11 +619,6 @@ function growthEnv(env: EnvSource) {
       env,
       'GROWTH_ROLLUP_INTERVAL_MS',
       900_000,
-    ),
-    GROWTH_ROLLUP_LOOKBACK_DAYS: readPositiveInt(
-      env,
-      'GROWTH_ROLLUP_LOOKBACK_DAYS',
-      3,
     ),
     GROWTH_HASH_KEY: readEnv(env, 'GROWTH_HASH_KEY'),
     GROWTH_EXCLUDE_HOSTS: hosts.length > 0 ? hosts : ['localhost', '127.0.0.1'],
