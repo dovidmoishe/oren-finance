@@ -1,7 +1,7 @@
 const CONNECTORS = {
   claude: { name: 'Claude', logo: '/integrations/claude.svg' },
   cursor: { name: 'Cursor', logo: '/integrations/cursor.svg' },
-  grok: { name: 'Grok Bot', logo: '/integrations/grok-bot.jpg' },
+  grok: { name: 'Grok Bot', logo: '/integrations/grok-bot.svg' },
   codex: { name: 'Codex', logo: '/integrations/codex.svg' },
 };
 

@@ -40,8 +40,8 @@
   },
   {
     "name": "Grok Bot",
-    "file": "grok-bot.jpg",
-    "source": "https://apps.apple.com/us/app/grok-bot/id6794501026"
+    "file": "grok-bot.svg",
+    "source": "https://cdn.jsdelivr.net/npm/@lobehub/icons-static-svg@1.102.0/icons/grokbot.svg"
   },
   {
     "name": "Claude",
