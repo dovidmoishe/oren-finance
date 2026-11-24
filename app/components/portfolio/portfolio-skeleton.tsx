@@ -12,9 +12,15 @@ export function PortfolioSkeleton() {
               <div className="mt-3 h-14 w-48 rounded bg-panel-subtle" />
               <div className="h-3 w-14 rounded bg-panel-subtle" />
             </div>
-            <div className="h-9 w-24 rounded-full bg-panel-subtle" />
           </div>
-
+          <div className="mt-6 flex flex-wrap items-center justify-between gap-4 border-t border-border/60 pt-5">
+            <div className="space-y-2">
+              <div className="h-3 w-12 rounded bg-border/60" />
+              <div className="h-8 w-28 rounded bg-panel-subtle" />
+              <div className="h-3 w-52 rounded bg-panel-subtle" />
+            </div>
+            <div className="h-11 w-32 rounded-xl bg-panel-subtle" />
+          </div>
         </div>
       </div>
       <div aria-hidden="true" className="space-y-2 animate-pulse motion-reduce:animate-none">

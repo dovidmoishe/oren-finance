@@ -1137,6 +1137,14 @@
     "light": "Terang",
     "dark": "Gelap"
   },
+  "cashFlow": {
+    "cash": "Saldo tunai",
+    "cashNote": "Disimpan sebagai USDC. Nilai dalam USD.",
+    "addMoney": "Tambah dana",
+    "sendMoney": "Kirim dana",
+    "showQr": "Tampilkan kode QR",
+    "transferMethod": "Transfer USDC melalui Solana"
+  },
   "chart": {
     "time": "Waktu",
     "open": "Buka",

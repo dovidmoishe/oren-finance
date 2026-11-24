@@ -1137,6 +1137,14 @@
     "light": "Sáng",
     "dark": "Tối"
   },
+  "cashFlow": {
+    "cash": "Tiền mặt",
+    "cashNote": "Được giữ bằng USDC. Giá trị hiển thị bằng USD.",
+    "addMoney": "Thêm tiền",
+    "sendMoney": "Gửi tiền",
+    "showQr": "Hiện mã QR",
+    "transferMethod": "Chuyển USDC trên Solana"
+  },
   "chart": {
     "time": "Th?i gian",
     "open": "M? c?a",

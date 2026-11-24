@@ -1137,6 +1137,14 @@
     "light": "Clair",
     "dark": "Sombre"
   },
+  "cashFlow": {
+    "cash": "Solde disponible",
+    "cashNote": "Détenu en USDC. Valeurs en USD.",
+    "addMoney": "Ajouter de l’argent",
+    "sendMoney": "Envoyer de l’argent",
+    "showQr": "Afficher le code QR",
+    "transferMethod": "Transférer des USDC sur Solana"
+  },
   "chart": {
     "time": "Heure",
     "open": "Ouverture",

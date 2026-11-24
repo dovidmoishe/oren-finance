@@ -1137,6 +1137,14 @@
     "light": "Hell",
     "dark": "Dunkel"
   },
+  "cashFlow": {
+    "cash": "Guthaben",
+    "cashNote": "Als USDC gehalten. Werte in USD.",
+    "addMoney": "Geld hinzufügen",
+    "sendMoney": "Geld senden",
+    "showQr": "QR-Code anzeigen",
+    "transferMethod": "USDC über Solana senden"
+  },
   "chart": {
     "time": "Zeit",
     "open": "Er?ffnung",

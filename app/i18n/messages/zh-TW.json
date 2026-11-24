@@ -1137,6 +1137,14 @@
     "light": "淺色",
     "dark": "深色"
   },
+  "cashFlow": {
+    "cash": "現金",
+    "cashNote": "以 USDC 持有，金額以美元顯示。",
+    "addMoney": "加入資金",
+    "sendMoney": "轉帳",
+    "showQr": "顯示 QR 碼",
+    "transferMethod": "透過 Solana 轉入 USDC"
+  },
   "chart": {
     "time": "??",
     "open": "??",

@@ -1137,6 +1137,14 @@
     "light": "Світла",
     "dark": "Темна"
   },
+  "cashFlow": {
+    "cash": "Кошти",
+    "cashNote": "Зберігаються в USDC. Суми в USD.",
+    "addMoney": "Додати кошти",
+    "sendMoney": "Надіслати кошти",
+    "showQr": "Показати QR-код",
+    "transferMethod": "Переказати USDC через Solana"
+  },
   "chart": {
     "time": "???",
     "open": "?????????",
