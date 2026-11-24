@@ -170,6 +170,12 @@ describe('reporting access', () => {
       ok: true,
       grantId: 'bot-1',
     });
+    expect(
+      accessDecision(
+        { ...bot, revokedAt: new Date(NOW.getTime() + 1000) },
+        NOW,
+      ),
+    ).toMatchObject({ ok: false, reason: 'revoked' });
     expect(accessDecision({ ...bot, revokedAt: NOW }, NOW)).toMatchObject({
       ok: false,
       reason: 'revoked',

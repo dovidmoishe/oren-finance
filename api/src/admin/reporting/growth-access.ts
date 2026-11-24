@@ -22,7 +22,7 @@ export function accessDecision(
   now: Date,
 ): { ok: true; grantId: string } | { ok: false; reason: AccessDenial } {
   if (!grant) return { ok: false, reason: 'missing' };
-  if (grant.revokedAt && grant.revokedAt <= now) {
+  if (grant.revokedAt) {
     return { ok: false, reason: 'revoked' };
   }
   if (grant.expiresAt && grant.expiresAt <= now) {

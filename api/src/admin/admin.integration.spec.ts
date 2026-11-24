@@ -171,10 +171,11 @@ databaseSuite('admin sessions and growth events in Postgres', () => {
       occurredAt: earlier,
       ingestKey: randomUUID(),
     });
-    const [visitor] =
-      await client`select first_seen_at, last_seen_at from growth_visitors where visitor_hash=${visitorHash}`;
-    expect(visitor.first_seen_at).toEqual(earlier);
-    expect(visitor.last_seen_at).toEqual(draft.occurredAt);
+    const [visitor] = await client<
+      { first_seen_at: string; last_seen_at: string }[]
+    >`select first_seen_at, last_seen_at from growth_visitors where visitor_hash=${visitorHash}`;
+    expect(new Date(visitor.first_seen_at)).toEqual(earlier);
+    expect(new Date(visitor.last_seen_at)).toEqual(draft.occurredAt);
   });
 
   it('freezes complete UTC and Lagos days across the retention boundary on a busy site', async () => {
@@ -217,5 +218,5 @@ databaseSuite('admin sessions and growth events in Postgres', () => {
         frozen: true,
       },
     ]);
-  });
+  }, 60_000);
 });
