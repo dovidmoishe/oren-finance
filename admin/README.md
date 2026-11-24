@@ -1,6 +1,6 @@
 # Oren Admin
 
-Independent React + TypeScript + Vite admin app, built on PR #87 (`afc015b`). TanStack Router handles routes and TanStack Query handles server state. The admin and consumer app share animated sidebar icons. The admin uses a plain white/black/gray design with self-hosted Instrument Sans, a reduced overview and a single-column sign-in form.
+Independent React + TypeScript + Vite admin app, built on PR #87 (`afc015b`). TanStack Router handles routes and TanStack Query handles server state. The admin and consumer app share animated sidebar icons. The admin uses the Oren product?s light palette and Onest type. The overview shows traffic and activation, with detailed reports in the sidebar.
 
 ## Local development
 
