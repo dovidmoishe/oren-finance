@@ -1,3 +1,10 @@
+import {
+  button,
+  iconButton,
+  quietButton,
+  notice,
+  field,
+} from "./control-styles";
 import type { ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
 import { CircleAlert, RefreshCw, ArrowRight, Download } from "lucide-react";
@@ -12,13 +19,7 @@ export function Icon({
   icon: LucideIcon;
   size?: number;
 }) {
-  return (
-    <Glyph
-      size={size}
-      strokeWidth={1.65}
-      aria-hidden="true"
-    />
-  );
+  return <Glyph size={size} strokeWidth={1.65} aria-hidden="true" />;
 }
 export const icons = {
   refresh: RefreshCw,
@@ -39,8 +40,10 @@ export function Panel({
   className?: string;
 }) {
   return (
-    <section className={`panel ${className}`}>
-      <div className="panel-heading">
+    <section
+      className={`mb-5 min-w-0 overflow-hidden rounded-md border border-border bg-white ${className}`}
+    >
+      <div className="flex flex-wrap items-center justify-between gap-3 px-5 pt-4 pb-3 [&_h2]:text-[15px] [&_h2]:font-semibold [&_p]:mt-1 [&_p]:text-xs [&_p]:text-muted">
         <div>
           <h2>{title}</h2>
           {subtitle && <p>{subtitle}</p>}
@@ -55,17 +58,19 @@ export function Metric({
   label,
   value,
   note,
-  tone = "neutral",
 }: {
   label: string;
   value: ReactNode;
   note: string;
-  tone?: string;
 }) {
   return (
-    <section className={`metric ${tone}`}>
-      <span className="eyebrow">{label}</span>
-      <strong className={value === "Unavailable" ? "unavailable" : ""}>
+    <section className="flex min-h-32 min-w-0 flex-col justify-between gap-2 rounded-md border border-border bg-white p-5 mobile:p-4 [&_p]:text-[11px] [&_p]:leading-relaxed [&_p]:text-muted">
+      <span className="text-[11px] font-semibold tracking-wider text-muted uppercase">
+        {label}
+      </span>
+      <strong
+        className={`leading-tight font-medium tracking-tight tabular-nums ${value === "Unavailable" ? "text-lg text-muted" : "text-3xl mobile:text-2xl"}`}
+      >
         {value}
       </strong>
       <p>{note}</p>
@@ -79,7 +84,21 @@ export function Badge({
   children: ReactNode;
   tone?: string;
 }) {
-  return <span className={`badge ${tone}`}>{children}</span>;
+  const colors =
+    tone === "green"
+      ? "bg-emerald-50 text-emerald-800"
+      : tone === "red"
+        ? "bg-rose-50 text-rose-800"
+        : tone === "amber"
+          ? "bg-amber-50 text-amber-800"
+          : "bg-panel text-muted";
+  return (
+    <span
+      className={`inline-flex items-center whitespace-nowrap rounded px-2 py-1 text-[11px] font-medium ${colors}`}
+    >
+      {children}
+    </span>
+  );
 }
 export function Empty({
   title = "No activity in this period",
@@ -89,8 +108,8 @@ export function Empty({
   children?: ReactNode;
 }) {
   return (
-    <div className="empty">
-      <div className="empty-symbol">
+    <div className="grid justify-items-center gap-2 px-5 py-12 text-center [&_h3]:font-semibold [&_p]:max-w-sm [&_p]:text-xs [&_p]:text-muted">
+      <div className="mb-1 grid size-10 place-items-center rounded-full bg-panel text-muted">
         <Icon icon={RefreshCw} size={23} />
       </div>
       <h3>{title}</h3>
@@ -109,20 +128,27 @@ export function ErrorState({
   retry?: () => void;
 }) {
   return (
-    <div className="notice error" role="alert">
+    <div className={notice} role="alert">
       <Icon icon={CircleAlert} />
       <div>
         <strong>We couldn’t load this view</strong>
         <p>{error.message}</p>
       </div>
-      {retry && <button onClick={retry}>Try again</button>}
+      {retry && (
+        <button className={button} onClick={retry}>
+          Try again
+        </button>
+      )}
     </div>
   );
 }
 export function Loading() {
   return (
-    <div className="loading" role="status">
-      <span className="loading-dot" />
+    <div
+      className="flex items-center justify-center gap-2 p-8 text-xs text-muted"
+      role="status"
+    >
+      <span className="size-2 rounded-full bg-brand motion-safe:animate-pulse" />
       Loading workspace…
     </div>
   );
@@ -142,31 +168,34 @@ export function DateFilters({ utcOnly = false }: { utcOnly?: boolean }) {
   const client = useQueryClient();
   return (
     <>
-      <div className="filters">
-        <div className="range-fields">
-          <label>
+      <div className="mb-4 flex flex-wrap items-end gap-3 [&>button:last-child]:ml-auto">
+        <div className="flex max-w-full flex-wrap items-end gap-2">
+          <label className="grid gap-1.5 text-xs font-medium">
             From
             <input
+              className={field}
               type="date"
               value={state.from}
               onChange={(event) => state.update({ from: event.target.value })}
             />
           </label>
-          <span className="range-arrow">
+          <span className="mb-2.5 text-muted">
             <Icon icon={ArrowRight} size={15} />
           </span>
-          <label>
+          <label className="grid gap-1.5 text-xs font-medium">
             To
             <input
+              className={field}
               type="date"
               value={state.to}
               onChange={(event) => state.update({ to: event.target.value })}
             />
           </label>
         </div>
-        <label className="timezone">
+        <label className="block">
           <span className="sr-only">Report timezone</span>
           <select
+            className={field}
             value={utcOnly ? "UTC" : state.timezone}
             disabled={utcOnly}
             onChange={(event) => state.update({ timezone: event.target.value })}
@@ -176,7 +205,7 @@ export function DateFilters({ utcOnly = false }: { utcOnly?: boolean }) {
           </select>
         </label>
         <button
-          className="subtle"
+          className={quietButton}
           onClick={() =>
             state.update(initialRange(utcOnly ? "UTC" : state.timezone))
           }
@@ -184,7 +213,7 @@ export function DateFilters({ utcOnly = false }: { utcOnly?: boolean }) {
           Last 14 days
         </button>
         <button
-          className="icon-button"
+          className={iconButton}
           aria-label="Refresh reports"
           onClick={() =>
             void client.invalidateQueries({ queryKey: ["report"] })
@@ -194,13 +223,13 @@ export function DateFilters({ utcOnly = false }: { utcOnly?: boolean }) {
         </button>
       </div>
       {!state.valid && (
-        <div className="notice error" role="alert">
+        <div className={notice} role="alert">
           Choose valid dates, with the end after the start, spanning at most 366
           days.
         </div>
       )}
       {utcOnly && (
-        <p className="filter-note">
+        <p className="mb-4 text-xs text-muted">
           Funnel, campaign and retention reports use UTC calendar days.
         </p>
       )}
@@ -208,10 +237,10 @@ export function DateFilters({ utcOnly = false }: { utcOnly?: boolean }) {
   );
 }
 export function DateTime({ value }: { value: string | null }) {
-  if (!value) return <span className="muted">Unavailable</span>;
+  if (!value) return <span className="text-muted">Unavailable</span>;
   const date = new Date(value);
   if (Number.isNaN(date.getTime()))
-    return <span className="muted">Unavailable</span>;
+    return <span className="text-muted">Unavailable</span>;
   return (
     <time dateTime={value}>
       {new Intl.DateTimeFormat("en-GB", {
@@ -222,7 +251,7 @@ export function DateTime({ value }: { value: string | null }) {
         minute: "2-digit",
         timeZone: "Africa/Lagos",
       }).format(date)}{" "}
-      <span className="muted">WAT</span>
+      <span className="text-muted">WAT</span>
     </time>
   );
 }

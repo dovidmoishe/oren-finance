@@ -1,3 +1,12 @@
+import {
+  primaryButton,
+  button,
+  metricGrid,
+  tableScroll,
+  panelNote,
+  notice,
+  field,
+} from "./control-styles";
 import { useEffect, useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
@@ -44,27 +53,36 @@ export function ReportPage({ view }: { view: ReportView }) {
           title="Your workspace is ready"
           subtitle="Choose one of your available sections."
         >
-          <div className="welcome-options">
+          <div className="flex flex-wrap gap-2 px-5 pb-4">
             {session && hasPermission(session, "dashboard.access") && (
               <>
-                <Link className="welcome-link" to="/users">
+                <Link
+                  className="inline-flex items-center gap-2 rounded-md border border-border px-3 py-2 text-xs font-medium hover:bg-panel"
+                  to="/users"
+                >
                   Connected accounts
                   <Icon icon={icons.arrow} />
                 </Link>
-                <Link className="welcome-link" to="/trades">
+                <Link
+                  className="inline-flex items-center gap-2 rounded-md border border-border px-3 py-2 text-xs font-medium hover:bg-panel"
+                  to="/trades"
+                >
                   Trade activity
                   <Icon icon={icons.arrow} />
                 </Link>
               </>
             )}
             {session?.isMaster && (
-              <Link className="welcome-link" to="/accounts">
+              <Link
+                className="inline-flex items-center gap-2 rounded-md border border-border px-3 py-2 text-xs font-medium hover:bg-panel"
+                to="/accounts"
+              >
                 Manage team access
                 <Icon icon={icons.arrow} />
               </Link>
             )}
           </div>
-          <p className="panel-note">
+          <p className={panelNote}>
             Growth reports require the separate reports.read permission.
           </p>
         </Panel>
@@ -120,20 +138,24 @@ function TrafficPage({ overview }: { overview: boolean }) {
     }
   }
   return (
-    <div className={overview ? "overview-layout" : undefined}>
-      <div className="traffic-main">
-        <div className={`metric-grid ${overview ? "overview-metrics" : ""}`}>
+    <div
+      className={
+        overview
+          ? "grid items-start gap-6 min-[1001px]:grid-cols-[minmax(0,1fr)_244px]"
+          : undefined
+      }
+    >
+      <div className="min-w-0">
+        <div className={overview ? "mb-5 grid grid-cols-2 gap-3" : metricGrid}>
           <Metric
             label="Pageviews"
             value={formatCount(traffic.pageviews)}
             note="Complete, closed days in this range"
-            tone="mint"
           />
           <Metric
             label="New durable visitors"
             value={formatCount(traffic.distinctDurableVisitorsFirstSeenInRange)}
             note="First seen in range · visitor IDs, not people"
-            tone="lavender"
           />
           {!overview && (
             <>
@@ -141,7 +163,6 @@ function TrafficPage({ overview }: { overview: boolean }) {
                 label="Complete days"
                 value={`${complete} / ${traffic.daily.length}`}
                 note="Missing days are never counted as zero"
-                tone="peach"
               />
               <Metric
                 label="Report timezone"
@@ -156,7 +177,7 @@ function TrafficPage({ overview }: { overview: boolean }) {
           )}
         </div>
         {exportError && (
-          <div className="notice error" role="alert">
+          <div className={notice} role="alert">
             {exportError}
           </div>
         )}
@@ -165,7 +186,7 @@ function TrafficPage({ overview }: { overview: boolean }) {
           subtitle="Accepted pageviews, day by day"
           action={
             <button
-              className={overview ? "primary" : "button"}
+              className={overview ? primaryButton : button}
               onClick={() => void download()}
               disabled={exporting}
             >
@@ -182,9 +203,9 @@ function TrafficPage({ overview }: { overview: boolean }) {
               coverage or select different dates.
             </Empty>
           )}
-          <div className="chart-caption">
+          <div className="flex flex-wrap items-center justify-between gap-2 px-5 pt-2 pb-4 text-[11px] text-muted [&>span:first-child]:inline-flex [&>span:first-child]:items-center [&>span:first-child]:gap-1.5">
             <span>
-              <span className="legend-dot" />
+              <span className="inline-block size-1.5 rounded-full bg-brand" />
               Pageviews
             </span>
             <span>Gaps and partial days are shown separately</span>
@@ -192,14 +213,17 @@ function TrafficPage({ overview }: { overview: boolean }) {
         </Panel>
       </div>
       {overview ? (
-        <aside className="overview-summary" aria-label="Overview summary">
+        <aside
+          className="min-w-0 min-[1001px]:border-l min-[1001px]:border-border min-[1001px]:pl-5 [&>section]:border-0 [&>section]:rounded-none [&>section>div:first-child]:px-0"
+          aria-label="Overview summary"
+        >
           <Panel title="Reporting coverage">
-            <div className="coverage-summary">
+            <div className="grid justify-items-center gap-2.5 py-2 text-xs text-muted">
               <div
-                className="coverage-gauge"
+                className="grid size-[104px] place-items-center rounded-full [&_strong]:grid [&_strong]:size-[92px] [&_strong]:grid-flow-col [&_strong]:place-content-center [&_strong]:items-baseline [&_strong]:gap-1 [&_strong]:rounded-full [&_strong]:bg-white [&_strong]:text-2xl [&_strong]:font-medium [&_strong]:text-foreground [&_strong]:tabular-nums [&_strong_span]:text-sm [&_strong_span]:text-muted"
                 aria-hidden="true"
                 style={{
-                  background: `conic-gradient(var(--green) ${coverage}turn, var(--line) 0)`,
+                  background: `conic-gradient(var(--color-brand) ${coverage}turn, var(--color-border) 0)`,
                 }}
               >
                 <strong>
@@ -212,7 +236,10 @@ function TrafficPage({ overview }: { overview: boolean }) {
                   ? `${complete} of ${dayCount} days complete`
                   : "No days available"}
               </p>
-              <Link className="text-link" to="/coverage">
+              <Link
+                className="inline-flex items-center gap-1 text-xs font-medium text-foreground hover:underline"
+                to="/coverage"
+              >
                 View coverage <Icon icon={icons.arrow} size={14} />
               </Link>
             </div>
@@ -224,7 +251,7 @@ function TrafficPage({ overview }: { overview: boolean }) {
           title="Daily observations"
           subtitle="Original status and provenance stay with every number"
         >
-          <div className="table-scroll">
+          <div className={tableScroll}>
             <table>
               <thead>
                 <tr>
@@ -239,8 +266,8 @@ function TrafficPage({ overview }: { overview: boolean }) {
                 {traffic.daily.map((day) => (
                   <tr key={day.day}>
                     <td>{day.day}</td>
-                    <td className="numeric">{formatCount(day)}</td>
-                    <td className="numeric">
+                    <td className="tabular-nums">{formatCount(day)}</td>
+                    <td className="tabular-nums">
                       {traffic.dailyUniques.days
                         .find((item) => item.day === day.day)
                         ?.value.toLocaleString() ?? "Unavailable"}
@@ -248,7 +275,7 @@ function TrafficPage({ overview }: { overview: boolean }) {
                     <td>
                       <Status value={day.status} />
                       {day.reason && (
-                        <span className="cell-note">
+                        <span className="mt-1 block max-w-60 truncate text-[11px] text-muted">
                           {readable(day.reason)}
                         </span>
                       )}
@@ -259,7 +286,7 @@ function TrafficPage({ overview }: { overview: boolean }) {
               </tbody>
             </table>
           </div>
-          <p className="panel-note">
+          <p className={panelNote}>
             Daily unique counts describe each day individually. They are never
             summed into lifetime visitors.
           </p>
@@ -302,7 +329,10 @@ function TrafficChart({ days }: { days: Day[] }) {
   });
   if (segment) segments.push(segment);
   return (
-    <div className="traffic-chart" ref={container}>
+    <div
+      className="min-w-0 px-3 pt-2 [&_svg]:block [&_svg]:h-auto [&_svg]:w-full [&_text]:fill-muted [&_text]:text-[10px]"
+      ref={container}
+    >
       <svg
         viewBox={`0 0 ${width} ${height}`}
         role="img"
@@ -334,7 +364,7 @@ function TrafficChart({ days }: { days: Day[] }) {
             key={index}
             d={path}
             fill="none"
-            stroke="var(--green)"
+            stroke="var(--color-brand)"
             strokeWidth="2.6"
             strokeLinejoin="round"
           />
@@ -346,7 +376,7 @@ function TrafficChart({ days }: { days: Day[] }) {
               cx={x(index)}
               cy={y(day.value)}
               r={day.status === "partial" ? 5 : 3}
-              fill={day.status === "partial" ? "#788694" : "var(--green)"}
+              fill={day.status === "partial" ? "#788694" : "var(--color-brand)"}
             >
               <title>
                 {day.day}: {day.value.toLocaleString()} pageviews ({day.status})
@@ -406,7 +436,7 @@ function OverviewActivity() {
     <div>
       <Panel title="Activation" subtitle="Selected dates · UTC">
         {slice ? (
-          <div className="mini-funnel">
+          <div className="pb-2">
             {[
               { label: "Setup sessions", value: slice.setupSessions },
               { label: "Connected accounts", value: slice.connectedAccounts },
@@ -415,7 +445,10 @@ function OverviewActivity() {
                 value: slice.researchAccounts,
               },
             ].map((item) => (
-              <div className="mini-funnel-row" key={item.label}>
+              <div
+                className="flex items-center justify-between gap-3 border-t border-border py-3 text-xs text-muted [&_strong]:font-medium [&_strong]:text-foreground [&_strong]:tabular-nums"
+                key={item.label}
+              >
                 <span>{item.label}</span>
                 <strong>{item.value.toLocaleString()}</strong>
               </div>
@@ -424,8 +457,11 @@ function OverviewActivity() {
         ) : (
           <Empty title="No funnel activity yet" />
         )}
-        <div className="summary-footer">
-          <Link className="text-link" to="/funnel">
+        <div className="pt-2">
+          <Link
+            className="inline-flex items-center gap-1 text-xs font-medium text-foreground hover:underline"
+            to="/funnel"
+          >
             Explore funnel <Icon icon={icons.arrow} size={14} />
           </Link>
         </div>
@@ -444,9 +480,10 @@ function FunnelPage() {
       title="The activation journey"
       subtitle="Setup, OAuth connections and research are separate measures"
       action={
-        <label>
+        <label className="grid gap-1.5 text-xs font-medium">
           <span className="sr-only">Group funnel</span>
           <select
+            className={field}
             value={grouping}
             onChange={(event) => setGrouping(event.target.value)}
           >
@@ -495,28 +532,33 @@ function FunnelPage() {
             ];
             const max = Math.max(1, ...stages.map((item) => item.value));
             return (
-              <div className="funnel-group" key={slice.key}>
+              <div
+                className="px-5 pb-5 [&>h3]:mb-3 [&>h3]:font-semibold"
+                key={slice.key}
+              >
                 {grouping !== "none" && <h3>{slice.key}</h3>}
-                {stages.map((item, index) => (
-                  <div className="funnel-stage" key={item.label}>
-                    <span className="stage-number">0{index + 1}</span>
-                    <div className="stage-content">
+                {stages.map((item) => (
+                  <div
+                    className="flex items-center gap-4 border-t border-border py-3"
+                    key={item.label}
+                  >
+                    <div className="min-w-0 flex-1 [&>div:first-child]:mb-2 [&>div:first-child]:flex [&>div:first-child]:flex-wrap [&>div:first-child]:items-baseline [&>div:first-child]:justify-between [&_strong]:text-xs [&_span]:text-[11px] [&_span]:text-muted">
                       <div>
                         <strong>{item.label}</strong>
                         <span>{item.note}</span>
                       </div>
-                      <div className="bar-track">
+                      <div className="h-1.5 overflow-hidden rounded-full bg-panel [&>div]:h-full [&>div]:rounded-full [&>div]:bg-muted">
                         <div
                           style={{ width: `${(item.value / max) * 100}%` }}
                         />
                       </div>
                     </div>
-                    <strong className="stage-value">
+                    <strong className="min-w-8 text-right text-lg font-medium tabular-nums">
                       {item.value.toLocaleString()}
                     </strong>
                   </div>
                 ))}
-                <div className="outcome-row">
+                <div className="mt-3 flex flex-wrap gap-4 text-xs text-muted [&_strong]:ml-1 [&_strong]:text-foreground">
                   <span>
                     Refused <strong>{slice.oauthRefused}</strong>
                   </span>
@@ -533,8 +575,9 @@ function FunnelPage() {
               </div>
             );
           })}
-          <p className="panel-note">
-            Each stage counts observed activity in the selected period. An account can appear in several groups.
+          <p className={panelNote}>
+            Each stage counts observed activity in the selected period. An
+            account can appear in several groups.
           </p>
         </>
       )}
@@ -556,14 +599,14 @@ function RetentionPage() {
       title={`${days}-day research return`}
       subtitle="Research or a confirmed trade after the first in-range research"
     >
-      <div className="retention-number">
+      <div className="px-5 pb-3 text-4xl font-medium tracking-tight tabular-nums">
         {value.value == null ||
         value.status === "unavailable" ||
         !value.denominator
           ? "Unavailable"
           : percent((value.retained ?? value.value) / value.denominator)}
       </div>
-      <div className="retention-details">
+      <div className="flex flex-wrap gap-6 px-5 pb-5 text-xs text-muted [&_strong]:mt-1 [&_strong]:block [&_strong]:text-base [&_strong]:text-foreground">
         <span>
           Returned<strong>{value.retained ?? "Unavailable"}</strong>
         </span>
@@ -574,22 +617,24 @@ function RetentionPage() {
           Window<strong>{days} days</strong>
         </span>
       </div>
-      {value.reason && <p className="panel-note">{readable(value.reason)}</p>}
+      {value.reason && <p className={panelNote}>{readable(value.reason)}</p>}
     </Panel>
   );
   return (
     <>
-      <div className="two-column">
+      <div className="grid items-start gap-4 min-[901px]:grid-cols-2">
         {renderWindow(query.data.researchRetention7d, 7)}
         {renderWindow(query.data.researchRetention30d, 30)}
       </div>
-      <div className="notice">
+      <div className={notice}>
         <Icon icon={icons.refresh} />
         <div>
           <strong>Give cohorts time to mature</strong>
           <p>
             Only accounts whose full follow-up window has elapsed enter the
-            denominator. Returns can fall after the selected end date. Each cohort starts with an account?s earliest research in the selected period.
+            denominator. Returns can fall after the selected end date. Each
+            cohort starts with an account?s earliest research in the selected
+            period.
           </p>
         </div>
       </div>
@@ -610,9 +655,10 @@ function CampaignPage() {
       title="Acquisition, in context"
       subtitle="Descriptive comparisons with sample sizes kept visible"
       action={
-        <label>
+        <label className="grid gap-1.5 text-xs font-medium">
           <span className="sr-only">Comparison dimension</span>
           <select
+            className={field}
             value={dimension}
             onChange={(event) => setDimension(event.target.value)}
           >
@@ -634,7 +680,7 @@ function CampaignPage() {
         </Empty>
       ) : (
         <>
-          <div className="table-scroll">
+          <div className={tableScroll}>
             <table>
               <thead>
                 <tr>
@@ -649,14 +695,14 @@ function CampaignPage() {
               <tbody>
                 {query.data.rows.map((row) => (
                   <tr key={row.key}>
-                    <td className="strong">{row.key}</td>
-                    <td className="numeric">
+                    <td className="font-semibold">{row.key}</td>
+                    <td className="tabular-nums">
                       {query.data.denominator === "pageviews"
                         ? row.sampleSize.toLocaleString()
                         : "Unavailable"}
                     </td>
-                    <td className="numeric">{row.connections}</td>
-                    <td className="numeric">{row.researchAccounts}</td>
+                    <td className="tabular-nums">{row.connections}</td>
+                    <td className="tabular-nums">{row.researchAccounts}</td>
                     <td>{percent(row.connectionRate)}</td>
                     <td>
                       <Badge
@@ -676,7 +722,7 @@ function CampaignPage() {
               </tbody>
             </table>
           </div>
-          <p className="panel-note">
+          <p className={panelNote}>
             {query.data.inference} Minimum sample: {query.data.minimumSample}.
             Non-campaign denominators are unavailable. No significance is
             claimed.
@@ -700,24 +746,21 @@ function CoveragePage() {
   const coverage = query.data;
   return (
     <>
-      <div className="metric-grid">
+      <div className={metricGrid}>
         <Metric
           label="Raw observations"
           value={`${coverage.rawRetentionDays} days`}
           note="Rolling raw-data retention"
-          tone="mint"
         />
         <Metric
           label="Identity keys"
           value={`${coverage.identityRetentionDays} days`}
           note="Distinct counts depend on retained keys"
-          tone="lavender"
         />
         <Metric
           label="Attribution"
           value={readable(coverage.attribution.model)}
           note={`${coverage.attribution.windowDays}-day attribution window`}
-          tone="peach"
         />
         <Metric
           label="Idempotency"
@@ -730,7 +773,7 @@ function CoveragePage() {
         subtitle="The first accepted observation marks the start of coverage"
       >
         {coverage.collectors.length ? (
-          <div className="table-scroll">
+          <div className={tableScroll}>
             <table>
               <thead>
                 <tr>
@@ -761,12 +804,12 @@ function CoveragePage() {
           </Empty>
         )}
       </Panel>
-      <div className="two-column">
+      <div className="grid items-start gap-4 min-[901px]:grid-cols-2">
         <Panel
           title="External series"
           subtitle="Unavailable until independently supplied"
         >
-          <div className="integration-list">
+          <div className="divide-y divide-border px-5 pb-3 [&>div]:flex [&>div]:items-center [&>div]:justify-between [&>div]:gap-3 [&>div]:py-3">
             {["X / social activity", "Revenue & costs", "Token holders"].map(
               (name) => (
                 <div key={name}>
@@ -776,7 +819,7 @@ function CoveragePage() {
               ),
             )}
           </div>
-          <p className="panel-note">
+          <p className={panelNote}>
             No external sync is enabled. Historical observations stay separate
             from live telemetry.
           </p>
@@ -785,12 +828,12 @@ function CoveragePage() {
           title="History & provenance"
           subtitle="Recovered records keep their original limitations"
         >
-          <p className="prose">
+          <p className="px-5 pb-4 text-sm leading-relaxed text-muted">
             Historical imports are manual operator actions. Missing days remain
             unavailable. Point-in-time snapshots are not daily deltas and are
             never added to live trade counts.
           </p>
-          <p className="panel-note">
+          <p className={panelNote}>
             This workspace does not import history or issue machine credentials.
           </p>
         </Panel>
@@ -799,7 +842,7 @@ function CoveragePage() {
         title="A shared vocabulary"
         subtitle="The definitions used by the reporting API"
       >
-        <dl className="definitions">
+        <dl className="divide-y divide-border px-5 pb-4 [&>div]:grid [&>div]:gap-1 [&>div]:py-3 sm:[&>div]:grid-cols-[140px_1fr] [&_dt]:text-xs [&_dt]:font-semibold [&_dd]:text-xs [&_dd]:leading-relaxed [&_dd]:text-muted">
           {Object.entries(coverage.definitions).map(([key, value]) => (
             <div key={key}>
               <dt>{key.replace(/([A-Z])/g, " $1")}</dt>

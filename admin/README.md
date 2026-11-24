@@ -1,6 +1,6 @@
 # Oren Admin
 
-Independent React + TypeScript + Vite admin app, built on PR #87 (`afc015b`). TanStack Router handles routes and TanStack Query handles server state. The consumer Next.js app is unchanged. The admin uses a plain white/black/gray design with self-hosted Instrument Sans, a reduced overview and a single-column sign-in form.
+Independent React + TypeScript + Vite admin app, built on PR #87 (`afc015b`). TanStack Router handles routes and TanStack Query handles server state. The admin and consumer app share animated sidebar icons. The admin uses a plain white/black/gray design with self-hosted Instrument Sans, a reduced overview and a single-column sign-in form.
 
 ## Local development
 
@@ -65,8 +65,10 @@ New HTTP authorization/lifecycle coverage lives in `api/src/admin/dashboard/dash
 
 ## Independent container
 
+Build from the repository root so Docker can include the shared icons.
+
 ```powershell
-docker build -t oren-admin:local admin
+docker build -f admin/Dockerfile -t oren-admin:local .
 ```
 
 The runtime is static Caddy on port 8080, with `ADMIN_API_UPSTREAM` defaulting to the pinned production API container name `oren-api-1:3000`. Put it on the appropriate API network and publish it through the existing TLS edge on the chosen admin host. The runtime proxies only `/api/admin/*`; other `/api/*` paths return 404. SPA routes fall back to `index.html`; hashed assets are immutable and HTML revalidates. CSP blocks third-party scripts and framing.

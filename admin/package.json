@@ -12,11 +12,13 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@oren/animated-icons": "file:../app/components/shell/AnimatedIcons",
     "@tanstack/react-query": "^5.90.0",
     "@tanstack/react-router": "^1.132.0",
+    "lucide-react": "^1.72.0",
+    "motion": "^14.13.0",
     "react": "^19.2.0",
-    "react-dom": "^19.2.0",
-    "lucide-react": "^1.72.0"
+    "react-dom": "^19.2.0"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

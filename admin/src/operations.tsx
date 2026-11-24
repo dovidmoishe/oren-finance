@@ -1,3 +1,10 @@
+import {
+  button,
+  metricGrid,
+  tableScroll,
+  panelNote,
+  field,
+} from "./control-styles";
 import { useEffect, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Search, ArrowLeft, ArrowRight } from "lucide-react";
@@ -98,7 +105,7 @@ export function OperationsPage({ view }: { view: View }) {
         subtitle="Read-only operations · newest records first"
         action={
           <button
-            className="button"
+            className={button}
             disabled={query.isFetching}
             onClick={() => void query.refetch()}
           >
@@ -106,10 +113,11 @@ export function OperationsPage({ view }: { view: View }) {
           </button>
         }
       >
-        <div className="table-toolbar">
-          <label className="search-box">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-5 py-3 text-xs text-muted">
+          <label className="relative flex items-center gap-2 rounded-md border border-border px-2.5 text-muted [&_input]:min-h-9 [&_input]:min-w-0 [&_input]:border-0 [&_input]:px-1">
             <Icon icon={Search} size={17} />
             <input
+              className={field}
               aria-label="Search this page"
               placeholder="Search this page…"
               value={search}
@@ -134,7 +142,7 @@ export function OperationsPage({ view }: { view: View }) {
               : "Recorded activity will appear here."}
           </Empty>
         ) : (
-          <div className="table-scroll">
+          <div className={tableScroll}>
             <table>
               <thead>
                 <tr>
@@ -165,11 +173,11 @@ export function OperationsPage({ view }: { view: View }) {
         )}
         {query.data && (
           <>
-            <div className="pagination">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border px-5 py-3 text-xs text-muted [&>div]:flex [&>div]:gap-2">
               <span>Page {page}</span>
               <div>
                 <button
-                  className="button"
+                  className={button}
                   disabled={page === 1 || query.isFetching}
                   onClick={() => {
                     setPage((old) => old - 1);
@@ -180,7 +188,7 @@ export function OperationsPage({ view }: { view: View }) {
                   Previous
                 </button>
                 <button
-                  className="button"
+                  className={button}
                   disabled={!query.data.hasNext || query.isFetching}
                   onClick={() => {
                     setPage((old) => old + 1);
@@ -192,7 +200,7 @@ export function OperationsPage({ view }: { view: View }) {
                 </button>
               </div>
             </div>
-            <p className="panel-note">{query.data.note}</p>
+            <p className={panelNote}>{query.data.note}</p>
           </>
         )}
       </Panel>
@@ -202,7 +210,10 @@ export function OperationsPage({ view }: { view: View }) {
 
 function Identifier({ value }: { value: string | null }) {
   return (
-    <span className="identifier" title={value ?? undefined}>
+    <span
+      className="inline-block max-w-56 truncate align-middle font-mono text-xs text-muted"
+      title={value ?? undefined}
+    >
       {shortId(value)}
     </span>
   );
@@ -223,17 +234,23 @@ function cells(view: View, row: Row): ReactNode[] {
     return [
       <>
         <Identifier value={connection.clientId} />
-        <span className="cell-note" title={connection.grantId}>
+        <span
+          className="mt-1 block max-w-60 truncate text-[11px] text-muted"
+          title={connection.grantId}
+        >
           {shortId(connection.grantId)}
         </span>
       </>,
       <>
         <Identifier value={connection.userId} />
-        <span className="cell-note" title={connection.wallet}>
+        <span
+          className="mt-1 block max-w-60 truncate text-[11px] text-muted"
+          title={connection.wallet}
+        >
           Wallet {shortId(connection.wallet)}
         </span>
       </>,
-      <div className="scope-list">
+      <div className="flex flex-wrap gap-1">
         {connection.scopes
           .split(" ")
           .filter(Boolean)
@@ -251,8 +268,11 @@ function cells(view: View, row: Row): ReactNode[] {
     const trade = row as TradeRow;
     return [
       <>
-        <span className="stock-symbol">{trade.ticker}</span>
-        <span className="cell-note" title={trade.id}>
+        <span className="font-semibold text-foreground">{trade.ticker}</span>
+        <span
+          className="mt-1 block max-w-60 truncate text-[11px] text-muted"
+          title={trade.id}
+        >
           {shortId(trade.id)}
         </span>
       </>,
@@ -273,7 +293,9 @@ function cells(view: View, row: Row): ReactNode[] {
         <Status value={trade.status} />
         {trade.status === "prepared" &&
           new Date(trade.expiresAt).getTime() < Date.now() && (
-            <span className="cell-note">Quote expired</span>
+            <span className="mt-1 block max-w-60 truncate text-[11px] text-muted">
+              Quote expired
+            </span>
           )}
       </>,
       <DateTime value={trade.createdAt} />,
@@ -281,7 +303,7 @@ function cells(view: View, row: Row): ReactNode[] {
   }
   const audit = row as AuditRow;
   return [
-    <span className="capitalize strong">{readable(audit.action)}</span>,
+    <span className="font-semibold capitalize">{readable(audit.action)}</span>,
     <Identifier value={audit.actorId} />,
     <Identifier value={audit.targetId} />,
     <DateTime value={audit.createdAt} />,
@@ -297,18 +319,16 @@ function TradeSummary() {
         <ErrorState error={query.error} retry={() => void query.refetch()} />
       ) : (
         query.data && (
-          <div className="metric-grid">
+          <div className={metricGrid}>
             <Metric
               label="Browser preparations"
               value={query.data.trades.preparations.browser.toLocaleString()}
               note="Agent intents · selected UTC date range"
-              tone="lavender"
             />
             <Metric
               label="Delegated preparations"
               value={query.data.trades.preparations.delegated.toLocaleString()}
               note="Agent intents · selected UTC date range"
-              tone="peach"
             />
             <Metric
               label="Confirmed intents"
@@ -317,7 +337,6 @@ function TradeSummary() {
                 query.data.trades.confirmed.delegated
               ).toLocaleString()}
               note="Application-confirmed browser + delegated"
-              tone="mint"
             />
             <Metric
               label="Activated accounts"
@@ -327,7 +346,7 @@ function TradeSummary() {
           </div>
         )
       )}
-      <p className="filter-note">
+      <p className="mb-4 text-xs text-muted">
         Date filters apply to the summary. The paginated intent list below shows
         all dates.
       </p>

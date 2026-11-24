@@ -2,10 +2,10 @@ name: Admin dashboard
 on:
   pull_request:
     branches: [master]
-    paths: ['admin/**', '.github/workflows/admin.yml']
+    paths: ['admin/**', 'app/components/shell/AnimatedIcons/**', '.github/workflows/admin.yml']
   push:
     branches: [master]
-    paths: ['admin/**', '.github/workflows/admin.yml']
+    paths: ['admin/**', 'app/components/shell/AnimatedIcons/**', '.github/workflows/admin.yml']
 permissions:
   contents: read
 concurrency:

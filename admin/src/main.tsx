@@ -1,3 +1,4 @@
+import { button } from "./control-styles";
 import React from "react";
 import ReactDOM from "react-dom/client";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -84,10 +85,10 @@ class Boundary extends React.Component<
   }
   render() {
     return this.state.failed ? (
-      <main className="fatal">
+      <main className="mx-auto grid min-h-dvh max-w-md content-center justify-items-start gap-3 px-6 [&>h1]:text-xl [&>h1]:font-semibold [&>p]:text-muted">
         <h1>This workspace needs a refresh</h1>
         <p>Reload to restore your session and try again.</p>
-        <button onClick={() => window.location.reload()}>
+        <button className={button} onClick={() => window.location.reload()}>
           Reload workspace
         </button>
       </main>

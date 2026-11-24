@@ -1,4 +1,15 @@
 import {
+  primaryButton,
+  button,
+  dangerButton,
+  iconButton,
+  quietButton,
+  tableScroll,
+  panelNote,
+  notice,
+  field,
+} from "./control-styles";
+import {
   useEffect,
   useRef,
   useState,
@@ -40,17 +51,17 @@ function Modal({
   return (
     <dialog
       ref={ref}
-      className="modal"
+      className="m-auto max-h-[90dvh] w-[min(440px,calc(100%-2rem))] overflow-y-auto rounded-lg border border-border bg-white p-6 text-foreground shadow-2xl backdrop:bg-black/30 [&_form]:grid [&_form]:gap-3 [&_fieldset]:grid [&_fieldset]:gap-2 [&_legend]:mb-2 [&_legend]:text-xs [&_legend]:font-semibold"
       onCancel={(event) => {
         event.preventDefault();
         close();
       }}
       aria-labelledby="modal-title"
     >
-      <div className="modal-heading">
+      <div className="-mx-6 -mt-6 mb-4 flex items-center justify-between gap-3 bg-sidebar px-5 py-3 text-white [&_h2]:font-semibold">
         <h2 id="modal-title">{title}</h2>
         <button
-          className="icon-button"
+          className={iconButton}
           aria-label="Close dialog"
           onClick={close}
         >
@@ -131,7 +142,7 @@ export function AccountsPage() {
         subtitle="Manage invitations, permissions and account access."
         action={
           <button
-            className="primary"
+            className={primaryButton}
             onClick={() => {
               mutation.reset();
               setInviteOpen(true);
@@ -149,7 +160,7 @@ export function AccountsPage() {
         ) : query.data.length === 0 ? (
           <Empty title="No admin accounts returned" />
         ) : (
-          <div className="table-scroll">
+          <div className={tableScroll}>
             <table>
               <thead>
                 <tr>
@@ -166,14 +177,19 @@ export function AccountsPage() {
                 {query.data.map((account) => (
                   <tr key={account.id}>
                     <td>
-                      <div className="account-identity">
-                        <span className="account-initial" aria-hidden="true">
+                      <div className="flex items-center gap-2">
+                        <span
+                          className="grid size-7 shrink-0 place-items-center rounded-full bg-panel text-xs font-semibold"
+                          aria-hidden="true"
+                        >
                           {account.email.charAt(0).toUpperCase()}
                         </span>
                         <div>
-                          <span className="strong">{account.email}</span>
+                          <span className="font-semibold">{account.email}</span>
                           {account.id === session.id && (
-                            <span className="cell-note">You</span>
+                            <span className="mt-1 block max-w-60 truncate text-[11px] text-muted">
+                              You
+                            </span>
                           )}
                         </div>
                       </div>
@@ -184,7 +200,7 @@ export function AccountsPage() {
                       </Badge>
                     </td>
                     <td>
-                      <div className="scope-list">
+                      <div className="flex flex-wrap gap-1">
                         {account.permissions.map((permission) => (
                           <Badge key={permission}>{permission}</Badge>
                         ))}
@@ -194,16 +210,16 @@ export function AccountsPage() {
                       <Status value={account.status} />
                       {account.mustChangePassword &&
                         account.status !== "revoked" && (
-                          <span className="cell-note">
+                          <span className="mt-1 block max-w-60 truncate text-[11px] text-muted">
                             Password replacement required
                           </span>
                         )}
                     </td>
                     <td>
                       {!account.isMaster && account.status !== "revoked" && (
-                        <div className="row-actions">
+                        <div className="flex items-center gap-1">
                           <button
-                            className="subtle"
+                            className={quietButton}
                             disabled={mutation.isPending}
                             onClick={() => {
                               mutation.reset();
@@ -213,7 +229,7 @@ export function AccountsPage() {
                             Reset password
                           </button>
                           <button
-                            className="subtle danger"
+                            className={dangerButton}
                             disabled={mutation.isPending}
                             onClick={() => {
                               mutation.reset();
@@ -235,7 +251,7 @@ export function AccountsPage() {
       {mutation.error && !inviteOpen && !revokeTarget && (
         <ErrorState error={mutation.error} />
       )}
-      <p className="panel-note">
+      <p className={panelNote}>
         Share temporary passwords directly with invited admins. Only the master
         admin can invite teammates, reset their passwords or revoke access.
       </p>
@@ -246,14 +262,15 @@ export function AccountsPage() {
             if (!mutation.isPending) setInviteOpen(false);
           }}
         >
-          <p className="modal-description">
+          <p className="mb-4 text-sm leading-relaxed text-muted">
             You’ll receive a single-use temporary password to share privately.
             It expires after 24 hours.
           </p>
           <form onSubmit={invite}>
-            <label>
+            <label className="grid gap-1.5 text-xs font-medium">
               Email address
               <input
+                className={field}
                 name="email"
                 type="email"
                 autoComplete="off"
@@ -265,7 +282,7 @@ export function AccountsPage() {
             </label>
             <fieldset>
               <legend>Permissions</legend>
-              <label className="checkbox-option">
+              <label className="flex cursor-pointer items-start gap-3 rounded-md border border-border bg-panel p-3 text-xs [&_input]:mt-0.5 [&_input]:size-4 [&_input]:accent-foreground [&_strong]:block [&_small]:mt-1 [&_small]:block [&_small]:text-muted">
                 <input
                   type="checkbox"
                   name="permissions"
@@ -279,7 +296,7 @@ export function AccountsPage() {
                   </small>
                 </span>
               </label>
-              <label className="checkbox-option">
+              <label className="flex cursor-pointer items-start gap-3 rounded-md border border-border bg-panel p-3 text-xs [&_input]:mt-0.5 [&_input]:size-4 [&_input]:accent-foreground [&_strong]:block [&_small]:mt-1 [&_small]:block [&_small]:text-muted">
                 <input
                   type="checkbox"
                   name="permissions"
@@ -295,19 +312,20 @@ export function AccountsPage() {
               </label>
             </fieldset>
             {mutation.error && (
-              <div className="notice error" role="alert">
+              <div className={notice} role="alert">
                 {mutation.error.message}
               </div>
             )}
-            <div className="modal-actions">
+            <div className="mt-4 flex flex-wrap items-center justify-end gap-2">
               <button
+                className={button}
                 type="button"
                 onClick={() => setInviteOpen(false)}
                 disabled={mutation.isPending}
               >
                 Cancel
               </button>
-              <button className="primary" disabled={mutation.isPending}>
+              <button className={primaryButton} disabled={mutation.isPending}>
                 {mutation.isPending
                   ? "Creating invitation…"
                   : "Create invitation"}
@@ -323,24 +341,25 @@ export function AccountsPage() {
             if (!mutation.isPending) setRevokeTarget(null);
           }}
         >
-          <p className="modal-description">
+          <p className="mb-4 text-sm leading-relaxed text-muted">
             {revokeTarget.email} will lose admin access and all of their current
             sessions will be invalidated.
           </p>
           {mutation.error && (
-            <div className="notice error" role="alert">
+            <div className={notice} role="alert">
               {mutation.error.message}
             </div>
           )}
-          <div className="modal-actions">
+          <div className="mt-4 flex flex-wrap items-center justify-end gap-2">
             <button
+              className={button}
               onClick={() => setRevokeTarget(null)}
               disabled={mutation.isPending}
             >
               Keep access
             </button>
             <button
-              className="primary destructive"
+              className={dangerButton}
               disabled={mutation.isPending}
               onClick={() =>
                 mutation.mutate({ action: "revoke", account: revokeTarget })
@@ -359,14 +378,14 @@ export function AccountsPage() {
             mutation.reset();
           }}
         >
-          <p className="modal-description">
+          <p className="mb-4 text-sm leading-relaxed text-muted">
             This password is shown once. Send it securely to{" "}
             {credential.email || "your teammate"}. No email has been sent.
           </p>
-          <div className="credential">
+          <div className="my-4 flex flex-wrap items-center gap-3 rounded-md border border-border bg-panel p-3 [&_code]:min-w-0 [&_code]:flex-1 [&_code]:font-mono [&_code]:break-all">
             <code>{credential.temporaryPassword}</code>
             <button
-              className="button"
+              className={button}
               onClick={async () => {
                 try {
                   await navigator.clipboard.writeText(
@@ -385,13 +404,13 @@ export function AccountsPage() {
             </button>
           </div>
           {copyError && <p role="alert">{copyError}</p>}
-          <p className="form-help">
+          <p className="text-xs leading-relaxed text-muted">
             Expires <DateTime value={credential.expiresAt} />. The first sign-in
             consumes this temporary password.
           </p>
-          <div className="modal-actions">
+          <div className="mt-4 flex flex-wrap items-center justify-end gap-2">
             <button
-              className="primary"
+              className={primaryButton}
               onClick={() => {
                 setCredential(null);
                 mutation.reset();
@@ -439,10 +458,14 @@ export function SecurityPage() {
       title="Change your password"
       subtitle={`Signed in as ${session?.email}`}
     >
-      <form className="security-form" onSubmit={submit}>
-        <label>
+      <form
+        className="grid w-full max-w-[420px] gap-4 px-5 pt-2 pb-6 [&>button]:justify-self-start"
+        onSubmit={submit}
+      >
+        <label className="grid gap-1.5 text-xs font-medium">
           Current password
           <input
+            className={field}
             name="currentPassword"
             type="password"
             autoComplete="current-password"
@@ -451,9 +474,10 @@ export function SecurityPage() {
             maxLength={200}
           />
         </label>
-        <label>
+        <label className="grid gap-1.5 text-xs font-medium">
           New password
           <input
+            className={field}
             name="nextPassword"
             type="password"
             autoComplete="new-password"
@@ -462,9 +486,10 @@ export function SecurityPage() {
             maxLength={200}
           />
         </label>
-        <label>
+        <label className="grid gap-1.5 text-xs font-medium">
           Confirm new password
           <input
+            className={field}
             name="confirmation"
             type="password"
             autoComplete="new-password"
@@ -473,16 +498,16 @@ export function SecurityPage() {
             maxLength={200}
           />
         </label>
-        <p className="form-help">
+        <p className="text-xs leading-relaxed text-muted">
           Use a different password with 12–200 characters. Saving signs you out
           of every session. Sign in again with your new password.
         </p>
         {error && (
-          <div className="notice error" role="alert">
+          <div className={notice} role="alert">
             {error}
           </div>
         )}
-        <button className="primary" disabled={pending}>
+        <button className={primaryButton} disabled={pending}>
           {pending ? "Updating password…" : "Update password & sign out"}
         </button>
       </form>

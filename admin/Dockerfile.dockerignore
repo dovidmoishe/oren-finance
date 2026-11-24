@@ -1,0 +1,12 @@
+**
+!admin/package.json
+!admin/pnpm-lock.yaml
+!admin/pnpm-workspace.yaml
+!admin/index.html
+!admin/tsconfig.json
+!admin/vite.config.ts
+!admin/postcss.config.mjs
+!admin/src/**
+!admin/public/**
+!admin/Caddyfile
+!app/components/shell/AnimatedIcons/**
