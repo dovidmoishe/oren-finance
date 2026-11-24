@@ -12,6 +12,8 @@
     "start:dev": "nest start --watch",
     "start:debug": "nest start --debug --watch",
     "start:prod": "node dist/src/main",
+    "paper:backtest": "tsx scripts/paper-backtest.ts",
+    "test:paper": "jest --runInBand --runTestsByPath src/paper/strategy.spec.ts src/paper/paper.integration.spec.ts",
     "start:notifications": "node dist/src/notifications/main",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
     "typecheck": "tsc --noEmit -p tsconfig.json",

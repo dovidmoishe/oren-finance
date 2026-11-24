@@ -37,6 +37,7 @@ const DEFAULT_DRIP_API_BASE_URL = 'https://dripstack.com';
 const DEFAULT_DRIP_REQUEST_TIMEOUT_MS = 12_000;
 
 export interface AppEnv {
+  PAPER_TRADING_ENABLED?: boolean;
   DEPLOYMENT_ENV?: 'production' | 'development' | 'preview';
   PREVIEW_PR_NUMBER?: number | null;
   COMMIT_SHA?: string | null;
@@ -485,6 +486,7 @@ export function validateEnv(env: EnvSource = process.env): AppEnv {
       8000,
     ),
     DRIP_ENABLED: readBool(env, 'DRIP_ENABLED', false),
+    PAPER_TRADING_ENABLED: readBool(env, 'PAPER_TRADING_ENABLED', false),
     DRIP_PUBLIC_RESEARCH_ENABLED: readBool(
       env,
       'DRIP_PUBLIC_RESEARCH_ENABLED',
