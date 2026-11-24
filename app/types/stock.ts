@@ -1,4 +1,5 @@
 export type ChartRange = "1D" | "1W" | "1M" | "3M" | "1Y" | "ALL";
+export type ChartInterval = "1m" | "5m" | "15m" | "1H" | "4H" | "1D";
 
 export interface TokenizedEquityVariant {
   mint: string;
@@ -38,6 +39,7 @@ export interface StocksPage {
 
 export interface StockDetail extends StockSummary {
   sector?: string;
+  marketData?: { source: string; retrievedAt: string };
   variants: TokenizedEquityVariant[];
 }
 

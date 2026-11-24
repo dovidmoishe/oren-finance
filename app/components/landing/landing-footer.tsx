@@ -10,7 +10,6 @@ import { OrenLogo } from "@/components/brand/oren-logo";
 const groups = [
   { title: "Product", links: [
     { label: "Overview", href: "/#product" },
-    { label: "Stock mix", href: "/#stock-mix" },
     { label: "How it works", href: "/#how-it-works" },
   ] },
   { title: "Terminal", links: [

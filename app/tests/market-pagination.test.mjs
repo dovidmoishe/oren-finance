@@ -34,6 +34,31 @@ function searchStore() {
 }
 const searchIds = market => Array.from(market.getState().searchResults, stock => stock.assetId);
 
+test('a missing-stock request opens the existing feedback flow with the selected company prefilled', () => {
+ const values=['Barclays',undefined]; let cursor=0;
+ const state={stocks:[],trending:[],opportunities:[],searchResults:[],searchQuery:'Barclays',isLoading:false,isLoadingMore:false,isSearching:false,hasMore:false};
+ const react={useState(){const i=cursor++;return [values[i],value=>{values[i]=value;}];},useRef:()=>({current:null}),useMemo:fn=>fn(),useEffect(){}};
+ const {MarketsOverview}=compile('../components/markets/markets-overview.tsx',{
+  react,'@/store':{useMarketStore:select=>select(state)},'@/services':{},'./market-for-you':{MarketForYou:()=>null},'./market-stock-logo':{MarketStockLogo:()=>null},'./market-sparkline':{MarketSparkline:()=>null},
+  '@/components/ui':{Button:'button',cn:()=>''},'next/link':{default:'a'},'next/dynamic':{default:()=> 'request-modal'},
+  '@hugeicons/react':{},'@hugeicons/core-free-icons':{},
+ });
+ const find=(node,predicate)=>{
+  if(!node||typeof node!=='object')return;
+  if(predicate(node))return node;
+  const children=node.props?.children;
+  for(const child of Array.isArray(children)?children.flat(Infinity):[children]){const match=find(child,predicate);if(match)return match;}
+ };
+ const before=MarketsOverview();
+ assert.equal(find(before,node=>node.type==='request-modal'),undefined);
+ const button=find(before,node=>node.props?.children==='Request this stock');
+ assert.ok(button); button.props.onClick();
+ cursor=0;
+ const modal=find(MarketsOverview(),node=>node.type==='request-modal');
+ assert.equal(modal.props.initialSubject,'Stock request: Barclays');
+ assert.ok(modal.props.initialMessage.includes('Barclays'));
+});
+
 test('pagination preserves rows and retries the failed page without skipping or duplicating stocks', async()=>{
  const calls=[]; let fail=true;
  const market=store(async p=>{calls.push(p);if(p===1)return page(['a','mcd'],true);if(fail){fail=false;throw new Error('offline');}return page(['mcd','next'],false);});

@@ -23,7 +23,7 @@ const ERROR_KEYS: Record<string, MessageKey> = {
 
 const inputClass = 'w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm outline-offset-2 focus-visible:outline-2';
 
-export function FeedbackModal({ onClose }: { onClose: () => void }) {
+export function FeedbackModal({ onClose, initialSubject = '', initialMessage = '' }: { onClose: () => void; initialSubject?: string; initialMessage?: string }) {
   const auth = useOrenAuth();
   const t = useT();
   const dialog = useRef<HTMLDialogElement>(null);
@@ -48,17 +48,17 @@ export function FeedbackModal({ onClose }: { onClose: () => void }) {
     {!auth.ready ? <p className="mt-6 text-sm" role="status">{t("feedback.loadingAccount")}</p>
       : !auth.authenticated ? <Button className="mt-6" onClick={auth.open}>{t("feedback.signIn")}</Button>
       : !auth.address ? <p className="mt-6 text-sm" role="status">{t("feedback.walletPreparing")}</p>
-      : <FeedbackForm key={auth.address} wallet={auth.address} />}
+      : <FeedbackForm key={auth.address} wallet={auth.address} initialSubject={initialSubject} initialMessage={initialMessage} />}
   </dialog>;
 }
 
-function FeedbackForm({ wallet }: { wallet: string }) {
+function FeedbackForm({ wallet, initialSubject, initialMessage }: { wallet: string; initialSubject: string; initialMessage: string }) {
   const { getAccessToken } = useOrenAuth();
   const pathname = usePathname();
   const { locale, timeZone, t } = useI18n();
   const [kind, setKind] = useState<FeedbackKind>('feedback');
-  const [subject, setSubject] = useState('');
-  const [message, setMessage] = useState('');
+  const [subject, setSubject] = useState(initialSubject);
+  const [message, setMessage] = useState(initialMessage);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
   const [sent, setSent] = useState<FeedbackTicket>();

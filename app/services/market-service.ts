@@ -1,6 +1,6 @@
 import { apiRequest } from "./api-client";
 import type { InterestId, SectorId } from "./preferences-service";
-import type { ChartRange, MarketCandle, NewsItem, StockAnalysis, StockDetail, StockSummary, StocksPage } from "@/types";
+import type { ChartInterval, ChartRange, MarketCandle, NewsItem, StockAnalysis, StockDetail, StockSummary, StocksPage } from "@/types";
 
 interface ApiStockSummary {
   id?: string;
@@ -28,6 +28,7 @@ interface ApiStocksPage {
 
 interface ApiStockDetail extends ApiStockSummary {
   sector?: string;
+  marketData?: StockDetail['marketData'];
   variants: StockDetail["variants"];
 }
 
@@ -68,9 +69,33 @@ export function getStock(assetId: string, signal?: AbortSignal) {
   return apiRequest<ApiStockDetail>(`/stocks/${assetId}`, { signal }).then(mapStockDetail);
 }
 
-export function getStockChart(assetId: string, range: ChartRange, signal?: AbortSignal) {
+export interface LandingSnapshot {
+  retrievedAt: string;
+  stale: boolean;
+  data: {
+    source: string;
+    stocks: { assetId: string; ticker: string; name: string; price: number; priceChange24h: number }[];
+    candles: MarketCandle[];
+    analysis: StockAnalysis;
+  };
+}
+
+let landingRequest: Promise<LandingSnapshot> | undefined;
+let landingSnapshot: LandingSnapshot | undefined;
+let landingFetchedAt = 0;
+export function getLandingSnapshot(): Promise<LandingSnapshot> {
+  if (landingSnapshot && Date.now() - landingFetchedAt < 60_000) return Promise.resolve(landingSnapshot);
+  if (landingRequest) return landingRequest;
+  landingRequest = apiRequest<LandingSnapshot>('/markets/landing-snapshot', { signal: AbortSignal.timeout(12_000) }).then(value => {
+    landingSnapshot = value; landingFetchedAt = Date.now(); return value;
+  }).finally(() => { landingRequest = undefined; });
+  return landingRequest;
+}
+
+
+export function getStockChart(assetId: string, range: ChartRange, signal?: AbortSignal, interval?: ChartInterval) {
   return apiRequest<{ candles: MarketCandle[] }>(`/stocks/${assetId}/chart`, {
-    query: { range },
+    query: { range, interval },
     signal,
   }).then((series) => series.candles);
 }
@@ -138,6 +163,7 @@ export function mapStockDetail(stock: ApiStockDetail): StockDetail {
   return {
     ...mapStockSummary(stock),
     sector: stock.sector,
+    marketData: stock.marketData,
     variants: stock.variants ?? [],
   };
 }
