@@ -93,7 +93,7 @@ node dist/src/admin/reporting/growth-cli.js caddy \
   --manual --file /path/to/site.log
 ```
 
-`--apply` inserts real log lines with an idempotency key. It does not turn an aggregate snapshot into people. A frozen day is not rebuilt from a partial log after its raw rows are gone.
+`--apply` inserts real log lines with an idempotency key. It does not turn an aggregate snapshot into people. A frozen day is not rebuilt from a partial log after its raw rows are gone. Traffic reports and daily exports use beacon totals when available and fall back to Caddy for days with only log coverage. Daily uniques use the same collector. An overlapping exact recovery observation still marks that day unavailable.
 
 ## Collection
 

@@ -81,9 +81,23 @@ export class GrowthReportService {
     const days = eachDay(from, to);
     const observations = await this.repository.observations();
     const metrics = await this.repository.dailyMetrics(from, to, timezone);
-    const telemetry = metrics
-      .filter((row) => row.grain === 'site' && row.source === 'beacon')
-      .map((row) => ({ day: row.day, value: row.pageviews }));
+    // Pick one collector per day so overlapping access logs cannot inflate site traffic.
+    const siteDays = new Map<string, (typeof metrics)[number]>();
+    for (const row of metrics) {
+      if (
+        row.grain === 'site' &&
+        (row.source === 'beacon' || !siteDays.has(row.day))
+      ) {
+        siteDays.set(row.day, row);
+      }
+    }
+    const selectedDays = days.flatMap((day) => siteDays.get(day) ?? []);
+    const telemetry = selectedDays.map((row) => ({
+      day: row.day,
+      value: row.pageviews,
+      source:
+        row.source === 'caddy' ? ('caddy' as const) : ('telemetry' as const),
+    }));
     const imported = resolveDaily(observations, 'page_views', from, to);
     const combined = combineDaily(telemetry, imported);
     const bounds = rangeBounds(from, to, timezone);
@@ -110,9 +124,11 @@ export class GrowthReportService {
         status: 'unavailable' as const,
         value: null,
         reason: 'use_per_day_rows_do_not_sum',
-        days: metrics
-          .filter((row) => row.grain === 'site' && row.source === 'beacon')
-          .map((row) => ({ day: row.day, value: row.dailyUniques })),
+        days: selectedDays.map((row) => ({
+          day: row.day,
+          value: row.dailyUniques,
+          source: row.source,
+        })),
       },
       lifetimeUniques: allTimeFromDailyUniques(),
       distinctDurableVisitorsFirstSeenInRange: !identitiesExact

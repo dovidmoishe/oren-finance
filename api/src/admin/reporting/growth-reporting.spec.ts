@@ -505,23 +505,20 @@ describe('funnel, trades, and comparisons', () => {
           userId: 'a',
           mode: 'browser',
           status: 'confirmed',
-          approvalId: 'ap1',
         },
         {
           id: '1',
           userId: 'a',
           mode: 'browser',
           status: 'confirmed',
-          approvalId: 'ap1',
         },
         { id: '2', userId: 'a', mode: 'delegated', status: 'prepared' },
         { id: '3', userId: 'b', mode: 'delegated', status: 'confirmed' },
       ],
-      approvals: [{ id: 'ap1', userId: 'a', executionId: 'e1' }],
       executions: [
-        { id: 'e1', status: 'confirmed' },
-        { id: 'e2', status: 'confirmed' },
-        { id: 'e3', status: 'failed' },
+        { id: 'e1', status: 'confirmed', linkedToIntent: true },
+        { id: 'e2', status: 'confirmed', linkedToIntent: false },
+        { id: 'e3', status: 'failed', linkedToIntent: false },
       ],
     });
     expect(counts.confirmed).toEqual({

@@ -12,6 +12,7 @@ import { GrowthRecorder } from './reporting/growth-recorder.service';
 import { GrowthReportService } from './reporting/growth-report.service';
 import { GrowthAccessService } from './reporting/growth-access.service';
 import { newMachineToken, tokenHash } from './reporting/growth-privacy';
+import { countTrades } from './reporting/growth-trades';
 import { GrowthRepository } from './reporting/growth.repository';
 
 const url = process.env.MCP_TEST_POSTGRES_URL;
@@ -219,4 +220,70 @@ databaseSuite('admin sessions and growth events in Postgres', () => {
       },
     ]);
   }, 60_000);
+
+  it('uses one traffic collector per day for reports and exports', async () => {
+    const reports = new GrowthReportService(
+      new GrowthRepository(db),
+      validateEnv({
+        POSTGRES_URL: url,
+        TOKENS_API_KEY: 'test',
+        ALCHEMY_API_KEY: 'test',
+      }),
+    );
+    await client`insert into growth_daily_metrics (day, timezone, grain, source, pageviews, sessions, daily_uniques)
+      values ('2025-04-01', 'UTC', 'site', 'caddy', 11, 7, 6),
+             ('2025-04-02', 'UTC', 'site', 'beacon', 5, 4, 3),
+             ('2025-04-02', 'UTC', 'site', 'caddy', 20, 12, 9)
+      on conflict (day, timezone, grain, source, dimension) do update
+      set pageviews = excluded.pageviews, daily_uniques = excluded.daily_uniques`;
+    const report = await reports.traffic('2025-04-01', '2025-04-02', 'UTC');
+    expect(report.pageviews).toMatchObject({ value: 16 });
+    expect(report.dailyUniques.days).toEqual([
+      { day: '2025-04-01', value: 6, source: 'caddy' },
+      { day: '2025-04-02', value: 3, source: 'beacon' },
+    ]);
+    const csv = await reports.dailyExport(
+      '2025-04-01',
+      '2025-04-02',
+      'UTC',
+      'csv',
+    );
+    expect(csv.body).toContain('2025-04-01,exact,11,,caddy');
+    expect(csv.body).toContain('2025-04-02,exact,5,,telemetry');
+  });
+
+  it('counts a linked browser trade on its intent day across midnight', async () => {
+    const repo = new GrowthRepository(db);
+    const wallet = randomUUID();
+    const linked = randomUUID();
+    const approval = randomUUID();
+    await client`insert into executions (id, wallet_address, type, status, created_at)
+      values (${linked}, ${wallet}, 'stock_purchase', 'confirmed', '2025-04-02 00:01Z'),
+             (gen_random_uuid(), ${wallet}, 'stock_purchase', 'confirmed', '2025-04-02 00:02Z')`;
+    await client`insert into trade_approvals (id, user_id, wallet, wallet_id, kind, reference_id, execution_id,
+      transaction, details, fee_lamports, expires_at)
+      values (${approval}, ${wallet}, ${wallet}, ${wallet}, 'test', ${linked}, ${linked}, 'fixture', '{}', '0', now())`;
+    await client`insert into mcp_trade_intents (grant_id, client_id, user_id, wallet, asset_id, ticker, approval_id,
+      amount_usd, slippage_bps, status, expires_at, created_at)
+      values ('test', 'test', ${wallet}, ${wallet}, 'test', 'TEST', ${approval}, 1, 5, 'confirmed', now(), '2025-04-01 23:59Z')`;
+    const counts = async (from: string, to: string) =>
+      countTrades(await repo.tradeFacts(new Date(from), new Date(to)));
+    try {
+      for (const [from, to, browser, unlinkedBrowser] of [
+        ['2025-04-01', '2025-04-02', 1, 0],
+        ['2025-04-02', '2025-04-03', 0, 1],
+        ['2025-04-01', '2025-04-03', 1, 1],
+      ] as const) {
+        const expected = { browser, delegated: 0, unlinkedBrowser };
+        expect(await counts(from, to)).toMatchObject({
+          preparations: expected,
+          confirmed: expected,
+        });
+      }
+    } finally {
+      await client`delete from mcp_trade_intents where approval_id = ${approval}`;
+      await client`delete from trade_approvals where id = ${approval}`;
+      await client`delete from executions where wallet_address = ${wallet}`;
+    }
+  });
 });

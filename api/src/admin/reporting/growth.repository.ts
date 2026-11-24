@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, eq, gte, inArray, isNull, lt, lte, or, sql } from 'drizzle-orm';
+import { and, eq, exists, gte, isNull, lt, lte, or, sql } from 'drizzle-orm';
 import { DRIZZLE } from '../../config/constants';
 import type { Database } from '../../database/database.provider';
 import {
@@ -333,7 +333,6 @@ export class GrowthRepository {
         userId: mcpTradeIntents.userId,
         mode: mcpTradeIntents.mode,
         status: mcpTradeIntents.status,
-        approvalId: mcpTradeIntents.approvalId,
         createdAt: mcpTradeIntents.createdAt,
       })
       .from(mcpTradeIntents)
@@ -344,26 +343,25 @@ export class GrowthRepository {
         ),
       );
     const executionRows = await this.db
-      .select({ id: executions.id, status: executions.status })
+      .select({
+        id: executions.id,
+        status: executions.status,
+        linkedToIntent: exists(
+          this.db
+            .select({ one: sql`1` })
+            .from(tradeApprovals)
+            .innerJoin(
+              mcpTradeIntents,
+              eq(mcpTradeIntents.approvalId, tradeApprovals.id),
+            )
+            .where(eq(tradeApprovals.executionId, executions.id)),
+        ).mapWith(Boolean),
+      })
       .from(executions)
       .where(
         and(gte(executions.createdAt, from), lt(executions.createdAt, to)),
       );
-    const approvalIds = intents
-      .map((row) => row.approvalId)
-      .filter((id): id is string => Boolean(id));
-    const approvals =
-      approvalIds.length === 0
-        ? []
-        : await this.db
-            .select({
-              id: tradeApprovals.id,
-              userId: tradeApprovals.userId,
-              executionId: tradeApprovals.executionId,
-            })
-            .from(tradeApprovals)
-            .where(inArray(tradeApprovals.id, approvalIds));
-    return { intents, approvals, executions: executionRows };
+    return { intents, executions: executionRows };
   }
 
   async observations(): Promise<GrowthObservation[]> {

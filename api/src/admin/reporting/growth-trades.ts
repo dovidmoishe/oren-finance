@@ -3,16 +3,10 @@ export interface TradeIntentFact {
   userId: string;
   mode: 'browser' | 'delegated';
   status: 'prepared' | 'executing' | 'submitted' | 'confirmed' | 'failed';
-  approvalId?: string | null;
-}
-
-export interface TradeApprovalFact {
-  id: string;
-  userId: string;
-  executionId: string;
 }
 
 export interface ExecutionFact {
+  linkedToIntent: boolean;
   id: string;
   status: string;
 }
@@ -32,25 +26,17 @@ export interface TradeCounts {
  */
 export function countTrades(input: {
   intents: TradeIntentFact[];
-  approvals: TradeApprovalFact[];
   executions: ExecutionFact[];
 }): TradeCounts {
   const intents = uniqueBy(input.intents, (row) => row.id);
-  const approvals = new Map(input.approvals.map((row) => [row.id, row]));
-  const executions = new Map(
-    uniqueBy(input.executions, (row) => row.id).map((row) => [row.id, row]),
-  );
-  const linkedExecutionIds = new Set<string>();
+
+  const executions = uniqueBy(input.executions, (row) => row.id);
   const accounts = new Set<string>();
   const preparations = { browser: 0, delegated: 0, unlinkedBrowser: 0 };
   const confirmed = { browser: 0, delegated: 0, unlinkedBrowser: 0 };
 
   for (const intent of intents) {
     preparations[intent.mode] += 1;
-    const approval = intent.approvalId
-      ? approvals.get(intent.approvalId)
-      : undefined;
-    if (approval) linkedExecutionIds.add(approval.executionId);
     if (intent.status === 'confirmed') {
       confirmed[intent.mode] += 1;
       accounts.add(intent.userId);
@@ -58,8 +44,8 @@ export function countTrades(input: {
   }
 
   let unlinkedConfirmed = 0;
-  for (const execution of executions.values()) {
-    if (linkedExecutionIds.has(execution.id)) continue;
+  for (const execution of executions) {
+    if (execution.linkedToIntent) continue;
     if (
       execution.status === 'preparing' ||
       execution.status === 'awaiting_signature' ||

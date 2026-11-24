@@ -156,7 +156,7 @@ function stable(value: unknown): string {
 
 export interface DayReading extends CountValue {
   day: string;
-  source: 'import' | 'telemetry' | null;
+  source: 'import' | 'telemetry' | 'caddy' | null;
   withheld: GrowthObservation[];
 }
 
@@ -255,10 +255,14 @@ export function resolveWindow(
 
 /** Telemetry and imported snapshots for the same day are not added together. */
 export function combineDaily(
-  telemetry: Array<{ day: string; value: number }>,
+  telemetry: Array<{
+    day: string;
+    value: number;
+    source?: 'telemetry' | 'caddy';
+  }>,
   imported: DayReading[],
 ): DayReading[] {
-  const byDay = new Map(telemetry.map((item) => [item.day, item.value]));
+  const byDay = new Map(telemetry.map((item) => [item.day, item]));
   return imported.map((day) => {
     const live = byDay.get(day.day);
     if (live !== undefined && day.status === 'exact' && day.value !== null) {
@@ -270,17 +274,14 @@ export function combineDaily(
         source: null,
       };
     }
-    if (live !== undefined && day.status !== 'exact') {
+    if (live) {
       return {
         ...day,
         status: 'exact',
-        value: live,
-        source: 'telemetry',
+        value: live.value,
+        source: live.source ?? 'telemetry',
         reason: undefined,
       };
-    }
-    if (live !== undefined) {
-      return { ...day, status: 'exact', value: live, source: 'telemetry' };
     }
     return day;
   });
