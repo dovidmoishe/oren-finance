@@ -62,7 +62,7 @@ test('agents metadata keeps the production canonical url and a large summary car
   const { metadata } = exports;
   assert.equal(metadata.title, 'Connect your agent — Oren');
   assert.match(metadata.description, /Research stocks, understand your portfolio, and trade/);
-  assert.match(metadata.description, /Claude, Cursor or Codex/);
+  assert.match(metadata.description, /Claude, Cursor, Codex or Grok Bot/);
   assert.equal(metadata.alternates.canonical, '/agents');
   assert.equal(metadata.openGraph.url, '/agents');
   assert.equal(metadata.openGraph.type, 'website');

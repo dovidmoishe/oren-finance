@@ -14,7 +14,7 @@ const parseRegistrationJson = json({ limit: '32kb' });
 /**
  * Cursor registers its custom-scheme callback without application_type, so
  * oidc-provider would treat it as a web client and reject the scheme. Mark only
- * Cursor-only registrations as native; oidc-provider still validates every URI.
+ * recognized Cursor and Grok registrations as native for loopback handling.
  */
 export function markNativeMcpRegistration(body: unknown): void {
   if (!body || typeof body !== 'object') return;
@@ -25,10 +25,12 @@ export function markNativeMcpRegistration(body: unknown): void {
   if (
     metadata.application_type === undefined &&
     Array.isArray(metadata.redirect_uris) &&
-    metadata.redirect_uris.every((uri) => typeof uri === 'string') &&
-    mcpClientKind(metadata.redirect_uris) === 'cursor'
-  )
-    metadata.application_type = 'native';
+    metadata.redirect_uris.every((uri) => typeof uri === 'string')
+  ) {
+    const kind = mcpClientKind(metadata.redirect_uris);
+    if (kind === 'cursor' || kind === 'grok')
+      metadata.application_type = 'native';
+  }
 }
 
 /** Route-level parser for POST /oauth/reg only; oidc-provider reads req.body. */

@@ -933,7 +933,7 @@
     "loading": "Verbindungen werden geladen…",
     "tryAgain": "Erneut versuchen",
     "firstTitle": "Verbinde deinen ersten Agenten",
-    "firstBody": "Bring Oren in Claude, Cursor oder Codex, um Aktien zu recherchieren und dein Portfolio aus einem Chat heraus zu verwalten.",
+    "firstBody": "Bring Oren in Claude, Cursor, Codex oder Grok Bot, um Aktien zu recherchieren und dein Portfolio aus einem Chat heraus zu verwalten.",
     "setupGuide": "Einrichtungsanleitung ansehen",
     "connectionN": "Agent-Verbindung {n}",
     "connectedOn": "Verbunden am {date}",

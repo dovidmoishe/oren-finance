@@ -47,6 +47,7 @@ describe('MCP client consent destination', () => {
     expect(
       describeMcpConsentClient(registration, 'http://localhost:49153/callback'),
     ).toEqual({
+      clientKind: 'cursor',
       callbackUrl: 'http://localhost:49153/callback',
       callbackDestination: 'http://localhost:49153',
       requiresNativeConsent: true,
