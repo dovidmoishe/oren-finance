@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, Optional } from '@nestjs/common';
 import type { Equity } from '../../types/equity';
 import type { MarketNewsItem, NewsContext, NewsFeed } from '../../types/news';
 import { NEWS_TTL_MS } from '../config/constants';
@@ -6,6 +6,7 @@ import { PortfolioService } from '../portfolio/portfolio.service';
 import { TokensService } from '../tokens/tokens.service';
 import { NewsRepository } from './news.repository';
 import { matchesStock } from './news-relevance';
+import { EquityNewsService } from './equity-news.service';
 
 const DEFAULT_NEWS_LIMIT = 10;
 const MAX_NEWS_LIMIT = 25;
@@ -17,6 +18,7 @@ export class NewsService {
     private readonly tokens: TokensService,
     private readonly portfolio: PortfolioService,
     private readonly repository: NewsRepository,
+    @Optional() private readonly equityNews?: EquityNewsService,
   ) {}
 
   async getEquityNews(
@@ -29,11 +31,24 @@ export class NewsService {
     }
 
     const equity = await this.tokens.getStock(normalizedAssetId);
-    const items = await this.getCachedOrFetch(
-      normalizedAssetId,
-      clampLimit(options?.limit),
+    const limit = clampLimit(options?.limit);
+    const [primary, secondary] = await Promise.all([
+      this.getCachedOrFetch(normalizedAssetId, limit, equity),
+      this.equityNews?.getNews(equity.ticker).catch(() => []) ??
+        Promise.resolve([]),
+    ]);
+    const seen = new Set<string>();
+    const items = filterNewsForEquity(
+      sortNewestFirst([...primary, ...secondary]),
       equity,
-    );
+    )
+      .filter((item) => {
+        const key = item.url ?? item.headline.toLowerCase();
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      })
+      .slice(0, limit);
 
     return { assetId: normalizedAssetId, items };
   }
@@ -98,19 +113,25 @@ export class NewsService {
     equity?: Equity,
   ): Promise<MarketNewsItem[]> {
     const now = new Date();
-    const cached = await this.repository.listFresh(assetId, now, limit);
+    const cached = await this.repository
+      .listFresh(assetId, now, limit)
+      .catch(() => []);
     const cachedItems = filterNewsForEquity(cached, equity);
     if (cachedItems.length > 0) return cachedItems;
 
     const fetched = filterNewsForEquity(
-      sortNewestFirst(await this.tokens.getNews(assetId)),
+      sortNewestFirst(await this.tokens.getNews(assetId).catch(() => [])),
       equity,
     );
-    await this.repository.replaceScope(
-      assetId,
-      fetched,
-      new Date(now.getTime() + NEWS_TTL_MS),
-    );
+    try {
+      await this.repository.replaceScope(
+        assetId,
+        fetched,
+        new Date(now.getTime() + NEWS_TTL_MS),
+      );
+    } catch {
+      /* Public news remains readable when the cache database is unavailable. */
+    }
 
     return fetched.slice(0, limit);
   }

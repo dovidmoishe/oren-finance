@@ -10,6 +10,7 @@ import { PrivyWalletAuth } from '../auth/privy-wallet-auth';
 import { PreferencesReader } from '../preferences/preferences-reader';
 import { IntelligenceService } from '../intelligence/intelligence.service';
 import { MarketService } from './market.service';
+import { LandingMarketService } from './landing-market.service';
 
 class OpportunitiesQueryDto {
   @IsOptional()
@@ -34,6 +35,7 @@ export class MarketsController {
     private readonly intelligence: IntelligenceService,
     private readonly auth: PrivyWalletAuth,
     private readonly preferences: PreferencesReader,
+    private readonly landing: LandingMarketService,
   ) {}
 
   @Get('for-you')
@@ -48,6 +50,11 @@ export class MarketsController {
   @Get('trending')
   trending(): Promise<GetMarketTrendingResponse> {
     return this.market.getTrending();
+  }
+
+  @Get('landing-snapshot')
+  landingSnapshot() {
+    return this.landing.getSnapshot();
   }
 
   @Get('opportunities')

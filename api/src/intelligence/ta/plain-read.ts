@@ -73,7 +73,7 @@ export function plainTechnicalRead(input: {
     support.distancePct <= 0 &&
     support.distancePct > -1.5
   ) {
-    lead = `${display} has been falling and is close to a level where buyers have stepped in before (~${money(support.price)}).`;
+    lead = `${display} has been in a longer-term downtrend and is close to a level where buyers have stepped in before (~${money(support.price)}).`;
   } else if (brief.regime === 'range' && support && resistance) {
     lead = `${display} has been moving sideways between ~${money(support.price)} and ~${money(resistance.price)}.`;
   } else if (brief.regime === 'uptrend' && brief.setup === 'breakout') {
@@ -83,7 +83,7 @@ export function plainTechnicalRead(input: {
       ? `${display} has been climbing, with selling interest near ~${money(sell.preferredUsd)}.`
       : `${display} has been climbing.`;
   } else if (brief.regime === 'downtrend') {
-    lead = `${display} has been in a downtrend.`;
+    lead = `${display} has been in a longer-term downtrend.`;
   } else {
     lead = `${display} doesn't have a strong trend either way right now.`;
   }
@@ -93,7 +93,7 @@ export function plainTechnicalRead(input: {
     if (brief.regime === 'uptrend' && !stalling) {
       bullets.push('The recent trend is still up.');
     } else if (brief.regime === 'downtrend') {
-      bullets.push('The recent trend is down.');
+      bullets.push('The longer-term trend is down.');
     } else if (brief.regime === 'range') {
       bullets.push('Price has been chopping more than trending.');
     }
