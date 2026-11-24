@@ -2,7 +2,7 @@
 
 import { create } from "zustand";
 import { getStock, getStockAnalysis, getStockChart, getStockNews } from "@/services/market-service";
-import type { ChartRange, MarketCandle, NewsItem, StockAnalysis, StockDetail } from "@/types";
+import type { ChartInterval, ChartRange, MarketCandle, NewsItem, StockAnalysis, StockDetail } from "@/types";
 
 interface StockState {
   selected?: StockDetail;
@@ -15,8 +15,8 @@ interface StockState {
   isNewsLoading: boolean;
   error?: string;
   chartError?: string;
-  loadStock: (assetId: string, range?: ChartRange) => Promise<void>;
-  loadChart: (assetId: string, range: ChartRange) => Promise<void>;
+  loadStock: (assetId: string, range?: ChartRange, interval?: ChartInterval) => Promise<void>;
+  loadChart: (assetId: string, range: ChartRange, interval?: ChartInterval) => Promise<void>;
   reset: () => void;
 }
 
@@ -32,7 +32,7 @@ export const useStockStore = create<StockState>((set) => ({
   isChartLoading: false,
   isAnalysisLoading: false,
   isNewsLoading: false,
-  async loadStock(assetId, range = "1M") {
+  async loadStock(assetId, range = "1M", interval) {
     const requestId = ++stockRequestId;
     const chartId = ++chartRequestId;
     detailController?.abort();
@@ -57,7 +57,7 @@ export const useStockStore = create<StockState>((set) => ({
         (selected) => { if (current()) set({ selected, isLoading: false }); },
         (error: unknown) => { if (current()) set({ error: error instanceof Error ? error.message : "Unable to load stock", isLoading: false }); },
       ),
-      getStockChart(assetId, range, chart.signal).then(
+      (interval ? getStockChart(assetId, range, chart.signal, interval) : getStockChart(assetId, range, chart.signal)).then(
         (chart) => { if (current() && chartId === chartRequestId) set({ chart, isChartLoading: false }); },
         (error: unknown) => { if (current() && chartId === chartRequestId) set({ chartError: error instanceof Error ? error.message : "Unable to load chart", isChartLoading: false }); },
       ),
@@ -71,13 +71,13 @@ export const useStockStore = create<StockState>((set) => ({
       ),
     ]);
   },
-  async loadChart(assetId, range) {
+  async loadChart(assetId, range, interval) {
     const requestId = ++chartRequestId;
     chartController?.abort();
     const controller = chartController = new AbortController();
     set({ isChartLoading: true, chartError: undefined });
     try {
-      const chart = await getStockChart(assetId, range, controller.signal);
+      const chart = await (interval ? getStockChart(assetId, range, controller.signal, interval) : getStockChart(assetId, range, controller.signal));
       if (requestId !== chartRequestId) return;
       set({ chart, isChartLoading: false, chartError: undefined });
     } catch (error) {
