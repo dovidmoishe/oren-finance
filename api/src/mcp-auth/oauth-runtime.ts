@@ -25,15 +25,26 @@ export function mountPathBasedDiscoveryAtIssuer(request: {
   request.originalUrl = `/oauth${request.url}`;
 }
 
-export type McpClientKind = 'claude' | 'cursor' | 'codex';
+export type McpClientKind = 'claude' | 'cursor' | 'codex' | 'grok';
 
-/** Exact callbacks published by Claude.ai and Cursor (desktop, legacy scheme, web). */
-const FIXED_REDIRECTS: Record<string, McpClientKind> = {
-  'https://claude.ai/api/mcp/auth_callback': 'claude',
-  'http://localhost:8787/callback': 'cursor',
-  'cursor://anysphere.cursor-mcp/oauth/callback': 'cursor',
-  'https://www.cursor.com/agents/mcp/oauth/callback': 'cursor',
-};
+// Pinned public metadata shared by Grok Bot and Cursor's connector backend.
+const GROK_CLIENT_ID = 'https://cursor.com/oauth/mcp-client.json';
+const GROK_CALLBACKS = [
+  'https://www.cursor.com/agents/mcp/oauth/callback',
+  'https://www.cursor.com/bot/mcp/oauth/callback',
+  'https://grok.com/connectors-oauth-exchange-code/',
+  'http://localhost:8787/callback',
+  'http://127.0.0.1:8787/callback',
+];
+
+const FIXED_REDIRECTS = new Map<string, McpClientKind>([
+  ['https://claude.ai/api/mcp/auth_callback', 'claude'],
+  ['http://localhost:8787/callback', 'cursor'],
+  ['cursor://anysphere.cursor-mcp/oauth/callback', 'cursor'],
+  ['https://www.cursor.com/agents/mcp/oauth/callback', 'cursor'],
+  ['https://www.cursor.com/bot/mcp/oauth/callback', 'grok'],
+  ['https://grok.com/connectors-oauth-exchange-code/', 'grok'],
+]);
 
 /** Codex loopback: http://127.0.0.1[:port]/callback[/<callback id>]. */
 function isCodexLoopback(value: string): boolean {
@@ -56,24 +67,28 @@ function isCodexLoopback(value: string): boolean {
 
 export function mcpRedirectKind(value: string): McpClientKind | undefined {
   return (
-    FIXED_REDIRECTS[value] ?? (isCodexLoopback(value) ? 'codex' : undefined)
+    FIXED_REDIRECTS.get(value) ?? (isCodexLoopback(value) ? 'codex' : undefined)
   );
 }
 
-/** Public client registration is limited to Claude.ai, Cursor and Codex. */
 export function isSupportedMcpRedirect(value: string): boolean {
   return mcpRedirectKind(value) !== undefined;
 }
 
 /**
- * The client a registration belongs to. Cursor may register several of its own
- * callbacks at once; a registration mixing different clients' callbacks has no
- * single kind and stays read-only.
+ * Accept the published Grok Bot bundle, whose loopback URLs overlap with
+ * other clients. All other registrations must belong to a single family.
  */
 export function mcpClientKind(
   redirectUris?: readonly string[],
 ): McpClientKind | undefined {
-  if (!redirectUris?.length || redirectUris.length > 4) return undefined;
+  if (!redirectUris?.length) return undefined;
+  if (
+    redirectUris.length === GROK_CALLBACKS.length &&
+    GROK_CALLBACKS.every((uri) => redirectUris.includes(uri))
+  )
+    return 'grok';
+  if (redirectUris.length > 4) return undefined;
   const kinds = new Set(redirectUris.map(mcpRedirectKind));
   if (kinds.size !== 1) return undefined;
   return [...kinds][0];
@@ -164,6 +179,16 @@ export async function createMcpOAuthRuntime(
   const provider = new OidcProvider(issuer, {
     adapter: createMcpOAuthAdapter(db, storageKey),
     jwks,
+    clients: [
+      {
+        client_id: GROK_CLIENT_ID,
+        application_type: 'native',
+        redirect_uris: GROK_CALLBACKS,
+        grant_types: ['authorization_code', 'refresh_token'],
+        response_types: ['code'],
+        token_endpoint_auth_method: 'none',
+      },
+    ],
     cookies: { keys: cookieKeys },
     pkce: { required: () => true },
     responseTypes: ['code'],

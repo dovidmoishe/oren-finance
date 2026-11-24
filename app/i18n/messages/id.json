@@ -933,7 +933,7 @@
     "loading": "Memuat koneksi…",
     "tryAgain": "Coba lagi",
     "firstTitle": "Hubungkan agen pertama Anda",
-    "firstBody": "Bawa Oren ke Claude, Cursor, atau Codex untuk meriset saham dan mengelola portofolio dari chat.",
+    "firstBody": "Bawa Oren ke Claude, Cursor, Codex, atau Grok Bot untuk meriset saham dan mengelola portofolio dari chat.",
     "setupGuide": "Lihat panduan penyiapan",
     "connectionN": "Koneksi agen {n}",
     "connectedOn": "Terhubung {date}",

@@ -933,7 +933,7 @@
     "loading": "Đang tải kết nối…",
     "tryAgain": "Thử lại",
     "firstTitle": "Kết nối agent đầu tiên",
-    "firstBody": "Đưa Oren vào Claude, Cursor hoặc Codex để nghiên cứu cổ phiếu và quản lý danh mục ngay trong cuộc trò chuyện.",
+    "firstBody": "Đưa Oren vào Claude, Cursor, Codex hoặc Grok Bot để nghiên cứu cổ phiếu và quản lý danh mục ngay trong cuộc trò chuyện.",
     "setupGuide": "Xem hướng dẫn thiết lập",
     "connectionN": "Kết nối agent {n}",
     "connectedOn": "Kết nối ngày {date}",

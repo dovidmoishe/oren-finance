@@ -14,7 +14,7 @@ import {
 
 import { OrenLogo } from '@/components/brand/oren-logo';
 import { mcpApiOrigin } from '@/services/mcp-api-origin';
-import { mcpConnector } from '@/services/mcp-connector';
+import { mcpConnector, mcpConnectorForKind } from '@/services/mcp-connector';
 import { mcpEnrollmentLinks } from '@/services/mcp-enrollment-flow';
 import { useI18n } from '@/i18n/i18n';
 import { formatDateTime, formatNumber } from '@/components/ui';
@@ -24,6 +24,7 @@ type Interaction = {
   clientId: string;
   scope: string;
   resource: string;
+  clientKind?: string;
   callbackUrl: string;
   callbackDestination: string;
   requiresNativeConsent: boolean;
@@ -58,7 +59,7 @@ function McpConnection({ uid }: { uid: string }) {
   const apiOrigin = mcpApiOrigin();
   const requestsExecute = details?.scope.split(/\s+/).includes('oren.trade.execute') ?? false;
   const needsNativeConsent = details?.requiresNativeConsent === true;
-  const connector = mcpConnector(details?.callbackUrl);
+  const connector = mcpConnectorForKind(details?.clientKind) ?? mcpConnector(details?.callbackUrl);
   const appName = connector?.name ?? 'your app';
   const scopes = details?.scope.split(/\s+/) ?? [];
   const unavailable = !uid || !apiOrigin;

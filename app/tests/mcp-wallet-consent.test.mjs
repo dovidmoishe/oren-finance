@@ -19,7 +19,7 @@ function fixture(walletKind, scope = 'oren.read oren.trade.prepare') {
     react: { ...React, useEffect() {}, useState: () => [states.shift(), () => {}] },
     '@/components/auth/auth-context': { useOrenAuth: () => auth },
     '@/services/mcp-api-origin': { mcpApiOrigin: () => 'https://api.example.com' },
-    '@/services/mcp-connector': { mcpConnector: () => undefined },
+    '@/services/mcp-connector': { mcpConnector: () => undefined, mcpConnectorForKind: () => undefined },
     '@/services/mcp-enrollment-flow': { mcpEnrollmentLinks: () => ({ settings: '/app/settings?mcp=resume' }) },
     '@/components/growth/growth-collector': { consentAttributionHeader: () => ({}) },
     '@/components/brand/oren-logo': { OrenLogo: () => null },

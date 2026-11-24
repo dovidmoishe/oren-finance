@@ -933,7 +933,7 @@
     "loading": "Chargement des connexions…",
     "tryAgain": "Réessayer",
     "firstTitle": "Connectez votre premier agent",
-    "firstBody": "Intégrez Oren à Claude, Cursor ou Codex pour étudier des actions et gérer votre portefeuille depuis une conversation.",
+    "firstBody": "Intégrez Oren à Claude, Cursor, Codex ou Grok Bot pour étudier des actions et gérer votre portefeuille depuis une conversation.",
     "setupGuide": "Voir le guide de configuration",
     "connectionN": "Connexion d’agent {n}",
     "connectedOn": "Connecté le {date}",

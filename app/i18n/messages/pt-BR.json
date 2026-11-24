@@ -933,7 +933,7 @@
     "loading": "Carregando conexões…",
     "tryAgain": "Tentar novamente",
     "firstTitle": "Conecte seu primeiro agente",
-    "firstBody": "Leve a Oren para o Claude, Cursor ou Codex para pesquisar ações e gerenciar sua carteira pelo chat.",
+    "firstBody": "Leve a Oren para o Claude, Cursor, Codex ou Grok Bot para pesquisar ações e gerenciar sua carteira pelo chat.",
     "setupGuide": "Ver guia de configuração",
     "connectionN": "Conexão de agente {n}",
     "connectedOn": "Conectado em {date}",

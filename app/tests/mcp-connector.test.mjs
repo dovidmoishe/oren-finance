@@ -21,6 +21,8 @@ test('unrecognized or lookalike callbacks keep the generic app presentation', ()
     undefined, '', 'invalid',
     'https://claude.ai.evil.test/api/mcp/auth_callback',
     'https://claude.ai/api/mcp/auth_callback?next=evil',
+    'https://grok.com.example/connectors-oauth-exchange-code/',
+    'https://grok.com/connectors-oauth-exchange-code/?next=elsewhere',
     'https://www.cursor.com.evil.test/agents/mcp/oauth/callback',
     'cursor://evil.cursor-mcp/oauth/callback',
     'http://localhost:9999/callback',
@@ -35,7 +37,7 @@ test('unrecognized or lookalike callbacks keep the generic app presentation', ()
 
 
 test('stored connection families reuse the consent names and logos with a safe fallback', () => {
-  for (const [kind, callback] of [['claude', 'https://claude.ai/api/mcp/auth_callback'], ['cursor', 'https://www.cursor.com/agents/mcp/oauth/callback'], ['codex', 'http://127.0.0.1:45678/callback']]) {
+  for (const [kind, callback] of [['claude', 'https://claude.ai/api/mcp/auth_callback'], ['cursor', 'https://www.cursor.com/agents/mcp/oauth/callback'], ['grok', 'https://grok.com/connectors-oauth-exchange-code/'], ['codex', 'http://127.0.0.1:45678/callback']]) {
     assert.deepEqual(mcpConnectorForKind(kind), mcpConnector(callback));
   }
   for (const kind of [undefined, null, '', 'unknown', '__proto__', 'constructor']) assert.equal(mcpConnectorForKind(kind), undefined);
