@@ -11,7 +11,13 @@ import type {
   MarketForYouResponse,
 } from '../../types/equity';
 import type { InterestId } from '../../types/sectors';
-import type { ChartRange, ChartSeries, MarketMover } from '../../types/market';
+import type {
+  ChartInterval,
+  ChartRange,
+  ChartSeries,
+  MarketMover,
+} from '../../types/market';
+import { chartRangeToWindow } from '../tokens/chart-range.util';
 import { STOCK_CATALOG_TTL_MS } from '../config/constants';
 import { StockCatalogRepository } from '../tokens/stock-catalog.repository';
 import { TokensService } from '../tokens/tokens.service';
@@ -121,19 +127,31 @@ export class MarketService implements OnApplicationBootstrap {
     return stocks.map(toSummary);
   }
 
-  getStock(assetId: string): Promise<Equity> {
-    return this.tokens.getStock(assetId);
+  async getStock(assetId: string): Promise<Equity> {
+    const stock = await this.tokens.getStock(assetId);
+    return {
+      ...stock,
+      marketData: {
+        source: 'Tokens.xyz',
+        retrievedAt: new Date().toISOString(),
+      },
+    };
   }
 
-  getChart(assetId: string, range: ChartRange): Promise<ChartSeries> {
-    return this.charts.get(JSON.stringify([assetId, range]), () =>
-      this.loadChart(assetId, range),
+  getChart(
+    assetId: string,
+    range: ChartRange,
+    interval?: ChartInterval,
+  ): Promise<ChartSeries> {
+    return this.charts.get(JSON.stringify([assetId, range, interval]), () =>
+      this.loadChart(assetId, range, interval),
     );
   }
 
   private async loadChart(
     assetId: string,
     range: ChartRange,
+    interval?: ChartInterval,
   ): Promise<ChartSeries> {
     const [equity, candles] = await Promise.all([
       this.catalog
@@ -143,13 +161,19 @@ export class MarketService implements OnApplicationBootstrap {
         .then<EquitySummary | null>(
           (item) => item ?? this.tokens.getStock(assetId).catch(() => null),
         ),
-      this.tokens.getPriceChart(assetId, range),
+      interval
+        ? this.tokens.getCandlesForWindow(
+            assetId,
+            chartRangeToWindow(range, interval),
+          )
+        : this.tokens.getPriceChart(assetId, range),
     ]);
 
     return {
       assetId,
       ticker: equity?.ticker ?? assetId.toUpperCase(),
       range,
+      ...(interval ? { interval } : {}),
       candles,
     };
   }

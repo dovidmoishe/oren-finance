@@ -2,8 +2,9 @@ import type { StockOpportunity } from './analysis';
 import type { EquityCategory } from './equity';
 
 export type ChartRange = '1D' | '1W' | '1M' | '3M' | '1Y' | 'ALL';
+export type ChartInterval = '1m' | '5m' | '15m' | '1H' | '4H' | '1D';
 
-/** Normalized candle for Lightweight Charts (from Tokens API via Nest). */
+/** Normalized OHLCV candle from Tokens API via Nest. */
 export interface MarketCandle {
   timestamp: Date;
   open: number;
@@ -23,6 +24,7 @@ export interface ChartSeries {
   assetId: string;
   ticker: string;
   range: ChartRange;
+  interval?: ChartInterval;
   candles: MarketCandle[];
 }
 
