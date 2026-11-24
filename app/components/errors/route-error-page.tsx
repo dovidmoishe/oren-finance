@@ -1,24 +1,27 @@
 "use client";
 
-import { ArrowLeft01Icon, RefreshCwIcon } from "@hugeicons/core-free-icons";
-import { HugeiconsIcon } from "@hugeicons/react";
+import { ChevronLeft as ChevronLeftIcon, RefreshCw as RefreshCwIcon } from "lucide-react";
+
 import Link from "next/link";
 import { OrenLogo } from "@/components/brand/oren-logo";
 import { Button } from "@/components/ui";
 
 interface RouteErrorPageProps {
   reset?: () => void;
+  embedded?: boolean;
   title?: string;
   description?: string;
 }
 
 export function RouteErrorPage({
   reset,
+  embedded = false,
   title = "We lost the trail for a moment.",
   description = "Oren couldn’t finish loading this page. If you were submitting a trade, check your wallet activity before trying again.",
 }: RouteErrorPageProps) {
+  const Container = embedded ? "div" : "main";
   return (
-    <main className="min-h-screen bg-[#faf9f5] p-3 text-foreground sm:p-5">
+    <Container className="min-h-screen bg-[#faf9f5] p-3 text-foreground sm:p-5">
       <section className="relative mx-auto grid min-h-[calc(100vh-24px)] max-w-[1540px] overflow-hidden rounded-[30px] border border-black/8 bg-[#f7f2e8] shadow-[0_24px_80px_rgba(54,43,28,0.08)] sm:min-h-[calc(100vh-40px)] lg:grid-cols-[minmax(420px,0.78fr)_minmax(520px,1.22fr)]">
         <div className="relative z-10 flex flex-col p-7 sm:p-10 lg:p-14 xl:p-20">
           <Link className="inline-flex w-fit items-center gap-2" href="/">
@@ -35,12 +38,12 @@ export function RouteErrorPage({
             <div className="mt-9 flex flex-wrap gap-3">
               {reset ? (
                 <Button className="h-12 rounded-full px-6" onClick={reset} variant="primary">
-                  <HugeiconsIcon color="currentColor" icon={RefreshCwIcon} size={17} strokeWidth={1.8} />
+                  <RefreshCwIcon color="currentColor" size={17} strokeWidth={1.8} />
                   Try again
                 </Button>
               ) : null}
               <Button className="h-12 rounded-full px-6" href="/app" variant="secondary">
-                <HugeiconsIcon color="currentColor" icon={ArrowLeft01Icon} size={17} strokeWidth={1.8} />
+                <ChevronLeftIcon color="currentColor" size={17} strokeWidth={1.8} />
                 Back to dashboard
               </Button>
             </div>
@@ -61,6 +64,6 @@ export function RouteErrorPage({
           <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-[#f7f2e8]/30 via-transparent to-[#f7f2e8]/15 lg:bg-gradient-to-r lg:from-[#f7f2e8]/55 lg:via-transparent lg:to-transparent" />
         </div>
       </section>
-    </main>
+    </Container>
   );
 }

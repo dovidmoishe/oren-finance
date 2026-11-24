@@ -1,4 +1,4 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import type { PreparedTransaction } from '../../types/execution';
 import type { Quote } from '../../types/quote';
 import { APP_ENV } from '../config/constants';
@@ -32,6 +32,8 @@ import { TitanError, titanErrorCode } from './titan/titan.errors';
 import { isTitanPayload, optionalU64ToNumber } from './titan/titan.mapper';
 import { isValidWallet, TitanService } from './titan/titan.service';
 import { routeProgramIds } from './titan/titan-tx.builder';
+import { quoteFeeConfig, sameFee, usdcPair } from './platform-fee';
+import { ReviewedPlatformFeeGuard } from './reviewed-platform-fee-guard';
 import type { TitanRoutePayload } from './titan/titan.types';
 
 export { minimumOut, rawOut };
@@ -137,10 +139,16 @@ export class SwapRouter {
   constructor(
     private readonly jupiter: JupiterService,
     private readonly titan: TitanService,
-    @Inject(APP_ENV) env: AppEnv,
+    @Inject(APP_ENV) private readonly env: AppEnv,
     private readonly fees: SwapFeeOracle,
+    @Optional() private readonly platformFeeGuard?: ReviewedPlatformFeeGuard,
   ) {
     this.configuredMode = env.SWAP_ROUTER_MODE ?? 'jupiter';
+    // ConfigModule validates twice. Warn here once, when the router starts.
+    if (env.PLATFORM_FEE_CONFIG_INVALID)
+      this.logger.warn(
+        'Platform fee disabled: PLATFORM_FEE_BPS must be 0..255 and a valid, matching USDC fee destination is required',
+      );
     if (this.configuredMode !== 'jupiter' && !this.titan.enabled) {
       this.logger.warn(
         `SWAP_ROUTER_MODE=${this.configuredMode} but TITAN_API_KEY is unset; routing Jupiter only`,
@@ -154,7 +162,19 @@ export class SwapRouter {
   }
 
   async quote(ctx: RouterQuoteContext): Promise<Quote> {
-    const mode = this.mode;
+    const platformFee =
+      ctx.reviewedTrade && usdcPair(ctx.inputMint, ctx.outputMint)
+        ? this.env.PLATFORM_FEE_CONFIG
+        : undefined;
+    // Ignore caller-supplied fee data; only server configuration controls it.
+    ctx = { ...ctx, platformFee };
+    const mode =
+      platformFee && !this.env.TITAN_PLATFORM_FEE_ENABLED
+        ? 'jupiter'
+        : this.mode;
+    // In-chat signing can only sign Jupiter. Skip Titan for that path,
+    // including a re-quote of the same trade. Browser review leaves
+    // titanEligible unset and keeps best-of routing.
     if (mode === 'jupiter' || ctx.titanEligible === false) {
       return this.jupiter.getQuoteWithContext(ctx);
     }
@@ -231,6 +251,16 @@ export class SwapRouter {
     throw j.error;
   }
 
+  private async inspectPlatformFee(
+    transaction: string,
+    quote: Quote,
+  ): Promise<void> {
+    if (!quote.platformFee?.bps) return;
+    if (!this.platformFeeGuard)
+      throw new QuoteExpiredError('Platform fee validation is unavailable');
+    await this.platformFeeGuard.inspect(transaction, quote);
+  }
+
   private async feeSnapshot(): Promise<FeeSnapshot | undefined> {
     try {
       return await this.fees.snapshot();
@@ -253,7 +283,19 @@ export class SwapRouter {
     wallet: string,
     reviewed: ReviewedTerms | undefined = reviewedTermsFor(quote),
   ): Promise<RouterPrepareResult> {
-    const meets = (q: Quote): boolean => meetsReviewed(q, reviewed);
+    const fee = quoteFeeConfig(quote);
+    if (
+      fee &&
+      (fee.bps !== this.env.PLATFORM_FEE_CONFIG?.bps ||
+        fee.account !== this.env.PLATFORM_FEE_CONFIG.account ||
+        (isTitanPayload(quote.routePayload) &&
+          !this.env.TITAN_PLATFORM_FEE_ENABLED))
+    )
+      throw new QuoteExpiredError(
+        'Platform fee configuration changed; request a fresh quote',
+      );
+    const meets = (q: Quote): boolean =>
+      sameFee(quote, q) && meetsReviewed(q, reviewed);
 
     if (!isTitanPayload(quote.routePayload)) {
       if (!meets(quote)) {
@@ -262,6 +304,7 @@ export class SwapRouter {
       }
       await this.jupiter.validateQuote(quote);
       const prepared = await this.jupiter.prepareSwap(quote, wallet);
+      await this.inspectPlatformFee(prepared.transaction, quote);
       return { prepared, quote, expectation: expectationFor(quote, reviewed) };
     }
 
@@ -299,6 +342,7 @@ export class SwapRouter {
     while (candidate) {
       try {
         const prepared = await this.titan.prepareSwap(candidate, wallet);
+        await this.inspectPlatformFee(prepared.transaction, candidate);
         this.logPrepare(quote, candidate, requoted);
         return {
           prepared,
@@ -327,6 +371,7 @@ export class SwapRouter {
       if (meets(jupiterQuote)) {
         await this.jupiter.validateQuote(jupiterQuote);
         const prepared = await this.jupiter.prepareSwap(jupiterQuote, wallet);
+        await this.inspectPlatformFee(prepared.transaction, jupiterQuote);
         this.logPrepare(quote, jupiterQuote, requoted, fallbackReason);
         return {
           prepared,
@@ -388,6 +433,7 @@ export class SwapRouter {
         amountUi: rawAmountToUi(payload.amountRaw, payload.inputDecimals),
         amountUsd: quote.amountUsd,
         slippageBps: reviewedTerms.slippageBps,
+        platformFee: quoteFeeConfig(quote),
       });
       alternative = quoted ? stampQuoteMarketSession(quoted) : undefined;
     } catch (err) {

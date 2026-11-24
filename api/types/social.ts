@@ -69,12 +69,22 @@ export interface TraderDetailResponse {
   timeframe: SocialTimeframe;
 }
 
-export interface UpdateTraderVisibilityRequest {
+/** Fields the wallet is asked to sign; the server returns the exact message. */
+export interface TraderVisibilityChallengeRequest {
   isPublic: boolean;
   displayName?: string;
   slug?: string;
   avatarUrl?: string;
   bio?: string;
+}
+
+export interface TraderVisibilityChallengeResponse {
+  message: string;
+  expiresAt: Date;
+}
+
+/** The signed challenge; the server writes only the terms it issued. */
+export interface UpdateTraderVisibilityRequest {
   message: string;
   signature: string;
 }

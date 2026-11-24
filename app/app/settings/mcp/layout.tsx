@@ -1,3 +1,5 @@
+import { ChunkLoadRecovery } from '@/components/chunk-load-recovery';
+import { PersonalizedIntl } from '@/i18n/personalized-intl';
 import { AppProviders } from '../../providers';
 
 export default function McpSettingsLayout({
@@ -5,5 +7,10 @@ export default function McpSettingsLayout({
 }: {
   children: React.ReactNode;
 }) {
-  return <AppProviders>{children}</AppProviders>;
+  return (
+    <PersonalizedIntl>
+      <ChunkLoadRecovery />
+      <AppProviders>{children}</AppProviders>
+    </PersonalizedIntl>
+  );
 }

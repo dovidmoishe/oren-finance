@@ -1,15 +1,17 @@
 'use client';
 
 import {
-  Activity01Icon,
-  ArrowUpRight01Icon,
-  Briefcase01Icon,
-  ChartLineData01Icon,
-  Clock01Icon,
-  CoinsSwapIcon,
-  SafeIcon,
-} from '@hugeicons/core-free-icons';
-import { HugeiconsIcon, type IconSvgElement } from '@hugeicons/react';
+  Activity as ActivityIcon,
+  ArrowUpRight as ArrowUpRightIcon,
+  BriefcaseBusiness as BriefcaseBusinessIcon,
+  ChartLine as ChartLineIcon,
+  Clock as ClockIcon,
+  ArrowLeftRight as ArrowLeftRightIcon,
+  Vault as VaultIcon,
+  type LucideIcon,
+} from "lucide-react";
+import { InterfaceIcon } from "@/components/ui/interface-icon";
+
 import Link from 'next/link';
 import { useEffect } from 'react';
 import type {
@@ -21,6 +23,7 @@ import type {
 } from '@/types';
 import { TechnicalBriefPanel } from '@/components/stock/technical-brief-panel';
 import { Button, cn, formatCurrency, formatNumber } from '@/components/ui';
+import { useI18n } from '@/i18n/i18n';
 import { useQuoteRefresh } from '@/hooks/use-quote-refresh';
 import { useExecutionStore } from '@/store';
 import { BasketProposal } from '@/components/trading/basket-proposal';
@@ -43,6 +46,7 @@ export function AgentArtifacts({
   onReviewLimitOrder,
   onNavigate,
 }: AgentArtifactsProps) {
+  const { locale } = useI18n();
   if (density === 'chips') {
     return (
       <div className="mt-3 flex flex-wrap gap-1.5">
@@ -51,7 +55,7 @@ export function AgentArtifacts({
             className="rounded-full border border-border bg-panel-subtle px-2.5 py-1 text-[11px] font-semibold text-muted"
             key={`${artifact.type}-${index}`}
           >
-            {artifactChipLabel(artifact)}
+            {artifactChipLabel(artifact, locale)}
           </span>
         ))}
       </div>
@@ -90,6 +94,7 @@ function AgentArtifactCard({
   onReviewLimitOrder: (proposal: LimitOrderProposal) => void;
   onNavigate?: () => void;
 }) {
+  const { locale } = useI18n();
   switch (artifact.type) {
     case 'research': {
       const report = artifact.data;
@@ -104,23 +109,23 @@ function AgentArtifactCard({
     case 'portfolio': {
       const portfolio = artifact.data;
       return (
-        <ArtifactShell icon={Briefcase01Icon} label="Portfolio" tone="pink">
+        <ArtifactShell icon={BriefcaseBusinessIcon} label="Portfolio" tone="pink">
           <p className="font-display text-2xl font-semibold">
-            {formatCurrency(portfolio.totalValueUsd)}
+            {formatCurrency(portfolio.totalValueUsd, locale)}
           </p>
           <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
-            <Metric label="Available" value={formatCurrency(portfolio.availableValueUsd)} />
-            <Metric label="Locked" value={formatCurrency(portfolio.lockedValueUsd)} />
+            <Metric label="Available" value={formatCurrency(portfolio.availableValueUsd, locale)} />
+            <Metric label="Locked" value={formatCurrency(portfolio.lockedValueUsd, locale)} />
           </div>
           {portfolio.positions.length ? (
-            <div className="mt-3 space-y-2 border-t border-black/8 pt-3">
+            <div className="mt-3 space-y-2 border-t border-foreground/8 pt-3">
               {portfolio.positions.slice(0, 3).map((position) => (
                 <div className="flex items-center justify-between text-xs" key={position.assetId}>
                   <span className="font-semibold">{position.ticker}</span>
                   <span className="font-mono">
-                    {formatCurrency(position.valueUsd)} ·{' '}
+                    {formatCurrency(position.valueUsd, locale)} ·{' '}
                     {portfolio.totalValueUsd > 0
-                      ? `${formatNumber((position.valueUsd / portfolio.totalValueUsd) * 100, 0)}%`
+                      ? `${formatNumber((position.valueUsd / portfolio.totalValueUsd) * 100, locale, 0)}%`
                       : '0%'}
                   </span>
                 </div>
@@ -133,7 +138,7 @@ function AgentArtifactCard({
     case 'stock': {
       const stock = artifact.data;
       return (
-        <ArtifactShell icon={ChartLineData01Icon} label="Stock snapshot" tone="plain">
+        <ArtifactShell icon={ChartLineIcon} label="Stock snapshot" tone="plain">
           <div className="flex items-center justify-between gap-3">
             <div>
               <p className="font-display text-xl font-semibold">{stock.ticker}</p>
@@ -141,12 +146,12 @@ function AgentArtifactCard({
             </div>
             <div className="text-right">
               <p className="font-mono font-semibold">
-                {stock.priceUsd === undefined ? '—' : formatCurrency(stock.priceUsd)}
+                {stock.priceUsd === undefined ? '—' : formatCurrency(stock.priceUsd, locale)}
               </p>
               <p className={cn('text-xs', (stock.change24hPct ?? 0) >= 0 ? 'text-positive' : 'text-negative')}>
                 {stock.change24hPct === undefined
                   ? 'No daily change'
-                  : `${stock.change24hPct >= 0 ? '+' : ''}${formatNumber(stock.change24hPct, 2)}%`}
+                  : `${stock.change24hPct >= 0 ? '+' : ''}${formatNumber(stock.change24hPct, locale, 2)}%`}
               </p>
             </div>
           </div>
@@ -155,7 +160,7 @@ function AgentArtifactCard({
             href={`/app/stocks/${stock.assetId}`}
             onClick={onNavigate}
           >
-            Open stock <HugeiconsIcon icon={ArrowUpRight01Icon} size={13} strokeWidth={1.8} />
+            Open stock <ArrowUpRightIcon size={13} strokeWidth={1.8} />
           </Link>
         </ArtifactShell>
       );
@@ -163,7 +168,7 @@ function AgentArtifactCard({
     case 'analysis': {
       const analysis = artifact.data;
       return (
-        <ArtifactShell icon={ChartLineData01Icon} label="Oren analysis" tone="lavender">
+        <ArtifactShell icon={ChartLineIcon} label="Oren analysis" tone="lavender">
           <div>
             <p className="font-display text-xl font-semibold">{analysis.ticker}</p>
             <p className="mt-1 text-xs capitalize text-muted">
@@ -173,25 +178,25 @@ function AgentArtifactCard({
           {analysis.summary ? (
             <p className="mt-3 text-xs leading-5 text-muted">{analysis.summary}</p>
           ) : null}
-          <details className="mt-3 rounded-[15px] border border-black/8 bg-white/40 px-3 py-2">
+          <details className="mt-3 rounded-[15px] border border-foreground/8 bg-panel/40 px-3 py-2">
             <summary className="cursor-pointer text-xs font-medium text-muted">Show details</summary>
             <div className="mt-3 flex items-center justify-between gap-3">
               <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted">Oren Score</p>
               <span className="font-display text-lg font-semibold">{Math.round(analysis.opportunityScore)}</span>
             </div>
             {analysis.technicalBrief ? (
-              <div className="mt-3 border-t border-black/8 pt-3">
+              <div className="mt-3 border-t border-foreground/8 pt-3">
                 <TechnicalBriefPanel brief={analysis.technicalBrief} compact={density !== 'rail'} />
               </div>
             ) : (
               <div className="mt-3 grid grid-cols-3 gap-2">
-                <Metric label="RSI" value={formatSignal(analysis.signals.rsi14)} />
-                <Metric label="30d momentum" value={formatPercentSignal(analysis.signals.momentum30d)} />
-                <Metric label="30d volatility" value={formatPercentSignal(analysis.signals.volatility30d)} />
+                <Metric label="RSI" value={formatSignal(analysis.signals.rsi14, locale)} />
+                <Metric label="30d momentum" value={formatPercentSignal(analysis.signals.momentum30d, locale)} />
+                <Metric label="30d volatility" value={formatPercentSignal(analysis.signals.volatility30d, locale)} />
               </div>
             )}
             {analysis.highlights.length ? (
-              <div className="mt-3 border-t border-black/8 pt-3">
+              <div className="mt-3 border-t border-foreground/8 pt-3">
                 <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted">
                   Signals &amp; strengths
                 </p>
@@ -217,7 +222,7 @@ function AgentArtifactCard({
       const change = quote?.change24hPct;
       const observedAt = new Date(context.source.observedAt);
       return (
-        <ArtifactShell icon={Activity01Icon} label="Bitget Reality" tone="plain">
+        <ArtifactShell icon={ActivityIcon} label="Bitget Reality" tone="plain">
           <div className="flex items-start justify-between gap-3">
             <div>
               <p className="font-display text-xl font-semibold">
@@ -233,9 +238,9 @@ function AgentArtifactCard({
             </div>
             {quote ? (
               <div className="text-right">
-                <p className="font-mono font-semibold">{formatCurrency(quote.lastPriceUsd)}</p>
+                <p className="font-mono font-semibold">{formatCurrency(quote.lastPriceUsd, locale)}</p>
                 <p className={cn('text-xs', (change ?? 0) >= 0 ? 'text-positive' : 'text-negative')}>
-                  {change === undefined ? '24h —' : `${change >= 0 ? '+' : ''}${formatNumber(change, 2)}%`}
+                  {change === undefined ? '24h —' : `${change >= 0 ? '+' : ''}${formatNumber(change, locale, 2)}%`}
                 </p>
               </div>
             ) : null}
@@ -244,11 +249,11 @@ function AgentArtifactCard({
             <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
               <Metric
                 label="24h turnover"
-                value={quote.turnover24hUsd === undefined ? '—' : formatCurrency(quote.turnover24hUsd)}
+                value={quote.turnover24hUsd === undefined ? '—' : formatCurrency(quote.turnover24hUsd, locale)}
               />
               <Metric
                 label="Bid / ask spread"
-                value={quote.spreadBps === undefined ? '—' : `${formatNumber(quote.spreadBps, 1)} bps`}
+                value={quote.spreadBps === undefined ? '—' : `${formatNumber(quote.spreadBps, locale, 1)} bps`}
               />
             </div>
           ) : null}
@@ -257,7 +262,7 @@ function AgentArtifactCard({
               <span className="text-muted">vs Oren reference</span>
               <span className="font-mono font-semibold">
                 {context.comparison.differencePct >= 0 ? '+' : ''}
-                {formatNumber(context.comparison.differencePct, 2)}%
+                {formatNumber(context.comparison.differencePct, locale, 2)}%
               </span>
             </div>
           ) : null}
@@ -274,7 +279,7 @@ function AgentArtifactCard({
             {Number.isNaN(observedAt.getTime()) ? '' : observedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
           </p>
           {context.warnings?.length ? (
-            <p className="mt-2 rounded-[12px] bg-[#fff9c9] px-3 py-2 text-[10px] leading-4 text-muted">
+            <p className="mt-2 rounded-[12px] bg-tone-yellow px-3 py-2 text-[10px] leading-4 text-muted">
               {context.warnings.join(' ')}
             </p>
           ) : null}
@@ -283,11 +288,11 @@ function AgentArtifactCard({
     }
     case 'opportunities':
       return (
-        <ArtifactShell icon={ChartLineData01Icon} label="Top opportunities" tone="yellow">
+        <ArtifactShell icon={ChartLineIcon} label="Top opportunities" tone="yellow">
           <div className="space-y-2">
             {artifact.data.slice(0, 5).map((stock, index) => (
               <Link
-                className="flex items-center justify-between rounded-[14px] bg-white/70 px-3 py-2 text-xs hover:bg-white"
+                className="flex items-center justify-between rounded-[14px] bg-panel/70 px-3 py-2 text-xs hover:bg-panel"
                 href={`/app/stocks/${stock.assetId}`}
                 key={stock.assetId}
                 onClick={onNavigate}
@@ -303,7 +308,7 @@ function AgentArtifactCard({
       return <QuoteArtifact key={artifact.data.id} onReview={onReviewQuote} quote={artifact.data} />;
     case 'limit_order':
       return (
-        <ArtifactShell icon={CoinsSwapIcon} label="Limit order proposal" tone="lavender">
+        <ArtifactShell icon={ArrowLeftRightIcon} label="Limit order proposal" tone="lavender">
           <div className="flex items-end justify-between gap-3">
             <div>
               <p className="text-xs uppercase tracking-[0.12em] text-muted capitalize">
@@ -312,22 +317,22 @@ function AgentArtifactCard({
               <p className="font-display text-xl font-semibold">{artifact.data.ticker}</p>
             </div>
             <p className="font-mono text-sm font-semibold">
-              {formatCurrency(artifact.data.limitPriceUsd)}
+              {formatCurrency(artifact.data.limitPriceUsd, locale)}
             </p>
           </div>
-          <div className="mt-3 flex items-center justify-between border-t border-black/8 pt-3 text-xs">
+          <div className="mt-3 flex items-center justify-between border-t border-foreground/8 pt-3 text-xs">
             <span className="text-muted">Notional</span>
-            <span className="font-mono">{formatCurrency(artifact.data.amountUsd)}</span>
+            <span className="font-mono">{formatCurrency(artifact.data.amountUsd, locale)}</span>
           </div>
           <div className="mt-2 flex items-center justify-between text-xs">
             <span className="text-muted">If filled</span>
             <span className="font-mono">
-              {formatNumber(artifact.data.takingAmount, 6)} {artifact.data.outputSymbol}
+              {formatNumber(artifact.data.takingAmount, locale, 6)} {artifact.data.outputSymbol}
             </span>
           </div>
           <MarketSessionNotice session={artifact.data.marketSession} variant="note" />
           {artifact.data.wouldFillImmediately ? (
-            <p className="mt-3 rounded-[13px] bg-white/60 px-3 py-2 text-[11px] leading-4 text-muted">
+            <p className="mt-3 rounded-[13px] bg-panel/60 px-3 py-2 text-[11px] leading-4 text-muted">
               This limit is already through market — it may fill right after you sign.
             </p>
           ) : null}
@@ -342,19 +347,19 @@ function AgentArtifactCard({
       );
     case 'limit_orders':
       return (
-        <ArtifactShell icon={Clock01Icon} label="Limit orders" tone="plain">
+        <ArtifactShell icon={ClockIcon} label="Limit orders" tone="plain">
           {artifact.data.length === 0 ? (
             <p className="text-xs text-muted">No open limit orders for this wallet.</p>
           ) : (
             <div className="space-y-2">
               {artifact.data.slice(0, 5).map((order) => (
                 <div
-                  className="flex items-center justify-between rounded-[14px] bg-white/70 px-3 py-2 text-xs"
+                  className="flex items-center justify-between rounded-[14px] bg-panel/70 px-3 py-2 text-xs"
                   key={order.orderKey}
                 >
                   <span>
                     <strong className="capitalize">{order.side}</strong>{' '}
-                    {order.ticker ?? '—'} @ {formatCurrency(order.limitPriceUsd)}
+                    {order.ticker ?? '—'} @ {formatCurrency(order.limitPriceUsd, locale)}
                   </span>
                   <span className="font-mono capitalize text-muted">{order.status}</span>
                 </div>
@@ -369,20 +374,20 @@ function AgentArtifactCard({
       );
     case 'copy_portfolio_proposal':
       return (
-        <ArtifactShell icon={Briefcase01Icon} label="Copy portfolio" tone="lavender">
+        <ArtifactShell icon={BriefcaseBusinessIcon} label="Copy portfolio" tone="lavender">
           <div className="flex items-end justify-between gap-3">
             <div>
               <p className="text-xs text-muted">Copying {artifact.data.source.displayName}</p>
-              <p className="font-display text-xl font-semibold">{formatCurrency(artifact.data.amountUsd)}</p>
+              <p className="font-display text-xl font-semibold">{formatCurrency(artifact.data.amountUsd, locale)}</p>
             </div>
-            <span className="rounded-full bg-white/75 px-2 py-1 text-xs font-semibold">
+            <span className="rounded-full bg-panel/75 px-2 py-1 text-xs font-semibold">
               {artifact.data.allocations.length} stocks
             </span>
           </div>
           <div className="mt-3 flex flex-wrap gap-1.5">
             {artifact.data.allocations.map((allocation) => (
-              <span className="rounded-full bg-white/75 px-2 py-1 text-[11px] font-semibold" key={allocation.assetId}>
-                {allocation.ticker} {formatNumber(allocation.weightPercent, 0)}%
+              <span className="rounded-full bg-panel/75 px-2 py-1 text-[11px] font-semibold" key={allocation.assetId}>
+                {allocation.ticker} {formatNumber(allocation.weightPercent, locale, 0)}%
               </span>
             ))}
           </div>
@@ -395,41 +400,41 @@ function AgentArtifactCard({
       );
     case 'trading_calendar':
       return (
-        <ArtifactShell icon={ChartLineData01Icon} label="Trading calendar" tone="yellow">
+        <ArtifactShell icon={ChartLineIcon} label="Trading calendar" tone="yellow">
           <div className="flex items-end justify-between gap-3">
             <div>
               <p className="text-xs text-muted">{artifact.data.range.month ?? `${artifact.data.range.start} to ${artifact.data.range.end}`}</p>
               <p className="font-display text-xl font-semibold">
-                {formatCurrency(artifact.data.days.reduce((sum, day) => sum + day.pnlUsd, 0))}
+                {formatCurrency(artifact.data.days.reduce((sum, day) => sum + day.pnlUsd, 0), locale)}
               </p>
             </div>
-            <span className="rounded-full bg-white/75 px-2 py-1 text-xs font-semibold">
+            <span className="rounded-full bg-panel/75 px-2 py-1 text-xs font-semibold">
               {artifact.data.days.filter((day) => day.hasData).length} days
             </span>
           </div>
           <Link className="mt-4 inline-flex items-center gap-1 text-xs font-semibold" href="/app/calendar">
-            Open calendar <HugeiconsIcon icon={ArrowUpRight01Icon} size={13} strokeWidth={1.8} />
+            Open calendar <ArrowUpRightIcon size={13} strokeWidth={1.8} />
           </Link>
         </ArtifactShell>
       );
     case 'trading_calendar_day':
       return (
-        <ArtifactShell icon={Activity01Icon} label="Calendar day" tone="plain">
+        <ArtifactShell icon={ActivityIcon} label="Calendar day" tone="plain">
           <div className="flex items-end justify-between gap-3">
             <div>
               <p className="text-xs text-muted">{artifact.data.date}</p>
-              <p className="font-display text-xl font-semibold">{formatCurrency(artifact.data.summary.pnlUsd)}</p>
+              <p className="font-display text-xl font-semibold">{formatCurrency(artifact.data.summary.pnlUsd, locale)}</p>
             </div>
             <span className={cn('rounded-full px-2 py-1 text-xs font-semibold', artifact.data.summary.pnlUsd >= 0 ? 'bg-accent-yellow' : 'bg-accent-pink')}>
-              {formatNumber(artifact.data.summary.returnPct, 2)}%
+              {formatNumber(artifact.data.summary.returnPct, locale, 2)}%
             </span>
           </div>
           {artifact.data.contributors.length ? (
-            <div className="mt-3 space-y-2 border-t border-black/8 pt-3">
+            <div className="mt-3 space-y-2 border-t border-foreground/8 pt-3">
               {artifact.data.contributors.slice(0, 3).map((item) => (
                 <div className="flex items-center justify-between text-xs" key={item.assetId}>
                   <span className="font-semibold">{item.ticker}</span>
-                  <span className="font-mono">{formatCurrency(item.valueChangeUsd)}</span>
+                  <span className="font-mono">{formatCurrency(item.valueChangeUsd, locale)}</span>
                 </div>
               ))}
             </div>
@@ -441,8 +446,8 @@ function AgentArtifactCard({
         (a, b) => new Date(a.unlockAt).getTime() - new Date(b.unlockAt).getTime(),
       )[0];
       return (
-        <ArtifactShell icon={SafeIcon} label="Vault" tone="lavender">
-          <p className="font-display text-2xl font-semibold">{formatCurrency(artifact.data.totalLockedValueUsd)}</p>
+        <ArtifactShell icon={VaultIcon} label="Vault" tone="lavender">
+          <p className="font-display text-2xl font-semibold">{formatCurrency(artifact.data.totalLockedValueUsd, locale)}</p>
           <p className="mt-1 text-xs text-muted">
             {artifact.data.positions.length} locked position{artifact.data.positions.length === 1 ? '' : 's'}
             {nextUnlock ? ` · next unlock ${nextUnlock.ticker ?? 'asset'}` : ''}
@@ -458,7 +463,7 @@ case 'prepared_swap':
     case 'prepared_lock':
     case 'prepared_unlock':
       return (
-        <ArtifactShell icon={SafeIcon} label="Prepared action" tone="plain">
+        <ArtifactShell icon={VaultIcon} label="Prepared action" tone="plain">
           <p className="text-sm font-semibold">Wallet review required</p>
           <p className="mt-1 text-xs leading-5 text-muted">
             Oren prepared unsigned transaction data. A fresh review artifact is required before anything can be signed.
@@ -475,6 +480,7 @@ function QuoteArtifact({
   quote: QuoteResponse;
   onReview: (quote: QuoteResponse) => void;
 }) {
+  const { locale } = useI18n();
   const seedQuote = useExecutionStore((state) => state.seedQuote);
   const storeQuote = useExecutionStore((state) => state.quote);
   const {
@@ -501,21 +507,21 @@ function QuoteArtifact({
       : quote;
 
   return (
-    <ArtifactShell icon={CoinsSwapIcon} label="Executable quote" tone="yellow">
+    <ArtifactShell icon={ArrowLeftRightIcon} label="Executable quote" tone="yellow">
       <div className="flex items-end justify-between gap-3">
         <div>
           <p className="text-xs uppercase tracking-[0.12em] text-muted">{liveQuote.side}</p>
           <p className="font-display text-xl font-semibold">{liveQuote.ticker}</p>
         </div>
-        <p className="font-mono text-sm font-semibold">{formatCurrency(liveQuote.amountUsd)}</p>
+        <p className="font-mono text-sm font-semibold">{formatCurrency(liveQuote.amountUsd, locale)}</p>
       </div>
-      <div className="mt-3 flex items-center justify-between border-t border-black/8 pt-3 text-xs">
+      <div className="mt-3 flex items-center justify-between border-t border-foreground/8 pt-3 text-xs">
         <span className="text-muted">Estimated receive</span>
-        <span className="font-mono">{formatNumber(liveQuote.outputAmount, 6)} {liveQuote.outputSymbol}</span>
+        <span className="font-mono">{formatNumber(liveQuote.outputAmount, locale, 6)} {liveQuote.outputSymbol}</span>
       </div>
       <div className="mt-2 flex items-center justify-between text-xs">
         <span className="text-muted">Price impact</span>
-        <span className="font-mono">{formatNumber(liveQuote.priceImpactPercent, 2)}%</span>
+        <span className="font-mono">{formatNumber(liveQuote.priceImpactPercent, locale, 2)}%</span>
       </div>
       <div className="mt-2 flex items-center justify-between text-xs">
         <span className="text-muted">Quote expiry</span>
@@ -528,7 +534,7 @@ function QuoteArtifact({
         </span>
       </div>
       <MarketSessionNotice session={liveQuote.marketSession} variant="note" />
-      <p className="mt-3 rounded-[13px] bg-white/60 px-3 py-2 text-[11px] leading-4 text-muted">
+      <p className="mt-3 rounded-[13px] bg-panel/60 px-3 py-2 text-[11px] leading-4 text-muted">
         {refreshFailed
           ? 'Could not refresh this quote. Retry to keep it actionable.'
           : isRefreshingQuote || expired
@@ -541,7 +547,7 @@ function QuoteArtifact({
           onClick={() => void refreshQuote()}
           variant="secondary"
         >
-          <HugeiconsIcon icon={Clock01Icon} size={15} strokeWidth={1.8} />
+          <ClockIcon size={15} strokeWidth={1.8} />
           Retry quote refresh
         </Button>
       ) : (
@@ -551,8 +557,8 @@ function QuoteArtifact({
           onClick={() => onReview(liveQuote)}
           variant="primary"
         >
-          <HugeiconsIcon
-            icon={isRefreshingQuote || expired ? Clock01Icon : CoinsSwapIcon}
+          <InterfaceIcon
+            icon={isRefreshingQuote || expired ? ClockIcon : ArrowLeftRightIcon}
             size={15}
             strokeWidth={1.8}
           />
@@ -569,7 +575,7 @@ function ArtifactShell({
   tone,
   children,
 }: {
-  icon: IconSvgElement;
+  icon: LucideIcon;
   label: string;
   tone: 'plain' | 'pink' | 'yellow' | 'lavender';
   children: React.ReactNode;
@@ -577,15 +583,15 @@ function ArtifactShell({
   return (
     <section
       className={cn(
-        'rounded-[20px] border border-black/8 p-4 shadow-[0_12px_34px_rgba(23,23,23,0.05)]',
+        'rounded-[20px] border border-foreground/8 p-4 shadow-[0_12px_34px_rgba(23,23,23,0.05)]',
         tone === 'plain' && 'bg-panel',
         tone === 'pink' && 'bg-accent-pink-soft',
-        tone === 'yellow' && 'bg-[#fff9c9]',
-        tone === 'lavender' && 'bg-[#f1edff]',
+        tone === 'yellow' && 'bg-tone-yellow',
+        tone === 'lavender' && 'bg-tone-lavender',
       )}
     >
       <div className="mb-3 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">
-        <HugeiconsIcon icon={icon} size={13} strokeWidth={1.8} />
+        <InterfaceIcon icon={icon} size={13} strokeWidth={1.8} />
         {label}
       </div>
       {children}
@@ -595,27 +601,27 @@ function ArtifactShell({
 
 function Metric({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-[14px] bg-white/70 p-3">
+    <div className="rounded-[14px] bg-panel/70 p-3">
       <p className="text-muted">{label}</p>
       <p className="mt-1 font-mono font-semibold text-foreground">{value}</p>
     </div>
   );
 }
 
-function formatSignal(value?: number) {
-  return value === undefined ? '—' : formatNumber(value, 1);
+function formatSignal(value: number | undefined, locale: string) {
+  return value === undefined ? '—' : formatNumber(value, locale, 1);
 }
 
-function formatPercentSignal(value?: number) {
-  return value === undefined ? '—' : `${value >= 0 ? '+' : ''}${formatNumber(value, 1)}%`;
+function formatPercentSignal(value: number | undefined, locale: string) {
+  return value === undefined ? '—' : `${value >= 0 ? '+' : ''}${formatNumber(value, locale, 1)}%`;
 }
 
-function artifactChipLabel(artifact: AgentArtifact): string {
+function artifactChipLabel(artifact: AgentArtifact, locale: string): string {
   switch (artifact.type) {
     case 'research':
       return `${artifact.data.ticker} research`;
     case 'portfolio':
-      return `Portfolio ${formatCurrency(artifact.data.totalValueUsd)}`;
+      return `Portfolio ${formatCurrency(artifact.data.totalValueUsd, locale)}`;
     case 'stock':
       return artifact.data.ticker;
     case 'analysis':
@@ -633,7 +639,7 @@ function artifactChipLabel(artifact: AgentArtifact): string {
     case 'limit_orders':
       return `${artifact.data.length} limit orders`;
     case 'basket':
-      return `Basket ${formatCurrency(artifact.data.totalAmountUsd)}`;
+      return `Basket ${formatCurrency(artifact.data.totalAmountUsd, locale)}`;
     case 'copy_portfolio_proposal':
       return `Copy ${artifact.data.source.displayName}`;
     case 'trading_calendar':

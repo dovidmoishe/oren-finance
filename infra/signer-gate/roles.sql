@@ -16,6 +16,13 @@ GRANT USAGE ON SCHEMA public TO oren_api_runtime, oren_signer_gate;
 -- budget reservations, signer-gate requests, or delegated execution state.
 GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO oren_api_runtime;
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO oren_api_runtime;
+-- One-time ALL TABLES grants do not cover tables created later. Defaults apply
+-- to objects this role creates after this statement. api-migrate also sets
+-- them for the production owner role `oren`.
+ALTER DEFAULT PRIVILEGES IN SCHEMA public
+  GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO oren_api_runtime;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public
+  GRANT USAGE, SELECT ON SEQUENCES TO oren_api_runtime;
 -- API's independent approvals must survive a gate compromise. Append-only
 -- authorizations cannot be erased to reset the API's own spend accounting.
 REVOKE ALL ON mcp_api_trade_grants, mcp_api_trade_authorizations FROM PUBLIC, oren_signer_gate;

@@ -3,6 +3,7 @@ import type { MarketSession } from "./market-session";
 export type TradeSide = "buy" | "sell";
 
 export interface TradeIntent {
+  /** Agent browser review remains ineligible for ATA subsidies. */
   wallet?: string;
   assetId?: string;
   ticker: string;
@@ -43,6 +44,8 @@ export interface QuoteResponse {
   amountUsd: number;
   priceImpactPercent: number;
   networkFeeUsd?: number;
+  platformFee?: { bps: number; amountRaw: string; mint: string } | null;
+  minimumOutputAmount?: number;
   slippageBps: number;
   provider: string;
   routePayload?: unknown;

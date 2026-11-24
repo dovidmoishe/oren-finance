@@ -47,6 +47,12 @@ export interface TradeIntent {
    * use the background rate lane so they never starve user swaps.
    */
   autoRefresh?: boolean;
+  /**
+   * In-chat delegated signing can only sign Jupiter. When set, the router
+   * skips Titan, including a later re-quote. Browser review leaves this
+   * unset and keeps best-of routing.
+   */
+  jupiterOnly?: boolean;
 }
 
 export interface QuoteRequest {
@@ -62,6 +68,7 @@ export interface QuoteRequest {
 }
 
 export interface PreparedTransaction {
+  /** Confirmed separate ATA setup paid by Oren; never implies swap gas coverage. */
   executionId: string;
   quoteId: string;
   wallet: string;

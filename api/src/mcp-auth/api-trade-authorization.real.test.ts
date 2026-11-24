@@ -11,6 +11,7 @@ import {
 import { ApiTradeAuthorization } from './api-trade-authorization';
 import { inspectApiTradeTransaction } from './api-trade-transaction';
 import { SignerGateClient } from './signer-gate.client';
+import { sponsoredRequestBody } from '../execution/gas-sponsorship';
 
 jest.mock('./api-trade-transaction', () => ({
   inspectApiTradeTransaction: jest.fn(),
@@ -45,7 +46,7 @@ function fixture() {
     status: 'active',
     activatedAt: new Date(now - 30_000),
     createdAt: new Date(now - 60_000),
-    expiresAt: new Date(now + 3_600_000),
+    expiresAt: new Date(now + 3_600_000) as Date | null,
   };
   const intent = {
     id: randomUUID(),
@@ -136,6 +137,9 @@ function fixture() {
     buysEnabled: true,
     sellsEnabled: false,
     signerQuorumId: 'quorum',
+    signerPolicyId: 'policy',
+    gasSponsorship: false,
+    simulationPayer: undefined as string | undefined,
   };
   const service = new ApiTradeAuthorization(deps);
   const executionId = randomUUID();
@@ -158,11 +162,72 @@ function fixture() {
 }
 
 describe('independent API signing authorization', () => {
+  it('authorizes sponsored bytes only with independent opt-in and the same intent binding', async () => {
+    const f = fixture();
+    f.request.body = sponsoredRequestBody(
+      f.request.body.params.transaction,
+      f.challenge().executionId,
+    );
+    await expect(f.authorize()).rejects.toThrow('sponsorship is disabled');
+    f.deps.gasSponsorship = true;
+    f.deps.simulationPayer = 'simulation-payer';
+    await expect(f.authorize()).resolves.toBeInstanceOf(Buffer);
+    expect(inspect).toHaveBeenCalledWith(
+      'transaction-fixture',
+      f.state.intent,
+      f.deps,
+      'simulation-payer',
+    );
+    f.request.body = {
+      ...f.request.body,
+      reference_id: randomUUID(),
+    } as typeof f.request.body;
+    await expect(f.authorize()).rejects.toThrow('differs');
+  });
   beforeEach(() => {
     inspect.mockReset();
     inspect.mockResolvedValue('1.000000');
   });
   afterEach(() => jest.restoreAllMocks());
+
+  it('independently authorizes an active multi-day grant within the maximum', async () => {
+    const f = fixture();
+    f.state.grant.createdAt = new Date(Date.now() - 48 * 3_600_000);
+    await expect(f.authorize()).resolves.toBeInstanceOf(Buffer);
+    expect(f.state.authorizations).toHaveLength(1);
+  });
+
+  it('accepts an older until-revoked grant and enforces explicit revocation', async () => {
+    const active = fixture();
+    active.state.grant.createdAt = new Date(Date.now() - 90 * 86_400_000);
+    active.state.grant.expiresAt = null;
+    await expect(active.authorize()).resolves.toBeInstanceOf(Buffer);
+
+    const revoked = fixture();
+    revoked.state.grant.expiresAt = null;
+    revoked.state.grant.status = 'revoked';
+    await expect(revoked.authorize()).rejects.toThrow(
+      'Independent trade authorization is inactive',
+    );
+  });
+
+  it('rejects an active grant pinned to a retired signing policy', async () => {
+    const f = fixture();
+    f.state.grant.policyId = 'retired-policy';
+    await expect(f.authorize()).rejects.toThrow(
+      'Independent trade authorization is inactive',
+    );
+    expect(f.state.authorizations).toHaveLength(0);
+  });
+
+  it('independently denies a grant beyond the maximum duration', async () => {
+    const f = fixture();
+    f.state.grant.createdAt = new Date(Date.now() - 72 * 3_600_000);
+    await expect(f.authorize()).rejects.toThrow(
+      'Independent trade authorization is inactive',
+    );
+    expect(f.state.authorizations).toHaveLength(0);
+  });
 
   it('authorizes a sell only with explicit sell permission and independently charges its dollar value', async () => {
     const f = fixture();

@@ -1,4 +1,5 @@
 import { apiRequest } from "./api-client";
+import { SESSION_PROVIDER_WAIT_MS, sessionAuthorization } from "./session-token";
 import { routeVenueLabel } from "./route-label";
 import type {
   PortfolioActivityItem,
@@ -82,34 +83,40 @@ export function getPortfolio(wallet: string) {
   return apiRequest<ApiPortfolioSummary>(`/portfolio/${wallet}`).then(mapPortfolio);
 }
 
-export function getPortfolioHistory(wallet: string, range?: PortfolioRange) {
-  return apiRequest<ApiPortfolioHistory>(`/portfolio/${wallet}/history`, {
+/** History, activity and calendar hold Oren-only data and need the owner's session. */
+export async function getPortfolioHistory(wallet: string, range?: PortfolioRange) {
+  const history = await apiRequest<ApiPortfolioHistory>(`/portfolio/${wallet}/history`, {
     query: { range },
-  }).then((history) => history.points);
+    headers: await sessionAuthorization(SESSION_PROVIDER_WAIT_MS),
+  });
+  return history.points;
 }
 
-export function getPortfolioActivity(wallet: string) {
-  return apiRequest<ApiActivityFeed>(`/portfolio/${wallet}/activity`).then((feed) =>
-    feed.items.map(mapActivityItem),
-  );
+export async function getPortfolioActivity(wallet: string) {
+  const feed = await apiRequest<ApiActivityFeed>(`/portfolio/${wallet}/activity`, {
+    headers: await sessionAuthorization(SESSION_PROVIDER_WAIT_MS),
+  });
+  return feed.items.map(mapActivityItem);
 }
 
-export function getTradingCalendar(
+export async function getTradingCalendar(
   wallet: string,
   input: { month?: string; start?: string; end?: string; timeZone?: string },
 ) {
   return apiRequest<TradingCalendarResponse>(`/portfolio/${wallet}/calendar`, {
     query: input,
+    headers: await sessionAuthorization(SESSION_PROVIDER_WAIT_MS),
   });
 }
 
-export function getTradingCalendarDay(
+export async function getTradingCalendarDay(
   wallet: string,
   date: string,
   input: { timeZone?: string },
 ) {
   return apiRequest<TradingCalendarDayResponse>(`/portfolio/${wallet}/calendar/${date}`, {
     query: input,
+    headers: await sessionAuthorization(SESSION_PROVIDER_WAIT_MS),
   });
 }
 

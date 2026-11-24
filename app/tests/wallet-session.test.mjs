@@ -46,7 +46,7 @@ function loadStore(name, services) {
     exports, AbortController, crypto: globalThis.crypto,
     require(id) {
       if (id === 'zustand') return { create };
-      if (id === '@/services') return services;
+      if (['@/services', '@/services/portfolio-service', '@/services/agent-service', '@/services/api-client'].includes(id)) return services;
       if (id === '@/services/wallet-session') return { sessionSetter, walletSessionIsCurrent };
       if (id === './wallet-store') return { useWalletStore: { getState: () => ({}) } };
       return require(id);

@@ -2,7 +2,9 @@ name: PR preview
 on:
   workflow_run:
     workflows: [CI]
-    types: [in_progress]
+    types: [completed]
+    # Master pushes also complete CI. They are not previews.
+    branches-ignore: [master]
   workflow_dispatch:
     inputs:
       pr:
@@ -13,9 +15,14 @@ permissions:
   contents: read
 jobs:
   resolve:
-    if: github.ref == 'refs/heads/master'
+    if: >-
+      github.ref == 'refs/heads/master' &&
+      (github.event_name == 'workflow_dispatch' ||
+       (github.event.workflow_run.event == 'pull_request' &&
+        github.event.workflow_run.conclusion == 'success' &&
+        github.event.workflow_run.head_repository.full_name == github.repository))
     environment: preview
-    runs-on: [self-hosted, linux, x64, oren-control]
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
       pull-requests: read
@@ -27,17 +34,18 @@ jobs:
       owner: ${{ steps.pr.outputs.owner }}
       privy_id: ${{ steps.pr.outputs.privy_id }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: ${{ github.workflow_sha }}
           persist-credentials: false
       - id: pr
-        uses: actions/github-script@v7
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
         env:
           PREVIEW_PRIVY_APP_ID: ${{ vars.PREVIEW_PRIVY_APP_ID }}
         with:
           script: |
             const {isDocsOnlyChange} = await import(process.env.GITHUB_WORKSPACE + '/infra/docs/change-scope.mjs');
+            const {requirePreviewCi} = await import(process.env.GITHUB_WORKSPACE + '/infra/preview/preview-ci.mjs');
             const run = context.payload.workflow_run;
             if (run && run.event !== 'pull_request') return;
             const args = {owner: context.repo.owner, repo: context.repo.repo};
@@ -47,10 +55,8 @@ jobs:
             for (const candidate of candidates) {
               const {data: pr} = await github.rest.pulls.get({...args, pull_number: candidate.number});
               if (pr.state !== 'open' || pr.base.ref !== 'master' || (run && pr.head.sha !== run.head_sha)) continue;
+              if (pr.head.repo?.full_name !== context.payload.repository.full_name || pr.user.type !== 'User') continue;
               const status = (state, description) => github.rest.repos.createCommitStatus({...args, sha: pr.head.sha, context: 'Preview ready', state, description, target_url: `${context.serverUrl}/${args.owner}/${args.repo}/actions/runs/${context.runId}`});
-              if (pr.head.repo?.full_name !== context.payload.repository.full_name || pr.user.type !== 'User') {
-                await status('failure', 'Preview unsupported: use a trusted repository branch'); continue;
-              }
               const {data: permission} = await github.rest.repos.getCollaboratorPermissionLevel({...args, username: pr.user.login});
               if (!['admin','maintain','write'].includes(permission.permission)) {
                 await status('failure', 'Preview requires a repository collaborator'); continue;
@@ -59,12 +65,16 @@ jobs:
               if (changedFiles.length === pr.changed_files && isDocsOnlyChange(changedFiles)) {
                 await status('success', 'Documentation-only change; no application preview needed'); continue;
               }
-              // Manual redeploys retain their early CI admission check.
-              if (!run) {
-                const {data: runs} = await github.rest.actions.listWorkflowRuns({...args, workflow_id: 'ci.yml', head_sha: pr.head.sha, event: 'pull_request', per_page: 20});
-                if (!runs.workflow_runs.some(r => r.conclusion === 'success')) {
-                  await status('failure', 'CI must pass for the current PR commit'); continue;
-                }
+              // Trigger conclusion is not enough: require the newest exact-head CI run.
+              try {
+                await requirePreviewCi({github, repo: context.repo, sha: pr.head.sha, pr: pr.number});
+              } catch (error) {
+                const detail = String(error.message || '');
+                const description = /Successful CI|Preview CI /.test(detail)
+                  ? 'CI must pass for the current PR commit'
+                  : (detail || 'Preview admission failed').slice(0, 140);
+                await status('failure', description);
+                continue;
               }
               if (!process.env.PREVIEW_PRIVY_APP_ID) { await status('failure', 'Configure PREVIEW_PRIVY_APP_ID in Preview environment'); continue; }
               core.setOutput('privy_id', process.env.PREVIEW_PRIVY_APP_ID);
@@ -72,34 +82,11 @@ jobs:
               core.setOutput('pr', String(pr.number)); core.setOutput('sha', pr.head.sha);
               core.setOutput('owner', context.repo.owner.toLowerCase()); return;
             }
-  ci-gate:
-    name: Require successful CI for preview head
-    needs: resolve
-    if: needs.resolve.outputs.pr != ''
-    runs-on: [self-hosted, linux, x64, oren-control]
-    timeout-minutes: 35
-    permissions:
-      contents: read
-      pull-requests: read
-      actions: read
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.workflow_sha }}
-          persist-credentials: false
-      - uses: actions/github-script@v7
-        env:
-          PREVIEW_SHA: ${{ needs.resolve.outputs.sha }}
-          PR_NUMBER: ${{ needs.resolve.outputs.pr }}
-        with:
-          script: |
-            const {waitForPreviewCi} = await import(process.env.GITHUB_WORKSPACE + '/infra/preview/preview-ci.mjs');
-            await waitForPreviewCi({github, repo: context.repo, sha: process.env.PREVIEW_SHA, pr: Number(process.env.PR_NUMBER)});
   build-api:
     name: Build and publish preview API image
-    needs: [resolve, ci-gate]
+    needs: [resolve]
     if: needs.resolve.outputs.pr != ''
-    runs-on: [self-hosted, linux, x64, oren-build]
+    runs-on: ubuntu-24.04
     timeout-minutes: 25
     concurrency:
       group: preview-api-image-${{ needs.resolve.outputs.pr }}
@@ -112,18 +99,18 @@ jobs:
       digest: ${{ steps.digest.outputs.digest }}
     steps:
       # Reuse decisions run trusted default-branch code, never a PR checkout.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: ${{ github.sha }}
           path: trusted
           persist-credentials: false
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: ${{ needs.resolve.outputs.sha }}
           path: source
           persist-credentials: false
-      - uses: docker/setup-buildx-action@v3
-      - uses: docker/login-action@v3
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -132,7 +119,7 @@ jobs:
         if: vars.API_IMAGE_REUSE_ENABLED == 'true'
         id: reuse
         continue-on-error: true
-        uses: actions/github-script@v7
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
         env:
           TARGET_SHA: ${{ needs.resolve.outputs.sha }}
           PR_NUMBER: ${{ needs.resolve.outputs.pr }}
@@ -156,7 +143,7 @@ jobs:
           docker buildx imagetools inspect "$image:$IMAGE_TAG" > /dev/null
       - id: build
         if: steps.retag.outcome != 'success'
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
         with:
           context: ./source/api
           push: true
@@ -182,9 +169,9 @@ jobs:
           echo "digest=$digest" >> "$GITHUB_OUTPUT"
   build-app:
     name: Build and publish preview web image
-    needs: [resolve, ci-gate]
+    needs: [resolve]
     if: needs.resolve.outputs.pr != ''
-    runs-on: [self-hosted, linux, x64, oren-build]
+    runs-on: ubuntu-24.04
     timeout-minutes: 25
     concurrency:
       group: preview-web-image-${{ needs.resolve.outputs.pr }}
@@ -193,17 +180,17 @@ jobs:
       contents: read
       packages: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: ${{ needs.resolve.outputs.sha }}
           persist-credentials: false
-      - uses: docker/setup-buildx-action@v3
-      - uses: docker/login-action@v3
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - uses: docker/build-push-action@v6
+      - uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
         with:
           context: ./app
           push: true
@@ -219,9 +206,14 @@ jobs:
           cache-from: type=gha,scope=oren-app-preview
           cache-to: type=gha,mode=max,scope=oren-app-preview,ignore-error=true
   deploy:
-    needs: [resolve, ci-gate, build-api, build-app]
-    if: always() && needs.resolve.outputs.pr != ''
-    runs-on: [self-hosted, linux, x64, oren-control]
+    needs: [resolve, build-api, build-app]
+    if: >-
+      always() &&
+      needs.resolve.result == 'success' &&
+      needs.resolve.outputs.pr != '' &&
+      needs['build-api'].result == 'success' &&
+      needs['build-app'].result == 'success'
+    runs-on: ubuntu-24.04
     environment: preview
     concurrency:
       group: preview-${{ needs.resolve.outputs.pr }}
@@ -243,40 +235,50 @@ jobs:
       VPS_SSH_KNOWN_HOSTS: ${{ secrets.VPS_SSH_KNOWN_HOSTS }}
     steps:
       - id: deployment
-        uses: actions/github-script@v7
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
         with:
           script: |
             const {data: pr} = await github.rest.pulls.get({...context.repo, pull_number: Number(process.env.PR)});
-            if (pr.state !== 'open' || pr.head.sha !== process.env.SHA) throw Error('PR closed or superseded');
+            if (pr.state !== 'open' || pr.head.sha !== process.env.SHA) {
+              core.notice('PR closed or superseded; not deploying this preview');
+              core.setOutput('current', 'false');
+              return;
+            }
+            core.setOutput('current', 'true');
             const {data} = await github.rest.repos.createDeployment({...context.repo, ref: process.env.SHA, environment: `preview-pr-${process.env.PR}`, auto_merge: false, required_contexts: [], transient_environment: true, production_environment: false});
             core.setOutput('id', data.id);
             await github.rest.repos.createDeploymentStatus({...context.repo, deployment_id: data.id, state: 'in_progress'});
-      - name: Require successful CI and image builds
+      - name: Require successful image builds
+        if: steps.deployment.outputs.current == 'true'
         env:
-          CI_RESULT: ${{ needs['ci-gate'].result }}
           API_BUILD_RESULT: ${{ needs['build-api'].result }}
           APP_BUILD_RESULT: ${{ needs['build-app'].result }}
-        run: test "$CI_RESULT" = success && test "$API_BUILD_RESULT" = success && test "$APP_BUILD_RESULT" = success
+        run: test "$API_BUILD_RESULT" = success && test "$APP_BUILD_RESULT" = success
       # Only trusted workflow code is checked out on the deployment runner.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        if: steps.deployment.outputs.current == 'true'
         with:
           ref: ${{ github.workflow_sha }}
           persist-credentials: false
-      - uses: webfactory/ssh-agent@v0.9.1
+      - uses: webfactory/ssh-agent@a6f90b1f127823b31d4d4a8d96047790581349bd # v0.9.1
+        if: steps.deployment.outputs.current == 'true'
         with:
           ssh-private-key: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
       - name: Configure verified SSH host
+        if: steps.deployment.outputs.current == 'true'
         run: |
           install -d -m 700 ~/.ssh
           printf '%s\n' "$VPS_SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/known_hosts
       - name: Recheck current-head CI before activation
-        uses: actions/github-script@v7
+        if: steps.deployment.outputs.current == 'true'
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
         with:
           script: |
             const {requirePreviewCi} = await import(process.env.GITHUB_WORKSPACE + '/infra/preview/preview-ci.mjs');
             await requirePreviewCi({github, repo: context.repo, sha: process.env.SHA, pr: Number(process.env.PR)});
       - name: Deploy using installed trusted controller
+        if: steps.deployment.outputs.current == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           REPO_NAME: ${{ github.event.repository.name }}
@@ -287,7 +289,7 @@ jobs:
           printf '%s\n' "$GH_TOKEN" | ssh -p "${VPS_PORT:-22}" -o StrictHostKeyChecking=yes "$VPS_USER@$VPS_HOST" "bash /opt/oren/preview/control/manage.sh deploy '$PR' '$SHA' '$OWNER' '$REPO_NAME' '$PRIVY_ID'"
       - name: Publish final status
         if: always()
-        uses: actions/github-script@v7
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
         env:
           JOB_STATUS: ${{ job.status }}
           DEPLOYMENT_ID: ${{ steps.deployment.outputs.id }}
@@ -299,14 +301,18 @@ jobs:
             const {data: pr} = await github.rest.pulls.get({...args, pull_number: Number(process.env.PR)});
             const current = pr.state === 'open' && pr.head.sha === process.env.SHA;
             const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const cancelled = process.env.JOB_STATUS === 'cancelled';
             let ownsStatus = false;
             if (current) {
               const {data: statuses} = await github.request('GET /repos/{owner}/{repo}/commits/{ref}/statuses', {...args, ref: process.env.SHA, per_page: 100});
               const latest = statuses.filter(s => s.context === 'Preview ready').sort((a, b) => b.id - a.id)[0];
-              // A cancelled older image job must not overwrite its successor's status.
+              // A cancelled older attempt must not overwrite its successor's status.
               ownsStatus = latest?.target_url === runUrl;
             }
             const ok = current && process.env.JOB_STATUS === 'success';
             const url = `https://pr-${process.env.PR}.${process.env.PREVIEW_DOMAIN}`;
-            if (process.env.DEPLOYMENT_ID) await github.rest.repos.createDeploymentStatus({...args, deployment_id: Number(process.env.DEPLOYMENT_ID), state: !current || !ownsStatus ? 'inactive' : ok ? 'success' : 'failure', description: ok && /^sha256:[a-f0-9]{64}$/.test(process.env.API_DIGEST) ? `api ${process.env.API_DIGEST}` : undefined, environment_url: url, log_url: `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`});
-            if (current && ownsStatus) await github.rest.repos.createCommitStatus({...args, sha: process.env.SHA, context: 'Preview ready', state: ok ? 'success' : 'failure', description: ok ? 'Preview healthy; financial execution disabled' : 'Preview failed; inspect deployment logs', target_url: ok ? url : `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`});
+            const description = ok ? 'Preview healthy; financial execution disabled' : cancelled ? 'Preview cancelled; redeploy' : 'Preview failed; inspect deployment logs';
+            if (process.env.DEPLOYMENT_ID) await github.rest.repos.createDeploymentStatus({...args, deployment_id: Number(process.env.DEPLOYMENT_ID), state: cancelled || !current || !ownsStatus ? 'inactive' : ok ? 'success' : 'failure', description: ok && /^sha256:[a-f0-9]{64}$/.test(process.env.API_DIGEST) ? `api ${process.env.API_DIGEST}` : undefined, environment_url: url, log_url: `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`});
+            // Own the current head only. A newer head, or a newer status on this
+            // head, is left untouched.
+            if (current && ownsStatus) await github.rest.repos.createCommitStatus({...args, sha: process.env.SHA, context: 'Preview ready', state: ok ? 'success' : 'failure', description, target_url: ok ? url : `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`});

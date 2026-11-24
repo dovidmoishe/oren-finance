@@ -1,13 +1,15 @@
 'use client';
 
 import {
-  CancelCircleIcon,
-  CheckmarkCircle01Icon,
-  Loading03Icon,
-  SparklesIcon,
-  Wallet02Icon,
-} from '@hugeicons/core-free-icons';
-import { HugeiconsIcon, type IconSvgElement } from '@hugeicons/react';
+  CircleX as CircleXIcon,
+  CircleCheck as CircleCheckIcon,
+  LoaderCircle as LoaderCircleIcon,
+  Sparkles as SparklesIcon,
+  WalletCards as WalletCardsIcon,
+  type LucideIcon,
+} from "lucide-react";
+import { InterfaceIcon } from "@/components/ui/interface-icon";
+
 import type { RefObject } from 'react';
 import type {
   AgentArtifactDensity,
@@ -18,24 +20,26 @@ import type {
   LimitOrderProposal,
   QuoteResponse,
 } from '@/types';
-import { Button, cn } from '@/components/ui';
+import { Button, cn, formatDate } from '@/components/ui';
 import { useOrenAuth } from '@/components/auth/auth-context';
-import { AgentArtifacts } from './agent-artifacts';
+// Artifacts are paused until their product flow is intentionally designed.
+// import { AgentArtifacts } from './agent-artifacts';
 import { AgentMessageBody } from './agent-message-body';
 import { toolLabel } from './agent-utils';
 import { AgentComposerView } from './agent-composer-view';
+import { useI18n, useT } from "@/i18n/i18n";
 
-function Icon({ icon, size = 18, className }: { icon: IconSvgElement; size?: number; className?: string }) {
-  return <HugeiconsIcon className={className} color="currentColor" icon={icon} size={size} strokeWidth={1.8} />;
+function Icon({ icon, size = 18, className }: { icon: LucideIcon; size?: number; className?: string }) {
+  return <InterfaceIcon className={className} color="currentColor" icon={icon} size={size} strokeWidth={1.8} />;
 }
 
 export function AgentMessage({
   message,
-  artifactDensity = 'inline',
-  onReviewQuote,
-  onReviewBasket,
-  onReviewLimitOrder,
-  onNavigate,
+  // artifactDensity = 'inline',
+  // onReviewQuote,
+  // onReviewBasket,
+  // onReviewLimitOrder,
+  // onNavigate,
 }: {
   message: AgentDisplayMessage;
   artifactDensity?: AgentArtifactDensity;
@@ -44,27 +48,29 @@ export function AgentMessage({
   onReviewLimitOrder: (proposal: LimitOrderProposal) => void;
   onNavigate?: () => void;
 }) {
+  const t = useT();
   if (message.role === 'user') {
     return (
-      <div className="flex justify-end">
-        <div className="max-w-[86%] rounded-[20px] rounded-br-[7px] bg-foreground px-4 py-3 text-sm leading-6 text-white">
+      <div className="flex min-w-0 justify-end">
+        <div className="min-w-0 max-w-[90%] whitespace-pre-wrap rounded-2xl rounded-br-md bg-primary px-3.5 py-2.5 text-sm leading-6 text-primary-foreground [overflow-wrap:anywhere]">
           {message.content}
-          {message.interrupted ? <p className="mt-2 text-[10px] text-white/55">Response interrupted</p> : null}
+          {message.interrupted ? <p className="mt-2 text-[10px] text-primary-foreground/75">{t("agent.interrupted")}</p> : null}
         </div>
       </div>
     );
   }
 
   return (
-    <article>
+    <article className="min-w-0 max-w-full">
       {message.activities?.length ? <ToolTrace activities={message.activities} /> : null}
       {message.content ? (
         <AgentMessageBody content={message.content} />
       ) : message.streaming ? (
-        <span className="t-shimmer text-sm" data-text="Oren is thinking">
-          Oren is thinking
+        <span className="t-shimmer text-sm" data-text={t("agent.thinking")}>
+          {t("agent.thinking")}
         </span>
       ) : null}
+      {/* Artifacts paused: retain cards and review wiring for later.
       {!message.streaming && !message.interrupted && message.artifacts?.length ? (
         <AgentArtifacts
           artifacts={message.artifacts}
@@ -75,8 +81,9 @@ export function AgentMessage({
           onReviewQuote={onReviewQuote}
         />
       ) : null}
+      */}
       {message.interrupted && message.content ? (
-        <p className="mt-2 text-xs text-muted">Stopped before completion</p>
+        <p className="mt-2 text-xs text-muted">{t("agent.stopped")}</p>
       ) : null}
     </article>
   );
@@ -89,7 +96,7 @@ function ToolTrace({ activities }: { activities: AgentToolActivity[] }) {
       <summary className="flex cursor-pointer list-none items-center gap-2 text-xs font-medium text-muted">
         <Icon
           className={running ? 'animate-spin' : ''}
-          icon={running ? Loading03Icon : CheckmarkCircle01Icon}
+          icon={running ? LoaderCircleIcon : CircleCheckIcon}
           size={13}
         />
         {running
@@ -109,10 +116,10 @@ function ToolTrace({ activities }: { activities: AgentToolActivity[] }) {
               className={activity.status === 'running' ? 'animate-spin' : ''}
               icon={
                 activity.status === 'failed'
-                  ? CancelCircleIcon
+                  ? CircleXIcon
                   : activity.status === 'running'
-                    ? Loading03Icon
-                    : CheckmarkCircle01Icon
+                    ? LoaderCircleIcon
+                    : CircleCheckIcon
               }
               size={12}
             />
@@ -134,14 +141,15 @@ export function EmptyConversation({
   prompts: string[];
   onPrompt: (prompt: string) => void;
 }) {
+  const t = useT();
   return (
     <div className="flex min-h-full flex-col justify-center py-8">
-      <div className="grid h-12 w-12 place-items-center rounded-[18px] bg-accent-pink-soft">
+      <div className="grid h-12 w-12 place-items-center rounded-2xl bg-accent-lavender/30 text-brand">
         <Icon icon={SparklesIcon} size={21} />
       </div>
-      <h3 className="mt-5 font-display text-2xl font-semibold">What should we look at?</h3>
+      <h3 className="mt-5 font-display text-2xl leading-tight font-medium tracking-tight">{t("agent.emptyTitle")}</h3>
       <p className="mt-2 max-w-sm text-sm leading-6 text-muted">
-        I can combine your positions with market data, deterministic Oren signals, news, and executable quotes.
+        {t("agent.emptyBody")}
       </p>
       <div className="mt-6 grid gap-2">
         {prompts.map((prompt) => (
@@ -161,18 +169,19 @@ export function EmptyConversation({
 
 export function DisconnectedState({ onConnect }: { onConnect: () => void }) {
   const auth = useOrenAuth();
+  const t = useT();
   return (
-    <div className="flex h-full flex-col justify-center rounded-[24px] bg-accent-pink-soft p-6">
-      <div className="grid h-12 w-12 place-items-center rounded-[18px] bg-white">
-        <Icon icon={Wallet02Icon} size={20} />
+    <div className="flex h-full flex-col justify-center rounded-2xl bg-linear-to-b from-accent-lavender/20 via-panel to-panel p-4">
+      <div className="grid size-10 place-items-center rounded-xl border border-accent-lavender/60 bg-panel text-brand">
+        <Icon icon={WalletCardsIcon} size={20} />
       </div>
-      <h3 className="mt-5 font-display text-2xl font-semibold">Your portfolio, in context.</h3>
-      <p className="mt-2 text-sm leading-6 text-muted">
-        {auth.authenticated ? auth.error || 'Preparing your wallet. Your conversations will be ready shortly.' : 'Sign in to restore your private conversations and explore your portfolio with Oren.'}
+      <h3 className="mt-3 font-display text-xl leading-snug font-medium tracking-tight">{t("agent.disconnectedTitle")}</h3>
+      <p className="mt-2 text-sm leading-relaxed text-muted">
+        {auth.authenticated ? auth.error || t("agent.preparingWallet") : t("agent.signInBody")}
       </p>
-      {(!auth.authenticated || auth.error) && <Button className="mt-6 h-11 rounded-[15px]" onClick={auth.authenticated ? () => void auth.createWallet() : onConnect} variant="primary">
-        <Icon icon={Wallet02Icon} size={16} />
-        {auth.authenticated ? 'Retry wallet setup' : 'Sign in'}
+      {(!auth.authenticated || auth.error) && <Button className="mt-5 min-h-9 self-start rounded-lg pointer-coarse:min-h-11" onClick={auth.authenticated ? () => void auth.createWallet() : onConnect} variant="primary">
+        <Icon icon={WalletCardsIcon} size={16} />
+        {auth.authenticated ? t("agent.retryWallet") : t("agent.signIn")}
       </Button>}
     </div>
   );
@@ -189,10 +198,11 @@ export function ConversationHistory({
   disabled: boolean;
   onSelect: (id: string) => void;
 }) {
+  const { locale, timeZone, t } = useI18n();
   return (
     <div className="absolute inset-x-3 top-[70px] z-10 max-h-[55%] overflow-y-auto rounded-[22px] border border-border bg-panel p-2 shadow-[0_22px_60px_rgba(23,23,23,0.16)]">
       <p className="px-3 pb-2 pt-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">
-        Recent conversations
+        {t("agent.recent")}
       </p>
       {recentThreads.length ? (
         recentThreads.map((thread) => (
@@ -207,11 +217,11 @@ export function ConversationHistory({
             type="button"
           >
             <p className="truncate text-sm font-medium">{thread.title}</p>
-            <p className="mt-0.5 text-[10px] text-muted">{new Date(thread.updatedAt).toLocaleDateString()}</p>
+            <p className="mt-0.5 text-[10px] text-muted">{formatDate(thread.updatedAt, locale, timeZone, t("common.notUpdated"))}</p>
           </button>
         ))
       ) : (
-        <p className="px-3 py-5 text-sm text-muted">Your recent chats will appear here.</p>
+        <p className="px-3 py-5 text-sm text-muted">{t("agent.noRecent")}</p>
       )}
     </div>
   );
@@ -250,9 +260,10 @@ export function AgentConversationThread({
   onNavigate?: () => void;
   onConnect: () => void;
 }) {
+  const t = useT();
   return (
     <div
-      className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-5"
+      className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain px-3 py-4 sm:px-4"
       onScroll={(event) => {
         const node = event.currentTarget;
         shouldFollowRef.current = node.scrollHeight - node.scrollTop - node.clientHeight < 96;
@@ -263,14 +274,14 @@ export function AgentConversationThread({
         <DisconnectedState onConnect={onConnect} />
       ) : isLoadingHistory ? (
         <div className="grid h-full place-items-center text-sm text-muted">
-          <span className="t-shimmer" data-text="Restoring conversation">
-            Restoring conversation
+          <span className="t-shimmer" data-text={t("agent.restoring")}>
+            {t("agent.restoring")}
           </span>
         </div>
       ) : messages.length === 0 ? (
         <EmptyConversation onPrompt={onPrompt} prompts={prompts} />
       ) : (
-        <div className="space-y-6">
+        <div className="min-w-0 max-w-full space-y-5">
           {messages.map((message) => (
             <AgentMessage
               artifactDensity={artifactDensity}
@@ -283,23 +294,23 @@ export function AgentConversationThread({
             />
           ))}
           {error ? (
-            <div className="rounded-[18px] border border-red-200 bg-red-50 p-3 text-xs leading-5 text-red-900">
+            <div className="rounded-[18px] border border-error-border bg-error-surface p-3 text-xs leading-5 text-error">
               <div className="flex items-start gap-2">
-                <Icon className="mt-0.5 shrink-0" icon={CancelCircleIcon} size={14} />
+                <Icon className="mt-0.5 shrink-0" icon={CircleXIcon} size={14} />
                 <span className="flex-1">{error}</span>
                 <button
                   className="font-semibold underline underline-offset-2"
                   onClick={() => void onRetry()}
                   type="button"
                 >
-                  Retry
+                  {t("agent.retry")}
                 </button>
               </div>
             </div>
           ) : null}
           {messages.some((message) => message.role === 'assistant' && message.content) ? (
             <p className="pt-2 text-[11px] leading-4 text-muted">
-              Not financial advice. Writer opinions are not facts.
+              {t("agent.disclaimer")}
             </p>
           ) : null}
         </div>
@@ -310,8 +321,9 @@ export function AgentConversationThread({
 
 export function AgentComposer(props: Omit<Parameters<typeof AgentComposerView>[0], 'placeholder'>) {
   const auth = useOrenAuth();
+  const t = useT();
   const placeholder = props.connected
-    ? 'Ask about your portfolio or the market…'
-    : auth.authenticated ? 'Preparing your wallet…' : 'Sign in to ask Oren';
+    ? t("agent.ask")
+    : auth.authenticated ? t("agent.placeholderPreparing") : t("agent.placeholderSignIn");
   return <AgentComposerView {...props} placeholder={placeholder} />;
 }

@@ -61,6 +61,7 @@ export type AgentPage =
   | 'calendar'
   | 'leaderboard'
   | 'markets'
+  | 'explore'
   | 'stock'
   | 'vault'
   | 'activity';

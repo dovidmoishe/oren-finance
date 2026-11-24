@@ -1,5 +1,5 @@
 import { formatRequestForAuthorizationSignature } from '@privy-io/node';
-import { and, eq, gt, sql } from 'drizzle-orm';
+import { and, eq, gt, isNull, or, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import type { Database } from '../database/database.provider';
 import {
@@ -15,7 +15,16 @@ import type { ApprovalRpc } from '../execution/approval-rpc.service';
 import { inspectApiTradeTransaction } from './api-trade-transaction';
 import { usdMicros } from './trade-budget';
 import { delegatedUserAllowed } from './delegated-access';
+import {
+  DAY_MS,
+  HOUR_MS,
+  grantDurationMatches,
+  grantExpired,
+  MAX_GRANT_MS,
+  validGrantDuration,
+} from './grant-duration';
 import { randomUUID } from 'node:crypto';
+import { SPONSORED_SOLANA_CHAIN } from '../execution/gas-sponsorship';
 import {
   ownerPermissionMessage,
   verifyOwnerProof,
@@ -33,7 +42,7 @@ export interface TradeGrantSettings {
   perTradeUsd: number;
   dailyUsd: number;
   maxSlippageBps: number;
-  durationHours: number;
+  durationHours: number | null;
 }
 type PreparedGrant = {
   delegationId: string;
@@ -42,7 +51,7 @@ type PreparedGrant = {
   dailyUsd: string;
   maxSlippageBps: number;
   allowSell: boolean;
-  expiresAt: string;
+  expiresAt: string | null;
   signerId: string;
   policyId: string;
 };
@@ -64,18 +73,35 @@ const requestSchema = z
     version: z.literal(1),
     method: z.literal('POST'),
     url: z.string(),
-    body: z
-      .object({
-        method: z.literal('signTransaction'),
-        chain_type: z.literal('solana'),
-        params: z
-          .object({
-            transaction: z.string().min(1).max(1644),
-            encoding: z.literal('base64'),
-          })
-          .strict(),
-      })
-      .strict(),
+    body: z.union([
+      z
+        .object({
+          method: z.literal('signTransaction'),
+          chain_type: z.literal('solana'),
+          params: z
+            .object({
+              transaction: z.string().min(1).max(1644),
+              encoding: z.literal('base64'),
+            })
+            .strict(),
+        })
+        .strict(),
+      z
+        .object({
+          method: z.literal('signAndSendTransaction'),
+          chain_type: z.literal('solana'),
+          caip2: z.literal(SPONSORED_SOLANA_CHAIN),
+          sponsor: z.literal(true),
+          reference_id: z.uuid(),
+          params: z
+            .object({
+              transaction: z.string().min(1).max(1644),
+              encoding: z.literal('base64'),
+            })
+            .strict(),
+        })
+        .strict(),
+    ]),
     headers: z
       .object({
         'privy-app-id': z.string(),
@@ -100,9 +126,16 @@ export class ApiTradeAuthorization implements ApiTradeAuthorizer {
       publicAccess?: boolean;
       buysEnabled: boolean;
       sellsEnabled: boolean;
+      gasSponsorship?: boolean;
+      simulationPayer?: string;
       signerQuorumId: string;
+      signerPolicyId?: string;
     },
   ) {}
+
+  private matchesSignerPolicy(policyId: string): boolean {
+    return !this.deps.signerPolicyId || policyId === this.deps.signerPolicyId;
+  }
 
   async ownerChallenge(
     userToken: string,
@@ -126,8 +159,10 @@ export class ApiTradeAuthorization implements ApiTradeAuthorizer {
       const settings = input.settings;
       if (
         !settings ||
+        !validGrantDuration(settings.durationHours) ||
         input.signerId !== this.deps.signerQuorumId ||
         !input.policyId ||
+        !this.matchesSignerPolicy(input.policyId) ||
         !delegatedUserAllowed(this.deps, owner.userId) ||
         !this.deps.buysEnabled ||
         (settings.allowSell && !this.deps.sellsEnabled)
@@ -143,7 +178,10 @@ export class ApiTradeAuthorization implements ApiTradeAuthorizer {
             eq(mcpApiTradeGrants.userId, owner.userId),
             eq(mcpApiTradeGrants.walletId, owner.walletId),
             eq(mcpApiTradeGrants.status, 'pending'),
-            gt(mcpApiTradeGrants.expiresAt, new Date()),
+            or(
+              isNull(mcpApiTradeGrants.expiresAt),
+              gt(mcpApiTradeGrants.expiresAt, new Date()),
+            ),
           ),
         );
       terms = {
@@ -151,23 +189,28 @@ export class ApiTradeAuthorization implements ApiTradeAuthorizer {
         dailyUsd: settings.dailyUsd.toFixed(6),
         maxSlippageBps: settings.maxSlippageBps,
         allowSell: settings.allowSell,
-        expiresAt: new Date(
-          now + settings.durationHours * 3_600_000,
-        ).toISOString(),
+        expiresAt:
+          settings.durationHours === null
+            ? null
+            : new Date(now + settings.durationHours * HOUR_MS).toISOString(),
       };
       delegationId = randomUUID();
-      if (pending && pending.expiresAt.getTime() > now) {
+      if (pending && !grantExpired(pending.expiresAt, now)) {
+        const pendingExpiry = pending.expiresAt?.toISOString() ?? null;
         if (
+          pending.signerId !== signerId ||
+          pending.policyId !== policyId ||
           pending.perTradeLimitUsd !== terms.perTradeUsd ||
           pending.dailyLimitUsd !== terms.dailyUsd ||
           pending.maxSlippageBps !== terms.maxSlippageBps ||
-          pending.allowSell !== terms.allowSell
+          pending.allowSell !== terms.allowSell ||
+          !grantDurationMatches(pendingExpiry, settings.durationHours, now)
         )
           throw new Error(
             'Revoke the existing pending terms before changing them',
           );
         delegationId = pending.id;
-        terms.expiresAt = pending.expiresAt.toISOString();
+        terms.expiresAt = pendingExpiry;
       }
     } else if (action === 'activate') {
       if (!delegationId) throw new Error('Missing delegation');
@@ -185,7 +228,8 @@ export class ApiTradeAuthorization implements ApiTradeAuthorizer {
       if (
         !grant ||
         grant.status !== 'pending' ||
-        grant.expiresAt.getTime() <= now
+        !this.matchesSignerPolicy(grant.policyId) ||
+        grantExpired(grant.expiresAt, now)
       )
         throw new Error('Fresh browser enrollment is required');
       signerId = grant.signerId;
@@ -195,7 +239,7 @@ export class ApiTradeAuthorization implements ApiTradeAuthorizer {
         dailyUsd: grant.dailyLimitUsd,
         maxSlippageBps: grant.maxSlippageBps,
         allowSell: grant.allowSell,
-        expiresAt: grant.expiresAt.toISOString(),
+        expiresAt: grant.expiresAt?.toISOString() ?? null,
       };
     }
     if (!delegationId || !z.uuid().safeParse(delegationId).success)
@@ -245,12 +289,16 @@ export class ApiTradeAuthorization implements ApiTradeAuthorizer {
       !signed.terms ||
       signed.signerId !== this.deps.signerQuorumId ||
       !signed.policyId ||
+      !this.matchesSignerPolicy(signed.policyId) ||
       signed.terms.perTradeUsd !== settings.perTradeUsd.toFixed(6) ||
       signed.terms.dailyUsd !== settings.dailyUsd.toFixed(6) ||
       signed.terms.maxSlippageBps !== settings.maxSlippageBps ||
       signed.terms.allowSell !== settings.allowSell ||
-      new Date(signed.terms.expiresAt).getTime() >
-        signed.issuedAt + settings.durationHours * 3_600_000
+      !grantDurationMatches(
+        signed.terms.expiresAt,
+        settings.durationHours,
+        signed.issuedAt,
+      )
     )
       throw new Error('Browser did not approve these settings');
     return signed;
@@ -263,7 +311,8 @@ export class ApiTradeAuthorization implements ApiTradeAuthorizer {
     prepared: PreparedGrant,
   ) {
     const owner = await this.verifyPreparation(userToken, proof, settings);
-    const expiresAt = new Date(prepared.expiresAt);
+    const expiresAt =
+      prepared.expiresAt === null ? null : new Date(prepared.expiresAt);
     const now = new Date();
     if (
       prepared.delegationId !== owner.delegationId ||
@@ -278,8 +327,8 @@ export class ApiTradeAuthorization implements ApiTradeAuthorizer {
         usdMicros(settings.dailyUsd.toFixed(6)) ||
       prepared.allowSell !== settings.allowSell ||
       prepared.maxSlippageBps !== settings.maxSlippageBps ||
-      !Number.isFinite(expiresAt.getTime()) ||
-      expiresAt <= now ||
+      (expiresAt !== null &&
+        (!Number.isFinite(expiresAt.getTime()) || expiresAt <= now)) ||
       prepared.expiresAt !== owner.terms!.expiresAt
     )
       throw new Error('Gate grant differs from browser-reviewed terms');
@@ -316,7 +365,7 @@ export class ApiTradeAuthorization implements ApiTradeAuthorizer {
       usdMicros(saved.dailyLimitUsd) !== usdMicros(prepared.dailyUsd) ||
       saved.maxSlippageBps !== settings.maxSlippageBps ||
       saved.allowSell !== settings.allowSell ||
-      saved.expiresAt.getTime() !== expiresAt.getTime()
+      saved.expiresAt?.getTime() !== expiresAt?.getTime()
     )
       throw new Error('Independent grant already has different terms');
   }
@@ -344,7 +393,8 @@ export class ApiTradeAuthorization implements ApiTradeAuthorizer {
       if (
         !grant ||
         grant.status !== 'pending' ||
-        grant.expiresAt <= new Date() ||
+        !this.matchesSignerPolicy(grant.policyId) ||
+        grantExpired(grant.expiresAt) ||
         !sameGrantTerms(owner, grant)
       )
         throw new Error('Fresh browser enrollment is required');
@@ -402,6 +452,9 @@ export class ApiTradeAuthorization implements ApiTradeAuthorizer {
     if (bytes.toString('base64') !== encoded)
       throw new Error('Invalid request encoding');
     const request = requestSchema.parse(JSON.parse(bytes.toString('utf8')));
+    const sponsored = request.body.method === 'signAndSendTransaction';
+    if (sponsored && (!this.deps.gasSponsorship || !this.deps.simulationPayer))
+      throw new Error('Independent gas sponsorship is disabled');
     const expiry = Number(request.headers['privy-request-expiry']);
     if (expiry <= Date.now() || expiry > Date.now() + 31_000)
       throw new Error('Signing request expiry is outside the allowed window');
@@ -410,6 +463,7 @@ export class ApiTradeAuthorization implements ApiTradeAuthorizer {
       request.body.params.transaction,
       challenge.executionId,
       new Date(expiry),
+      ...(sponsored ? [true] : []),
     );
     if (
       expected.headers['privy-app-id'] !== this.deps.appId ||
@@ -451,6 +505,7 @@ export class ApiTradeAuthorization implements ApiTradeAuthorizer {
       request.body.params.transaction,
       intent,
       this.deps,
+      ...(sponsored ? [this.deps.simulationPayer] : []),
     );
     await this.deps.db.transaction(async (tx) => {
       const [grant] = await tx
@@ -468,9 +523,12 @@ export class ApiTradeAuthorization implements ApiTradeAuthorizer {
         grant.userId !== actor.userId ||
         grant.walletId !== actor.walletId ||
         grant.wallet !== actor.wallet ||
+        !this.matchesSignerPolicy(grant.policyId) ||
         !grant.activatedAt ||
-        grant.expiresAt <= new Date(expiry) ||
-        grant.expiresAt.getTime() - grant.createdAt.getTime() > 86_400_000 ||
+        grantExpired(grant.expiresAt, expiry) ||
+        (grant.expiresAt !== null &&
+          grant.expiresAt.getTime() - grant.createdAt.getTime() >
+            MAX_GRANT_MS) ||
         (intent.side === 'sell' && !grant.allowSell) ||
         intent.slippageBps > grant.maxSlippageBps ||
         !connection ||
@@ -480,7 +538,7 @@ export class ApiTradeAuthorization implements ApiTradeAuthorizer {
         connection.walletId !== actor.walletId ||
         connection.wallet !== actor.wallet ||
         connection.createdAt <= grant.activatedAt ||
-        connection.createdAt.getTime() + 7 * 86_400_000 <= Date.now() ||
+        connection.createdAt.getTime() + 7 * DAY_MS <= Date.now() ||
         !connection.scopes.split(/\s+/).includes('oren.trade.execute') ||
         expiry <= Date.now() ||
         intent.expiresAt <= new Date()
@@ -505,7 +563,15 @@ export class ApiTradeAuthorization implements ApiTradeAuthorizer {
           total: sql<string>`COALESCE(SUM(${mcpApiTradeAuthorizations.amountUsd}), 0)`,
         })
         .from(mcpApiTradeAuthorizations)
-        .where(eq(mcpApiTradeAuthorizations.delegationId, grant.id));
+        .where(
+          and(
+            eq(mcpApiTradeAuthorizations.delegationId, grant.id),
+            gt(
+              mcpApiTradeAuthorizations.createdAt,
+              new Date(Date.now() - DAY_MS),
+            ),
+          ),
+        );
       if (
         usdMicros(amountUsd) > usdMicros(grant.perTradeLimitUsd) ||
         usdMicros(usage.total) + usdMicros(amountUsd) >

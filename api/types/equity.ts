@@ -1,3 +1,5 @@
+import type { InterestId, SectorId } from './sectors';
+
 /** Canonical asset category from Tokens API. */
 export type EquityCategory = 'equity' | 'etf' | 'index';
 
@@ -41,6 +43,15 @@ export interface TokenizedEquity {
   stockVariantTier?: string;
   tradable: boolean;
 }
+
+export type MarketForYouResponse =
+  | {
+      state: 'ready';
+      items: Array<
+        EquitySummary & { sectorId: SectorId | null; interestId?: InterestId }
+      >;
+    }
+  | { state: 'no_preferences' | 'no_matches'; items: [] };
 
 /** Lightweight equity row for markets / search. */
 export interface EquitySummary {

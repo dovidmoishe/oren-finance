@@ -30,6 +30,7 @@ export class JupiterClient {
     outputMint: string;
     amount: string;
     slippageBps: number;
+    platformFeeBps?: number;
     /** 'background' for quotes no user is waiting on (auto-refresh). */
     lane?: RateLane;
   }): Promise<JupiterQuoteRaw> {
@@ -38,6 +39,10 @@ export class JupiterClient {
     url.searchParams.set('outputMint', params.outputMint);
     url.searchParams.set('amount', params.amount);
     url.searchParams.set('slippageBps', String(params.slippageBps));
+    if (params.platformFeeBps && params.platformFeeBps > 0) {
+      url.searchParams.set('platformFeeBps', String(params.platformFeeBps));
+      url.searchParams.set('instructionVersion', 'V2');
+    }
 
     return this.request<JupiterQuoteRaw>(
       url.toString(),
@@ -54,6 +59,7 @@ export class JupiterClient {
     useSharedAccounts?: boolean;
     /** null explicitly disables the configured integrator marker. */
     trackingAccount?: string | null;
+    feeAccount?: string;
   }): Promise<JupiterSwapRaw> {
     return this.request<JupiterSwapRaw>(`${this.baseUrl}/swap`, {
       method: 'POST',
@@ -64,6 +70,7 @@ export class JupiterClient {
         wrapAndUnwrapSol: body.wrapAndUnwrapSol ?? true,
         dynamicComputeUnitLimit: body.dynamicComputeUnitLimit ?? true,
         useSharedAccounts: body.useSharedAccounts,
+        ...(body.feeAccount ? { feeAccount: body.feeAccount } : {}),
         trackingAccount:
           body.trackingAccount === null
             ? undefined

@@ -32,11 +32,18 @@ ENV NEXT_PUBLIC_MCP_SIGNER_POLICY_ID=$NEXT_PUBLIC_MCP_SIGNER_POLICY_ID
 ARG NEXT_PUBLIC_DEPLOYMENT_ENV=production
 ARG NEXT_PUBLIC_PREVIEW_PR_NUMBER
 ARG NEXT_PUBLIC_COMMIT_SHA
+ARG NEXT_PUBLIC_PERFORMANCE_SAMPLE_RATE=0.1
+ENV NEXT_PUBLIC_PERFORMANCE_SAMPLE_RATE=$NEXT_PUBLIC_PERFORMANCE_SAMPLE_RATE
 ENV NEXT_PUBLIC_DEPLOYMENT_ENV=$NEXT_PUBLIC_DEPLOYMENT_ENV
 ENV NEXT_PUBLIC_PREVIEW_PR_NUMBER=$NEXT_PUBLIC_PREVIEW_PR_NUMBER
 ENV NEXT_PUBLIC_COMMIT_SHA=$NEXT_PUBLIC_COMMIT_SHA
 COPY . ./
-RUN node scripts/validate-mcp-signer-config.mjs && pnpm build
+# The source layer changes every release, so this step never hits the layer
+# cache. Turbopack's compile cache lives under .next/cache; keep that in the
+# release builder instead of the image.
+RUN mkdir -p .next
+RUN --mount=type=cache,id=oren-app-next-cache,target=/app/.next/cache,sharing=locked \
+    node scripts/validate-mcp-signer-config.mjs && pnpm build
 
 FROM node:22-bookworm-slim AS runtime
 WORKDIR /app

@@ -25,6 +25,7 @@ import { LimitOrderRepository } from './limit-order.repository';
 import { QuoteCache } from './quote-cache';
 import { SwapFeeOracle } from './swap-fee-oracle';
 import { SwapRouter } from './swap-router';
+import { ReviewedPlatformFeeGuard } from './reviewed-platform-fee-guard';
 import { TitanClient } from './titan/titan.client';
 import { TitanService } from './titan/titan.service';
 import { TitanTxBuilder } from './titan/titan-tx.builder';
@@ -60,6 +61,7 @@ import { OnchainTransactions } from './onchain-transaction';
     TitanService,
     SwapFeeOracle,
     SwapRouter,
+    ReviewedPlatformFeeGuard,
     QuoteCache,
     VariantSelector,
     StockDecimals,

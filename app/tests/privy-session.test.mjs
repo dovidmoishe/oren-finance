@@ -4,21 +4,29 @@ import vm from 'node:vm';
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import ts from 'typescript';
-import { resolveEmbeddedSolanaAccount, resolveSolanaWallet } from '../services/wallet-selection.ts';
+import { resolveSolanaAccount, resolveSolanaWallet } from '../services/wallet-selection.ts';
+import { Keypair, SystemProgram, TransactionMessage, VersionedTransaction } from '@solana/web3.js';
 
 const require = createRequire(import.meta.url);
 const privyRequire = createRequire(require.resolve('@privy-io/react-auth/solana'));
 const { ConnectedStandardSolanaWallet } = privyRequire('@privy-io/js-sdk-core');
+const externalExports = {};
+vm.runInNewContext(ts.transpileModule(readFileSync(new URL('../services/external-approval.ts', import.meta.url), 'utf8'), {
+  compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+}).outputText, { exports: externalExports, require, Uint8Array, atob, btoa, Date });
 function deferred() {
   let resolve, reject;
   const promise = new Promise((yes, no) => { resolve = yes; reject = no; });
   return { promise, resolve, reject };
 }
 // Execute the real session component with a minimal hook scheduler and controllable SDK.
-function session(createWallet) {
+function session(createWallet, { deployment = "production", pathname = "/app" } = {}) {
   const slots = [], effects = [];
-  let cursor = 0, loginComplete, modal, walletContext;
-  const sdk = { ready: true, authenticated: true, user: { id: 'alice', linkedAccounts: [] }, logout: async () => {}, linkWallet() {}, getAccessToken: async () => 'token' };
+  let cursor = 0, otpResult, emailLogin, modal, walletContext, onboarding;
+  let walletLoginComplete;
+  let authorizationRequest = { version: 1 };
+  let transactionSigner = async () => { throw new Error('unexpected signing'); };
+  const sdk = { ready: true, authenticated: true, user: { id: 'alice', email: { address: 'alice@example.test' }, linkedAccounts: [] }, logout: async () => {}, linkWallet() {}, getAccessToken: async () => 'token' };
   const walletSdk = { ready: true, wallets: [] };
   class SigningImplementation {
     #sign;
@@ -62,28 +70,43 @@ function session(createWallet) {
     useCallback(fn) { return fn; }, useEffect: effect, useLayoutEffect: effect,
   };
   let resets = 0;
-  const state = { reset() {}, resetAll() { resets++; }, clearCopy() {}, initialize() {}, setWalletState() {} };
+  const state = { reset() {}, resetPrivateFeeds() { resets++; }, resetAll() { resets++; }, clearCopy() {}, initialize() {}, setWalletState() {} };
   const store = { getState: () => state };
   const exports = {};
   const code = ts.transpileModule(readFileSync(new URL('../components/auth/privy-session.tsx', import.meta.url), 'utf8'), {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX },
   }).outputText;
   vm.runInNewContext(code, {
-    exports, URL, TextEncoder, btoa, window: { location: { href: 'https://oren.finance/app' }, localStorage: { getItem: () => null } },
+    exports, URL, TextEncoder, btoa, process: { env: { NEXT_PUBLIC_DEPLOYMENT_ENV: deployment } }, window: { location: { href: 'https://oren.finance/app' }, localStorage: { getItem: () => null, setItem() {} } },
     require(id) {
       if (id === 'react') return react;
-      if (id === '@privy-io/react-auth') return { useAuthorizationSignature: () => ({ generateAuthorizationSignature: async () => ({ signature: 'request-signature' }) }), useSigners: () => ({ addSigners: async () => {}, removeSigners: async () => {} }), usePrivy: () => sdk, useLogin: ({ onComplete }) => { loginComplete = onComplete; return { login() {} }; } };
-      if (id === '@privy-io/react-auth/solana') return { useStandardWallets: () => standardSdk, useWallets: () => walletSdk, useCreateWallet: () => ({ createWallet }), useSignMessage: () => ({ signMessage: (...args) => messageSigner(...args) }), useSignTransaction: () => ({}) };
-      if (id === 'next/navigation') return { usePathname: () => '/app' };
-      if (id === '@/store') return Object.fromEntries(['useAgentStore','useExecutionStore','usePortfolioStore','useSocialStore','useVaultStore','useWalletStore'].map(k => [k, store]));
+      if (id === '@/services/external-approval') return externalExports;
+      if (id === '@privy-io/react-auth') return {
+        useLogin: ({ onComplete }) => { walletLoginComplete = onComplete; return { login() {} }; },
+        useLinkAccount: () => ({ linkEmail: () => sdk.linkEmail?.(), linkWallet: () => sdk.linkWallet?.() }),
+        useAuthorizationSignature: () => ({ generateAuthorizationSignature: async () => ({ signature: 'request-signature' }) }),
+        useSigners: () => ({ addSigners: async () => {}, removeSigners: async () => {} }),
+        usePrivy: () => sdk,
+        useLoginWithEmail: ({ onComplete }) => ({
+          sendCode: async () => {},
+          loginWithCode: async () => {
+            if (!otpResult) throw new Error('Invalid code');
+            onComplete(otpResult);
+          },
+        }),
+      };
+      if (id === '@privy-io/react-auth/solana') return { useStandardWallets: () => standardSdk, useWallets: () => walletSdk, useCreateWallet: () => ({ createWallet }), useSignMessage: () => ({ signMessage: (...args) => messageSigner(...args) }), useSignTransaction: () => ({ signTransaction: input => transactionSigner(input) }) };
+      if (id === 'next/navigation') return { usePathname: () => pathname };
+      if (id === '@/store') return Object.fromEntries(['useAgentStore','useExecutionStore','useExploreStore','usePortfolioStore','useSocialStore','useVaultStore','useWalletStore'].map(k => [k, store]));
       if (id === '@/services/wallet-session') return { invalidateWalletSession() {}, walletSessionIsCurrent: () => () => true };
-      if (id === '@/services/approval-service') return { getApprovalAuthorizationRequest: async () => ({}) };
+      if (id === '@/services/approval-service') return { getApprovalAuthorizationRequest: async () => authorizationRequest };
       if (id === '@/services/agent-service') return { setAgentTokenProvider() {} };
       if (id === '@/services/privy-signer') return { createPrivySigner: () => ({}) };
-      if (id === '@/services/wallet-selection') return { resolveEmbeddedSolanaAccount, resolveSolanaWallet };
+      if (id === '@/services/wallet-selection') return { resolveSolanaAccount, resolveSolanaWallet };
       if (id === './auth-context') return { AuthContext: { Provider: 'auth' } };
       if (id === './email-login') return { EmailLogin: 'email-login' };
-      if (id === '@solana/wallet-adapter-react') return { WalletContext: { Provider: 'wallet' } };
+      if (id === './personalization-dialog') return { PersonalizationDialog: 'onboarding' };
+      if (id === '@/components/auth/wallet-context') return { WalletContext: { Provider: 'wallet' } };
       if (id === './wallet-modal-context') return { WalletModalContext: { Provider: 'wallet-modal' } };
       return require(id);
     },
@@ -93,12 +116,88 @@ function session(createWallet) {
     const tree = exports.PrivySession({ children: null });
     walletContext = tree.props.children.props.value;
     modal = tree.props.children.props.children.props.value;
+    const children = tree.props.children.props.children.props.children;
+    onboarding = children.find(child => child?.type === 'onboarding');
+    emailLogin = children.find(child => child?.type === 'dialog').props.children.find(child => child?.type === 'email-login');
     while (effects.length) effects.shift()();
     return tree.props.value;
   }
-  return { sdk, walletSdk, standardSdk, setMessageSigner: signer => { messageSigner = signer; }, embeddedSigner: signer => new PrivyStandardWallet(signer), render, wallet: () => walletContext, resetCount: () => resets, requestConnection: () => modal.setVisible(true), isLoginOpen: () => modal.visible, completeLogin: data => loginComplete(data) };
+  function submitOtp(result) {
+    otpResult = result;
+    return emailLogin.props.loginWithCode({ code: '123456' });
+  }
+  return { sdk, walletSdk, standardSdk, setAuthorizationRequest: request => { authorizationRequest = request; }, setTransactionSigner: signer => { transactionSigner = signer; }, completeWalletLogin: result => walletLoginComplete(result), setMessageSigner: signer => { messageSigner = signer; }, embeddedSigner: signer => new PrivyStandardWallet(signer), render, wallet: () => walletContext, resetCount: () => resets, requestConnection: () => modal.setVisible(true), isLoginOpen: () => modal.visible, submitOtp, onboarding: () => onboarding };
 }
 const settle = () => new Promise(resolve => setImmediate(resolve));
+
+const verifiedSignup = {
+  user: { id: 'alice' },
+  isNewUser: true,
+  wasAlreadyAuthenticated: false,
+  loginMethod: 'email',
+};
+
+test('fresh preview OTP opens personalization before deposit even while the wallet is preparing', async () => {
+  const wallet = deferred();
+  const app = session(() => wallet.promise, { deployment: 'preview' });
+  app.sdk.authenticated = false;
+  app.render().open();
+  app.render();
+  assert.equal(app.isLoginOpen(), true);
+  assert.equal(app.onboarding(), undefined);
+
+  await assert.rejects(app.submitOtp(), /Invalid code/);
+  assert.equal(app.render().depositOpen, false);
+  assert.equal(app.isLoginOpen(), true);
+  assert.equal(app.onboarding(), undefined);
+
+  await app.submitOtp(verifiedSignup);
+  app.sdk.authenticated = true;
+  assert.equal(app.render().depositOpen, false);
+  assert.equal(app.isLoginOpen(), false);
+  assert.ok(app.onboarding());
+  app.render().openDeposit();
+  assert.equal(app.render().depositOpen, false);
+  app.onboarding().props.onFinish();
+  assert.equal(app.render().depositOpen, true);
+  assert.equal(app.onboarding(), undefined);
+  app.render().closeDeposit();
+  assert.equal(app.render().depositOpen, false);
+  assert.equal(app.onboarding(), undefined);
+});
+
+test('restored and returning sessions, and MCP signup, never show personalization', async () => {
+  const preview = { deployment: 'preview' };
+  for (const [options, event] of [
+    [preview, { ...verifiedSignup, wasAlreadyAuthenticated: true }],
+    [preview, { ...verifiedSignup, isNewUser: false }],
+    [{ ...preview, pathname: '/connect/mcp' }, verifiedSignup],
+  ]) {
+    const app = session(async () => {}, options);
+    app.sdk.authenticated = false;
+    app.render().open();
+    app.render();
+    await app.submitOtp(event);
+    app.sdk.authenticated = true;
+    app.render();
+    assert.equal(app.onboarding(), undefined);
+  }
+});
+
+test('changing accounts clears personalization and its queued deposit', async () => {
+  const app = session(async () => {}, { deployment: 'preview' });
+  app.sdk.authenticated = false;
+  app.render().open();
+  app.render();
+  await app.submitOtp(verifiedSignup);
+  app.sdk.authenticated = true;
+  app.render();
+  assert.ok(app.onboarding());
+  app.sdk.user = { id: 'bob', email: { address: 'bob@example.test' }, linkedAccounts: [] };
+  app.render();
+  assert.equal(app.onboarding(), undefined);
+  assert.equal(app.render().depositOpen, false);
+});
 
 const permission = 'Oren chat trading permission\n{"action":"prepare"}';
 const permissionAddress = '11111111111111111111111111111111';
@@ -213,7 +312,7 @@ test('an already loaded owned wallet stays available while SDK discovery refresh
   assert.equal(app.wallet().signTransaction, undefined);
   await assert.rejects(app.wallet().sendTransaction(), /Review and confirm/);
   assert.equal(app.resetCount(), loadedResets);
-  app.sdk.user = { id: 'bob', linkedAccounts: [] };
+  app.sdk.user = { id: 'bob', email: { address: 'bob@example.test' }, linkedAccounts: [] };
   assert.equal(app.render().address, undefined);
   assert.equal(app.wallet().connected, false);
 });
@@ -281,7 +380,7 @@ test('existing embedded wallets and unrestored sessions do not create another wa
   const app = session(async () => { calls++; });
   app.sdk.user.linkedAccounts = [{ type: 'wallet', chainType: 'solana', walletClientType: 'privy', address: '11111111111111111111111111111111' }];
   app.render(); assert.equal(calls, 0);
-  app.sdk.user = { id: 'bob', linkedAccounts: [] }; app.walletSdk.ready = false; app.sdk.ready = false;
+  app.sdk.user = { id: 'bob', email: { address: 'bob@example.test' }, linkedAccounts: [] }; app.walletSdk.ready = false; app.sdk.ready = false;
   app.render(); assert.equal(calls, 0);
   app.sdk.ready = true; app.render(); assert.equal(calls, 1);
 });
@@ -304,7 +403,7 @@ test('server trading restores the authenticated embedded address without browser
   assert.equal(app.render().address, address);
   assert.equal(app.resetCount(), resetCount);
   assert.equal(creations, 0);
-  app.sdk.user = { id: 'bob', linkedAccounts: [] }; app.sdk.ready = false;
+  app.sdk.user = { id: 'bob', email: { address: 'bob@example.test' }, linkedAccounts: [] }; app.sdk.ready = false;
   assert.equal(app.render().address, undefined);
   assert.equal(app.wallet().connected, false);
 });
@@ -319,29 +418,35 @@ test('signed-out sessions are ready without browser discovery and ignore stale w
   assert.equal(auth.authenticated, false);
 });
 
-test('an external wallet cannot block automatic embedded setup or become the server trade account', () => {
+test('an external wallet is the selected account and prevents automatic embedded setup', () => {
   let creations = 0;
   const app = session(async () => { creations++; });
   app.sdk.user.linkedAccounts = [{ type: 'wallet', chainType: 'solana', walletClientType: 'phantom', address: '11111111111111111111111111111111' }];
   app.walletSdk.ready = false;
-  assert.equal(app.render().address, undefined);
-  assert.equal(creations, 1);
+  assert.equal(app.render().address, '11111111111111111111111111111111');
+  assert.equal(app.render().walletKind, 'external');
+  assert.equal(app.render().walletConnected, false);
+  assert.equal(creations, 0);
 });
 
 test('late setup failure from a previous user cannot overwrite the next account', async () => {
   const old = deferred(), next = deferred(); let calls = 0;
   const app = session(() => ++calls === 1 ? old.promise : next.promise);
   app.render();
-  app.sdk.user = { id: 'bob', linkedAccounts: [] }; app.render();
+  app.sdk.user = { id: 'bob', email: { address: 'bob@example.test' }, linkedAccounts: [] }; app.render();
   assert.equal(calls, 2);
   old.reject(new Error('old failure')); await settle();
   const auth = app.render(); assert.equal(auth.error, undefined); assert.equal(auth.busy, true);
   next.resolve({}); await settle(); assert.equal(app.render().busy, false);
 });
 
-test('new signup opens deposit in place and closing it preserves the app route', () => {
+test('new signup opens deposit in place and closing it preserves the app route', async () => {
   const app = session(async () => {});
-  app.render(); app.completeLogin({ isNewUser: true, wasAlreadyAuthenticated: false });
+  app.sdk.authenticated = false;
+  app.render().open();
+  app.render();
+  await app.submitOtp(verifiedSignup);
+  app.sdk.authenticated = true;
   assert.equal(app.render().depositOpen, true);
   app.render().closeDeposit(); assert.equal(app.render().depositOpen, false);
   app.render().openDeposit(); assert.equal(app.render().depositOpen, true);
@@ -367,4 +472,76 @@ test('sign-out remains available while wallet setup is pending', async () => {
   app.sdk.authenticated = false; app.sdk.user = null; app.render();
   pending.reject(new Error('late failure')); await settle();
   assert.equal(app.render().error, undefined);
+});
+
+function externalSession() {
+  const owner = Keypair.generate();
+  const address = owner.publicKey.toBase58();
+  const app = session(async () => { assert.fail('wallet login must not create an embedded wallet'); });
+  app.sdk.user = { id: 'alice', linkedAccounts: [{ type: 'wallet', chainType: 'solana', walletClientType: 'phantom', address }] };
+  app.walletSdk.wallets = [{ address, standardWallet: { name: 'Phantom' } }];
+  const tx = new VersionedTransaction(new TransactionMessage({ payerKey: owner.publicKey,
+    recentBlockhash: Keypair.generate().publicKey.toBase58(), instructions: [SystemProgram.transfer({
+      fromPubkey: owner.publicKey, toPubkey: Keypair.generate().publicKey, lamports: 1,
+    })] }).compileToV0Message());
+  app.setAuthorizationRequest({ signingMode: 'external', approvalId: 'review', wallet: address,
+    transaction: Buffer.from(tx.serialize()).toString('base64'), network: 'mainnet', expiresAt: new Date(Date.now() + 60000).toISOString() });
+  app.setTransactionSigner(async ({ wallet, transaction, chain }) => {
+    assert.equal(wallet.address, address); assert.equal(chain, 'solana:mainnet');
+    const signed = VersionedTransaction.deserialize(transaction); signed.sign([owner]);
+    return { signedTransaction: signed.serialize() };
+  });
+  return { app, address };
+}
+
+test('wallet-only signup selects the login wallet without email, deposit or embedded creation', () => {
+  const { app, address } = externalSession();
+  app.render();
+  app.completeWalletLogin({ user: app.sdk.user, isNewUser: true, wasAlreadyAuthenticated: false,
+    loginMethod: 'wallet', loginAccount: app.sdk.user.linkedAccounts[0] });
+  const auth = app.render();
+  assert.equal(auth.userId, 'alice'); assert.equal(auth.email, undefined);
+  assert.equal(auth.address, address); assert.equal(auth.walletKind, 'external');
+  assert.equal(auth.depositOpen, false); assert.equal(auth.walletPreparing, false);
+});
+
+test('the selected external wallet signs reviewed transactions while delegated permission remains unavailable', async () => {
+  const { app, address } = externalSession();
+  const auth = app.render();
+  const result = await auth.authorizeTrade('review', 'token');
+  assert.ok(result.signedTransaction);
+  await assert.rejects(auth.signTradePermission(address, permission), /active wallet/);
+  await assert.rejects(auth.addTradeSigner(address, 'signer', 'policy'), /embedded wallet/);
+});
+
+test('disconnect during external signing discards the result and preserves the selected portfolio', async () => {
+  const { app, address } = externalSession();
+  const pending = deferred(); app.setTransactionSigner(() => pending.promise);
+  const signing = app.render().authorizeTrade('review', 'token');
+  await settle();
+  app.walletSdk.wallets = [];
+  const disconnected = app.render();
+  assert.equal(disconnected.address, address); assert.equal(disconnected.walletConnected, false);
+  pending.resolve({ signedTransaction: new Uint8Array(64).fill(7) });
+  await assert.rejects(signing, /Nothing was submitted/);
+  await assert.rejects(disconnected.authorizeTrade('review', 'token'), /Reconnect/);
+});
+
+test('mixed accounts use explicit wallet selection and stale approval callbacks cannot sign', async () => {
+  const { app, address } = externalSession();
+  app.sdk.user.linkedAccounts.unshift({ type: 'wallet', chainType: 'solana', walletClientType: 'privy', address: permissionAddress });
+  const embedded = app.render(); assert.equal(embedded.walletKind, 'embedded');
+  embedded.selectWallet(address);
+  assert.equal(app.render().walletKind, 'external');
+  await assert.rejects(embedded.authorizeTrade('review', 'token'), /Sign in/);
+});
+
+test('linking email uses the existing user and does not create another wallet or enable notifications', () => {
+  const { app, address } = externalSession();
+  let links = 0;
+  app.sdk.linkEmail = () => { links++; app.sdk.user = { ...app.sdk.user, email: { address: 'linked@example.test' } }; };
+  app.render().linkEmail();
+  const linked = app.render();
+  assert.equal(links, 1); assert.equal(linked.userId, 'alice');
+  assert.equal(linked.email, 'linked@example.test'); assert.equal(linked.address, address);
 });

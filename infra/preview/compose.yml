@@ -12,7 +12,8 @@ services:
     mem_limit: 512m
     cpus: 0.5
     healthcheck:
-      test: [CMD-SHELL, pg_isready -U oren_preview -d oren_preview]
+      # Socket pg_isready passes while the first-boot server is shutting down. TCP does not.
+      test: [CMD-SHELL, pg_isready -h 127.0.0.1 -p 5432 -U oren_preview -d oren_preview]
       interval: 5s
       timeout: 5s
       retries: 20
@@ -55,7 +56,13 @@ services:
     env_file:
       - ${PREVIEW_PROVIDER_ENV:-/opt/oren/preview/provider.env}
       - ${PREVIEW_OAUTH_ENV:-/opt/oren/preview/stacks/pr-${PR_NUMBER}/oauth.env}
-    environment: *api_env
+      - path: ${PREVIEW_NOTIFICATION_ENV:-/opt/oren/preview/stacks/pr-${PR_NUMBER}/notifications.env}
+        required: false
+    environment:
+      <<: *api_env
+      NOTIFICATION_FIXTURE_MODE: 'true'
+      NOTIFICATION_APP_ORIGIN: https://${PREVIEW_HOST}
+      NOTIFICATION_API_ORIGIN: https://${PREVIEW_HOST}
     networks:
       private:
       edge:
@@ -72,6 +79,50 @@ services:
       timeout: 5s
       retries: 12
     logging: *logging
+  notification-redis:
+    profiles: [notifications]
+    image: redis:7.4-alpine
+    command: [redis-server, --appendonly, 'yes', --maxmemory, 64mb, --maxmemory-policy, noeviction]
+    volumes: [notification_data:/data]
+    networks: [notification-private]
+    mem_limit: 128m
+    labels: {oren.preview: 'true'}
+    logging: *logging
+    healthcheck:
+      test: [CMD, redis-cli, ping]
+      interval: 10s
+      timeout: 5s
+      retries: 8
+
+  notification-worker:
+    profiles: [notifications]
+    image: ghcr.io/${GHCR_OWNER}/oren-api:${IMAGE_TAG}
+    command: [node, dist/src/notifications/main]
+    env_file:
+      - ${PREVIEW_PROVIDER_ENV:-/opt/oren/preview/provider.env}
+      - path: ${PREVIEW_NOTIFICATION_ENV:-/opt/oren/preview/stacks/pr-${PR_NUMBER}/notifications.env}
+        required: false
+    environment:
+      <<: *api_env
+      NOTIFICATION_FIXTURE_MODE: 'true'
+      NOTIFICATION_APP_ORIGIN: https://${PREVIEW_HOST}
+      NOTIFICATION_API_ORIGIN: https://${PREVIEW_HOST}
+      NOTIFICATION_REDIS_URL: redis://notification-redis:6379
+      MCP_OAUTH_ENABLED: 'false'
+      SIGNER_GATE_PRIVATE_KEY: ''
+    networks: [private, notification-private]
+    depends_on:
+      db: {condition: service_healthy}
+      notification-redis: {condition: service_healthy}
+    mem_limit: 384m
+    cpus: 0.5
+    restart: unless-stopped
+    stop_grace_period: 45s
+    labels: {oren.preview: 'true'}
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    logging: *logging
+
   app:
     image: ghcr.io/${GHCR_OWNER}/oren-app:${IMAGE_TAG}
     networks:
@@ -92,9 +143,14 @@ services:
       retries: 12
     logging: *logging
 networks:
+  notification-private:
+    internal: true
+    labels: {oren.preview: 'true'}
   private:
   edge:
     labels: {oren.preview: 'true'}
 volumes:
+  notification_data:
+    labels: {oren.preview: 'true'}
   data:
     labels: {oren.preview: 'true'}

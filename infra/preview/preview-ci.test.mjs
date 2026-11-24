@@ -19,7 +19,7 @@ function fixture(frames = [{runs: [good]}]) {
   return {queries, sleeps, args: {github, repo, sha, pr: 42, attempts: frames.length,
     sleep: async ms => {sleeps.push(ms); index++;}}};
 }
-test('CI waits independently while image jobs run, then authorizes the exact PR head', async () => {
+test('waitForPreviewCi returns once the newest exact-head run succeeds', async () => {
   const f = fixture([{runs: []}, {runs: [{...good, status: 'in_progress', conclusion: null}]}, {runs: [good]}]);
   assert.equal(await waitForPreviewCi(f.args), 10);
   assert.deepEqual(f.sleeps, [15000, 15000]);

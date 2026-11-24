@@ -4,9 +4,42 @@ import vm from 'node:vm';
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { Children, isValidElement } from 'react';
 import ts from 'typescript';
 
 const require = createRequire(import.meta.url);
+
+test('signed-out research offers sign-in and waits for session restoration before showing it', () => {
+  let opened = 0;
+  const auth = { ready: true, configured: true, authenticated: false, open: () => opened++, getAccessToken: async () => null };
+  const exports = {};
+  const code = ts.transpileModule(readFileSync(new URL('../components/stock/stock-research.tsx', import.meta.url), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX } }).outputText;
+  vm.runInNewContext(code, { exports, setTimeout, clearTimeout, require(id) {
+    if (id === 'react') return { useState: () => [undefined, () => {}], useRef: () => ({ current: 0 }), useEffect() {}, useCallback: fn => fn };
+    if (id === '@/components/auth/auth-context') return { useOrenAuth: () => auth };
+    if (id === '@/services/research-service') return {};
+    return require(id);
+  } });
+  function findButton(node) {
+    if (!isValidElement(node)) return;
+    if (node.type === 'button') return node;
+    for (const child of Children.toArray(node.props.children)) {
+      const found = findButton(child);
+      if (found) return found;
+    }
+  }
+  let tree = exports.StockResearchPanel({ assetId: 'nvda' });
+  const html = renderToStaticMarkup(tree);
+  assert.match(html, /Sign in to see portfolio-aware research/);
+  assert.doesNotMatch(html, /Refresh research/);
+  findButton(tree).props.onClick();
+  assert.equal(opened, 1);
+
+  auth.ready = false;
+  tree = exports.StockResearchPanel({ assetId: 'nvda' });
+  assert.equal(findButton(tree), undefined);
+  assert.match(renderToStaticMarkup(tree), /Loading account/);
+});
 
 test('stock research renders distinct evidence, sources, saved thesis and changes', () => {
   const report = {
@@ -35,6 +68,193 @@ test('stock research renders distinct evidence, sources, saved thesis and change
     assert.equal(html.includes(hidden), false, hidden);
   }
   assert.ok(html.includes('https://example.com/view'));
-  assert.ok(html.includes('lg:grid-cols-2'));
-  assert.ok(html.includes('lg:col-span-2'));
+  assert.equal(html.includes('Company filings'), false);
+});
+
+test('stock research renders cited company filings without treating them as the score', () => {
+  const report = {
+    assetId: 'apple',
+    ticker: 'AAPL',
+    name: 'Apple',
+    analysis: { available: true, observedAt: '2026-11-02', data: { summary: 'Range bound.', opportunityScore: 64 } },
+    news: { available: false },
+    portfolio: { available: true, data: null },
+    opinions: { available: false, reason: 'not_enabled' },
+    company: {
+      available: true,
+      reason: 'stale',
+      publishedAt: '2026-11-03',
+      fetchedAt: '2026-11-08T14:00:00.000Z',
+      data: {
+        briefing: ['Derived FY2026 Q4 revenue is $114,477,000,000, from full-year minus Q1, Q2 and Q3.', 'Filing facts, not the Oren Score, not a recommendation.'],
+        links: [{ label: 'bad', url: 'https://evil.example/buy' }],
+        latestQuarter: {
+          fiscalYear: 2026,
+          fiscalQuarter: 4,
+          start: '2026-06-28',
+          end: '2026-09-26',
+          derived: true,
+          revenue: {
+            available: true,
+            display: '$114,477,000,000',
+            value: 114477000000,
+            derived: true,
+            inputCitations: [{
+              form: '10-K',
+              filed: '2026-11-03',
+              periodEnd: '2026-09-26',
+              sourceUrl: 'https://www.sec.gov/Archives/edgar/data/320193/000032019326000026/0000320193-26-000026-index.html',
+            }, {
+              form: '10-Q',
+              filed: '2026-02-01',
+              periodEnd: '2025-12-31',
+              sourceUrl: 'https://www.sec.gov/Archives/edgar/data/320193/older-derived-input.html',
+            }],
+          },
+          netIncome: { available: true, display: '$28,000,000,000', citation: { form: '10-K', filed: '2026-11-03', periodEnd: '2026-09-26', sourceUrl: 'https://www.sec.gov/Archives/edgar/data/320193/000032019326000026/0000320193-26-000026-index.html' } },
+          operatingMargin: { available: true, display: '32%' },
+          revenueGrowth: { available: true, display: '15.06%' },
+        },
+        ttm: { start: '2025-09-28', end: '2026-09-26', revenue: { available: true, display: '$478,834,000,000' } },
+        latestAnnual: { fiscalYear: 2026, start: '2025-09-28', end: '2026-09-26', revenue: { available: true, display: '$478,834,000,000' } },
+        filings: [
+          {
+            form: '10-Q',
+            filed: '2026-07-31',
+            reportDate: '2026-06-27',
+            accession: '0000320193-26-000020',
+            sourceUrl: 'https://www.sec.gov/Archives/edgar/data/320193/000032019326000020/0000320193-26-000020-index.html',
+          },
+          {
+            form: '10-K',
+            filed: '2026-11-03',
+            reportDate: '2026-09-26',
+            accession: '0000320193-26-000026',
+            sourceUrl: 'https://www.sec.gov/Archives/edgar/data/320193/000032019326000026/0000320193-26-000026-index.html',
+          },
+        ],
+      },
+    },
+  };
+  let state = 0;
+  const values = [report, 'owned', false, undefined];
+  const react = { useState() { return [values[state++], () => {}]; }, useRef: () => ({ current: 0 }), useEffect() {}, useCallback: (fn) => fn };
+  const exports = {};
+  const code = ts.transpileModule(readFileSync(new URL('../components/stock/stock-research.tsx', import.meta.url), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX } }).outputText;
+  vm.runInNewContext(code, { exports, setTimeout, clearTimeout, require(id) {
+    if (id === 'react') return react;
+    if (id === '@/components/auth/auth-context') return { useOrenAuth: () => ({ address: 'owned', getAccessToken: async () => 'token' }) };
+    if (id === '@/services/research-service') return {};
+    return require(id);
+  } });
+  const html = renderToStaticMarkup(require('react').createElement(exports.StockResearchPanel, { assetId: 'apple' }));
+  assert.ok(html.includes('Company filings'));
+  assert.ok(html.includes('$114,477,000,000'));
+  assert.ok(html.includes('$114.48B'));
+  assert.ok(html.includes('<details'));
+  assert.ok(html.includes('Revenue: 10-K filed'));
+  assert.equal(html.includes('[0]'), false);
+  const summary = html.slice(html.indexOf('Company performance'), html.indexOf('<details'));
+  for (const label of ['Profit', 'Revenue growth', 'Sales before expenses', 'Left after all expenses', 'Compared with the same quarter last year', '$114.48 billion']) assert.ok(summary.includes(label), label);
+  for (const label of ['TTM', 'Operating margin', 'derived', '[1]', 'Source filings']) assert.equal(summary.includes(label), false, label);
+  const sourceDisclosure = html.slice(html.indexOf('Source filings'));
+  assert.ok(sourceDisclosure.includes('older-derived-input.html'));
+  assert.equal((sourceDisclosure.match(/older-derived-input.html/g) ?? []).length, 1);
+  assert.ok(html.includes('$478,834,000,000'));
+  assert.ok(html.includes('Latest quarter'));
+  assert.ok(html.includes('Trailing twelve months'));
+  assert.ok(html.includes('Full year'));
+  assert.ok(html.includes('View on SEC'));
+  assert.ok(html.includes('target="_blank"'));
+  assert.ok(html.includes('rel="noopener noreferrer"'));
+  assert.ok(html.includes('10-K'));
+  assert.ok(html.includes('10-Q'));
+  assert.equal(html.split('not a recommendation').length - 1, 1);
+  assert.equal(html.includes('(https://www.sec.gov/'), false);
+  assert.ok(html.includes('https://www.sec.gov/Archives/edgar/data/320193/000032019326000026/0000320193-26-000026-index.html'));
+  assert.equal(html.includes('https://evil.example/buy'), false);
+  assert.ok(html.includes('Deterministic Oren Score'));
+  const sourceList = html.slice(html.indexOf('Source filings'));
+  assert.ok(sourceList.indexOf('10-K') < sourceList.indexOf('10-Q'));
+});
+
+test('company filing fallback renders SEC markdown links and drops other urls', () => {
+  const secUrl = 'https://www.sec.gov/Archives/edgar/data/320193/000032019326000026/0000320193-26-000026-index.html';
+  const report = {
+    assetId: 'apple',
+    ticker: 'AAPL',
+    name: 'Apple',
+    analysis: { available: false },
+    news: { available: false },
+    portfolio: { available: false },
+    opinions: { available: false },
+    company: {
+      available: false,
+      reason: 'provider_unavailable',
+      data: {
+        briefing: [
+          `Quarterly revenue is unavailable (not_comparable), [10-K filed 2026-02-20](${secUrl}) [ignore](https://evil.example/buy).`,
+          'Filing facts, not the Oren Score, not a recommendation.',
+        ],
+        links: [],
+        filings: [],
+      },
+    },
+  };
+  let state = 0;
+  const values = [report, 'owned', false, undefined];
+  const react = { useState() { return [values[state++], () => {}]; }, useRef: () => ({ current: 0 }), useEffect() {}, useCallback: (fn) => fn };
+  const exports = {};
+  const code = ts.transpileModule(readFileSync(new URL('../components/stock/stock-research.tsx', import.meta.url), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX } }).outputText;
+  vm.runInNewContext(code, { exports, setTimeout, clearTimeout, require(id) {
+    if (id === 'react') return react;
+    if (id === '@/components/auth/auth-context') return { useOrenAuth: () => ({ address: 'owned', getAccessToken: async () => 'token' }) };
+    if (id === '@/services/research-service') return {};
+    return require(id);
+  } });
+  const html = renderToStaticMarkup(require('react').createElement(exports.StockResearchPanel, { assetId: 'apple' }));
+  assert.ok(html.includes(`href="${secUrl}"`));
+  assert.ok(html.includes('10-K filed 2026-02-20'));
+  assert.ok(html.includes('target="_blank"'));
+  assert.ok(html.includes('rel="noopener noreferrer"'));
+  assert.equal(html.includes('(https://www.sec.gov/'), false);
+  assert.equal(html.includes('https://evil.example/buy'), false);
+  assert.equal(html.split('not a recommendation').length - 1, 1);
+});
+
+function companySummary(data) {
+  const exports = {};
+  const code = ts.transpileModule(readFileSync(new URL('../components/stock/stock-research.tsx', import.meta.url), 'utf8') + '\nexport { CompanyFilings };', { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX } }).outputText;
+  vm.runInNewContext(code, { exports, require(id) {
+    if (id === '@/components/auth/auth-context' || id === '@/services/research-service') return {};
+    return require(id);
+  } });
+  const html = renderToStaticMarkup(require('react').createElement(exports.CompanyFilings, { company: { available: true, data: { briefing: [], filings: [], links: [], ...data } }, onOpenSource() {} }));
+  return html.slice(0, html.indexOf('<details'));
+}
+
+test('annual-only company reports keep the period and growth comparison honest and show losses clearly', () => {
+  const html = companySummary({ latestAnnual: {
+    fiscalYear: 2026, start: '2025-01-01', end: '2025-12-31',
+    revenue: { available: true, display: '$2,000,000,000', value: 2000000000 },
+    netIncome: { available: true, display: '-$28,000,000', value: -28000000 },
+    revenueGrowth: { available: true, display: '-5%' },
+  } });
+  assert.match(html, /Full year/);
+  assert.match(html, /Compared with the previous year/);
+  assert.match(html, /-\$28 million/);
+  assert.doesNotMatch(html, /Latest quarter|same quarter|TTM/);
+});
+
+test('twelve-month-only reports explain the correct comparison and do not fill missing profit', () => {
+  const html = companySummary({ ttm: {
+    start: '2025-01-01', end: '2025-12-31',
+    revenue: { available: true, display: '$2,000,000,000', value: 2000000000 },
+    netIncome: { available: false, value: 999 },
+    revenueGrowth: { available: true, display: '5%' },
+  } });
+  assert.match(html, /Trailing twelve months/);
+  assert.match(html, /Compared with the previous 12 months/);
+  assert.match(html, /Unavailable/);
+  assert.doesNotMatch(html, /999|Latest quarter|same quarter/);
 });

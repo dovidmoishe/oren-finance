@@ -1,11 +1,11 @@
 export type GrantReview = {
   delegationId: string; wallet: string; signerId: string; policyId: string;
   perTradeUsd: string; dailyUsd: string; maxSlippageBps: number;
-  allowSell: boolean; expiresAt: string;
+  allowSell: boolean; expiresAt: string | null;
 };
 export type GrantSettings = {
   perTradeUsd: number; dailyUsd: number; maxSlippageBps: number;
-  allowSell: boolean; durationHours: number;
+  allowSell: boolean; durationHours: number | null;
 };
 export type TrustedTradeSigner = { signerId: string; policyId: string };
 
@@ -41,10 +41,10 @@ export function validateGrantPermission(message: string, wallet: string, appId: 
       value.terms.dailyUsd !== Number(review.dailyUsd).toFixed(6) ||
       value.terms.maxSlippageBps !== review.maxSlippageBps || value.terms.allowSell !== review.allowSell)
     throw new Error("Trading limits differ from the terms you reviewed.");
-  const expiry = Date.parse(value.terms.expiresAt);
-  if (!Number.isFinite(expiry) || expiry <= now) throw new Error("Trading permission expired.");
+  const expiry = value.terms.expiresAt === null ? null : Date.parse(value.terms.expiresAt);
+  if (expiry !== null && (!Number.isFinite(expiry) || expiry <= now)) throw new Error("Trading permission expired.");
   if ("durationHours" in review) {
-    if (expiry > value.issuedAt + review.durationHours * 3600000)
+    if (review.durationHours === null ? expiry !== null : expiry === null || expiry > value.issuedAt + review.durationHours * 3600000)
       throw new Error("Trading duration differs from your selection.");
   } else if (!("signerId" in review) || value.signerId !== review.signerId ||
       value.policyId !== review.policyId || value.terms.expiresAt !== review.expiresAt) {

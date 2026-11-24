@@ -89,7 +89,13 @@ function main() {
       publicAccess,
       buysEnabled: enabled('SIGNER_GATE_BUYS_ENABLED'),
       sellsEnabled: enabled('SIGNER_GATE_SELLS_ENABLED'),
+      gasSponsorship: enabled('SIGNER_GATE_GAS_SPONSORSHIP'),
+      simulationPayer: process.env.PRIVY_GAS_SIMULATION_PAYER?.trim(),
     };
+    if (config.gasSponsorship && !config.simulationPayer)
+      throw new Error(
+        'Signer gate sponsorship requires PRIVY_GAS_SIMULATION_PAYER',
+      );
     const env = {
       ALCHEMY_API_KEY: required('ALCHEMY_API_KEY'),
       SOLANA_NETWORK: 'mainnet',
@@ -154,6 +160,16 @@ function main() {
         )
           result = await gate.challenge(body.intentId, body.idempotencyKey);
         else if (
+          request.url === '/slippage-retry' &&
+          typeof body.executionId === 'string'
+        )
+          result = await gate.slippageRetry(body.executionId);
+        else if (
+          request.url === '/abort-unsigned' &&
+          typeof body.executionId === 'string'
+        )
+          result = await gate.abortUnsigned(body.executionId);
+        else if (
           request.url === '/complete' &&
           typeof body.executionId === 'string' &&
           typeof body.apiSignatureBase64 === 'string'
@@ -167,6 +183,8 @@ function main() {
           typeof body.executionId === 'string'
         )
           result = await gate.reconcile(body.executionId);
+        else if (request.url === '/grant/limits')
+          result = await gate.grantLimits();
         else if (
           request.url === '/grant/prepare' &&
           ownerProof.success &&
@@ -174,7 +192,8 @@ function main() {
           typeof body.perTradeUsd === 'number' &&
           typeof body.dailyUsd === 'number' &&
           typeof body.maxSlippageBps === 'number' &&
-          typeof body.durationHours === 'number'
+          (typeof body.durationHours === 'number' ||
+            body.durationHours === null)
         )
           result = await gate.prepareGrant(ownerProof.data, {
             allowSell: body.allowSell,
@@ -202,10 +221,7 @@ function main() {
         response.statusCode = 409;
         const code = gateFailureCode(error);
         response.end(JSON.stringify({ error: code }));
-        console.error(
-          'Signer gate request rejected',
-          code,
-        );
+        console.error('Signer gate request rejected', code);
       }
     })();
   }).listen(port, '0.0.0.0');

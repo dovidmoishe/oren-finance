@@ -1,4 +1,5 @@
 import { apiRequest } from "./api-client";
+import type { InterestId, SectorId } from "./preferences-service";
 import type { ChartRange, MarketCandle, NewsItem, StockAnalysis, StockDetail, StockSummary, StocksPage } from "@/types";
 
 interface ApiStockSummary {
@@ -56,35 +57,58 @@ export function getStocks(page = 1, limit = 20) {
   }));
 }
 
-export function searchStocks(query: string) {
+export function searchStocks(query: string, signal?: AbortSignal) {
   return apiRequest<ApiStockSummary[]>("/stocks/search", {
     query: { q: query },
+    signal,
   }).then((stocks) => stocks.map(mapStockSummary));
 }
 
-export function getStock(assetId: string) {
-  return apiRequest<ApiStockDetail>(`/stocks/${assetId}`).then(mapStockDetail);
+export function getStock(assetId: string, signal?: AbortSignal) {
+  return apiRequest<ApiStockDetail>(`/stocks/${assetId}`, { signal }).then(mapStockDetail);
 }
 
-export function getStockChart(assetId: string, range: ChartRange) {
+export function getStockChart(assetId: string, range: ChartRange, signal?: AbortSignal) {
   return apiRequest<{ candles: MarketCandle[] }>(`/stocks/${assetId}/chart`, {
     query: { range },
+    signal,
   }).then((series) => series.candles);
 }
 
-export function getStockAnalysis(assetId: string) {
-  return apiRequest<ApiStockAnalysis>(`/stocks/${assetId}/analysis`).then(
+export function getStockAnalysis(assetId: string, signal?: AbortSignal) {
+  return apiRequest<ApiStockAnalysis>(`/stocks/${assetId}/analysis`, { signal }).then(
     (analysis): StockAnalysis => analysis,
   );
 }
 
-export function getStockNews(assetId: string) {
-  return apiRequest<ApiNewsFeed>(`/stocks/${assetId}/news`).then((feed) =>
+export function getStockNews(assetId: string, signal?: AbortSignal) {
+  return apiRequest<ApiNewsFeed>(`/stocks/${assetId}/news`, { signal }).then((feed) =>
     feed.items.map((item, index) => ({
       ...item,
       id: item.id ?? `${assetId}-${item.publishedAt}-${index}`,
     })),
   );
+}
+
+type ForYouState = "no_preferences" | "no_matches" | "ready";
+export type MarketForYouResult = {
+  state: ForYouState;
+  items: Array<StockSummary & { sectorId: SectorId | null; interestId?: InterestId }>;
+};
+
+export async function getMarketForYou(getAccessToken: () => Promise<string | null>, signal: AbortSignal): Promise<MarketForYouResult> {
+  const token = await getAccessToken();
+  signal.throwIfAborted();
+  if (!token) throw new Error("Sign in to see personalized stocks");
+  const result = await apiRequest<{ state: ForYouState; items: Array<ApiStockSummary & { sectorId: SectorId | null; interestId?: InterestId }> }>("/markets/for-you", {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: "no-store",
+    signal,
+  });
+  return {
+    state: result.state,
+    items: result.items.map((stock) => ({ ...mapStockSummary(stock), sectorId: stock.sectorId, interestId: stock.interestId })),
+  };
 }
 
 export function getTrendingStocks() {

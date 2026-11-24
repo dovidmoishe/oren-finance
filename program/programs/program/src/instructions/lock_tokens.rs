@@ -1,6 +1,6 @@
 use anchor_lang::prelude::*;
 use anchor_spl::token_interface::{Mint, TokenAccount, TokenInterface, TransferChecked, transfer_checked};
-use crate::state::LockBoxState;
+use crate::{error::ErrorCode, state::LockBoxState, token_extensions};
 
 #[derive(Accounts)]
 pub struct LockTokens<'info> {
@@ -25,11 +25,14 @@ pub struct LockTokens<'info> {
     )]
     pub lockbox: Account<'info, LockBoxState>,
 
+    // init_if_needed: a withdraw leaves the vault open only when Token-2022
+    // withheld transfer fees stop it from closing; the next lock reuses it.
     #[account(
-        init,
+        init_if_needed,
         payer = user,
         token::mint = token_mint,
-        token::authority = lockbox, 
+        token::authority = lockbox,
+        token::token_program = token_program,
         seeds = [b"token_vault", lockbox.key().as_ref()],
         bump
     )]
@@ -40,13 +43,17 @@ pub struct LockTokens<'info> {
 }
 
 pub fn handler(ctx: Context<LockTokens>, amount: u64, unlock_time: i64) -> Result<()> {
-    let lockbox = &mut ctx.accounts.lockbox;
-    lockbox.owner = ctx.accounts.user.key();
-    lockbox.token_mint = ctx.accounts.token_mint.key();
-    lockbox.unlock_time = unlock_time;
-    lockbox.bump = ctx.bumps.lockbox;
-    lockbox.total_deposited = amount;
+    require!(amount > 0, ErrorCode::ZeroAmount);
+    require!(
+        unlock_time > Clock::get()?.unix_timestamp,
+        ErrorCode::UnlockTimeInPast
+    );
+    require!(
+        !token_extensions::has_transfer_hook(&ctx.accounts.token_mint.to_account_info())?,
+        ErrorCode::TransferHookNotSupported
+    );
 
+    let vault_before = ctx.accounts.token_vault.amount;
     let cpi_program = ctx.accounts.token_program.key();
     let cpi_accounts = TransferChecked {
         from: ctx.accounts.user_token_account.to_account_info(),
@@ -58,6 +65,24 @@ pub fn handler(ctx: Context<LockTokens>, amount: u64, unlock_time: i64) -> Resul
     let cpi_ctx = CpiContext::new(cpi_program, cpi_accounts);
     transfer_checked(cpi_ctx, amount, ctx.accounts.token_mint.decimals)?;
 
-    msg!("Successfully locked {} tokens until timestamp {}", amount, unlock_time);
+    // Count what the vault received, not what was sent: Token-2022 transfer
+    // fees would otherwise overstate the deposit.
+    ctx.accounts.token_vault.reload()?;
+    let received = ctx
+        .accounts
+        .token_vault
+        .amount
+        .checked_sub(vault_before)
+        .ok_or(ErrorCode::DepositOverflow)?;
+    require!(received > 0, ErrorCode::ZeroAmount);
+
+    let lockbox = &mut ctx.accounts.lockbox;
+    lockbox.owner = ctx.accounts.user.key();
+    lockbox.token_mint = ctx.accounts.token_mint.key();
+    lockbox.unlock_time = unlock_time;
+    lockbox.bump = ctx.bumps.lockbox;
+    lockbox.total_deposited = received;
+
+    msg!("Successfully locked {} tokens until timestamp {}", received, unlock_time);
     Ok(())
 }

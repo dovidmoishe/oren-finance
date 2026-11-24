@@ -7,6 +7,32 @@ const required = {
 };
 
 describe('validateEnv — Jupiter', () => {
+  it('keeps gas sponsorship opt-in and requires a mainnet simulation configuration', () => {
+    const defaults = validateEnv(required);
+    expect(defaults.PRIVY_REVIEWED_GAS_SPONSORSHIP).toBe(false);
+    expect(defaults.PRIVY_MCP_GAS_SPONSORSHIP).toBe(false);
+    const config = {
+      ...required,
+      PRIVY_APP_ID: 'app',
+      PRIVY_APP_SECRET: 'secret',
+      PRIVY_REVIEWED_GAS_SPONSORSHIP: 'true',
+      PRIVY_GAS_SIMULATION_PAYER: '11111111111111111111111111111111',
+    };
+    expect(validateEnv(config).PRIVY_REVIEWED_GAS_SPONSORSHIP).toBe(true);
+    expect(() =>
+      validateEnv({ ...config, PRIVY_GAS_SIMULATION_PAYER: '' }),
+    ).toThrow('SIMULATION_PAYER');
+    expect(() => validateEnv({ ...config, SOLANA_NETWORK: 'devnet' })).toThrow(
+      'mainnet',
+    );
+    expect(() =>
+      validateEnv({
+        ...config,
+        DEPLOYMENT_ENV: 'preview',
+        PREVIEW_PR_NUMBER: '123',
+      }),
+    ).toThrow();
+  });
   beforeEach(() => {
     jest.spyOn(console, 'warn').mockImplementation(() => undefined);
   });
@@ -203,5 +229,104 @@ describe('validateEnv — Drip', () => {
     expect(env.DRIP_PUBLIC_RESEARCH_ENABLED).toBe(true);
     expect(env.DRIP_API_BASE_URL).toBe('https://dripstack.test');
     expect(env.DRIP_REQUEST_TIMEOUT_MS).toBe(9000);
+  });
+});
+
+describe('validateEnv — CORS_ORIGIN', () => {
+  let warn: jest.SpyInstance;
+  beforeEach(() => {
+    warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+  });
+  afterEach(() => warn.mockRestore());
+
+  const production = { ...required, DEPLOYMENT_ENV: 'production' };
+
+  it('keeps the permissive default outside production', () => {
+    expect(validateEnv(required).CORS_ORIGIN).toBe('*');
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  it('uses an explicit production origin list as is', () => {
+    expect(
+      validateEnv({
+        ...production,
+        CORS_ORIGIN: 'https://oren.finance,https://www.oren.finance',
+        MCP_APP_ORIGIN: 'https://other.example',
+      }).CORS_ORIGIN,
+    ).toBe('https://oren.finance,https://www.oren.finance');
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  it.each([undefined, '*'])(
+    'falls back to MCP_APP_ORIGIN in production when CORS_ORIGIN is %s',
+    (cors) => {
+      expect(
+        validateEnv({
+          ...production,
+          CORS_ORIGIN: cors,
+          MCP_APP_ORIGIN: 'https://oren.finance/',
+          DOMAIN: 'ignored.example',
+        }).CORS_ORIGIN,
+      ).toBe('https://oren.finance');
+      expect(warn).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it('falls back to https://DOMAIN in production', () => {
+    expect(
+      validateEnv({ ...production, CORS_ORIGIN: '*', DOMAIN: 'oren.finance' })
+        .CORS_ORIGIN,
+    ).toBe('https://oren.finance');
+    expect(warn).toHaveBeenCalledTimes(1);
+  });
+
+  it('refuses to start in production with no origin to fall back to', () => {
+    expect(() => validateEnv({ ...production, CORS_ORIGIN: '*' })).toThrow(
+      /CORS_ORIGIN/,
+    );
+  });
+});
+
+describe('validateEnv — notifications', () => {
+  it('leaves price alerts private unless PRICE_ALERTS_PUBLIC is set', () => {
+    expect(validateEnv(required).PRICE_ALERTS_PUBLIC).toBeUndefined();
+    expect(
+      validateEnv({ ...required, PRICE_ALERTS_PUBLIC: 'true' })
+        .PRICE_ALERTS_PUBLIC,
+    ).toBe('true');
+    expect(
+      validateEnv({ ...required, PRICE_ALERTS_PUBLIC: 'false' })
+        .PRICE_ALERTS_PUBLIC,
+    ).toBe('false');
+  });
+
+  it('reads the morning brief switch without a pilot list', () => {
+    expect(validateEnv(required).MORNING_BRIEF_ENABLED).toBeUndefined();
+    expect(validateEnv(required).NOTIFICATION_PILOT_USERS).toBeUndefined();
+    expect(
+      validateEnv({
+        ...required,
+        MORNING_BRIEF_ENABLED: 'true',
+        NOTIFICATION_PILOT_USERS: '',
+      }).MORNING_BRIEF_ENABLED,
+    ).toBe('true');
+  });
+});
+
+describe('validateEnv — Senviok', () => {
+  it('keeps transactional email credentials optional', () => {
+    const env = validateEnv(required);
+    expect(env.SENVIOK_API_KEY).toBeUndefined();
+    expect(env.SENVIOK_FROM).toBeUndefined();
+  });
+
+  it('reads the server-side API key and sender', () => {
+    const env = validateEnv({
+      ...required,
+      SENVIOK_API_KEY: 'svk_test',
+      SENVIOK_FROM: 'updates@example.com',
+    });
+    expect(env.SENVIOK_API_KEY).toBe('svk_test');
+    expect(env.SENVIOK_FROM).toBe('updates@example.com');
   });
 });

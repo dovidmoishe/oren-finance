@@ -139,11 +139,13 @@ export interface TokensNewsItemRaw {
   headline?: string;
   title?: string;
   source?: string;
+  source_name?: string;
   summary?: string;
   description?: string;
   url?: string;
   publishedAt?: string | number;
   published_at?: string | number;
+  posted_at?: string | number;
   imageUrl?: string;
   image?: string;
 }
@@ -162,6 +164,9 @@ export interface TokensTrendingRaw {
 
 export interface TokensMarketSnapshotRaw {
   mint?: string;
+  priceUpdatedAt?: string;
+  providerFetchedAt?: number;
+  lastTradeAt?: number;
   price?: number;
   priceChange24hPercent?: number;
   volume24hUSD?: number;

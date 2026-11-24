@@ -1,12 +1,11 @@
 
-import { ArrowLeft02Icon } from '@hugeicons/core-free-icons';
-import { HugeiconsIcon } from '@hugeicons/react';
+import { ArrowLeft as ArrowLeftIcon } from "lucide-react";
+
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { ChangelogEntry } from '@/components/changelog/changelog-entry';
 import { getChangelog, getChangelogEntry } from '@/content/changelog';
-import styles from '@/components/changelog/changelog.module.css';
 
 type Props = { params: Promise<{ slug: string }> };
 
@@ -30,8 +29,8 @@ export default async function EntryPage({ params }: Props) {
   const entry = getChangelogEntry((await params).slug);
   if (!entry) notFound();
   return <>
-    <Link href="/changelog" className={styles.back}><span aria-hidden="true"><HugeiconsIcon icon={ArrowLeft02Icon} size={16} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className="inline-block shrink-0 align-middle" /></span>All updates</Link>
-    <div className={styles.detail}>
+    <Link href="/changelog" className="inline-flex gap-[10px] items-center min-h-[44px] text-[12px] text-[#69665f] [margin:28px_0]"><span aria-hidden="true"><ArrowLeftIcon size={16} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className="inline-block shrink-0 align-middle" /></span>All updates</Link>
+    <div className="[border-top:1px_solid_#e3e0d9] pt-[34px] at-most-767:pt-[28px]">
       <ChangelogEntry entry={entry} detail />
     </div>
   </>;

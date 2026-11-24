@@ -18,6 +18,7 @@ export async function inspectApiTradeTransaction(
   transaction: string,
   intent: typeof mcpTradeIntents.$inferSelect,
   deps: { connection: Connection; tokens: TokensService; rpc: ApprovalRpc },
+  simulationPayer?: string,
 ) {
   if (
     !intent.stockMint ||
@@ -85,12 +86,17 @@ export async function inspectApiTradeTransaction(
     },
     async (key) => (await deps.connection.getAddressLookupTable(key)).value,
   );
-  await deps.rpc.inspect(transaction, intent.wallet, {
-    inputMint,
-    outputMint,
-    maxInRaw: intent.maxInRaw,
-    minOutRaw: intent.minOutRaw,
-  });
+  await deps.rpc.inspect(
+    transaction,
+    intent.wallet,
+    {
+      inputMint,
+      outputMint,
+      maxInRaw: intent.maxInRaw,
+      minOutRaw: intent.minOutRaw,
+    },
+    ...(simulationPayer ? [simulationPayer] : []),
+  );
   if (buyCharge) return buyCharge;
   const mintState = unpackMint(mint, mintAccount, mintAccount.owner);
   if (!mintState.isInitialized) throw new Error('Stock mint is uninitialized');

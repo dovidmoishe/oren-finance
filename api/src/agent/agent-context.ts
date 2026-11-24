@@ -38,7 +38,7 @@ export function buildInstructions(
   if (options?.includeDrip) sections.push(DRIP_AGENT_GUIDANCE);
   else
     sections.push(
-      'Writer opinions are not available on this turn. If the user asks what people or writers are saying, say that plainly. Do not answer from the news feed or from Oren technical analysis and present it as those opinions, Drip, or Drip Stack.',
+      'Writer opinions are not available on this turn. If the user asks what people or writers are saying, or for sentiment, say that plainly. Do not answer from the news feed, from Oren technical analysis, or from an opportunity score and present it as those opinions, Drip, Drip Stack, or sentiment.',
     );
   sections.push(walletSection(walletAddress));
 
@@ -68,7 +68,7 @@ function walletSection(walletAddress: string): string {
     'Connected wallet context:',
     `- Solana wallet: ${walletAddress}`,
     '- The user is already connected in the Oren app. Never ask them to paste a wallet address or connect a wallet.',
-    '- Use this wallet address for every tool that requires a wallet parameter.',
+    '- Tools always act on this connected wallet; you never pass a wallet address to a tool.',
   ].join('\n');
 }
 

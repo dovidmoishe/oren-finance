@@ -22,9 +22,14 @@ import {
   mapJupiterQuoteToDomain,
   uiAmountToRaw,
 } from './jupiter.mapper';
-import type { JupiterQuoteRaw } from './jupiter.types';
+import type { JupiterQuoteRaw, JupiterSwapRaw } from './jupiter.types';
+import type { PlatformFeeConfig } from '../../config/platform-fee-config';
+import { mappedPlatformFee, quoteFeeConfig, usdcPair } from '../platform-fee';
 
 export interface JupiterQuoteContext {
+  /** Server-only: set by SwapRouter for explicitly reviewed USDC trades. */
+  platformFee?: PlatformFeeConfig;
+  reviewedTrade?: boolean;
   side: TradeSide;
   assetId: string;
   ticker: string;
@@ -91,6 +96,10 @@ export class JupiterService implements ExecutionProvider {
   ): Promise<Quote> {
     const slippageBps = ctx.slippageBps ?? DEFAULT_SLIPPAGE_BPS;
     const rawAmount = uiAmountToRaw(ctx.amountUi, ctx.inputDecimals);
+    const platformFee =
+      usdcPair(ctx.inputMint, ctx.outputMint) && (ctx.platformFee?.bps ?? 0) > 0
+        ? ctx.platformFee
+        : undefined;
 
     const raw = await this.client.getQuote({
       inputMint: ctx.inputMint,
@@ -98,10 +107,12 @@ export class JupiterService implements ExecutionProvider {
       amount: rawAmount,
       slippageBps,
       lane: ctx.lane,
+      ...(platformFee ? { platformFeeBps: platformFee.bps } : {}),
     });
 
     return mapJupiterQuoteToDomain({
       raw,
+      platformFee,
       side: ctx.side,
       assetId: ctx.assetId,
       ticker: ctx.ticker,
@@ -126,18 +137,32 @@ export class JupiterService implements ExecutionProvider {
       throw new QuoteExpiredError('Quote missing Jupiter route payload');
     }
 
-    let swap;
+    let swap: JupiterSwapRaw;
+    const fee = quoteFeeConfig(quote);
+    mappedPlatformFee(
+      quoteResponse.platformFee,
+      fee,
+      quoteResponse.inputMint === USDC_MINT
+        ? quoteResponse.inAmount
+        : undefined,
+    );
+    const feeParams = fee ? { feeAccount: fee.account } : {};
     try {
       swap = await this.client.postSwap({
         quoteResponse,
         userPublicKey: wallet,
         useSharedAccounts: false,
+        ...feeParams,
       });
     } catch (err) {
       // Retrying a rate-limited request only burns more shared budget.
       if (err instanceof JupiterRateLimitedError) throw err;
       try {
-        swap = await this.client.postSwap({ quoteResponse, userPublicKey: wallet });
+        swap = await this.client.postSwap({
+          quoteResponse,
+          userPublicKey: wallet,
+          ...feeParams,
+        });
       } catch (retryErr) {
         if (retryErr instanceof JupiterRateLimitedError) throw retryErr;
         // Attribution must never prevent a user from receiving a transaction.
@@ -145,6 +170,7 @@ export class JupiterService implements ExecutionProvider {
           quoteResponse,
           userPublicKey: wallet,
           trackingAccount: null,
+          ...feeParams,
         });
       }
     }

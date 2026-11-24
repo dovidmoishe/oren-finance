@@ -37,6 +37,7 @@ export interface SimulatedAccount {
 
 export interface BalanceProbe {
   wallet: string;
+  feeAccount?: string;
   /** Token accounts holding the input mint (empty for native SOL input). */
   inputAccounts: string[];
   /** Token accounts that can receive the output mint (empty for SOL). */
@@ -115,16 +116,25 @@ export async function probeBalances(
   expectation: SwapExpectation,
 ): Promise<BalanceProbe> {
   const pre = new Map<string, bigint>();
-  const [inputAccounts, outputAccounts, balance] = await Promise.all([
+  const feeAccount = expectation.platformFee?.account;
+  const [inputAccounts, outputAccounts, balance, feeState] = await Promise.all([
     tokenAccountsFor(rpc, wallet, expectation.inputMint, pre),
     tokenAccountsFor(rpc, wallet, expectation.outputMint, pre),
     rpc.call<{ value: number }>('getBalance', [
       wallet,
       { commitment: 'confirmed' },
     ]),
+    feeAccount
+      ? rpc.call<{ value: SimulatedAccount | null }>('getAccountInfo', [
+          feeAccount,
+          { encoding: 'base64', commitment: 'confirmed' },
+        ])
+      : undefined,
   ]);
+  if (feeAccount) pre.set(feeAccount, tokenAmount(feeState?.value));
   return {
     wallet,
+    ...(feeAccount ? { feeAccount } : {}),
     inputAccounts,
     outputAccounts,
     pre,
@@ -135,7 +145,12 @@ export async function probeBalances(
 /** Addresses to request from simulateTransaction, wallet first. */
 export function simulationAddresses(probe: BalanceProbe): string[] {
   return [
-    ...new Set([probe.wallet, ...probe.inputAccounts, ...probe.outputAccounts]),
+    ...new Set([
+      probe.wallet,
+      ...probe.inputAccounts,
+      ...probe.outputAccounts,
+      ...(probe.feeAccount ? [probe.feeAccount] : []),
+    ]),
   ];
 }
 
@@ -149,6 +164,7 @@ export function checkSimulatedBalances(
   addresses: string[],
   accounts: (SimulatedAccount | null)[],
   feeLamports: bigint,
+  allowEmptySponsoredWallet = false,
 ): BalanceCheckResult {
   const post = new Map<string, SimulatedAccount | null>();
   addresses.forEach((address, i) => post.set(address, accounts[i] ?? null));
@@ -176,11 +192,29 @@ export function checkSimulatedBalances(
     lamportsOut,
   });
 
-  if (!post.get(probe.wallet)) {
+  if (
+    accounts.length !== addresses.length ||
+    (!post.get(probe.wallet) &&
+      !(
+        allowEmptySponsoredWallet &&
+        probe.preLamports === 0n &&
+        !nativeOut &&
+        nativeIn === 0n
+      ))
+  ) {
     return result('simulation did not return the wallet account');
   }
   if (feeLamports > BigInt(MAX_SWAP_NETWORK_FEE_LAMPORTS)) {
     return result(`network fee ${feeLamports} exceeds the swap fee cap`);
+  }
+  if (expectation.platformFee) {
+    const { account, minAmountRaw } = expectation.platformFee;
+    const received =
+      tokenAmount(post.get(account)) - (probe.pre.get(account) ?? 0n);
+    if (probe.feeAccount !== account || received < BigInt(minAmountRaw))
+      return result(
+        'platform fee was not received by the reviewed destination',
+      );
   }
   const allowance = BigInt(RENT_ALLOWANCE_LAMPORTS);
   if (nativeOut) {

@@ -1,13 +1,60 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import test from 'node:test';
+import { createRequire } from 'node:module';
+import { fileURLToPath } from 'node:url';
 import { buildTradingPolicy, samePolicySemantics, tradingPolicyIdl } from './trading-policy.mjs';
 import { readFileSync } from 'node:fs';
+const { normalizePolicySemantics } = createRequire(import.meta.url)(fileURLToPath(new URL('../../api/src/signer-gate/policy-semantics.cjs', import.meta.url)));
+function legacyFingerprint(policy) {
+  const normalized = {
+    owner_id: policy.owner_id, chain_type: policy.chain_type, version: policy.version,
+    rules: policy.rules?.map((rule) => ({
+      name: rule.name, method: rule.method, action: rule.action,
+      conditions: rule.conditions?.map((item) => ({
+        field_source: item.field_source, field: item.field, operator: item.operator, value: item.value,
+        idl: 'idl' in item ? (item.idl ?? null) : null,
+      })),
+    })),
+  };
+  return createHash('sha256').update(JSON.stringify(normalized)).digest('hex');
+}
+function reviewedFingerprint(policy) {
+  return createHash('sha256').update(JSON.stringify(normalizePolicySemantics(policy))).digest('hex');
+}
 const stock = 'TSLAqBbv4CNCnzWFeB7LmydAyEiNMJtve7DYKLpdK4S';
 const usdc = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
 const jupiter = 'JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4';
 const idl = { address: jupiter, metadata: { name: 'jupiter', version: '0.1.0', spec: '0.1.0' }, instructions: [{ name: 'shared_accounts_route', discriminator: [193,32,155,51,65,214,156,129], accounts: ['user_transfer_authority','source_mint','destination_mint','source_token_account','destination_token_account'].map(name => ({ name })), args: ['in_amount','quoted_out_amount','slippage_bps','platform_fee_bps'].map(name => ({name,type:'u64'})) }], types: [] };
 const input = { idl, stockMints: [stock], ownerId: 'separate-policy-owner', nowUnix: 100000, expiresAtUnix: 200000 };
+
+test('until-revoked candidates omit only the time cutoff and require explicit opt-in', () => {
+  const timed = buildTradingPolicy(input);
+  const durable = buildTradingPolicy({ ...input, expiresAtUnix: null, untilRevoked: true });
+  assert.deepEqual(durable.rules, timed.rules.slice(1));
+  assert.throws(() => buildTradingPolicy({ ...input, expiresAtUnix: null }));
+  assert.throws(() => buildTradingPolicy({ ...input, untilRevoked: true }));
+});
 const policy = buildTradingPolicy(input);
+test('adds sponsorship only as complete bounded copies without mutating legacy policy rules', () => {
+  const sponsored = buildTradingPolicy({ ...input, gasSponsorship: true });
+  const original = sponsored.rules.filter(rule => rule.method === 'signTransaction');
+  const send = sponsored.rules.filter(rule => rule.method === 'signAndSendTransaction');
+  assert.deepEqual(original, policy.rules);
+  assert.deepEqual(send, original.map(rule => ({ ...rule, method: 'signAndSendTransaction' })));
+  assert.ok(send.every(rule => rule.conditions.length > 0));
+  assert.equal(sponsored.rules.some(rule => ['signMessage', 'exportPrivateKey'].includes(rule.method)), false);
+});
+test('custom spend policy raises only the two USDC route limits', () => {
+  const custom = buildTradingPolicy({ ...input, customSpendLimits: true });
+  const expected = structuredClone(policy);
+  for (const side of ['buy', 'sell']) {
+    const field = side === 'buy' ? 'in_amount' : 'quoted_out_amount';
+    const rule = expected.rules.find(rule => rule.name === `allow bounded jupiter ${side}`);
+    rule.conditions.find(condition => condition.field.endsWith(`args.${field}`)).value = '100000000000';
+  }
+  assert.deepEqual(custom, expected);
+});
 // Privy's documented semantics: all conditions in a rule, deny precedence,
 // and an allow for every top-level instruction. This exercises the boundary.
 function allowed(instructions, method = 'signTransaction', now = 150000) {
@@ -89,6 +136,65 @@ test('readback ignores object-key order and provider IDs but rejects changed pol
   assert.equal(samePolicySemantics(policy,stored),true);
   stored.rules[0].conditions[0].value = '999999';
   assert.equal(samePolicySemantics(policy,stored),false);
+});
+
+test('builder order is a fixed point of the fingerprint pinned on 12 Nov 2026', () => {
+  const productionIdl = JSON.parse(readFileSync(new URL('../../api/src/mcp-auth/jupiter-shared-route.idl.json', import.meta.url)));
+  const second = 'BSLAqBbv4CNCnzWFeB7LmydAyEiNMJtve7DYKLpdK4S';
+  const variants = [
+    {},
+    { untilRevoked: true, expiresAtUnix: null, allowDestinationAccountCreation: true },
+    { untilRevoked: true, expiresAtUnix: null, allowDestinationAccountCreation: true, customSpendLimits: true, gasSponsorship: true },
+  ];
+  for (const overrides of variants) {
+    const policy = buildTradingPolicy({ ...input, idl: productionIdl, stockMints: [stock, second], ...overrides });
+    const mixed = structuredClone(policy);
+    mixed.id = 'policy-id';
+    mixed.rules.reverse();
+    for (const rule of mixed.rules) {
+      rule.id = `rule-${rule.name}`;
+      rule.conditions.reverse();
+      for (const condition of rule.conditions) if (Array.isArray(condition.value)) condition.value.reverse();
+    }
+    assert.equal(reviewedFingerprint(policy), legacyFingerprint(policy));
+    assert.equal(reviewedFingerprint(mixed), legacyFingerprint(policy));
+  }
+});
+
+test('readback ignores rule order, condition order, mint-set order and server ids', () => {
+  const second = 'BSLAqBbv4CNCnzWFeB7LmydAyEiNMJtve7DYKLpdK4S';
+  const reviewed = buildTradingPolicy({ ...input, stockMints: [stock, second], allowDestinationAccountCreation: true, untilRevoked: true, expiresAtUnix: null, gasSponsorship: true });
+  const stored = structuredClone(reviewed);
+  stored.id = 'policy-id';
+  stored.name = 'server name';
+  stored.created_at = '2026-11-12T00:00:00.000Z';
+  stored.updated_at = null;
+  stored.rules.reverse();
+  for (const rule of stored.rules) {
+    rule.id = `rule-${rule.name}-${rule.method}`;
+    rule.conditions.reverse();
+    for (const condition of rule.conditions) {
+      condition.id = 'condition-id';
+      if (Array.isArray(condition.value)) condition.value.reverse();
+    }
+  }
+  assert.equal(samePolicySemantics(reviewed, stored), true);
+  const duplicate = structuredClone(stored.rules.find((rule) => rule.name === 'allow bounded jupiter buy' && rule.method === 'signTransaction'));
+  duplicate.conditions.find((condition) => condition.field.endsWith('args.in_amount')).value = '1';
+  assert.equal(samePolicySemantics({ ...stored, rules: [duplicate, ...stored.rules] }, { ...stored, rules: [...stored.rules, duplicate] }), true);
+  const buy = stored.rules.find((rule) => rule.name === 'allow bounded jupiter buy' && rule.method === 'signTransaction');
+  buy.action = 'DENY';
+  assert.equal(samePolicySemantics(reviewed, stored), false);
+  buy.action = 'ALLOW';
+  buy.method = 'signMessage';
+  assert.equal(samePolicySemantics(reviewed, stored), false);
+  buy.method = 'signTransaction';
+  buy.conditions.find((condition) => condition.operator === 'in').value = [second];
+  assert.equal(samePolicySemantics(reviewed, stored), false);
+  stored.rules = stored.rules.filter((rule) => rule !== buy);
+  assert.equal(samePolicySemantics(reviewed, stored), false);
+  stored.owner_id = 'other-owner';
+  assert.equal(samePolicySemantics(reviewed, stored), false);
 });
 
 test('account creation is opt-in, restricted to reviewed mints/programs, and keeps all swap guards', () => {

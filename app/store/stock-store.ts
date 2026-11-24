@@ -1,7 +1,7 @@
 "use client";
 
 import { create } from "zustand";
-import { getStock, getStockAnalysis, getStockChart, getStockNews } from "@/services";
+import { getStock, getStockAnalysis, getStockChart, getStockNews } from "@/services/market-service";
 import type { ChartRange, MarketCandle, NewsItem, StockAnalysis, StockDetail } from "@/types";
 
 interface StockState {
@@ -11,6 +11,8 @@ interface StockState {
   news: NewsItem[];
   isLoading: boolean;
   isChartLoading: boolean;
+  isAnalysisLoading: boolean;
+  isNewsLoading: boolean;
   error?: string;
   chartError?: string;
   loadStock: (assetId: string, range?: ChartRange) => Promise<void>;
@@ -20,61 +22,62 @@ interface StockState {
 
 let stockRequestId = 0;
 let chartRequestId = 0;
+let detailController: AbortController | undefined;
+let chartController: AbortController | undefined;
 
 export const useStockStore = create<StockState>((set) => ({
   chart: [],
   news: [],
   isLoading: false,
   isChartLoading: false,
+  isAnalysisLoading: false,
+  isNewsLoading: false,
   async loadStock(assetId, range = "1M") {
     const requestId = ++stockRequestId;
+    const chartId = ++chartRequestId;
+    detailController?.abort();
+    chartController?.abort();
+    const detail = detailController = new AbortController();
+    const chart = chartController = new AbortController();
     set({
       selected: undefined,
       chart: [],
       analysis: undefined,
       news: [],
       isLoading: true,
+      isChartLoading: true,
+      isAnalysisLoading: true,
+      isNewsLoading: true,
       error: undefined,
       chartError: undefined,
     });
-    const [selectedResult, chartResult, analysisResult, newsResult] = await Promise.allSettled([
-        getStock(assetId),
-        getStockChart(assetId, range),
-        getStockAnalysis(assetId),
-        getStockNews(assetId),
-      ]);
-
-    if (requestId !== stockRequestId) return;
-    if (selectedResult.status === "rejected") {
-      set({
-        error:
-          selectedResult.reason instanceof Error
-            ? selectedResult.reason.message
-            : "Unable to load stock",
-        isLoading: false,
-      });
-      return;
-    }
-
-    set({
-      selected: selectedResult.value,
-      chart: chartResult.status === "fulfilled" ? chartResult.value : [],
-      chartError:
-        chartResult.status === "rejected"
-          ? chartResult.reason instanceof Error
-            ? chartResult.reason.message
-            : "Unable to load chart"
-          : undefined,
-      analysis: analysisResult.status === "fulfilled" ? analysisResult.value : undefined,
-      news: newsResult.status === "fulfilled" ? newsResult.value : [],
-      isLoading: false,
-    });
+    const current = () => requestId === stockRequestId;
+    await Promise.all([
+      getStock(assetId, detail.signal).then(
+        (selected) => { if (current()) set({ selected, isLoading: false }); },
+        (error: unknown) => { if (current()) set({ error: error instanceof Error ? error.message : "Unable to load stock", isLoading: false }); },
+      ),
+      getStockChart(assetId, range, chart.signal).then(
+        (chart) => { if (current() && chartId === chartRequestId) set({ chart, isChartLoading: false }); },
+        (error: unknown) => { if (current() && chartId === chartRequestId) set({ chartError: error instanceof Error ? error.message : "Unable to load chart", isChartLoading: false }); },
+      ),
+      getStockAnalysis(assetId, detail.signal).then(
+        (analysis) => { if (current()) set({ analysis, isAnalysisLoading: false }); },
+        () => { if (current()) set({ isAnalysisLoading: false }); },
+      ),
+      getStockNews(assetId, detail.signal).then(
+        (news) => { if (current()) set({ news, isNewsLoading: false }); },
+        () => { if (current()) set({ isNewsLoading: false }); },
+      ),
+    ]);
   },
   async loadChart(assetId, range) {
     const requestId = ++chartRequestId;
+    chartController?.abort();
+    const controller = chartController = new AbortController();
     set({ isChartLoading: true, chartError: undefined });
     try {
-      const chart = await getStockChart(assetId, range);
+      const chart = await getStockChart(assetId, range, controller.signal);
       if (requestId !== chartRequestId) return;
       set({ chart, isChartLoading: false, chartError: undefined });
     } catch (error) {
@@ -87,6 +90,8 @@ export const useStockStore = create<StockState>((set) => ({
     }
   },
   reset() {
+    detailController?.abort();
+    chartController?.abort();
     stockRequestId += 1;
     chartRequestId += 1;
     set({
@@ -96,6 +101,8 @@ export const useStockStore = create<StockState>((set) => ({
       news: [],
       isLoading: false,
       isChartLoading: false,
+      isAnalysisLoading: false,
+      isNewsLoading: false,
       error: undefined,
       chartError: undefined,
     });

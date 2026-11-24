@@ -5,6 +5,7 @@ import type { EquityRisk, MarketNewsItem } from '../../types/news';
 import type { TokensService as TokensServiceContract } from '../../types/providers/tokens-provider';
 import { TokensNotFoundError } from '../common/errors/provider.errors';
 import { chartRangeToWindow, type ChartWindow } from './chart-range.util';
+import { normalizeMarketSnapshots } from './market-snapshots';
 import { TokensClient } from './tokens.client';
 import {
   extractAssetList,
@@ -208,11 +209,10 @@ export class TokensService implements TokensServiceContract {
     mints: string[],
   ): Promise<TokensMarketSnapshotRaw[]> {
     if (mints.length === 0) return [];
-    const raw = await this.client.post<{
-      results?: TokensMarketSnapshotRaw[];
-      snapshots?: TokensMarketSnapshotRaw[];
-    }>('/assets/market-snapshots', { mints: mints.slice(0, 250) });
-    return raw.results ?? raw.snapshots ?? [];
+    const raw = await this.client.post<Parameters<typeof normalizeMarketSnapshots>[0]>(
+      '/assets/market-snapshots', { mints: mints.slice(0, 250) },
+    );
+    return normalizeMarketSnapshots(raw);
   }
 
   /** Phase 1 helper — batch variant markets (max 50). */

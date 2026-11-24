@@ -1,9 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import type { Quote } from '../../types/quote';
-import {
-  PENDING_EXECUTION_TTL_MS,
-  QUOTE_TTL_MS,
-} from '../config/constants';
+import { PENDING_EXECUTION_TTL_MS, QUOTE_TTL_MS } from '../config/constants';
 import { QuoteExpiredError } from '../common/errors/provider.errors';
 import { type ReviewedTerms, reviewedTermsFor } from './swap-terms';
 

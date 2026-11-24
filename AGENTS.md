@@ -47,10 +47,14 @@ See **Active phase** at the top of [`docs/api-build-board.md`](docs/api-build-bo
 
 ## App-specific notes
 
-- Use Hugeicons for interface icons across the website: named icons from `@hugeicons/core-free-icons` rendered with `HugeiconsIcon` from `@hugeicons/react`. Use these for arrows, controls, status indicators and social-link icons instead of Unicode glyphs or custom interface SVGs. Preserve original brand logos, product illustrations and data charts as their own visuals.
+- Use Tailwind CSS v4 utilities in JSX for first-party web and docs styling. Reuse Tailwind theme tokens and use responsive, state, and accessibility variants for conditional styles. Do not add CSS Modules, standalone vanilla CSS, or static inline styles. Keep custom CSS in the Tailwind entry points or their imports only when necessary, such as keyframes, browser-specific behavior, and third-party integration overrides. Use inline styles for values computed at runtime when classes cannot represent them.
+
+- Use named icons from `lucide-react` for interface icons across the website, including arrows, controls, status indicators, and social links. Use Lucide React instead of Hugeicons for new or updated interface icons. Sidebar icons use the shared `AnimatedIcons` components with `motion/react`, hover and keyboard-focus feedback, and reduced-motion support. Preserve original brand logos, product illustrations and data charts as their own visuals.
 
 - For release notes and changelog publishing, use [the Oren changelog skill](.agents/skills/oren-changelog/SKILL.md). Entries live in `app/content/changelog/`; films follow the existing separately deployed media workflow.
 
 - For product launch films and motion design in the Oren Drip style, use [the Continuous Product Motion skill](.agents/skills/continuous-product-motion/SKILL.md). It includes camera, UI, pacing, audio and delivery guidance plus a bundled visual benchmark.
+
+- For social graphics and Codex image prompts in the approved Oren style, use [the brand graphics skill](.agents/skills/brand-graphics/SKILL.md). The style guide is [brand.md](.agents/skills/brand-graphics/brand.md), with the approved example beside it.
 
 - Next.js rules for `app/` may also appear in [`app/AGENTS.md`](app/AGENTS.md). Follow both: root board + app Next guidance.

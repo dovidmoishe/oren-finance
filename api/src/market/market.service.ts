@@ -1,23 +1,28 @@
 import {
   Injectable,
   Logger,
+  ServiceUnavailableException,
   type OnApplicationBootstrap,
 } from '@nestjs/common';
 import type { GetStocksResponse } from '../../types/api';
-import type { Equity, EquitySummary } from '../../types/equity';
 import type {
-  ChartRange,
-  ChartSeries,
-  MarketMover,
-} from '../../types/market';
+  Equity,
+  EquitySummary,
+  MarketForYouResponse,
+} from '../../types/equity';
+import type { InterestId } from '../../types/sectors';
+import type { ChartRange, ChartSeries, MarketMover } from '../../types/market';
 import { STOCK_CATALOG_TTL_MS } from '../config/constants';
 import { StockCatalogRepository } from '../tokens/stock-catalog.repository';
 import { TokensService } from '../tokens/tokens.service';
+import { rankSectorMatches } from './sector-ranking';
+import { MarketReadCache } from './market-read-cache';
 
 @Injectable()
 export class MarketService implements OnApplicationBootstrap {
   private readonly logger = new Logger(MarketService.name);
   private catalogRefresh?: Promise<void>;
+  private readonly charts = new MarketReadCache<ChartSeries>();
 
   constructor(
     private readonly tokens: TokensService,
@@ -53,6 +58,29 @@ export class MarketService implements OnApplicationBootstrap {
     );
   }
 
+  async getForYou(sectors: InterestId[]): Promise<MarketForYouResponse> {
+    if (sectors.length === 0) return { state: 'no_preferences', items: [] };
+
+    const catalog = await this.catalog
+      .findSectorCandidates(sectors)
+      .catch((error: unknown) => {
+        this.logger.warn(`Sector catalog read failed: ${errorMessage(error)}`);
+        return null;
+      });
+    if (!catalog || !catalog.isFresh) this.refreshCatalogInBackground();
+    if (!catalog)
+      throw new ServiceUnavailableException(
+        'Stock sector catalog is unavailable',
+      );
+
+    const items = rankSectorMatches(catalog.items).map(
+      ({ stock, sectorId, interestId }) => ({ ...stock, sectorId, interestId }),
+    );
+    return items.length
+      ? { state: 'ready', items }
+      : { state: 'no_matches', items: [] };
+  }
+
   private refreshCatalogInBackground(): void {
     if (this.catalogRefresh) return;
 
@@ -68,7 +96,11 @@ export class MarketService implements OnApplicationBootstrap {
   }
 
   private async refreshCatalog(): Promise<void> {
-    const stocks = await this.tokens.getStocks();
+    const unique = new Map<string, Equity>();
+    for (const stock of await this.tokens.getStocks()) {
+      if (!unique.has(stock.id)) unique.set(stock.id, stock);
+    }
+    const stocks = [...unique.values()];
     await this.catalog.replaceAll(
       stocks,
       new Date(Date.now() + STOCK_CATALOG_TTL_MS),
@@ -93,9 +125,24 @@ export class MarketService implements OnApplicationBootstrap {
     return this.tokens.getStock(assetId);
   }
 
-  async getChart(assetId: string, range: ChartRange): Promise<ChartSeries> {
+  getChart(assetId: string, range: ChartRange): Promise<ChartSeries> {
+    return this.charts.get(JSON.stringify([assetId, range]), () =>
+      this.loadChart(assetId, range),
+    );
+  }
+
+  private async loadChart(
+    assetId: string,
+    range: ChartRange,
+  ): Promise<ChartSeries> {
     const [equity, candles] = await Promise.all([
-      this.tokens.getStock(assetId).catch(() => null),
+      this.catalog
+        .findByAssetIds([assetId])
+        .then((items) => items.find((item) => item.id === assetId))
+        .catch(() => undefined)
+        .then<EquitySummary | null>(
+          (item) => item ?? this.tokens.getStock(assetId).catch(() => null),
+        ),
       this.tokens.getPriceChart(assetId, range),
     ]);
 

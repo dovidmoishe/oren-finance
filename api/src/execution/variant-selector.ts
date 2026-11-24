@@ -36,6 +36,7 @@ export class VariantSelector {
   async selectAndQuote(
     intent: TradeIntent,
     requirePreferredMint = false,
+    reviewedTrade = false,
   ): Promise<VariantSelectionResult> {
     const equity = await this.resolveEquity(intent);
     const candidates = this.pickCandidates(
@@ -50,7 +51,12 @@ export class VariantSelector {
       );
     }
 
-    const quotes = await this.quoteCandidates(equity, candidates, intent);
+    const quotes = await this.quoteCandidates(
+      equity,
+      candidates,
+      intent,
+      reviewedTrade,
+    );
     if (quotes.length === 0) {
       throw new JupiterBadRequestError(`No swap routes for ${equity.ticker}`);
     }
@@ -103,6 +109,7 @@ export class VariantSelector {
     equity: Equity,
     candidates: TokenizedEquity[],
     intent: TradeIntent,
+    reviewedTrade: boolean,
   ): Promise<VariantSelectionResult[]> {
     const results: VariantSelectionResult[] = [];
 
@@ -116,7 +123,8 @@ export class VariantSelector {
             equity,
             variant,
             intent,
-            index < TITAN_MAX_VARIANT_QUOTES,
+            intent.jupiterOnly ? false : index < TITAN_MAX_VARIANT_QUOTES,
+            reviewedTrade && !intent.jupiterOnly,
           );
           results.push({ equity, variant, quote });
         } catch (err) {
@@ -142,6 +150,7 @@ export class VariantSelector {
     catalogVariant: TokenizedEquity,
     intent: TradeIntent,
     titanEligible: boolean,
+    reviewedTrade: boolean,
   ): Promise<Quote> {
     const variant = await this.withDecimals(catalogVariant);
     const stockDecimals = variant.decimals ?? USDC_DECIMALS;
@@ -168,6 +177,7 @@ export class VariantSelector {
         slippageBps: intent.slippageBps,
         wallet: intent.wallet,
         titanEligible,
+        reviewedTrade,
         lane: intent.autoRefresh ? 'background' : 'priority',
       });
     }
@@ -197,6 +207,7 @@ export class VariantSelector {
       slippageBps: intent.slippageBps,
       wallet: intent.wallet,
       titanEligible,
+      reviewedTrade,
       lane: intent.autoRefresh ? 'background' : 'priority',
     });
   }

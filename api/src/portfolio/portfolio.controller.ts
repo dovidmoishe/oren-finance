@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Query } from '@nestjs/common';
+import { Controller, Get, Headers, Param, Query } from '@nestjs/common';
 import type {
   GetPortfolioActivityResponse,
   GetPortfolioCalendarDayResponse,
@@ -7,17 +7,21 @@ import type {
   GetPortfolioHistoryResponse,
   GetPortfolioResponse,
 } from '../../types/api';
+import { PrivyWalletAuth } from '../auth/privy-wallet-auth';
 import { WalletAddressPipe } from '../common/pipes/wallet-address.pipe';
 import { PortfolioCalendarService } from './portfolio-calendar.service';
 import { PortfolioService } from './portfolio.service';
+import type { ChartRange } from '../../types/market';
 
 @Controller('portfolio')
 export class PortfolioController {
   constructor(
     private readonly portfolio: PortfolioService,
     private readonly calendar: PortfolioCalendarService,
+    private readonly auth: PrivyWalletAuth,
   ) {}
 
+  /** Balances mirror public on-chain state; the routes below hold Oren-only data. */
   @Get(':wallet')
   getPortfolio(
     @Param('wallet', WalletAddressPipe) wallet: string,
@@ -26,33 +30,42 @@ export class PortfolioController {
   }
 
   @Get(':wallet/history')
-  getHistory(
+  async getHistory(
+    @Headers('authorization') authorization: string | undefined,
     @Param('wallet', WalletAddressPipe) wallet: string,
+    @Query('range') range?: ChartRange,
   ): Promise<GetPortfolioHistoryResponse> {
-    return this.portfolio.getHistory(wallet);
+    await this.auth.requireWallet(authorization, wallet);
+    return this.portfolio.getHistory(wallet, range);
   }
 
   @Get(':wallet/activity')
-  getActivity(
+  async getActivity(
+    @Headers('authorization') authorization: string | undefined,
     @Param('wallet', WalletAddressPipe) wallet: string,
   ): Promise<GetPortfolioActivityResponse> {
+    await this.auth.requireWallet(authorization, wallet);
     return this.portfolio.getActivity(wallet);
   }
 
   @Get(':wallet/calendar')
-  getCalendar(
+  async getCalendar(
+    @Headers('authorization') authorization: string | undefined,
     @Param('wallet', WalletAddressPipe) wallet: string,
     @Query() query: GetPortfolioCalendarQuery,
   ): Promise<GetPortfolioCalendarResponse> {
+    await this.auth.requireWallet(authorization, wallet);
     return this.calendar.getCalendar(wallet, query);
   }
 
   @Get(':wallet/calendar/:date')
-  getCalendarDay(
+  async getCalendarDay(
+    @Headers('authorization') authorization: string | undefined,
     @Param('wallet', WalletAddressPipe) wallet: string,
     @Param('date') date: string,
     @Query() query: Pick<GetPortfolioCalendarQuery, 'timeZone'>,
   ): Promise<GetPortfolioCalendarDayResponse> {
+    await this.auth.requireWallet(authorization, wallet);
     return this.calendar.getDay(wallet, date, query);
   }
 }

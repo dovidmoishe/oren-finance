@@ -4,7 +4,11 @@ import {
   SOL_RENT_MESSAGE,
   SOL_FEE_MESSAGE,
 } from './simulation-failure';
-import { isJupiterSlippageFailure } from './jupiter-slippage';
+import {
+  INSUFFICIENT_BALANCE_MESSAGE,
+  simulationReason,
+  slippageExceededMessage,
+} from './simulation-reason';
 import { VersionedTransaction } from '@solana/web3.js';
 import { createPublicKey, verify } from 'node:crypto';
 import bs58 from 'bs58';
@@ -16,15 +20,25 @@ import {
   simulationAddresses,
 } from './swap-balance-guard';
 import type { SwapExpectation } from './swap-terms';
+import {
+  sponsorshipSimulation,
+  validateSponsoredTransaction,
+} from './gas-sponsorship';
 
 @Injectable()
 export class ApprovalRpc {
   private readonly logger = new Logger(ApprovalRpc.name);
   constructor(private readonly rpc: AlchemyClient) {}
   decode(transaction: string, wallet: string) {
-    const tx = VersionedTransaction.deserialize(
-      Buffer.from(transaction, 'base64'),
-    );
+    let tx: VersionedTransaction;
+    try {
+      const bytes = Buffer.from(transaction, 'base64');
+      if (bytes.length > 1232 || bytes.toString('base64') !== transaction)
+        throw new Error();
+      tx = VersionedTransaction.deserialize(bytes);
+    } catch {
+      throw new BadRequestException('Invalid Solana transaction');
+    }
     if (
       tx.message.staticAccountKeys[0]?.toBase58() !== wallet ||
       tx.message.header.numRequiredSignatures < 1
@@ -45,8 +59,31 @@ export class ApprovalRpc {
     transaction: string,
     wallet: string,
     expectation?: SwapExpectation,
+    simulationPayer?: string,
   ) {
     const tx = this.decode(transaction, wallet);
+    if (simulationPayer) {
+      // Check the configured public account is suitable for simulation, never fund it.
+      const payer = await this.rpc.call<{
+        value: { owner: string; executable: boolean; lamports: number } | null;
+      }>('getAccountInfo', [
+        simulationPayer,
+        { encoding: 'base64', commitment: 'confirmed' },
+      ]);
+      if (
+        !payer.value ||
+        payer.value.owner !== '11111111111111111111111111111111' ||
+        payer.value.executable ||
+        payer.value.lamports < 10_000_000
+      )
+        throw new BadRequestException(
+          'Gas sponsorship simulation is unavailable',
+        );
+      transaction = sponsorshipSimulation(transaction, wallet, simulationPayer);
+    }
+    const simulatedTx = simulationPayer
+      ? VersionedTransaction.deserialize(Buffer.from(transaction, 'base64'))
+      : tx;
     const probe = expectation
       ? await probeBalances(this.rpc, wallet, expectation)
       : undefined;
@@ -64,7 +101,7 @@ export class ApprovalRpc {
         },
       ]),
       this.rpc.call<{ value: number | null }>('getFeeForMessage', [
-        Buffer.from(tx.message.serialize()).toString('base64'),
+        Buffer.from(simulatedTx.message.serialize()).toString('base64'),
         { commitment: 'confirmed' },
       ]),
     ]);
@@ -73,32 +110,44 @@ export class ApprovalRpc {
       const index = failure?.InstructionError?.[0];
       const instruction =
         typeof index === 'number' && index >= 0
-          ? tx.message.compiledInstructions[index]
+          ? simulatedTx.message.compiledInstructions[index]
           : undefined;
       const program = instruction
-        ? tx.message.staticAccountKeys[instruction.programIdIndex]?.toBase58()
+        ? simulatedTx.message.staticAccountKeys[
+            instruction.programIdIndex
+          ]?.toBase58()
         : undefined;
       const failureCode = simulationFailureCode(simulated.value.err);
+      const reason = simulationReason(simulated.value.err, program);
       this.logger.warn(`Transaction simulation rejected: ${failureCode}`);
-      if (failureCode.startsWith('insufficient_rent_account_'))
+      if (
+        reason === 'insufficient_sol_for_rent' ||
+        failureCode.startsWith('insufficient_rent_account_')
+      )
         throw new BadRequestException({
           message: SOL_RENT_MESSAGE,
           code: 'INSUFFICIENT_SOL_FOR_RENT',
         });
-      if (failureCode === 'InsufficientFundsForFee')
+      if (reason === 'insufficient_sol_for_fees')
         throw new BadRequestException({
           message: SOL_FEE_MESSAGE,
           code: 'INSUFFICIENT_SOL_FOR_FEES',
         });
-      if (isJupiterSlippageFailure(simulated.value.err, program))
+      if (reason === 'slippage_exceeded')
         throw new BadRequestException({
-          message:
-            'The price moved outside the approved tolerance. Request a fresh quote and review its minimum proceeds.',
+          message: slippageExceededMessage(),
           code: 'QUOTE_SLIPPAGE_EXCEEDED',
         });
-      throw new BadRequestException(
-        'This transaction could not be simulated. Check your USDC and SOL balances and request a fresh quote.',
-      );
+      if (reason === 'insufficient_balance')
+        throw new BadRequestException({
+          message: INSUFFICIENT_BALANCE_MESSAGE,
+          code: 'INSUFFICIENT_BALANCE',
+        });
+      throw new BadRequestException({
+        message:
+          'This transaction could not be simulated. Check your USDC and SOL balances and request a fresh quote.',
+        code: 'SIMULATION_FAILED',
+      });
     }
     if (fee.value === null)
       throw new BadRequestException(
@@ -110,18 +159,46 @@ export class ApprovalRpc {
         expectation,
         addresses,
         simulated.value.accounts ?? [],
-        BigInt(fee.value),
+        simulationPayer ? 0n : BigInt(fee.value),
+        !!simulationPayer,
       );
       if (!check.ok) {
-        this.logger.warn(
-          `swap balance check failed for ${wallet}: ${check.reason}`,
-        );
+        this.logger.warn(`swap balance check failed: ${check.reason}`);
         throw new BadRequestException(
           'This trade no longer matches the terms you reviewed. Review a fresh quote.',
         );
       }
     }
-    return String(fee.value);
+    // Keep the network fee bound even though it will not be charged to the user.
+    if (simulationPayer && fee.value > 2_000_000)
+      throw new BadRequestException(
+        'Sponsored transaction exceeds the network fee cap',
+      );
+    return simulationPayer ? '0' : String(fee.value);
+  }
+
+  async verifySponsored(signature: string, unsigned: string, wallet: string) {
+    const result = await this.rpc.call<{
+      transaction?: [string, string];
+      meta?: { err?: unknown };
+    } | null>('getTransaction', [
+      signature,
+      {
+        encoding: 'base64',
+        commitment: 'confirmed',
+        maxSupportedTransactionVersion: 0,
+      },
+    ]);
+    if (!result?.transaction?.[0] || !result.meta || result.meta.err)
+      throw new BadRequestException(
+        'Sponsored transaction is not confirmed yet',
+      );
+    return validateSponsoredTransaction(
+      unsigned,
+      result.transaction[0],
+      wallet,
+      signature,
+    );
   }
 
   /** Current confirmed slot, for routes that carry a slot expiry. */
@@ -164,13 +241,14 @@ export class ApprovalRpc {
       },
     ]);
   }
-  async status(signature: string) {
+  async status(signature: string, signal?: AbortSignal) {
     const result = await this.rpc.call<{
       value: ({ err: unknown; confirmationStatus: string | null } | null)[];
-    }>('getSignatureStatuses', [
-      [signature],
-      { searchTransactionHistory: true },
-    ]);
+    }>(
+      'getSignatureStatuses',
+      [[signature], { searchTransactionHistory: true }],
+      signal,
+    );
     return result.value[0];
   }
   async expiryHeight() {

@@ -5,6 +5,7 @@ import { NEWS_TTL_MS } from '../config/constants';
 import { PortfolioService } from '../portfolio/portfolio.service';
 import { TokensService } from '../tokens/tokens.service';
 import { NewsRepository } from './news.repository';
+import { matchesStock } from './news-relevance';
 
 const DEFAULT_NEWS_LIMIT = 10;
 const MAX_NEWS_LIMIT = 25;
@@ -142,29 +143,11 @@ function filterNewsForEquity(
 ): MarketNewsItem[] {
   if (!equity) return items;
 
-  const assetId = equity.id.toLowerCase();
-  const ticker = equity.ticker.toLowerCase();
-  const nameParts = equity.name
-    .toLowerCase()
-    .split(/[^a-z0-9]+/)
-    .filter((part) => part.length >= 3);
-
-  return items.filter((item) => {
-    const tickerMatches =
-      item.ticker?.toLowerCase() === ticker ||
-      containsToken(item.headline, ticker) ||
-      containsToken(item.summary, ticker);
-    if (tickerMatches) return true;
-
-    const text = `${item.headline} ${item.summary ?? ''}`.toLowerCase();
-    if (containsToken(text, assetId)) return true;
-
-    return nameParts.some((part) => containsToken(text, part));
-  });
-}
-
-function containsToken(value: string | undefined, token: string): boolean {
-  if (!value || !token) return false;
-  const escaped = token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  return new RegExp(`(^|[^a-z0-9])${escaped}([^a-z0-9]|$)`, 'i').test(value);
+  return items.filter((item) =>
+    matchesStock(item, {
+      assetId: equity.id,
+      ticker: equity.ticker,
+      name: equity.name,
+    }),
+  );
 }

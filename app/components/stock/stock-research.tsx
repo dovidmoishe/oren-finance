@@ -1,19 +1,34 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { ArrowRight, BookOpen, ChevronDown, FileText, MessageSquareText, RefreshCw, ChartPie } from "lucide-react";
 import { useOrenAuth } from "@/components/auth/auth-context";
 import {
   getStockResearch,
   recordResearchSourceOpen,
 } from "@/services/research-service";
-import type { StockResearch } from "@/types";
+import type {
+  CompanyCitationView,
+  CompanyMetricView,
+  CompanyPeriodView,
+  CompanyResearchData,
+  StockResearch,
+} from "@/types";
+import { MessageKeyError, useI18n, useShownMessage, shownFromUnknown, type MessageKey, type ShownMessage, type Translate } from "@/i18n/i18n";
+
+const researchFeatures = [
+  { icon: FileText, label: "research.filings" },
+  { icon: MessageSquareText, label: "research.writerViews" },
+  { icon: ChartPie, label: "research.orenRead" },
+] as const;
 
 export function StockResearchPanel({ assetId }: { assetId: string }) {
   const auth = useOrenAuth();
+  const { locale, timeZone, t } = useI18n();
   const [loadedReport, setReport] = useState<StockResearch>();
   const [reportWallet, setReportWallet] = useState<string>();
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string>();
+  const [error, setError] = useState<ShownMessage>();
   const requestId = useRef(0);
   const wallet = auth.address;
   const report =
@@ -30,6 +45,7 @@ export function StockResearchPanel({ assetId }: { assetId: string }) {
       item.action?.toUpperCase() !== "EXIT" &&
       item.author.toLowerCase() !== bullishView?.author.toLowerCase(),
   );
+  const errorText = useShownMessage(error);
   const getAccessToken = auth.getAccessToken;
 
   const refresh = useCallback(async () => {
@@ -39,16 +55,14 @@ export function StockResearchPanel({ assetId }: { assetId: string }) {
     setError(undefined);
     try {
       const token = await getAccessToken();
-      if (!token) throw new Error("Sign in to load research.");
+      if (!token) throw new MessageKeyError("research.signInToLoad");
       const next = await getStockResearch(assetId, wallet, token);
       if (current !== requestId.current) return;
       setReport(next);
       setReportWallet(wallet);
     } catch (cause) {
       if (current === requestId.current)
-        setError(
-          cause instanceof Error ? cause.message : "Research is unavailable.",
-        );
+        setError(shownFromUnknown(cause, "research.unavailable"));
     } finally {
       if (current === requestId.current) setLoading(false);
     }
@@ -75,52 +89,60 @@ export function StockResearchPanel({ assetId }: { assetId: string }) {
   return (
     <section
       aria-labelledby="stock-research-title"
-      className="rounded-[20px] border border-border bg-panel p-5 sm:p-6"
+      className="@container/research rounded-2xl border border-border bg-linear-to-br from-accent-lavender/10 via-panel to-panel p-5 sm:p-6"
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h2
-            id="stock-research-title"
-            className="font-display text-lg font-semibold"
-          >
-            Research desk
-          </h2>
-          <p className="mt-1 text-xs text-muted">
-            Market data and cited views in one place.
-          </p>
+        <div className="flex items-start gap-3">
+          <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-accent-lavender/35 text-foreground"><BookOpen aria-hidden="true" size={18} strokeWidth={1.7} /></span>
+          <div>
+            <h2 id="stock-research-title" className="font-display text-base font-semibold">
+              {t("research.title")}
+            </h2>
+            <p className="mt-1 text-xs text-muted">
+              {t("research.subtitle")}
+            </p>
+          </div>
         </div>
-        <button
-          className="rounded-lg border border-border px-3 py-1.5 text-xs hover:bg-panel-subtle disabled:opacity-50"
-          disabled={loading || !wallet}
+        {wallet && <button
+          className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-border bg-panel px-3 text-xs font-medium hover:bg-panel-subtle focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus disabled:opacity-50"
+          disabled={loading}
           onClick={() => void refresh()}
           type="button"
         >
-          {loading ? "Refreshing…" : "Refresh research"}
-        </button>
+          <RefreshCw aria-hidden="true" className={loading ? "animate-spin motion-reduce:animate-none" : undefined} size={13} strokeWidth={1.7} />{loading ? t("research.refreshing") : t("research.refresh")}
+        </button>}
       </div>
-      {!wallet ? (
-        <p className="mt-5 text-sm text-muted">
-          Sign in to see portfolio-aware research.
-        </p>
+      {!wallet && (auth.ready === false || auth.authenticated) ? <p className="mt-5 text-sm text-muted" role="status">{t(auth.ready === false ? "account.loading" : "portfolio.preparingDescription")}</p> : !wallet ? (
+        <div className="mt-5 flex flex-col items-start justify-between gap-5 border-t border-border/70 pt-5 @2xl/research:flex-row @2xl/research:items-center">
+          <div className="min-w-0">
+            <p className="text-sm leading-6">{t("research.signedOut")}</p>
+            <ul className="mt-3 flex flex-wrap gap-x-4 gap-y-2 text-[11px] text-muted">
+              {researchFeatures.map(({ icon: Icon, label }) => <li className="flex items-center gap-1.5" key={label}><Icon aria-hidden="true" size={13} strokeWidth={1.6} />{t(label)}</li>)}
+            </ul>
+          </div>
+          <button className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-xl bg-foreground px-4 text-xs font-semibold text-panel hover:bg-foreground/85 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus disabled:opacity-50" disabled={auth.configured === false} onClick={auth.open} type="button">{t("account.signIn")}<ArrowRight aria-hidden="true" size={14} strokeWidth={1.7} /></button>
+        </div>
       ) : null}
-      {error ? (
-        <p role="alert" className="mt-4 text-sm text-red-400">
-          {error}
+      {loading && !report && <div className="mt-5 rounded-xl bg-panel-subtle p-4 text-sm text-muted" role="status">{t("research.loading")}</div>}
+      {errorText ? (
+        <p role="alert" className="mt-4 text-sm text-negative">
+          {errorText}
         </p>
       ) : null}
       {report ? (
-        <div className="mt-5 grid gap-4 lg:grid-cols-2">
+        <div className="mt-5 grid gap-4 @3xl/research:grid-cols-2">
           <article className="rounded-2xl border border-border bg-panel-subtle p-4">
-            <h3 className="text-sm font-semibold">Oren read</h3>
+            <h3 className="text-sm font-semibold">{t("research.orenRead")}</h3>
             <p className="mt-2 text-sm leading-6 text-muted">
               {report.analysis.data?.summary ??
-                "Market analysis is temporarily unavailable."}
+                t("research.analysisUnavailable")}
             </p>
             {report.analysis.data ? (
               <p className="mt-3 text-xs text-muted">
-                Deterministic Oren Score:{" "}
-                {Math.round(report.analysis.data.opportunityScore)} / 100 ·
-                Observed {dateLabel(report.analysis.observedAt)}
+                {t("research.scoreLine", {
+                  score: Math.round(report.analysis.data.opportunityScore),
+                  date: dateLabel(t, report.analysis.observedAt, locale, timeZone),
+                })}
               </p>
             ) : null}
             {report.news.available &&
@@ -130,7 +152,7 @@ export function StockResearchPanel({ assetId }: { assetId: string }) {
                 Number.isFinite(Date.parse(item.publishedAt)),
             ) ? (
               <div className="mt-3 border-t border-border pt-3">
-                <p className="text-xs font-medium">Recent cited news</p>
+                <p className="text-xs font-medium">{t("research.citedNews")}</p>
                 <ul className="mt-2 space-y-2 text-xs">
                   {report.news.data
                     .filter(
@@ -151,7 +173,7 @@ export function StockResearchPanel({ assetId }: { assetId: string }) {
                         {item.headline}
                       </a>
                       <span className="ml-1 text-muted">
-                        · {dateLabel(item.publishedAt)}
+                        · {dateLabel(t, item.publishedAt, locale, timeZone)}
                       </span>
                     </li>
                   ))}
@@ -160,34 +182,39 @@ export function StockResearchPanel({ assetId }: { assetId: string }) {
             ) : null}
             {report.portfolio.available ? (
               <p className="mt-2 text-xs text-muted">
-                Your exposure:{" "}
-                {report.portfolio.data
-                  ? `${report.portfolio.data.allocationPercent.toFixed(1)}% of portfolio`
-                  : "No current position"}
+                {t("research.exposure", {
+                  value: report.portfolio.data
+                    ? t("research.exposurePercent", { percent: report.portfolio.data.allocationPercent.toFixed(1) })
+                    : t("research.noPosition"),
+                })}
               </p>
             ) : null}
           </article>
           <article className="rounded-2xl border border-border bg-panel-subtle p-4">
-            <h3 className="text-sm font-semibold">Writer views</h3>
+            <h3 className="text-sm font-semibold">{t("research.writerViews")}</h3>
             {!report.opinions.available ? (
               <p className="mt-2 text-sm text-muted">
                 {report.opinions.reason === "not_enabled"
-                  ? "Writer opinions are not enabled for this signed-in view."
-                  : "Writer opinions could not be loaded for this research view."}
+                  ? t("research.opinionsDisabled")
+                  : t("research.opinionsFailed")}
               </p>
             ) : null}
             {report.opinions.data ? (
               <>
                 <p className="mt-2 text-xs text-muted">
-                  {report.opinions.data.distinctAuthors} distinct writers ·{" "}
-                  {report.opinions.data.mentionCount} mentions ·{" "}
-                  {report.opinions.data.coverage} coverage · Observed{" "}
-                  {dateLabel(report.opinions.observedAt)}
+                  {t("research.opinionsMeta", {
+                    writers: report.opinions.data.distinctAuthors,
+                    mentions: report.opinions.data.mentionCount,
+                    coverage: report.opinions.data.coverage,
+                    date: dateLabel(t, report.opinions.observedAt, locale, timeZone),
+                  })}
                 </p>
                 {report.opinions.data.window ? (
                   <p className="mt-1 text-xs text-muted">
-                    Covered {dateLabel(report.opinions.data.window.from)}–
-                    {dateLabel(report.opinions.data.window.to)}
+                    {t("research.covered", {
+                      from: dateLabel(t, report.opinions.data.window.from, locale, timeZone),
+                      to: dateLabel(t, report.opinions.data.window.to, locale, timeZone),
+                    })}
                   </p>
                 ) : null}
                 <div className="mt-3 space-y-3">
@@ -197,7 +224,7 @@ export function StockResearchPanel({ assetId }: { assetId: string }) {
                       key={`${item.author}-${item.url}`}
                     >
                       <a
-                        className="text-sm font-medium text-sky-700 underline-offset-2 hover:underline"
+                        className="text-sm font-medium text-link underline-offset-2 hover:underline"
                         href={item.url}
                         onClick={recordSource}
                         rel="noopener noreferrer"
@@ -211,9 +238,9 @@ export function StockResearchPanel({ assetId }: { assetId: string }) {
                         )}
                       </a>
                       <p className="mt-1 text-xs text-muted">
-                        {item.stance ?? "Unstated"}
+                        {item.stance ?? t("research.unstated")}
                         {item.action ? ` · ${item.action}` : ""} ·{" "}
-                        {dateLabel(item.date)}
+                        {dateLabel(t, item.date, locale, timeZone)}
                       </p>
                       <p className="mt-1 text-sm leading-5">{item.summary}</p>
                     </div>
@@ -222,14 +249,20 @@ export function StockResearchPanel({ assetId }: { assetId: string }) {
               </>
             ) : null}
           </article>
-          <article className="rounded-2xl border border-border bg-panel-subtle p-4 lg:col-span-2">
-            <h3 className="text-sm font-semibold">Where they disagree</h3>
+          {report.company ? (
+            <CompanyFilings
+              company={report.company}
+              onOpenSource={recordSource}
+            />
+          ) : null}
+          <article className="rounded-2xl border border-border bg-panel-subtle p-4 @3xl/research:col-span-2">
+            <h3 className="text-sm font-semibold">{t("research.disagreeTitle")}</h3>
             <p className="mt-2 text-sm leading-6 text-muted">
               {report.opinions.data?.disagreement
-                ? "Distinct writers have both bullish and bearish views. Read the sources before drawing a conclusion."
+                ? t("research.disagree")
                 : report.opinions.data?.coverage === "current"
-                  ? "No opposing writer stances appear in the covered sample. This is not market consensus."
-                  : "Coverage is too limited for a useful agreement read."}
+                  ? t("research.noOpposing")
+                  : t("research.limitedCoverage")}
             </p>
             {report.opinions.data?.disagreement &&
             bullishView &&
@@ -265,18 +298,450 @@ export function StockResearchPanel({ assetId }: { assetId: string }) {
           {/* Thesis posting stays off the desk. saveStockThesis remains on the API for a later pass. */}
         </div>
       ) : loading ? (
-        <p className="mt-5 text-sm text-muted">Loading research…</p>
+        <p className="mt-5 text-sm text-muted">{t("research.loading")}</p>
       ) : null}
     </section>
   );
 }
 
-function dateLabel(value?: string) {
-  return value && Number.isFinite(Date.parse(value))
-    ? new Date(value).toLocaleDateString(undefined, {
-        year: "numeric",
-        month: "short",
-        day: "numeric",
-      })
-    : "time unavailable";
+function dateLabel(t: Translate, value: string | undefined, locale: string, timeZone: string) {
+  const missing = t("research.timeUnavailable");
+  if (!value) return missing;
+  const dateOnly = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  const date = dateOnly
+    ? new Date(Date.UTC(Number(dateOnly[1]), Number(dateOnly[2]) - 1, Number(dateOnly[3])))
+    : new Date(value);
+  if (Number.isNaN(date.getTime())) return missing;
+  return new Intl.DateTimeFormat(locale, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    timeZone: dateOnly ? "UTC" : timeZone,
+  }).format(date);
+}
+
+const FILING_LINK_CLASS =
+  "font-medium text-foreground underline decoration-foreground/40 underline-offset-2 hover:decoration-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2";
+const SEC_ARCHIVE = "https://www.sec.gov/Archives/edgar/data/";
+// The API appends this English line to every briefing; the panel shows the
+// translated disclaimer once instead.
+const COMPANY_DISCLAIMER =
+  "Filing facts, not the Oren Score, not a recommendation.";
+
+function CompanyFilings({
+  company,
+  onOpenSource,
+}: {
+  company: NonNullable<StockResearch["company"]>;
+  onOpenSource: () => void;
+}) {
+  const { locale, timeZone, t } = useI18n();
+  const data = company.data;
+  const cards = data ? companyCards(t, data, locale, timeZone) : [];
+  const summary = cards.find((card) => card.key === "quarter")
+    ?? cards.find((card) => card.key === "year")
+    ?? cards[0];
+  const filings = sourceFilings(t, data, locale, timeZone);
+  return (
+    <article className="@container/filings min-w-0 rounded-2xl border border-border bg-panel p-4 @3xl/research:col-span-2 sm:p-5">
+      <h3 className="text-base font-semibold">{t("research.performanceTitle")}</h3>
+      {summary ? <p className="mt-1 text-xs leading-5 text-muted">{summary.key === "ttm" ? t("research.ttmPeriod") : summary.title} · {summary.range}</p> : null}
+      {company.reason ? (
+        <p className="mt-2 text-sm text-muted">
+          {t(company.reason === "stale" ? "research.staleSummary" : companyReason(company.reason))}
+        </p>
+      ) : null}
+      {summary ? (
+        <dl className="mt-5 grid gap-5 @2xl/filings:grid-cols-3 @2xl/filings:gap-6">
+          <MetricFact simple currency filings={filings} label={t("research.metricRevenue")} metric={summary.revenue} note={t("research.revenueExplanation")} onOpenSource={onOpenSource} />
+          <MetricFact simple currency filings={filings} label={t("research.profitLabel")} metric={summary.netIncome} note={t("research.profitExplanation")} onOpenSource={onOpenSource} />
+          <MetricFact simple filings={filings} label={t("research.growthLabel")} metric={summary.yoy} note={t(summary.key === "quarter" ? "research.quarterGrowthExplanation" : summary.key === "year" ? "research.yearGrowthExplanation" : "research.ttmGrowthExplanation")} onOpenSource={onOpenSource} />
+        </dl>
+      ) : null}
+      <details className="group/details mt-5 border-t border-border pt-2">
+        <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 rounded text-xs font-medium text-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-focus [&::-webkit-details-marker]:hidden">
+          {t("research.reportDetails")}
+          <ChevronDown aria-hidden="true" className="group-open/details:rotate-180" size={14} />
+        </summary>
+        <h4 className="mt-3 text-sm font-medium">{t("research.filings")}</h4>
+        <p className="mt-1 text-xs leading-5 text-muted">{t("research.filingsNote")}</p>
+      {cards.length ? (
+        <div className="mt-5 grid gap-4 @3xl/filings:grid-cols-3">
+          {cards.map((card) => (
+            <section
+              className="min-w-0 rounded-xl bg-panel-subtle p-4"
+              key={card.key}
+            >
+              <h4 className="text-[11px] font-semibold uppercase tracking-wide text-muted">
+                {card.title}
+              </h4>
+              <p className="mt-2 text-base font-semibold tracking-tight">{card.period}</p>
+              <p className="mt-1 text-xs leading-5 text-muted">{card.range}</p>
+              <dl className="mt-5 grid grid-cols-2 gap-x-4 gap-y-4">
+                <MetricFact
+                  prominent
+                  currency
+                  filings={filings}
+                  label={t("research.metricRevenue")}
+                  metric={card.revenue}
+                  onOpenSource={onOpenSource}
+                />
+                <MetricFact
+                  currency
+                  filings={filings}
+                  label={t("research.metricNetIncome")}
+                  metric={card.netIncome}
+                  onOpenSource={onOpenSource}
+                />
+                <MetricFact
+                  filings={filings}
+                  label={t("research.metricMargin")}
+                  metric={card.margin}
+                  onOpenSource={onOpenSource}
+                />
+                <MetricFact
+                  filings={filings}
+                  label={t("research.metricYoy")}
+                  metric={card.yoy}
+                  note={card.yoyNote}
+                  onOpenSource={onOpenSource}
+                />
+              </dl>
+            </section>
+          ))}
+        </div>
+      ) : data?.briefing.length ? (
+        <div className="mt-3 space-y-2">
+          {data.briefing
+            .filter((line) => line !== COMPANY_DISCLAIMER)
+            .map((line) => (
+              <p className="text-sm leading-6 text-muted" key={line}>
+                <BriefingText line={line} onOpenSource={onOpenSource} />
+              </p>
+            ))}
+        </div>
+      ) : null}
+      {filings.length ? (
+        <div className="mt-5 border-t border-border pt-3">
+          <h4 className="flex min-h-9 items-center gap-2 text-xs font-medium text-muted">
+            <FileText aria-hidden="true" size={14} />
+            {t("research.sourceFilings")}
+            <span className="rounded-full bg-panel-subtle px-2 py-0.5 tabular-nums">{filings.length}</span>
+          </h4>
+          <ul className="mt-2 divide-y divide-border">
+            {filings.map((filing, index) => (
+              <li
+                className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2"
+                key={filing.key}
+              >
+                <span className="text-[10px] tabular-nums text-muted">[{index + 1}]</span>
+                <span className="inline-flex rounded-md border border-border bg-background px-1.5 py-0.5 font-mono text-[10px] font-semibold text-foreground">
+                  {filing.form}
+                </span>
+                <span className="text-xs text-muted">{filing.period}</span>
+                <span className="text-xs text-muted">
+                  {t("research.filedOn", { date: filing.filed })}
+                </span>
+                <a
+                  className={`ms-auto text-xs ${FILING_LINK_CLASS}`}
+                  href={filing.url}
+                  onClick={onOpenSource}
+                  rel="noopener noreferrer"
+                  target="_blank"
+                >
+                  {t("research.viewOnSec")}
+                </a>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+      {company.fetchedAt ? (
+        <p className="mt-2 text-xs text-muted">
+          {t("research.fetched", { date: dateLabel(t, company.fetchedAt, locale, timeZone) })}
+        </p>
+      ) : null}
+      </details>
+    </article>
+  );
+}
+
+function BriefingText({
+  line,
+  onOpenSource,
+}: {
+  line: string;
+  onOpenSource: () => void;
+}) {
+  return briefingParts(line).map((part, index) =>
+    part.kind === "link" ? (
+      <a
+        className={FILING_LINK_CLASS}
+        href={part.url}
+        key={`${part.url}-${index}`}
+        onClick={onOpenSource}
+        rel="noopener noreferrer"
+        target="_blank"
+      >
+        {part.label}
+      </a>
+    ) : (
+      <span key={`${index}-${part.text}`}>{part.text}</span>
+    ),
+  );
+}
+
+function briefingParts(
+  line: string,
+): Array<
+  | { kind: "text"; text: string }
+  | { kind: "link"; label: string; url: string }
+> {
+  const pattern = /\[([^\]]+)\]\(([^)\s]+)\)/g;
+  const parts: Array<
+    | { kind: "text"; text: string }
+    | { kind: "link"; label: string; url: string }
+  > = [];
+  let cursor = 0;
+  for (const match of line.matchAll(pattern)) {
+    const index = match.index ?? 0;
+    if (index > cursor) {
+      parts.push({ kind: "text", text: line.slice(cursor, index) });
+    }
+    const label = match[1] ?? "";
+    const url = match[2] ?? "";
+    if (url.startsWith(SEC_ARCHIVE)) {
+      parts.push({ kind: "link", label, url });
+    } else if (label) {
+      parts.push({ kind: "text", text: label });
+    }
+    cursor = index + match[0].length;
+  }
+  if (cursor < line.length) {
+    parts.push({ kind: "text", text: line.slice(cursor) });
+  }
+  return parts;
+}
+
+function MetricFact({
+  label,
+  metric,
+  note,
+  currency = false,
+  prominent = false,
+  simple = false,
+  filings,
+  onOpenSource,
+}: {
+  label: string;
+  metric?: CompanyMetricView;
+  note?: string;
+  currency?: boolean;
+  prominent?: boolean;
+  simple?: boolean;
+  filings: ReturnType<typeof sourceFilings>;
+  onOpenSource: () => void;
+}) {
+  const { locale, timeZone, t } = useI18n();
+  const sources = metricSources(metric).sort((a, b) =>
+    filings.findIndex((filing) => filing.url === a.sourceUrl) - filings.findIndex((filing) => filing.url === b.sourceUrl),
+  );
+  const available = metric?.available && metric.display;
+  const value = currency && available && Number.isFinite(metric.value)
+    ? companyAmount(metric.value!, locale, simple)
+    : available ? metric.display : t("research.metricUnavailable");
+  return (
+    <div className={simple ? "min-w-0" : prominent || currency ? "col-span-2 min-w-0" : "min-w-0 border-t border-border pt-3"}>
+      <dt className="text-xs leading-5 text-muted">{label}</dt>
+      <dd className="mt-1">
+        <p className={`flex flex-wrap items-baseline gap-x-1.5 gap-y-1 font-money font-medium tabular-nums ${simple ? "text-2xl tracking-tight" : prominent ? "text-3xl tracking-tight" : "text-xl tracking-tight"}`}>
+          <span className="min-w-0 break-words" title={available ? metric.display : undefined}>{value}</span>
+          {!simple && sources.length ? <span className="inline-flex flex-wrap gap-1 align-super text-[10px] font-normal tracking-normal text-muted">
+            {sources.map((source) => {
+              const index = filings.findIndex((filing) => filing.url === source.sourceUrl);
+              const citation = t("research.citationFiled", { form: source.form, date: dateLabel(t, source.filed, locale, timeZone) });
+              return <a aria-label={`${label}: ${citation}`} className="rounded hover:text-foreground hover:underline focus-visible:outline-2 focus-visible:outline-focus" href={source.sourceUrl} key={source.sourceUrl} onClick={onOpenSource} rel="noopener noreferrer" target="_blank" title={citation}>[{index + 1}]</a>;
+            })}
+          </span> : null}
+        </p>
+        {!simple && (currency || (metric?.derived && metric.available)) ? <p className="mt-1 min-h-4 text-[10px] text-muted">{metric?.derived && metric.available ? t("research.metricDerived") : null}</p> : null}
+        {note ? <p className="mt-1 text-xs leading-5 text-muted">{note}</p> : null}
+      </dd>
+    </div>
+  );
+}
+
+function companyAmount(value: number, locale: string, plain: boolean) {
+  if (!plain) return new Intl.NumberFormat(locale, { style: "currency", currency: "USD", notation: "compact", maximumFractionDigits: 2 }).format(value);
+  const words = new Intl.NumberFormat(locale, { notation: "compact", compactDisplay: "long", maximumFractionDigits: 2 }).format(Math.abs(value));
+  return new Intl.NumberFormat(locale, { style: "currency", currency: "USD", currencyDisplay: "narrowSymbol", maximumFractionDigits: 0 })
+    .formatToParts(value < 0 ? -0 : 0).map((part) => part.type === "integer" ? words : part.value).join("");
+}
+
+function companyCards(
+  t: Translate,
+  data: CompanyResearchData,
+  locale: string,
+  timeZone: string,
+): Array<{
+  key: string;
+  title: string;
+  period: string;
+  range: string;
+  revenue?: CompanyMetricView;
+  netIncome?: CompanyMetricView;
+  margin?: CompanyMetricView;
+  yoy?: CompanyMetricView;
+  yoyNote?: string;
+}> {
+  const cards = [];
+  if (data.latestQuarter) {
+    const period = data.latestQuarter;
+    cards.push({
+      key: "quarter",
+      title: t("research.latestQuarter"),
+      period: fiscalLabel(period),
+      range: rangeLabel(t, period.start, period.end, locale, timeZone),
+      revenue: period.revenue,
+      netIncome: period.netIncome,
+      margin: period.operatingMargin,
+      yoy: period.revenueGrowth,
+      yoyNote: period.fiscalQuarter
+        ? t("research.vsQuarter", {
+            year: period.fiscalYear - 1,
+            quarter: period.fiscalQuarter,
+          })
+        : undefined,
+    });
+  }
+  if (data.ttm) {
+    cards.push({
+      key: "ttm",
+      title: t("research.ttm"),
+      period: t("research.ttmPeriod"),
+      range:
+        data.ttm.start && data.ttm.end
+          ? rangeLabel(t, data.ttm.start, data.ttm.end, locale, timeZone)
+          : t("research.periodNotStated"),
+      revenue: data.ttm.revenue,
+      netIncome: data.ttm.netIncome,
+      margin: data.ttm.operatingMargin,
+      yoy: data.ttm.revenueGrowth,
+      yoyNote: t("research.vsTtm"),
+    });
+  }
+  if (data.latestAnnual) {
+    const period = data.latestAnnual;
+    cards.push({
+      key: "year",
+      title: t("research.fullYear"),
+      period: fiscalLabel(period),
+      range: rangeLabel(t, period.start, period.end, locale, timeZone),
+      revenue: period.revenue,
+      netIncome: period.netIncome,
+      margin: period.operatingMargin,
+      yoy: period.revenueGrowth,
+      yoyNote: t("research.vsYear", { year: period.fiscalYear - 1 }),
+    });
+  }
+  return cards;
+}
+
+function sourceFilings(t: Translate, data: CompanyResearchData | undefined, locale: string, timeZone: string) {
+  const rows = (data?.filings ?? [])
+    .filter((filing) => filing.sourceUrl.startsWith(SEC_ARCHIVE))
+    .map((filing) => ({
+      key: filing.accession,
+      form: filing.form,
+      period: filing.reportDate
+        ? t("research.periodEnded", { date: dateLabel(t, filing.reportDate, locale, timeZone) })
+        : t("research.periodNotStated"),
+      filed: dateLabel(t, filing.filed, locale, timeZone),
+      filedSort: filing.filed,
+      url: filing.sourceUrl,
+    }));
+  const byUrl = new Map(rows.map((row) => [row.url, row]));
+  // Derived metrics may cite older inputs outside the recent filings list.
+  for (const period of [data?.latestQuarter, data?.ttm, data?.latestAnnual]) {
+    for (const metric of [period?.revenue, period?.netIncome, period?.operatingMargin, period?.revenueGrowth]) {
+      for (const source of metricSources(metric)) {
+        if (byUrl.has(source.sourceUrl)) continue;
+        byUrl.set(source.sourceUrl, {
+          key: source.sourceUrl,
+          form: source.form,
+          period: t("research.periodEnded", { date: dateLabel(t, source.periodEnd, locale, timeZone) }),
+          filed: dateLabel(t, source.filed, locale, timeZone),
+          filedSort: source.filed,
+          url: source.sourceUrl,
+        });
+      }
+    }
+  }
+  if (byUrl.size) {
+    return [...byUrl.values()].sort(
+      (a, b) =>
+        b.filedSort.localeCompare(a.filedSort) || b.key.localeCompare(a.key),
+    );
+  }
+  return (data?.links ?? [])
+    .filter((link) => link.url.startsWith(SEC_ARCHIVE))
+    .map((link) => ({
+      key: link.url,
+      form: link.label.split(" ")[0] || t("research.filingForm"),
+      period: t("research.periodNotStated"),
+      filed: t("research.dateUnavailable"),
+      filedSort: "",
+      url: link.url,
+    }));
+}
+
+function metricSources(metric?: CompanyMetricView): CompanyCitationView[] {
+  const items = [metric?.citation, ...(metric?.inputCitations ?? [])].filter(
+    (item): item is CompanyCitationView =>
+      Boolean(item?.sourceUrl?.startsWith(SEC_ARCHIVE)),
+  );
+  const byUrl = new Map<string, CompanyCitationView>();
+  for (const item of items) {
+    const existing = byUrl.get(item.sourceUrl);
+    if (!existing || item.filed > existing.filed)
+      byUrl.set(item.sourceUrl, item);
+  }
+  return [...byUrl.values()].sort(
+    (a, b) => b.filed.localeCompare(a.filed) || a.form.localeCompare(b.form),
+  );
+}
+
+function fiscalLabel(period: CompanyPeriodView) {
+  return period.fiscalQuarter
+    ? `FY${period.fiscalYear} Q${period.fiscalQuarter}`
+    : `FY${period.fiscalYear}`;
+}
+
+function rangeLabel(t: Translate, start: string | undefined, end: string | undefined, locale: string, timeZone: string) {
+  if (!start || !end) return t("research.periodNotStated");
+  return t("research.range", {
+    from: dateLabel(t, start, locale, timeZone),
+    to: dateLabel(t, end, locale, timeZone),
+  });
+}
+
+const companyReasonKeys: Record<string, MessageKey> = {
+  not_mapped: "research.reasonNotMapped",
+  fund_no_statements: "research.reasonFund",
+  no_coverage: "research.reasonNoCoverage",
+  mint_mismatch: "research.reasonMintMismatch",
+  identity_mismatch: "research.reasonIdentityMismatch",
+  ambiguous_identity: "research.reasonAmbiguous",
+  timeout: "research.reasonTimeout",
+  rate_limited: "research.reasonRateLimited",
+  provider_unavailable: "research.reasonProviderUnavailable",
+  stale: "research.reasonStale",
+  sec_not_configured: "research.reasonNotConfigured",
+  sec_preview_disabled: "research.reasonPreview",
+  sec_worker_unavailable: "research.reasonWorker",
+  not_licensed: "research.reasonNotLicensed",
+};
+
+function companyReason(reason: string): MessageKey {
+  return companyReasonKeys[reason] ?? "research.reasonDefault";
 }

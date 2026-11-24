@@ -104,14 +104,15 @@ function ui() {
     Toast: ({ title, description }) => createElement('div', null, `${title}: ${description}`),
     EmptyState: ({ title, description }) => createElement('p', null, `${title}. ${description}`),
     formatCurrency: (value) => `$${Number(value).toFixed(2)}`,
-    formatNumber: (value, digits = 2) => Number(value).toFixed(digits),
+    formatNumber: (value, _locale, digits = 2) => Number(value).toFixed(digits),
+    formatDateTime: (value) => String(value ?? ""),
     formatRelativeTime: () => 'just now',
   };
 }
 
 const icons = {
-  '@hugeicons/core-free-icons': {},
-  '@hugeicons/react': { HugeiconsIcon: () => null },
+  'lucide-react': new Proxy({}, { get: () => () => null }),
+  '@/components/ui/interface-icon': { InterfaceIcon: () => null },
 };
 
 function quote(provider) {

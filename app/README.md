@@ -16,9 +16,13 @@ bun dev
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
+For local UI development with the live API, set `NEXT_PUBLIC_OREN_API_URL=/api` and `OREN_DEV_API_PROXY_URL=https://api.oren.finance/api` in `.env.local`. The dev server proxies API requests so the browser does not need cross-origin access. The proxy is disabled in production. This uses real account data and actions. Privy sign-in separately requires your exact localhost origin, including the port, in the Privy app's allowed origins.
+
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+The web app self-hosts [Onest](https://fonts.google.com/specimen/Onest) via `@fontsource-variable/onest`. The shared sans and display tokens also supply chart typography. See [the font license](public/licenses/onest-OFL.txt).
+
+Balances, prices, and trade amounts use self-hosted Geist with tabular figures. See [the Geist font license](public/licenses/geist-OFL.txt).
 
 ## Learn More
 

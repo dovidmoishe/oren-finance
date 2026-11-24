@@ -1,7 +1,5 @@
 "use client";
-import { ArrowRight02Icon, Loading03Icon } from '@hugeicons/core-free-icons';
-import { HugeiconsIcon } from '@hugeicons/react';
-
+import { ArrowRight as ArrowRightIcon, LoaderCircle as LoaderCircleIcon } from "lucide-react";
 
 import { useLinkStatus } from "next/link";
 import { useEffect, useState } from "react";
@@ -59,8 +57,8 @@ export function LaunchArrow() {
   const busy = pending || clicked;
   return (
     <span className="relative inline-grid h-4 w-4 place-items-center" ref={setAnchor}>
-      <HugeiconsIcon icon={ArrowRight02Icon} size={16} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className={`col-start-1 row-start-1 transition-[opacity,transform] group-hover:translate-x-0.5 ${busy ? "opacity-0" : "opacity-100"}`} />
-      <HugeiconsIcon icon={Loading03Icon} size={14} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className={`col-start-1 row-start-1 motion-safe:animate-spin ${busy ? "opacity-100" : "opacity-0"}`} />
+      <ArrowRightIcon size={16} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className={`col-start-1 row-start-1 transition-[opacity,transform] group-hover:translate-x-0.5 ${busy ? "opacity-0" : "opacity-100"}`} />
+      {busy ? <LoaderCircleIcon size={14} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className="col-start-1 row-start-1 motion-safe:animate-spin" /> : null}
       <span aria-live="polite" className="sr-only">{busy ? "Opening Oren…" : ""}</span>
     </span>
   );

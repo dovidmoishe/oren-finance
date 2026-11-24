@@ -1,42 +1,54 @@
 'use client';
 
-import { Add01Icon, Cancel01Icon, HistoryIcon, ArrowExpand01Icon, ArrowShrink01Icon } from '@hugeicons/core-free-icons';
-import { HugeiconsIcon, type IconSvgElement } from '@hugeicons/react';
-import { useWallet } from '@solana/wallet-adapter-react';
+import {
+  Plus as PlusIcon,
+  X as XIcon,
+  History as HistoryIcon,
+  Maximize2 as ExpandGlyph,
+  Minimize2 as ShrinkIcon,
+  type LucideIcon,
+} from "lucide-react";
+import { InterfaceIcon } from "@/components/ui/interface-icon";
+
+import { useWallet } from '@/components/auth/wallet-context';
 import { usePathname } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useAgentStore, usePortfolioStore, useStockStore } from '@/store';
 import type { BasketResponse, LimitOrderProposal, QuoteResponse } from '@/types';
 import { useWalletModal } from '@/components/auth/wallet-modal-context';
-import { OrenLogo, type OrenLogoState } from '@/components/brand/oren-logo';
 import { Button, cn } from '@/components/ui';
 import { AgentActionReview } from './agent-action-review';
+import { resizeAgentComposer } from './agent-composer-view';
 import {
   AgentComposer,
   AgentConversationThread,
   ConversationHistory,
 } from './agent-conversation';
-import { contextLabel, pageContext, promptSuggestions } from './agent-utils';
-import { AgentWorkspace, latestAssistantArtifacts } from './agent-workspace';
+import { contextTicker, pageContext, promptSuggestions } from './agent-utils';
+import { AgentWorkspace } from './agent-workspace';
+// Artifacts paused: import { latestAssistantArtifacts } from './agent-workspace';
+import { useT } from "@/i18n/i18n";
 
-function Icon({ icon, size = 18, className }: { icon: IconSvgElement; size?: number; className?: string }) {
-  return <HugeiconsIcon className={className} color="currentColor" icon={icon} size={size} strokeWidth={1.8} />;
+function Icon({ icon, size = 18, className }: { icon: LucideIcon; size?: number; className?: string }) {
+  return <InterfaceIcon className={className} color="currentColor" icon={icon} size={size} strokeWidth={1.8} />;
 }
 
 function ExpandIcon({ size = 17 }: { size?: number }) {
   return (
-    <HugeiconsIcon icon={ArrowExpand01Icon} size={size} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className="shrink-0" />
+    <ExpandGlyph size={size} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className="shrink-0" />
   );
 }
 
 function CollapseIcon({ size = 17 }: { size?: number }) {
   return (
-    <HugeiconsIcon icon={ArrowShrink01Icon} size={size} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className="shrink-0" />
+    <ShrinkIcon size={size} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className="shrink-0" />
   );
 }
 
-export function AgentPanel() {
+export function AgentPanel({ controlsContainer }: { controlsContainer?: HTMLElement | null } = {}) {
   const pathname = usePathname();
+  const t = useT();
   const { connected, publicKey } = useWallet();
   const { setVisible } = useWalletModal();
   const selectedStock = useStockStore((state) => state.selected);
@@ -65,38 +77,18 @@ export function AgentPanel() {
   const [reviewQuote, setReviewQuote] = useState<QuoteResponse>();
   const [reviewBasket, setReviewBasket] = useState<BasketResponse>();
   const [reviewLimitOrder, setReviewLimitOrder] = useState<LimitOrderProposal>();
-  const [successFlash, setSuccessFlash] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const wasSendingRef = useRef(false);
   const panelRef = useRef<HTMLElement>(null);
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const reviewOriginRef = useRef<HTMLElement | null>(null);
   const shouldFollowRef = useRef(true);
   const context = useMemo(() => pageContext(pathname), [pathname]);
+  const ticker = contextTicker(context, selectedStock);
   const prompts = useMemo(
-    () => promptSuggestions(context, selectedStock?.ticker),
-    [context, selectedStock?.ticker],
+    () => promptSuggestions(context, ticker),
+    [context, ticker],
   );
-  const railArtifacts = useMemo(() => latestAssistantArtifacts(messages), [messages]);
-  const logoState = useMemo((): OrenLogoState => {
-    if (successFlash) return 'success';
-    if (error) return 'alert';
-    if (!isSending) return 'idle';
-
-    const lastMessage = messages.at(-1);
-    const hasRunningTool = lastMessage?.activities?.some((activity) => activity.status === 'running');
-    return hasRunningTool ? 'processing' : 'thinking';
-  }, [error, isSending, messages, successFlash]);
-
-  useEffect(() => {
-    if (wasSendingRef.current && !isSending && !error) {
-      setSuccessFlash(true);
-      const timer = window.setTimeout(() => setSuccessFlash(false), 720);
-      wasSendingRef.current = isSending;
-      return () => window.clearTimeout(timer);
-    }
-    wasSendingRef.current = isSending;
-  }, [error, isSending]);
+  // Artifacts paused: const railArtifacts = useMemo(() => latestAssistantArtifacts(messages), [messages]);
 
   const collapseToSidecar = useCallback(() => {
     setExpanded(false);
@@ -115,26 +107,14 @@ export function AgentPanel() {
   }, [initialize, walletAddress]);
 
   useEffect(() => {
-    if (!walletAddress || portfolio?.wallet === walletAddress) return;
+    if (!panelOpen || !walletAddress || portfolio?.wallet === walletAddress) return;
     void loadPortfolio(walletAddress);
-  }, [loadPortfolio, portfolio?.wallet, walletAddress]);
-
-  useEffect(() => {
-    if (!panelOpen || typeof window === 'undefined') return;
-    const isMobileSidecar = !expanded && window.innerWidth < 640;
-    const isExpandedOverlay = expanded && window.innerWidth >= 1024;
-    if (!isMobileSidecar && !isExpandedOverlay) return;
-    const previous = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => {
-      document.body.style.overflow = previous;
-    };
-  }, [expanded, panelOpen]);
+  }, [loadPortfolio, panelOpen, portfolio?.wallet, walletAddress]);
 
   useEffect(() => {
     if (!panelOpen) return;
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape' || reviewQuote || reviewBasket || reviewLimitOrder) return;
+      if (event.key !== 'Escape' || reviewQuote || reviewBasket || reviewLimitOrder || document.querySelector(':popover-open')) return;
       if (showHistory) {
         setShowHistory(false);
         return;
@@ -171,9 +151,8 @@ export function AgentPanel() {
   useEffect(() => {
     const textarea = composerRef.current;
     if (!textarea) return;
-    textarea.style.height = 'auto';
-    textarea.style.height = `${Math.min(textarea.scrollHeight, 128)}px`;
-  }, [composer]);
+    resizeAgentComposer(textarea);
+  }, [composer, expanded, panelOpen]);
 
   useEffect(() => {
     if (shouldFollowRef.current) scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
@@ -211,74 +190,14 @@ export function AgentPanel() {
     window.requestAnimationFrame(() => reviewOriginRef.current?.focus());
   };
 
-  const handleBackdropClick = () => {
-    if (expanded) {
-      collapseToSidecar();
-      return;
-    }
-    closePanel();
-  };
-
   const hasReviewOpen = Boolean(reviewQuote || reviewBasket || reviewLimitOrder);
+  const visible = panelOpen && hydrated;
   return (
     <>
-      <div
-        aria-hidden
-        className={cn(
-          'fixed inset-0 top-[var(--app-nav-height,4.5rem)] z-30 bg-black/20 backdrop-blur-[2px] transition-opacity',
-          panelOpen && !expanded ? 'opacity-100 2xl:hidden' : 'pointer-events-none opacity-0',
-        )}
-        onClick={handleBackdropClick}
-      />
-
-      <div
-        aria-hidden
-        className={cn(
-          'fixed inset-0 top-[var(--app-nav-height,4.5rem)] z-30 hidden bg-black/20 backdrop-blur-[2px] transition-opacity lg:block',
-          panelOpen && expanded ? 'opacity-100' : 'pointer-events-none opacity-0',
-        )}
-        onClick={handleBackdropClick}
-      />
-
-      <aside
-        aria-label="Oren investing copilot"
-        aria-busy={isSending}
-        aria-hidden={!panelOpen}
-        className={cn(
-          't-panel-slide fixed z-40 flex min-h-0 flex-col overflow-hidden border border-border bg-panel shadow-[0_28px_90px_rgba(23,23,23,0.18)]',
-          expanded
-            ? 't-agent-expanded inset-x-2 bottom-2 top-[calc(var(--app-nav-height,4.5rem)+0.5rem)] rounded-[28px] lg:inset-x-4 lg:bottom-4 lg:top-[calc(var(--app-nav-height,4.5rem)+1rem)]'
-            : 'inset-x-2 bottom-2 top-[calc(var(--app-nav-height,4.5rem)+0.5rem)] rounded-[28px] sm:inset-x-auto sm:bottom-4 sm:right-4 sm:top-[calc(var(--app-nav-height,4.5rem)+1rem)] sm:w-[380px] 2xl:right-5',
-          !expanded && hasReviewOpen ? 'opacity-40' : '',
-        )}
-        data-expanded={expanded && panelOpen && hydrated}
-        data-open={panelOpen && hydrated}
-        inert={!panelOpen}
-        ref={panelRef}
-      >
-        <header className="flex shrink-0 items-center justify-between gap-3 border-b border-border px-4 py-3">
-          <div className="flex min-w-0 items-center gap-3">
-            <div className="grid h-10 w-10 shrink-0 place-items-center overflow-visible rounded-[15px] bg-foreground">
-              <OrenLogo size={30} state={logoState} />
-            </div>
-            <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-2">
-                <h2 className="truncate font-display font-semibold">Oren</h2>
-                {isSending ? <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-positive" /> : null}
-                {expanded ? (
-                  <span className="hidden rounded-full bg-panel-subtle px-2.5 py-1 text-[10px] font-semibold text-muted lg:inline">
-                    {contextLabel(context, selectedStock?.ticker)}
-                  </span>
-                ) : null}
-              </div>
-              <p className="truncate text-xs text-muted">
-                {isSending ? 'Working with live market tools' : 'Your investing copilot'}
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center gap-1">
+      {controlsContainer && visible ? createPortal(
+          <div aria-label={t("agent.copilotLabel")} role="toolbar" className="flex shrink-0 items-center gap-0.5 [&_button]:h-8 [&_button]:w-8 pointer-coarse:[&_button]:h-10 pointer-coarse:[&_button]:w-10">
             <Button
-              aria-label="Recent conversations"
+              aria-label={t("agent.recent")} title={t("agent.recent")}
               aria-expanded={showHistory}
               onClick={() => setShowHistory((value) => !value)}
               size="icon"
@@ -287,7 +206,7 @@ export function AgentPanel() {
               <Icon icon={HistoryIcon} size={17} />
             </Button>
             <Button
-              aria-label="New conversation"
+              aria-label={t("agent.newConversation")} title={t("agent.newConversation")}
               disabled={isSending}
               onClick={() => {
                 newChat();
@@ -296,35 +215,37 @@ export function AgentPanel() {
               size="icon"
               variant="ghost"
             >
-              <Icon icon={Add01Icon} size={18} />
+              <Icon icon={PlusIcon} size={18} />
             </Button>
-            {expanded ? (
+            <div className="hidden lg:block">
               <Button
-                aria-label="Collapse workspace"
-                className="hidden lg:inline-flex"
-                onClick={collapseToSidecar}
+                aria-label={t(expanded ? "agent.collapse" : "agent.expand")} title={t(expanded ? "agent.collapse" : "agent.expand")}
+                onClick={() => setExpanded(!expanded)}
                 size="icon"
                 variant="ghost"
               >
-                <CollapseIcon />
+                {expanded ? <CollapseIcon /> : <ExpandIcon />}
               </Button>
-            ) : (
-              <Button
-                aria-label="Expand workspace"
-                className="hidden lg:inline-flex"
-                onClick={() => setExpanded(true)}
-                size="icon"
-                variant="ghost"
-              >
-                <ExpandIcon />
-              </Button>
-            )}
-            <Button aria-label="Close Oren" onClick={closePanel} size="icon" variant="ghost">
-              <Icon icon={Cancel01Icon} size={18} />
+            </div>
+            <Button aria-label={t("agent.close")} title={t("agent.close")} onClick={closePanel} size="icon" variant="ghost">
+              <Icon icon={XIcon} size={18} />
             </Button>
-          </div>
-        </header>
-
+          </div>,
+        controlsContainer,
+      ) : null}
+      <aside
+        aria-label={t("agent.copilotLabel")}
+        aria-busy={isSending}
+        aria-hidden={!visible}
+        className={cn(
+          't-panel-slide fixed inset-x-0 bottom-0 top-[var(--app-header-bottom,var(--app-nav-height))] z-20 flex min-h-0 min-w-0 flex-col overflow-hidden border-t border-border bg-panel lg:relative lg:inset-auto lg:h-[calc(100dvh-var(--app-nav-height))] lg:border-t-0',
+          !expanded && hasReviewOpen ? 'opacity-40' : '',
+        )}
+        data-open={visible}
+        id="oren-agent-panel"
+        inert={!visible}
+        ref={panelRef}
+      >
         {showHistory ? (
           <ConversationHistory
             activeThreadId={threadId}
@@ -338,6 +259,7 @@ export function AgentPanel() {
         ) : null}
 
         {expanded ? (
+          // Artifacts paused: restore railArtifacts={railArtifacts} with the working-set rail.
           <AgentWorkspace
             composer={composer}
             composerRef={composerRef}
@@ -358,10 +280,9 @@ export function AgentPanel() {
             onStop={stop}
             onSubmit={() => void submit()}
             prompts={prompts}
-            railArtifacts={railArtifacts}
             scrollRef={scrollRef}
             shouldFollowRef={shouldFollowRef}
-            ticker={selectedStock?.ticker}
+            ticker={ticker}
           />
         ) : (
           <>
@@ -394,7 +315,7 @@ export function AgentPanel() {
       </aside>
 
       <div aria-live="polite" className="sr-only">
-        {!isSending && messages.at(-1)?.role === 'assistant' ? 'Oren response complete' : ''}
+        {!isSending && messages.at(-1)?.role === 'assistant' ? t("agent.complete") : ''}
       </div>
 
       <AgentActionReview

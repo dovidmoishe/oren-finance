@@ -3,9 +3,15 @@
 import { financialExecutionEnabled } from "@/services/environment";
 import { formatQuotedRoute } from "@/services/route-label";
 
-import { AlertCircleIcon, CoinsSwapIcon, Loading03Icon, Wallet02Icon, ArrowUpDownIcon } from "@hugeicons/core-free-icons";
-import { HugeiconsIcon } from "@hugeicons/react";
-import { useWallet } from "@solana/wallet-adapter-react";
+import {
+  CircleAlert as CircleAlertIcon,
+  ArrowLeftRight as ArrowLeftRightIcon,
+  LoaderCircle as LoaderCircleIcon,
+  WalletCards as WalletCardsIcon,
+  ArrowUpDown as ArrowUpDownIcon,
+} from "lucide-react";
+
+import { useWallet } from "@/components/auth/wallet-context";
 import { useOrenAuth } from "@/components/auth/auth-context";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { useQuoteExecution } from "@/hooks/use-quote-execution";
@@ -20,6 +26,7 @@ import { QuoteReviewModal } from "./quote-review-modal";
 import { LimitOrderReviewModal } from "./limit-order-review-modal";
 import { CancelOrderReviewModal } from "./cancel-order-review-modal";
 import { LimitOrderToggle, OrderControls } from "./order-controls";
+import { useI18n } from "@/i18n/i18n";
 
 type OrderMode = "market" | "limit";
 
@@ -51,7 +58,7 @@ function TokenBadge({
     <div className="flex min-w-0 items-center gap-2">
       {logoUrl ? (
         // eslint-disable-next-line @next/next/no-img-element
-        <img alt={`${name} logo`} className="h-6 w-6 rounded-full border border-border bg-white object-contain p-0.5" src={logoUrl} />
+        <img alt={`${name} logo`} className="h-6 w-6 rounded-full border border-border bg-asset-surface object-contain p-0.5" src={logoUrl} />
       ) : (
         <div
           className={cn(
@@ -74,7 +81,7 @@ function RouteRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-center justify-between gap-4 text-xs">
       <span className="text-muted">{label}</span>
-      <span className="text-right font-mono text-xs font-medium">{value}</span>
+      <span className="text-right font-money text-xs font-medium tabular-nums">{value}</span>
     </div>
   );
 }
@@ -92,6 +99,7 @@ export function StockTradeTicket({ stock, limitZones, onConfirmed }: StockTradeT
   const limitFieldsId = useId();
   const { publicKey, connected } = useWallet();
   const auth = useOrenAuth();
+  const { locale, t } = useI18n();
   const { authenticated, error: walletError, open: openSignIn } = auth;
   const wallet = publicKey?.toBase58();
   const portfolio = usePortfolioStore((state) => state.portfolio);
@@ -194,17 +202,17 @@ export function StockTradeTicket({ stock, limitZones, onConfirmed }: StockTradeT
         : sellQuantity * (stock.priceUsd ?? 0);
   const formattedOutput =
     side === "buy"
-      ? `${formatNumber(estimatedReceive, 6)} ${stock.ticker}`
-      : formatCurrency(estimatedReceive);
+      ? `${formatNumber(estimatedReceive, locale, 6)} ${stock.ticker}`
+      : formatCurrency(estimatedReceive, locale);
   const blockingError =
     tradableRoutes === 0
-      ? "No tradable route is available for this stock yet."
+      ? t("ticket.noRoute")
       : !amountIsValid
-        ? "Enter an amount greater than zero."
+        ? t("ticket.amountPositive")
         : side === "buy" && typeof cashBalance === "number" && parsedAmount > cashBalance
-          ? "Insufficient USDC cash balance."
+          ? t("ticket.insufficientCash")
           : side === "sell" && parsedAmount > stockBalance
-            ? "Insufficient stock balance."
+            ? t("ticket.insufficientStock")
             : undefined;
   const logoUrl = normalizeLogoUrl(stock.logoUrl);
   const displayedError = executionError;
@@ -212,19 +220,19 @@ export function StockTradeTicket({ stock, limitZones, onConfirmed }: StockTradeT
   const routeValue = activeQuote
     ? formatQuotedRoute(activeQuote.provider, activeQuote.variant.symbol)
     : isLoading
-      ? "Fetching quote"
+      ? t("ticket.fetchingQuote")
       : liveRouteUnavailable
-        ? "No live route"
+        ? t("ticket.noLiveRoute")
         : tradableRoutes
-          ? `${tradableRoutes} catalog route${tradableRoutes === 1 ? "" : "s"}`
-          : "No route";
+          ? t("ticket.catalogRoutes", { count: tradableRoutes })
+          : t("ticket.noRouteShort");
   const minimumReceivedValue = activeQuote
-    ? `${formatNumber(activeQuote.outputAmount * (1 - activeQuote.slippageBps / 10_000), 6)} ${activeQuote.outputSymbol}`
+    ? `${formatNumber(activeQuote.outputAmount * (1 - activeQuote.slippageBps / 10_000), locale, 6)} ${activeQuote.outputSymbol}`
     : isLoading
-      ? "Fetching quote"
+      ? t("ticket.fetchingQuote")
       : liveRouteUnavailable
-        ? "Unavailable"
-        : "Waiting for quote";
+        ? t("ticket.unavailable")
+        : t("ticket.waitingQuote");
 
   useEffect(() => {
     if (wallet && (!portfolio || portfolio.wallet !== wallet)) {
@@ -252,7 +260,7 @@ export function StockTradeTicket({ stock, limitZones, onConfirmed }: StockTradeT
 
       if (!connected || !wallet) {
         if (openReview) {
-          if (authenticated) setLocalError(walletError || "Your wallet is still being prepared. Please wait.");
+          if (authenticated) setLocalError(walletError || t("ticket.walletPreparing"));
           else openSignIn();
         }
         return;
@@ -284,6 +292,8 @@ export function StockTradeTicket({ stock, limitZones, onConfirmed }: StockTradeT
         setLocalError(nextError);
       }
     },
+    // `t` only labels the wallet message; a language change must not re-run the auto-quote effect.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [
       blockingError,
       connected,
@@ -393,7 +403,7 @@ export function StockTradeTicket({ stock, limitZones, onConfirmed }: StockTradeT
   const handleProposeLimit = async () => {
     setLocalError(undefined);
     if (!connected || !wallet) {
-      if (auth.authenticated) setLocalError(auth.error || "Your wallet is still being prepared. Please wait.");
+      if (auth.authenticated) setLocalError(auth.error || t("ticket.walletPreparing"));
       else auth.open();
       return;
     }
@@ -402,7 +412,7 @@ export function StockTradeTicket({ stock, limitZones, onConfirmed }: StockTradeT
       return;
     }
     if (!limitPriceIsValid) {
-      setLocalError("Enter a valid limit price.");
+      setLocalError(t("ticket.invalidLimit"));
       return;
     }
 
@@ -422,25 +432,25 @@ export function StockTradeTicket({ stock, limitZones, onConfirmed }: StockTradeT
       setLimitProposal(proposal);
       setLimitReviewOpen(true);
     } catch (error) {
-      setLocalError(error instanceof Error ? error.message : "Unable to propose limit order");
+      setLocalError(error instanceof Error ? error.message : t("ticket.limitFailed"));
     } finally {
       setLimitBusy(false);
     }
   };
 
   const ctaLabel = !auth.ready
-    ? "Restoring account…"
+    ? t("ticket.restoring")
     : !connected || !wallet
       ? auth.authenticated
-        ? auth.error ? "Retry wallet setup" : "Preparing wallet…"
-        : auth.configured ? "Sign in" : "Sign in unavailable"
+        ? auth.error ? t("ticket.retryWallet") : t("ticket.preparingWallet")
+        : auth.configured ? t("ticket.signIn") : t("ticket.signInUnavailable")
     : orderMode === "limit"
-      ? "Review limit order"
+      ? t("ticket.reviewLimit")
       : isRefreshingQuote
-        ? "Updating quote…"
+        ? t("ticket.updatingQuote")
         : activeQuote
-          ? "Review quote"
-          : "Get quote";
+          ? t("ticket.reviewQuote")
+          : t("ticket.getQuote");
 
   const limitEstimatedReceive =
     orderMode === "limit" && amountIsValid && limitPriceIsValid
@@ -455,10 +465,10 @@ export function StockTradeTicket({ stock, limitZones, onConfirmed }: StockTradeT
   const inputBalance =
     side === "buy"
       ? typeof cashBalance === "number"
-        ? formatCurrency(cashBalance)
-        : auth.authenticated ? "Loading balance…" : "Sign in to load"
-      : `${formatNumber(stockBalance, 6)} ${stock.ticker}`;
-  const outputEstimate = activeQuote ? `${formatNumber(activeQuote.outputAmount, 6)} ${activeQuote.outputSymbol}` : formattedOutput;
+        ? formatCurrency(cashBalance, locale)
+        : auth.authenticated ? t("ticket.loadingBalance") : t("ticket.signInToLoad")
+      : `${formatNumber(stockBalance, locale, 6)} ${stock.ticker}`;
+  const outputEstimate = activeQuote ? `${formatNumber(activeQuote.outputAmount, locale, 6)} ${activeQuote.outputSymbol}` : formattedOutput;
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -471,7 +481,7 @@ export function StockTradeTicket({ stock, limitZones, onConfirmed }: StockTradeT
         <div className="relative space-y-1.5">
           <div className="rounded-[16px] border border-border bg-panel-subtle p-2.5">
             <div className="flex items-center justify-between text-xs uppercase tracking-[0.12em] text-muted">
-              <span>{side === "buy" ? "Pay" : "Sell"}</span>
+              <span>{side === "buy" ? t("ticket.pay") : t("ticket.sell")}</span>
               <div className="flex items-center gap-2 normal-case tracking-normal">
                 <button
                   className="rounded-full bg-panel px-2 py-0.5 text-[10px] font-semibold text-foreground shadow-sm disabled:cursor-not-allowed disabled:opacity-40"
@@ -479,7 +489,7 @@ export function StockTradeTicket({ stock, limitZones, onConfirmed }: StockTradeT
                   onClick={() => handleAmountChange(String(stockBalance))}
                   type="button"
                 >
-                  MAX
+                  {t("ticket.max")}
                 </button>
                 <span>{inputBalance}</span>
               </div>
@@ -487,8 +497,8 @@ export function StockTradeTicket({ stock, limitZones, onConfirmed }: StockTradeT
             <div className="mt-1.5 flex items-center justify-between gap-3">
               <TokenBadge logoUrl={side === "buy" ? "/usdc.svg" : logoUrl} name={inputName} symbol={inputSymbol} tone={side === "buy" ? "cash" : "stock"} />
               <input
-                aria-label={`${side === "buy" ? "USDC" : stock.ticker} amount`}
-                className="min-w-0 flex-1 bg-transparent text-right font-display text-xl font-semibold outline-none placeholder:text-muted-2"
+                aria-label={t("ticket.amountLabel", { symbol: side === "buy" ? "USDC" : stock.ticker })}
+                className="min-w-0 flex-1 bg-transparent text-right font-money! text-xl! font-semibold! tabular-nums! outline-none placeholder:text-muted-2"
                 inputMode="decimal"
                 onChange={(event) => handleAmountChange(event.target.value)}
                 placeholder="0"
@@ -497,26 +507,26 @@ export function StockTradeTicket({ stock, limitZones, onConfirmed }: StockTradeT
             </div>
           </div>
 
-          <button aria-label={`Switch to ${side === "buy" ? "sell" : "buy"}`} className="absolute left-1/2 top-[calc(50%-16px)] z-10 grid h-8 w-8 -translate-x-1/2 place-items-center rounded-full border-4 border-background bg-panel shadow-sm hover:bg-panel-subtle focus-visible:outline-2 focus-visible:outline-offset-2" onClick={() => handleSideChange(side === "buy" ? "sell" : "buy")} type="button">
-            <HugeiconsIcon icon={ArrowUpDownIcon} size={20} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className="inline-block shrink-0 align-middle" />
+          <button aria-label={side === "buy" ? t("ticket.switchToSell") : t("ticket.switchToBuy")} className="absolute left-1/2 top-[calc(50%-16px)] z-10 grid h-8 w-8 -translate-x-1/2 place-items-center rounded-full border-4 border-background bg-panel shadow-sm hover:bg-panel-subtle focus-visible:outline-2 focus-visible:outline-offset-2" onClick={() => handleSideChange(side === "buy" ? "sell" : "buy")} type="button">
+            <ArrowUpDownIcon size={20} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className="inline-block shrink-0 align-middle" />
           </button>
 
           <div className="rounded-[16px] border border-border bg-panel-subtle p-2.5">
             <div className="flex items-center justify-between text-xs uppercase tracking-[0.12em] text-muted">
-              <span>{side === "buy" ? "Buy" : "Receive"}</span>
+              <span>{side === "buy" ? t("ticket.buy") : t("ticket.receive")}</span>
               <span>{outputEstimate}</span>
             </div>
             <div className="mt-1.5 flex items-center justify-between gap-3">
               <TokenBadge logoUrl={side === "buy" ? logoUrl : "/usdc.svg"} name={outputName} symbol={outputSymbol} tone={side === "buy" ? "stock" : "cash"} />
-              <p className="min-w-0 flex-1 truncate text-right font-display text-xl font-semibold">
+              <p className="min-w-0 flex-1 truncate text-right font-money text-xl font-semibold tabular-nums">
                 {orderMode === "limit"
                   ? amountIsValid && limitPriceIsValid
-                    ? formatNumber(limitEstimatedReceive, side === "buy" ? 4 : 2)
+                    ? formatNumber(limitEstimatedReceive, locale, side === "buy" ? 4 : 2)
                     : "0"
                   : activeQuote
-                    ? formatNumber(activeQuote.outputAmount, 4)
+                    ? formatNumber(activeQuote.outputAmount, locale, 4)
                     : amountIsValid
-                      ? formatNumber(estimatedReceive, side === "buy" ? 4 : 2)
+                      ? formatNumber(estimatedReceive, locale, side === "buy" ? 4 : 2)
                       : "0"}
               </p>
             </div>
@@ -531,12 +541,12 @@ export function StockTradeTicket({ stock, limitZones, onConfirmed }: StockTradeT
         <div className="mb-2 space-y-2" hidden={orderMode !== "limit"} id={limitFieldsId}>
             <div className="rounded-[18px] border border-border bg-panel-subtle px-3 py-2.5">
               <div className="flex items-center justify-between text-xs uppercase tracking-[0.12em] text-muted">
-                <span>Limit price (USD)</span>
-                {stock.priceUsd ? <span>Mkt {formatCurrency(stock.priceUsd)}</span> : null}
+                <span>{t("ticket.limitPriceUsd")}</span>
+                {stock.priceUsd ? <span>{t("ticket.market", { price: formatCurrency(stock.priceUsd, locale) })}</span> : null}
               </div>
               <input
-                aria-label="Limit price in USD"
-                className="mt-1.5 w-full bg-transparent font-display text-2xl font-semibold outline-none placeholder:text-muted-2"
+                aria-label={t("ticket.limitPriceAria")}
+                className="mt-1.5 w-full bg-transparent font-money! text-2xl! font-semibold! tabular-nums! outline-none placeholder:text-muted-2"
                 inputMode="decimal"
                 onChange={(event) => setLimitPrice(event.target.value)}
                 placeholder="0.00"
@@ -554,7 +564,7 @@ export function StockTradeTicket({ stock, limitZones, onConfirmed }: StockTradeT
                       onClick={() => setLimitPrice(String(zone.preferredUsd))}
                       type="button"
                     >
-                      TA {formatCurrency(zone.preferredUsd)}
+                      {t("ticket.taZone", { price: formatCurrency(zone.preferredUsd, locale) })}
                     </button>
                   ))}
               </div>
@@ -569,25 +579,25 @@ export function StockTradeTicket({ stock, limitZones, onConfirmed }: StockTradeT
           <div className="space-y-1.5">
             {orderMode === "market" ? (
               <>
-                <RouteRow label="Route" value={routeValue} />
-                <RouteRow label="Minimum received" value={minimumReceivedValue} />
-                <RouteRow label="Rate" value={activeQuote ? `1 ${activeQuote.outputSymbol} ~ ${formatCurrency(activeQuote.estimatedPriceUsd)}` : stock.priceUsd ? formatCurrency(stock.priceUsd) : "Unavailable"} />
-                <RouteRow label="Network fee" value={activeQuote?.networkFeeUsd ? formatCurrency(activeQuote.networkFeeUsd, 4) : "Estimated by wallet"} />
+                <RouteRow label={t("ticket.route")} value={routeValue} />
+                <RouteRow label={t("ticket.minimumReceived")} value={minimumReceivedValue} />
+                <RouteRow label={t("ticket.rate")} value={activeQuote ? `1 ${activeQuote.outputSymbol} ~ ${formatCurrency(activeQuote.estimatedPriceUsd, locale)}` : stock.priceUsd ? formatCurrency(stock.priceUsd, locale) : t("ticket.unavailable")} />
+                <RouteRow label={t("ticket.networkFee")} value={activeQuote?.networkFeeUsd ? formatCurrency(activeQuote.networkFeeUsd, locale, 4) : t("ticket.estimatedByWallet")} />
               </>
             ) : (
               <>
-                <RouteRow label="Order type" value="Jupiter Trigger limit" />
+                <RouteRow label={t("ticket.orderType")} value={t("ticket.triggerLimit")} />
                 <RouteRow
-                  label="Limit price"
-                  value={limitPriceIsValid ? formatCurrency(parsedLimitPrice) : "Enter a price"}
+                  label={t("ticket.limitPrice")}
+                  value={limitPriceIsValid ? formatCurrency(parsedLimitPrice, locale) : t("ticket.enterPrice")}
                 />
                 <RouteRow
-                  label="If filled"
+                  label={t("ticket.ifFilled")}
                   value={
                     amountIsValid && limitPriceIsValid
                       ? side === "buy"
-                        ? `${formatNumber(limitEstimatedReceive, 6)} ${stock.ticker}`
-                        : formatCurrency(limitEstimatedReceive)
+                        ? `${formatNumber(limitEstimatedReceive, locale, 6)} ${stock.ticker}`
+                        : formatCurrency(limitEstimatedReceive, locale)
                       : "—"
                   }
                 />
@@ -596,11 +606,11 @@ export function StockTradeTicket({ stock, limitZones, onConfirmed }: StockTradeT
           </div>
 
           {blockingError || displayedError || limitError ? (
-            <div className="mt-3 flex gap-2 rounded-[16px] border border-red-200 bg-red-50 p-3 text-xs leading-5 text-red-900">
-              <HugeiconsIcon className="mt-0.5 shrink-0" color="currentColor" icon={AlertCircleIcon} size={14} strokeWidth={1.8} />
+            <div className="mt-3 flex gap-2 rounded-[16px] border border-error-border bg-error-surface p-3 text-xs leading-5 text-error">
+              <CircleAlertIcon className="mt-0.5 shrink-0" color="currentColor" size={14} strokeWidth={1.8} />
               <span>
                 {liveRouteUnavailable && orderMode === "market"
-                  ? `No live route is available for ${stock.ticker} at this amount. Try a smaller amount or another stock with deeper liquidity.`
+                  ? t("ticket.noLiveRouteDetail", { ticker: stock.ticker })
                   : (limitError ?? executionError ?? blockingError)}
               </span>
             </div>
@@ -609,15 +619,15 @@ export function StockTradeTicket({ stock, limitZones, onConfirmed }: StockTradeT
           {openOrders.length ? (
             <div className="mt-4 space-y-2 rounded-[18px] border border-border p-3">
               <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted">
-                Open limit orders
+                {t("ticket.openOrders")}
               </p>
               {openOrders.map((order) => (
                 <div className="flex items-center justify-between gap-3 text-xs" key={order.orderKey}>
                   <div>
-                    <p className="font-semibold capitalize">
-                      {order.side} @ {formatCurrency(order.limitPriceUsd)}
+                    <p className="font-semibold">
+                      {t(order.side === "buy" ? "ticket.orderBuyAt" : "ticket.orderSellAt", { price: formatCurrency(order.limitPriceUsd, locale) })}
                     </p>
-                    <p className="text-muted">{formatCurrency(order.amountUsd ?? 0)}</p>
+                    <p className="text-muted">{formatCurrency(order.amountUsd ?? 0, locale)}</p>
                   </div>
                   <Button
                     disabled={!financialExecutionEnabled || limitFlowStatus === "preparing" || limitFlowStatus === "signing"}
@@ -625,7 +635,7 @@ export function StockTradeTicket({ stock, limitZones, onConfirmed }: StockTradeT
                     size="sm"
                     variant="secondary"
                   >
-                    Cancel
+                    {t("ticket.cancel")}
                   </Button>
                 </div>
               ))}
@@ -663,17 +673,17 @@ export function StockTradeTicket({ stock, limitZones, onConfirmed }: StockTradeT
           >
             {isLoading || isRefreshingQuote || limitBusy ? (
               <>
-                <HugeiconsIcon className="animate-spin" color="currentColor" icon={Loading03Icon} size={16} strokeWidth={1.8} />
-                {limitBusy ? "Building limit order" : isRefreshingQuote ? "Updating quote…" : "Loading quote"}
+                <LoaderCircleIcon className="animate-spin" color="currentColor" size={16} strokeWidth={1.8} />
+                {limitBusy ? t("ticket.buildingLimit") : isRefreshingQuote ? t("ticket.updatingQuote") : t("ticket.loadingQuote")}
               </>
             ) : !connected ? (
               <>
-                <HugeiconsIcon color="currentColor" icon={Wallet02Icon} size={16} strokeWidth={1.8} />
+                <WalletCardsIcon color="currentColor" size={16} strokeWidth={1.8} />
                 {ctaLabel}
               </>
             ) : (
               <>
-                <HugeiconsIcon color="currentColor" icon={CoinsSwapIcon} size={16} strokeWidth={1.8} />
+                <ArrowLeftRightIcon color="currentColor" size={16} strokeWidth={1.8} />
                 {ctaLabel}
               </>
             )}

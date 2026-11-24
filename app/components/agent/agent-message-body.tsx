@@ -3,15 +3,17 @@ import {
   parseInlines,
   type AgentInline,
 } from "./agent-markdown";
+import { useT } from "@/i18n/i18n";
 
 const linkClass =
-  "text-sky-700 underline-offset-2 hover:underline focus-visible:underline focus-visible:outline-none";
+  "text-link underline-offset-2 hover:underline focus-visible:underline focus-visible:outline-none";
 
 export function AgentMessageBody({ content }: { content: string }) {
+  const t = useT();
   const blocks = parseAgentMessage(content);
   if (!blocks.length) return null;
   return (
-    <div className="space-y-3 text-[15px] leading-7 text-foreground">
+    <div className="min-w-0 max-w-full space-y-3 text-sm leading-6 text-foreground [overflow-wrap:anywhere]">
       {blocks.map((block, index) => {
         if (block.type === "details") {
           const lines = block.text
@@ -25,7 +27,7 @@ export function AgentMessageBody({ content }: { content: string }) {
               key={`details-${index}`}
             >
               <summary className="cursor-pointer text-xs font-medium text-muted">
-                Show details
+                {t("agent.showDetails")}
               </summary>
               <div className="mt-2 space-y-1 break-words text-xs leading-5 text-foreground/80">
                 {lines.map((line, lineIndex) => (

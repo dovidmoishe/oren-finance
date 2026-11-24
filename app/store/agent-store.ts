@@ -5,7 +5,8 @@ import {
   sessionSetter,
   walletSessionIsCurrent,
 } from "@/services/wallet-session";
-import { getAgentThreadMessages, streamAgentMessage } from "@/services";
+import { ApiError } from "@/services/api-client";
+import { getAgentThreadMessages, streamAgentMessage } from "@/services/agent-service";
 import type {
   AgentDisplayMessage,
   AgentPageContext,
@@ -18,6 +19,7 @@ const RECENTS_KEY = "oren-agent-recents-v1";
 const PANEL_KEY = "oren-agent-panel-v1";
 const MAX_RECENTS = 12;
 let activeController: AbortController | undefined;
+let historyRequestId = 0;
 
 interface AgentState {
   walletAddress?: string;
@@ -34,7 +36,7 @@ interface AgentState {
   initialize: (walletAddress?: string) => Promise<void>;
   setPanelOpen: (open: boolean) => void;
   setExpanded: (expanded: boolean) => void;
-  newChat: () => void;
+  newChat: (walletAddress?: string) => void;
   loadThread: (threadId: string) => Promise<void>;
   sendMessage: (
     message: string,
@@ -57,14 +59,12 @@ export const useAgentStore = create<AgentState>((set, get) => ({
   async initialize(walletAddress) {
     const update = sessionSetter(set);
     if (get().walletAddress === walletAddress && get().hydrated) return;
+    historyRequestId += 1;
     activeController?.abort();
     activeController = undefined;
 
     const panelPreference = readPanelPreference(walletAddress);
-    const panelOpen = panelPreference
-      ? panelPreference.open
-      : typeof window !== "undefined" &&
-        window.matchMedia("(min-width: 1024px)").matches;
+    const panelOpen = panelPreference?.open ?? false;
     if (!panelPreference) writePanelPreference(walletAddress, panelOpen);
 
     if (!walletAddress) {
@@ -110,13 +110,20 @@ export const useAgentStore = create<AgentState>((set, get) => ({
     set({ expanded });
   },
 
-  newChat() {
+  newChat(walletAddress) {
     if (get().isSending) return;
+    historyRequestId += 1;
     set({
+      ...(walletAddress ? {
+        walletAddress,
+        hydrated: true,
+        recentThreads: readRecents()[walletAddress] ?? [],
+      } : {}),
       threadId: undefined,
       messages: [],
       error: undefined,
       lastRequest: undefined,
+      isLoadingHistory: false,
     });
   },
 
@@ -125,10 +132,11 @@ export const useAgentStore = create<AgentState>((set, get) => ({
     const isCurrent = walletSessionIsCurrent();
     const walletAddress = get().walletAddress;
     if (!walletAddress || get().isSending) return;
+    const requestId = ++historyRequestId;
     update({ isLoadingHistory: true, error: undefined });
     try {
       const response = await getAgentThreadMessages(threadId, walletAddress);
-      if (!isCurrent()) return;
+      if (!isCurrent() || requestId !== historyRequestId) return;
       update({
         threadId,
         messages: response.messages,
@@ -136,12 +144,15 @@ export const useAgentStore = create<AgentState>((set, get) => ({
       });
       touchRecent(update, walletAddress, threadId);
     } catch (error) {
-      if (!isCurrent()) return;
+      if (!isCurrent() || requestId !== historyRequestId) return;
       const message =
         error instanceof Error
           ? error.message
           : "Unable to load this conversation";
-      removeRecent(update, walletAddress, threadId);
+      // Auth and transport failures happen before the thread is known to be gone.
+      if (shouldDropSavedRecent(error)) {
+        removeRecent(update, walletAddress, threadId);
+      }
       update({
         threadId: undefined,
         messages: [],
@@ -156,6 +167,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
     const isCurrent = walletSessionIsCurrent();
     const content = message.trim();
     if (!content || get().isSending) return;
+    historyRequestId += 1;
     const request: AgentRequest = {
       walletAddress,
       threadId: get().threadId,
@@ -183,6 +195,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
         },
       ],
       isSending: true,
+      isLoadingHistory: false,
       error: undefined,
       lastRequest: request,
     }));
@@ -397,6 +410,13 @@ function updateMessage(
 ) {
   return messages.map((message) =>
     message.id === id ? update(message) : message,
+  );
+}
+
+/** A saved shortcut is stale only when this thread itself is missing or not ours. */
+export function shouldDropSavedRecent(error: unknown): boolean {
+  return (
+    error instanceof ApiError && (error.status === 400 || error.status === 404)
   );
 }
 

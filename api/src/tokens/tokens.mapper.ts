@@ -214,21 +214,22 @@ export function mapRisk(
 export function mapNewsItem(raw: TokensNewsItemRaw): MarketNewsItem | null {
   const headline = raw.headline ?? raw.title;
   if (!headline) return null;
-  const published = raw.publishedAt ?? raw.published_at;
-  let publishedAt = new Date();
+  const published = raw.publishedAt ?? raw.published_at ?? raw.posted_at;
+  let publishedAt: Date;
   if (typeof published === 'number') {
     publishedAt = new Date(
       published > 1_000_000_000_000 ? published : published * 1000,
     );
   } else if (typeof published === 'string') {
     publishedAt = new Date(published);
-  }
+  } else return null;
+  if (!Number.isFinite(publishedAt.getTime())) return null;
   return {
     id: raw.id,
     assetId: raw.assetId,
     ticker: raw.ticker,
     headline,
-    source: raw.source,
+    source: raw.source ?? raw.source_name,
     summary: raw.summary ?? raw.description,
     url: raw.url,
     publishedAt,
@@ -247,6 +248,8 @@ export function extractAssetList(payload: unknown): TokensAssetRaw[] {
   if (Array.isArray(payload)) return toObjectArray<TokensAssetRaw>(payload);
   if (!payload || typeof payload !== 'object') return [];
   const p = payload as Record<string, unknown>;
+  if (Array.isArray(p.trending))
+    return toObjectArray<TokensAssetRaw>(p.trending);
   if (Array.isArray(p.results)) return toObjectArray<TokensAssetRaw>(p.results);
   if (Array.isArray(p.assets)) return toObjectArray<TokensAssetRaw>(p.assets);
   if (Array.isArray(p.items)) return toObjectArray<TokensAssetRaw>(p.items);

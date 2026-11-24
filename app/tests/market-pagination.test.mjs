@@ -9,7 +9,7 @@ const require = createRequire(import.meta.url);
 function compile(file, mocks, extra = {}) {
  const exports = {};
  const code = ts.transpileModule(readFileSync(new URL(file, import.meta.url), 'utf8'), {compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,jsx:ts.JsxEmit.ReactJSX}}).outputText;
- vm.runInNewContext(code, {exports,Error,...extra,require:id=>id in mocks?mocks[id]:require(id)});
+ vm.runInNewContext(code, {exports,Error,...extra,require:id=>{ if (id === '@/services/market-service') id = '@/services'; if (id === '@/store/market-store') id = '@/store'; if (id === '@/hooks/use-element-visible') return { useElementVisible: () => false }; if (id === '@/services/shared-read-cache') return { createSharedReadCache: () => () => Promise.resolve([]) }; return id in mocks ? mocks[id] : require(id); }});
  return exports;
 }
 function store(getStocks, searchStocks = async () => []) {
@@ -73,9 +73,11 @@ test('scroll observer attaches after initial rows mount and rearms for subsequen
   disconnect(){this.disconnected=true;}
  }
  const {MarketsOverview}=compile('../components/markets/markets-overview.tsx',{
-  react,'@/store':{useMarketStore:select=>select(state)},'@/services':{},'@/components/ui':{cn:()=>'',formatCurrency:()=>'',formatPercent:()=>''},
-  'next/link':{default:'a'},'@hugeicons/react':{},'@hugeicons/core-free-icons':{},
- },{IntersectionObserver:Observer,window:{}});
+  react,'@/store':{useMarketStore:select=>select(state)},'@/services':{},'@/components/ui':{cn:()=>'',formatCurrency:()=>'',formatPercent:()=>'',formatCompactCurrency:()=>''},
+  'next/link':{default:'a'},'@/components/ui/interface-icon':{},'lucide-react':new Proxy({}, { get: () => () => null }),
+  './market-for-you':{MarketForYou:()=>null},
+  './market-stock-logo':{MarketStockLogo:()=>null},
+ },{IntersectionObserver:Observer,window:{},process:{env:{NEXT_PUBLIC_DEPLOYMENT_ENV:'preview'}}});
  const render=()=>{cursor=0;MarketsOverview();while(effects.length)effects.shift()();};
  render(); assert.equal(observers.length,0);
  const sentinel={}; slots[0].current=sentinel;

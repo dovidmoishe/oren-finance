@@ -15,6 +15,37 @@ import {
   uniqueIndex,
 } from 'drizzle-orm/pg-core';
 
+/** Retired manual ATA subsidy audit history. Preserve existing rows; no runtime writes. */
+export const ataRentSponsorships = pgTable(
+  'ata_rent_sponsorships',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    userId: text('user_id').notNull(),
+    wallet: text('wallet').notNull(),
+    mint: text('mint').notNull(),
+    status: text('status')
+      .$type<'reserved' | 'sponsored' | 'failed'>()
+      .notNull()
+      .default('reserved'),
+    /** Conservative rent + network fee reservation, retained even on uncertain failure. */
+    lamports: numeric('lamports', { precision: 20, scale: 0 }).notNull(),
+    signature: text('signature'),
+    failureReason: text('failure_reason'),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    sponsoredAt: timestamp('sponsored_at', { withTimezone: true }),
+  },
+  (table) => [
+    uniqueIndex('ata_rent_wallet_mint_unique').on(table.wallet, table.mint),
+    index('ata_rent_user_idx').on(table.userId),
+    index('ata_rent_created_idx').on(table.createdAt),
+  ],
+);
+
 /** Durable approval state only; chain confirmations remain the financial ledger. */
 export const tradeApprovals = pgTable(
   'trade_approvals',
@@ -163,7 +194,7 @@ export const mcpTradeDelegations = pgTable(
     }).notNull(),
     maxSlippageBps: integer('max_slippage_bps').notNull(),
     allowSell: boolean('allow_sell').notNull().default(false),
-    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -204,7 +235,7 @@ export const mcpApiTradeGrants = pgTable('mcp_api_trade_grants', {
   createdAt: timestamp('created_at', { withTimezone: true })
     .notNull()
     .defaultNow(),
-  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  expiresAt: timestamp('expires_at', { withTimezone: true }),
   activatedAt: timestamp('activated_at', { withTimezone: true }),
 });
 
@@ -471,6 +502,11 @@ export const stockSignals = pgTable(
 export const cachedStocks = pgTable(
   'cached_stocks',
   {
+    sectorId: text('sector_id'),
+    alertVariants: jsonb('alert_variants')
+      .$type<Array<{ mint: string; symbol: string }>>()
+      .notNull()
+      .default([]),
     assetId: text('asset_id').primaryKey(),
     ticker: text('ticker').notNull(),
     name: text('name').notNull(),
@@ -531,6 +567,9 @@ export const executions = pgTable(
     amount: numeric('amount', { precision: 40, scale: 18 }),
     amountUsd: numeric('amount_usd', { precision: 20, scale: 8 }),
     provider: text('provider'),
+    platformFeeBps: integer('platform_fee_bps'),
+    platformFeeAmountRaw: text('platform_fee_amount_raw'),
+    platformFeeMint: text('platform_fee_mint'),
     featureSource: executionFeatureEnum('feature_source')
       .notNull()
       .default('direct'),
@@ -834,6 +873,18 @@ export const feedbackTickets = pgTable(
 );
 
 /** Optional short-lived news cache — not a Tokens API mirror. */
+export const userPreferences = pgTable('user_preferences', {
+  userId: text('user_id').primaryKey(),
+  sectors: text('sectors').array().notNull(),
+  morningBrief: boolean('morning_brief').notNull(),
+  breakingNews: boolean('breaking_news').notNull(),
+  briefTime: text('brief_time').notNull(),
+  timeZone: text('time_zone').notNull(),
+  briefDueAt: timestamp('brief_due_at', { withTimezone: true }),
+  briefWallet: text('brief_wallet'),
+  briefWalletSince: timestamp('brief_wallet_since', { withTimezone: true }),
+});
+
 export const cachedNews = pgTable(
   'cached_news',
   {

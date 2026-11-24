@@ -1,5 +1,15 @@
 import { buildLaunchPolicy } from './build-launch-policy.mjs';
+import { createRequire } from 'node:module';
+import { existsSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { isDeepStrictEqual } from 'node:util';
+const require = createRequire(import.meta.url);
+const semanticsPath = [
+  fileURLToPath(new URL('../../api/src/signer-gate/policy-semantics.cjs', import.meta.url)),
+  '/app/dist/src/signer-gate/policy-semantics.cjs',
+].find((candidate) => existsSync(candidate));
+if (!semanticsPath) throw new Error('Missing reviewed policy semantics');
+const { normalizePolicySemantics } = require(semanticsPath);
 const JUPITER = 'JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4';
 const USDC = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
 const COMPUTE = 'ComputeBudget111111111111111111111111111111';
@@ -16,14 +26,11 @@ export function tradingPolicyIdl(policy) {
 }
 
 export function samePolicySemantics(a, b) {
-  const normalize = policy => ({ owner_id: policy.owner_id, chain_type: policy.chain_type, version: policy.version,
-    rules: policy.rules?.map(rule => ({ name: rule.name, method: rule.method, action: rule.action,
-      conditions: rule.conditions?.map(c => ({ field_source: c.field_source, field: c.field, operator: c.operator, value: c.value, idl: c.idl ?? null })) })) });
-  return isDeepStrictEqual(normalize(a), normalize(b));
+  return isDeepStrictEqual(normalizePolicySemantics(a), normalizePolicySemantics(b));
 }
 
 /** A new policy; never expands an enrolled wallet's policy in place. */
-export function buildTradingPolicy({ idl, stockMints, ownerId, expiresAtUnix, nowUnix = Math.floor(Date.now() / 1000), allowDestinationAccountCreation = false }) {
+export function buildTradingPolicy({ idl, stockMints, ownerId, expiresAtUnix, nowUnix = Math.floor(Date.now() / 1000), allowDestinationAccountCreation = false, untilRevoked = false, customSpendLimits = false, gasSponsorship = false }) {
   const route = idl?.instructions?.[0];
   if (!ownerId || idl?.address !== JUPITER || idl.instructions.length !== 1 ||
       route?.name !== 'shared_accounts_route' ||
@@ -31,14 +38,17 @@ export function buildTradingPolicy({ idl, stockMints, ownerId, expiresAtUnix, no
       !requiredArgs.every(name => route.args?.some(arg => arg.name === name)) ||
       !['source_mint', 'destination_mint', 'user_transfer_authority', 'source_token_account', 'destination_token_account'].every(name => route.accounts?.some(account => account.name === name)))
     throw new Error('Expected the reviewed Jupiter shared-route IDL and separate policy owner');
-  if (!Number.isSafeInteger(expiresAtUnix) || expiresAtUnix <= nowUnix + 3600 || expiresAtUnix > nowUnix + 7 * 86400)
+  if (untilRevoked ? expiresAtUnix !== null :
+      !Number.isSafeInteger(expiresAtUnix) || expiresAtUnix <= nowUnix + 3600 || expiresAtUnix > nowUnix + 7 * 86400)
     throw new Error('Policy expiry must be between one hour and seven days');
   const mints = [...new Set(stockMints)].sort();
   if (!mints.length || mints.length > 100 || mints.some(mint => !mintPattern.test(mint) || mint === USDC))
     throw new Error('Expected an explicit stock mint allowlist of at most 100 mints');
-  return buildLaunchPolicy({ name:'oren bounded stock trading',version:'1.0',chain_type:'solana',owner_id:ownerId,rules:[
-    {name:'deny after policy expiry',method:'signTransaction',action:'DENY',conditions:[{field_source:'system',field:'current_unix_timestamp',operator:'gte',value:String(expiresAtUnix)}]},
+  const policy = buildLaunchPolicy({ name:'oren bounded stock trading',version:'1.0',chain_type:'solana',owner_id:ownerId,rules:[
+    ...(untilRevoked ? [] : [{name:'deny after policy expiry',method:'signTransaction',action:'DENY',conditions:[{field_source:'system',field:'current_unix_timestamp',operator:'gte',value:String(expiresAtUnix)}]}]),
     {name:'allow compute budget',method:'signTransaction',action:'ALLOW',conditions:[{field_source:'solana_program_instruction',field:'programId',operator:'eq',value:COMPUTE}]},
     {name:'reviewed argument decoder',conditions:[{idl}]},
-  ]},mints,{allowDestinationAccountCreation});
+  ]},mints,{allowDestinationAccountCreation, untilRevoked, customSpendLimits});
+  if (gasSponsorship) policy.rules.push(...policy.rules.map(rule => ({ ...structuredClone(rule), method: 'signAndSendTransaction' })));
+  return policy;
 }

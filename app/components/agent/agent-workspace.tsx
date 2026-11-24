@@ -2,27 +2,30 @@
 
 import type { RefObject } from 'react';
 import type {
-  AgentArtifact,
+  // AgentArtifact,
   AgentDisplayMessage,
   AgentPageContext,
   BasketResponse,
   LimitOrderProposal,
   QuoteResponse,
 } from '@/types';
-import { cn } from '@/components/ui';
-import { AgentArtifacts } from './agent-artifacts';
+// import { cn } from '@/components/ui';
+// import { AgentArtifacts } from './agent-artifacts';
 import { AgentComposer, AgentConversationThread } from './agent-conversation';
-import { contextLabel } from './agent-utils';
+// import { contextLabelKey } from './agent-utils';
+// import { useT } from "@/i18n/i18n";
 
+/* Artifacts paused: keep the working-set rail and empty context card for later.
 export function AgentContextCard({
   context,
   ticker,
   className,
 }: {
-  context: AgentPageContext;
+  context?: AgentPageContext;
   ticker?: string;
   className?: string;
 }) {
+  const t = useT();
   return (
     <section
       className={cn(
@@ -30,10 +33,10 @@ export function AgentContextCard({
         className,
       )}
     >
-      <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">Page context</p>
-      <p className="mt-2 font-display text-xl font-semibold">{contextLabel(context, ticker)}</p>
+      <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">{t("agent.pageContext")}</p>
+      <p className="mt-2 font-display text-xl font-semibold">{t(...contextLabelKey(context, ticker))}</p>
       <p className="mt-2 text-sm leading-6 text-muted">
-        Oren uses this page when you ask a question. Artifacts from the latest response will appear here.
+        {t(context ? "agent.pageContextBody" : "agent.generalContextBody")}
       </p>
     </section>
   );
@@ -49,21 +52,22 @@ export function AgentArtifactRail({
   onNavigate,
 }: {
   artifacts: AgentArtifact[];
-  context: AgentPageContext;
+  context?: AgentPageContext;
   ticker?: string;
   onReviewQuote: (quote: QuoteResponse) => void;
   onReviewBasket: (basket: BasketResponse) => void;
   onReviewLimitOrder: (proposal: LimitOrderProposal) => void;
   onNavigate?: () => void;
 }) {
+  const t = useT();
   return (
     <aside className="flex min-h-0 w-full flex-col border-l border-border bg-panel-subtle/40 lg:w-[420px] lg:shrink-0">
       <div className="shrink-0 border-b border-border px-4 py-3">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">Working set</p>
+        <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">{t("agent.workingSet")}</p>
         <p className="mt-0.5 text-xs text-muted">
           {artifacts.length
-            ? `${artifacts.length} artifact${artifacts.length === 1 ? '' : 's'} from the latest response`
-            : 'Artifacts appear here after Oren finishes responding'}
+            ? t("agent.artifactCount", { count: artifacts.length })
+            : t("agent.artifactsAppear")}
         </p>
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4">
@@ -84,15 +88,17 @@ export function AgentArtifactRail({
   );
 }
 
+*/
+
 export function AgentWorkspace({
   connected,
   isLoadingHistory,
   messages,
   prompts,
   error,
-  context,
-  ticker,
-  railArtifacts,
+  // context,
+  // ticker,
+  // railArtifacts,
   composer,
   composerRef,
   scrollRef,
@@ -114,9 +120,9 @@ export function AgentWorkspace({
   messages: AgentDisplayMessage[];
   prompts: string[];
   error?: string;
-  context: AgentPageContext;
+  context?: AgentPageContext;
   ticker?: string;
-  railArtifacts: AgentArtifact[];
+  // railArtifacts: AgentArtifact[];
   composer: string;
   composerRef: RefObject<HTMLTextAreaElement | null>;
   scrollRef: RefObject<HTMLDivElement | null>;
@@ -134,10 +140,10 @@ export function AgentWorkspace({
   onNavigate?: () => void;
 }) {
   return (
-    <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col lg:flex-row">
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+        {/* Artifacts paused: artifactDensity="chips" */}
         <AgentConversationThread
-          artifactDensity="chips"
           connected={connected}
           error={error}
           isLoadingHistory={isLoadingHistory}
@@ -163,6 +169,7 @@ export function AgentWorkspace({
           onSubmit={onSubmit}
         />
       </div>
+      {/* Artifacts paused: chat uses the full workspace width.
       <AgentArtifactRail
         artifacts={railArtifacts}
         context={context}
@@ -172,10 +179,12 @@ export function AgentWorkspace({
         onReviewQuote={onReviewQuote}
         ticker={ticker}
       />
+      */}
     </div>
   );
 }
 
+/* Artifacts paused: resume working-set selection alongside the rail.
 export function latestAssistantArtifacts(messages: AgentDisplayMessage[]): AgentArtifact[] {
   for (let index = messages.length - 1; index >= 0; index -= 1) {
     const message = messages[index];
@@ -185,3 +194,4 @@ export function latestAssistantArtifacts(messages: AgentDisplayMessage[]): Agent
   }
   return [];
 }
+*/

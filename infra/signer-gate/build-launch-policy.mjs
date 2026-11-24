@@ -25,17 +25,37 @@ export function compactRouteIdl(idl) {
   return result;
 }
 
+function validateReviewedMints(reviewedMints) {
+  if (!Array.isArray(reviewedMints) || !reviewedMints.length || reviewedMints.length > 100 || new Set(reviewedMints).size !== reviewedMints.length ||
+      reviewedMints.some(m => typeof m !== 'string' || !/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(m) || m === 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v'))
+    throw Error('Provide an explicitly reviewed list of 1..100 unique stock mints');
+}
+
 /** Provisioning never silently chooses a subset or expands an approved list. */
 export function selectLaunchMints(catalogMints, reviewedMints) {
-  if (!Array.isArray(reviewedMints) || !reviewedMints.length || reviewedMints.length > 100 || new Set(reviewedMints).size !== reviewedMints.length)
-    throw Error('Provide an explicitly reviewed list of 1..100 unique stock mints');
+  validateReviewedMints(reviewedMints);
   const tradable = new Set(catalogMints);
-  if (reviewedMints.some(m => typeof m !== 'string' || !/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(m) || !tradable.has(m) || m === 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v'))
+  if (reviewedMints.some(m => !tradable.has(m)))
     throw Error('Reviewed launch list contains a nontradable or invalid stock mint');
   return [...reviewedMints].sort();
 }
+
+/** The curated catalog can omit variants that are still individually tradable. */
+export async function verifyLaunchMints(catalogMints, reviewedMints, { resolveMint, getRawVariants }) {
+  validateReviewedMints(reviewedMints);
+  const tradable = new Set(catalogMints);
+  for (const mint of reviewedMints) {
+    if (tradable.has(mint)) continue;
+    const stock = await resolveMint(mint);
+    if (!stock) continue;
+    const variants = await getRawVariants(stock.id);
+    if (variants.some(variant => variant.mint === mint && variant.tradable === true))
+      tradable.add(mint);
+  }
+  return selectLaunchMints(tradable, reviewedMints);
+}
 /** Build a bounded launch policy within Privy's 128 KiB aggregate IDL limit. */
-export function buildLaunchPolicy(template, selectedMints, { allowDestinationAccountCreation = false } = {}) {
+export function buildLaunchPolicy(template, selectedMints, { allowDestinationAccountCreation = false, untilRevoked = false, customSpendLimits = false } = {}) {
   const mints=[...new Set(selectedMints)];
   const usdc='EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
   if(!mints.length||mints.length>100||mints.includes(usdc)||mints.some(m=>typeof m!=='string'||!/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(m)))throw Error('Invalid launch mint list');
@@ -44,16 +64,16 @@ export function buildLaunchPolicy(template, selectedMints, { allowDestinationAcc
   const idl=compactRouteIdl(full),clean=r=>({name:r.name,method:r.method,action:r.action,conditions:structuredClone(r.conditions)});
   const expiry=template.rules.find(r=>r.action==='DENY'&&r.conditions?.some(c=>c.field_source==='system'&&c.field==='current_unix_timestamp'&&c.operator==='gte'));
   const compute=template.rules.find(r=>r.name==='allow compute budget');
-  if(!expiry||!compute||compute.conditions?.length!==1||compute.conditions[0].value!=='ComputeBudget111111111111111111111111111111')throw Error('Missing expiry or compute guard');
+  if(Boolean(expiry)===untilRevoked||!compute||compute.conditions?.length!==1||compute.conditions[0].value!=='ComputeBudget111111111111111111111111111111')throw Error('Policy expiry or compute guard differs from the requested terms');
   const C=(field,operator,value)=>({field_source:'solana_instruction_data',field:'shared_accounts_route.'+field,operator,value,idl});
   const rule=side=>({name:'allow bounded jupiter '+side,method:'signTransaction',action:'ALLOW',conditions:[
     {field_source:'solana_program_instruction',field:'programId',operator:'eq',value:full.address},
-    C(side==='buy'?'args.in_amount':'args.quoted_out_amount','lte','25000000'),
+    C(side==='buy'?'args.in_amount':'args.quoted_out_amount','lte',customSpendLimits ? '100000000000' : '25000000'),
     C('args.slippage_bps','lte','50'),C('args.platform_fee_bps','eq','0'),
     C('accounts.source_mint',side==='buy'?'eq':'in',side==='buy'?usdc:mints),
     C('accounts.destination_mint',side==='buy'?'in':'eq',side==='buy'?mints:usdc),
   ]});
-  const rules=[clean(expiry),clean(compute),rule('buy'),rule('sell')];
+  const rules=[...(expiry?[clean(expiry)]:[]),clean(compute),rule('buy'),rule('sell')];
   if (allowDestinationAccountCreation) {
     // ATA CreateIdempotent is a one-byte discriminator with no arguments.
     // The two independent transaction validators additionally bind payer,

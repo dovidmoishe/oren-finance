@@ -1,7 +1,8 @@
 import { ApprovalService } from './approval.service';
 import type { ApprovalRow } from './approval.repository';
+import type { AppEnv } from '../config/env.schema';
 jest.mock('@privy-io/node', () => ({ PrivyClient: jest.fn() }));
-function fixture(status = 'prepared') {
+function fixture(status = 'prepared', env: Partial<AppEnv> = {}) {
   let row = {
     id: 'approval',
     userId: 'user',
@@ -26,12 +27,17 @@ function fixture(status = 'prepared') {
       body: { transaction: 'unsigned' },
     }),
     requireWallet: jest.fn().mockResolvedValue('user'),
-    requireSigner: jest.fn().mockResolvedValue({
+    requireApprovalWallet: jest.fn().mockResolvedValue({
       userId: 'user',
       walletId: 'privy-wallet',
+      signingMode: 'privy',
       token: 'user-jwt',
     }),
     signTransaction: jest.fn().mockResolvedValue('signed'),
+    sendSponsoredTransaction: jest
+      .fn()
+      .mockResolvedValue({ signature: 'sponsored-signature' }),
+    findSponsoredTransaction: jest.fn().mockResolvedValue(undefined),
   };
   const approvals = {
     pending: jest.fn(() => Promise.resolve([{ ...row }])),
@@ -55,6 +61,7 @@ function fixture(status = 'prepared') {
     status: jest.fn().mockResolvedValue(null),
     blockhashValid: jest.fn().mockResolvedValue(true),
     currentSlot: jest.fn().mockResolvedValue(100),
+    verifySponsored: jest.fn().mockResolvedValue('verified-sponsored-bytes'),
   };
   const executedQuote = {
     id: 'quote',
@@ -108,7 +115,7 @@ function fixture(status = 'prepared') {
     orders as never,
     quotes as never,
     {} as never,
-    { SOLANA_NETWORK: 'mainnet' } as never,
+    { SOLANA_NETWORK: 'mainnet', ...env } as never,
     withdrawalStocks as never,
   );
   return {
@@ -130,6 +137,120 @@ function fixture(status = 'prepared') {
   };
 }
 describe('server trade approvals', () => {
+  function sponsoredFixture(status = 'prepared') {
+    const f = fixture(status);
+    f.set({
+      details: { gasSponsorship: true, gasSimulationPayer: 'simulation-payer' },
+      feeLamports: '0',
+    });
+    return f;
+  }
+  it('uses the same user approval with a sponsored send, never a second RPC broadcast', async () => {
+    const f = sponsoredFixture();
+    await f.service.authorizationRequest('Bearer token', 'approval');
+    expect(f.auth.signingRequest).toHaveBeenCalledWith(
+      'privy-wallet',
+      'unsigned',
+      'approval',
+      expect.any(Date),
+      true,
+    );
+    const result = await f.service.approve(
+      'Bearer token',
+      'approval',
+      'owner-signature',
+    );
+    expect(result.status).toBe('submitted');
+    expect(f.rpc.inspect).toHaveBeenCalledWith(
+      'unsigned',
+      'wallet',
+      undefined,
+      'simulation-payer',
+    );
+    expect(f.auth.sendSponsoredTransaction).toHaveBeenCalledWith(
+      'privy-wallet',
+      ['owner-signature'],
+      'unsigned',
+      'approval',
+      expect.any(Date),
+    );
+    expect(f.auth.signTransaction).not.toHaveBeenCalled();
+    expect(f.rpc.broadcast).not.toHaveBeenCalled();
+    await f.service.approve('Bearer token', 'approval', 'owner-signature');
+    expect(f.auth.sendSponsoredTransaction).toHaveBeenCalledTimes(1);
+  });
+  it('never sponsors without the exact user authorization', async () => {
+    const f = sponsoredFixture();
+    await expect(f.service.approve('Bearer token', 'approval')).rejects.toThrow(
+      'Authorize',
+    );
+    expect(f.auth.sendSponsoredTransaction).not.toHaveBeenCalled();
+  });
+  it('keeps ambiguous sponsored sends pending beyond original transaction expiry', async () => {
+    const f = sponsoredFixture();
+    f.auth.sendSponsoredTransaction.mockRejectedValue(new Error('timeout'));
+    await f.service.approve('Bearer token', 'approval', 'owner-signature');
+    f.set({ expiresAt: new Date(0) });
+    f.rpc.blockhashValid.mockResolvedValue(false);
+    expect((await f.service.status('Bearer token', 'approval')).status).toBe(
+      'signing',
+    );
+    await f.service.approve('Bearer token', 'approval', 'owner-signature');
+    expect(f.auth.sendSponsoredTransaction).toHaveBeenCalledTimes(1);
+    expect(f.rpc.blockhashValid).not.toHaveBeenCalled();
+    expect(f.rpc.broadcast).not.toHaveBeenCalled();
+  });
+  it('recovers the hash read-only and verifies the landed trade before recording a fill', async () => {
+    const f = sponsoredFixture('signing');
+    f.auth.findSponsoredTransaction.mockResolvedValue('recovered-signature');
+    f.rpc.status.mockResolvedValue({
+      confirmationStatus: 'confirmed',
+      err: null,
+    });
+    expect((await f.service.status('Bearer token', 'approval')).status).toBe(
+      'confirmed',
+    );
+    expect(f.rpc.verifySponsored).toHaveBeenCalledWith(
+      'recovered-signature',
+      'unsigned',
+      'wallet',
+    );
+    expect(f.executions.submitAndEnqueue).toHaveBeenCalledWith(
+      expect.objectContaining({ transactionSignature: 'recovered-signature' }),
+    );
+    expect(f.auth.sendSponsoredTransaction).not.toHaveBeenCalled();
+  });
+  it('does not record success for a sponsored transaction with changed instructions', async () => {
+    const f = sponsoredFixture('submitted');
+    f.set({ signature: 'known-signature' });
+    f.rpc.status.mockResolvedValue({
+      confirmationStatus: 'confirmed',
+      err: null,
+    });
+    f.rpc.verifySponsored.mockRejectedValue(new Error('changed instruction'));
+    await expect(f.service.status('Bearer token', 'approval')).rejects.toThrow(
+      'changed instruction',
+    );
+    expect(f.executions.submitAndEnqueue).not.toHaveBeenCalled();
+    expect(f.row().status).toBe('submitted');
+  });
+  it('releases an explicitly rejected request without falling back to a user-paid send', async () => {
+    const f = sponsoredFixture();
+    f.auth.sendSponsoredTransaction.mockRejectedValue({ status: 403 });
+    expect(
+      (await f.service.approve('Bearer token', 'approval', 'owner-signature'))
+        .status,
+    ).toBe('failed');
+    expect(f.auth.signTransaction).not.toHaveBeenCalled();
+    expect(f.rpc.broadcast).not.toHaveBeenCalled();
+  });
+  it('ignores sponsorship metadata on withdrawals', async () => {
+    const f = sponsoredFixture();
+    f.set({ kind: 'withdrawal' });
+    await f.service.approve('Bearer token', 'approval', 'owner-signature');
+    expect(f.auth.sendSponsoredTransaction).not.toHaveBeenCalled();
+    expect(f.auth.signTransaction).toHaveBeenCalledTimes(1);
+  });
   it('keeps an uncertain prepared withdrawal pending until its approval expires', async () => {
     const f = fixture();
     f.set({ kind: 'withdrawal' });
@@ -211,10 +332,13 @@ describe('server trade approvals', () => {
       referenceId: 'quote',
       wallet: 'wallet',
     });
-    expect(f.execution.prepareWithQuote).toHaveBeenCalledWith({
-      quoteId: 'quote',
-      wallet: 'wallet',
-    });
+    expect(f.execution.prepareWithQuote).toHaveBeenCalledWith(
+      {
+        quoteId: 'quote',
+        wallet: 'wallet',
+      },
+      'direct',
+    );
     expect(f.quotes.peek).not.toHaveBeenCalled();
     expect(f.quotes.get).not.toHaveBeenCalled();
     const { routePayload: _omit, ...publicExecuted } = f.executedQuote;
@@ -289,7 +413,7 @@ describe('server trade approvals', () => {
     f.set({ signature: 'signature' });
     await f.service.status('Bearer token', 'approval');
     expect(f.auth.requireWallet).toHaveBeenCalledWith('Bearer token', 'wallet');
-    expect(f.auth.requireSigner).not.toHaveBeenCalled();
+    expect(f.auth.requireApprovalWallet).not.toHaveBeenCalled();
     f.rpc.status.mockClear();
     f.auth.requireWallet.mockResolvedValueOnce('other-user');
     await expect(
@@ -364,9 +488,10 @@ describe('server trade approvals', () => {
   });
   it('rejects another user or unlinked wallet before signing', async () => {
     const f = fixture();
-    f.auth.requireSigner.mockResolvedValue({
+    f.auth.requireApprovalWallet.mockResolvedValue({
       userId: 'other',
       walletId: 'privy-wallet',
+      signingMode: 'privy',
       token: 'jwt',
     });
     await expect(
@@ -476,5 +601,235 @@ describe('server trade approvals', () => {
       'confirmed',
     );
     expect(f.orders.upsert).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('external wallet reviewed approvals', () => {
+  function connected(status = 'prepared') {
+    const f = fixture(status, { PRIVY_REVIEWED_GAS_SPONSORSHIP: true });
+    f.auth.requireApprovalWallet.mockResolvedValue({
+      userId: 'user',
+      walletId: 'external:wallet',
+      signingMode: 'external',
+    });
+    f.set({
+      walletId: 'external:wallet',
+      details: { signingMode: 'external' },
+    });
+    return f;
+  }
+  it('prepares external approvals without sponsorship and returns only canonical sign-only bytes', async () => {
+    const f = connected();
+    await f.service.prepare('Bearer token', {
+      kind: 'swap',
+      wallet: 'wallet',
+      referenceId: 'quote',
+    });
+    expect(f.approvals.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        walletId: 'external:wallet',
+        details: expect.objectContaining({ signingMode: 'external' }) as Record<
+          string,
+          unknown
+        >,
+      }),
+    );
+    expect(f.approvals.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        details: expect.not.objectContaining({
+          gasSponsorship: true,
+        }) as Record<string, unknown>,
+      }),
+    );
+    expect(
+      await f.service.authorizationRequest('Bearer token', 'approval'),
+    ).toEqual({
+      signingMode: 'external',
+      approvalId: 'approval',
+      wallet: 'wallet',
+      transaction: 'unsigned',
+      expiresAt: f.row().expiresAt.toISOString(),
+      network: 'mainnet',
+    });
+    expect(f.auth.signingRequest).not.toHaveBeenCalled();
+    expect(f.auth.signTransaction).not.toHaveBeenCalled();
+  });
+  it.each(['swap', 'limit', 'cancel', 'withdrawal'])(
+    'verifies and persists a %s signature before a single broadcast',
+    async (kind) => {
+      const f = connected();
+      f.set({ kind });
+      const result = await f.service.approve(
+        'Bearer token',
+        'approval',
+        undefined,
+        'external-signed',
+      );
+      expect(result.status).toBe('submitted');
+      expect(f.rpc.validateSigned).toHaveBeenCalledWith(
+        'unsigned',
+        'external-signed',
+        'wallet',
+      );
+      expect(f.rpc.inspect).toHaveBeenCalled();
+      expect(f.approvals.patch).toHaveBeenCalledWith(
+        'approval',
+        expect.objectContaining({
+          status: 'signed',
+          signedTransaction: 'external-signed',
+          signature: 'signature',
+        }),
+        'signing',
+      );
+      expect(f.approvals.patch.mock.invocationCallOrder[0]).toBeLessThan(
+        f.rpc.broadcast.mock.invocationCallOrder[0],
+      );
+      if (kind === 'withdrawal')
+        expect(f.withdrawalStocks.assertReviewed).toHaveBeenCalled();
+      await f.service.approve(
+        'Bearer token',
+        'approval',
+        undefined,
+        'external-signed',
+      );
+      expect(f.rpc.broadcast).toHaveBeenCalledTimes(1);
+      expect(f.auth.signTransaction).not.toHaveBeenCalled();
+      expect(f.auth.sendSponsoredTransaction).not.toHaveBeenCalled();
+    },
+  );
+  it('rejects missing signatures, Privy authorization, altered bytes and removed wallet ownership before claim', async () => {
+    const f = connected();
+    await expect(f.service.approve('Bearer token', 'approval')).rejects.toThrow(
+      'Authorize',
+    );
+    await expect(
+      f.service.approve('Bearer token', 'approval', 'privy-request'),
+    ).rejects.toThrow('signing method');
+    f.rpc.validateSigned.mockImplementation(() => {
+      throw new Error('altered bytes');
+    });
+    await expect(
+      f.service.approve('Bearer token', 'approval', undefined, 'altered'),
+    ).rejects.toThrow('altered bytes');
+    f.auth.requireApprovalWallet.mockRejectedValueOnce(new Error('unlinked'));
+    await expect(
+      f.service.approve(
+        'Bearer token',
+        'approval',
+        undefined,
+        'external-signed',
+      ),
+    ).rejects.toThrow('unlinked');
+    expect(f.approvals.claim).not.toHaveBeenCalled();
+    expect(f.rpc.broadcast).not.toHaveBeenCalled();
+  });
+  it('rejects another account and refuses externally signed bytes for an embedded approval', async () => {
+    const f = connected();
+    f.auth.requireApprovalWallet.mockResolvedValueOnce({
+      userId: 'other',
+      walletId: 'external:wallet',
+      signingMode: 'external',
+    });
+    await expect(
+      f.service.authorizationRequest('Bearer token', 'approval'),
+    ).rejects.toMatchObject({ status: 403 });
+    const embedded = fixture();
+    await expect(
+      embedded.service.approve(
+        'Bearer token',
+        'approval',
+        undefined,
+        'external-signed',
+      ),
+    ).rejects.toThrow('signing method');
+    expect(embedded.auth.signTransaction).not.toHaveBeenCalled();
+  });
+  it('does not broadcast signatures after expiry or a failed balance/route recheck', async () => {
+    const expired = connected();
+    expired.set({ expiresAt: new Date(0) });
+    await expect(
+      expired.service.approve('Bearer token', 'approval', undefined, 'signed'),
+    ).rejects.toThrow('expired');
+    const failed = connected();
+    failed.rpc.inspect.mockRejectedValueOnce(new Error('balance changed'));
+    await expect(
+      failed.service.approve('Bearer token', 'approval', undefined, 'signed'),
+    ).rejects.toThrow('balance changed');
+    const late = connected();
+    late.rpc.inspect.mockImplementationOnce(() => {
+      late.row().expiresAt.setTime(0);
+      return Promise.resolve('5000');
+    });
+    await expect(
+      late.service.approve('Bearer token', 'approval', undefined, 'signed'),
+    ).rejects.toThrow('expired');
+    expect(late.approvals.claim).not.toHaveBeenCalled();
+    for (const f of [expired, failed, late])
+      expect(f.rpc.broadcast).not.toHaveBeenCalled();
+  });
+  it('retries only persisted signed bytes after an uncertain broadcast, without prompting the wallet again', async () => {
+    const f = connected();
+    f.rpc.broadcast.mockRejectedValueOnce(new Error('timeout'));
+    expect(
+      (
+        await f.service.approve(
+          'Bearer token',
+          'approval',
+          undefined,
+          'external-signed',
+        )
+      ).status,
+    ).toBe('signed');
+    await f.service.approve('Bearer token', 'approval');
+    expect(f.rpc.broadcast.mock.calls).toEqual([
+      ['external-signed'],
+      ['external-signed'],
+    ]);
+    expect(f.auth.signTransaction).not.toHaveBeenCalled();
+  });
+});
+
+describe('reviewed platform fee approval details', () => {
+  it('persists the displayed fee and its net balance expectation', async () => {
+    const f = fixture();
+    const fee = { bps: 50, amountRaw: '50000', mint: 'usdc' };
+    Object.assign(f.executedQuote, {
+      platformFee: fee,
+      platformFeeAccount: 'fee-destination',
+      inputMint: 'stock',
+      outputMint: 'usdc',
+      variant: { mint: 'stock', decimals: 6 },
+      routePayload: {
+        inAmount: '10000000',
+        outAmount: '9950000',
+        otherAmountThreshold: '9900250',
+        slippageBps: 50,
+      },
+      slippageBps: 50,
+    });
+    Object.assign(f.expectation, {
+      platformFee: { account: 'fee-destination', minAmountRaw: '49750' },
+    });
+    await f.service.prepare('Bearer token', {
+      kind: 'swap',
+      referenceId: 'quote',
+      wallet: 'wallet',
+    });
+    expect(f.approvals.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        details: expect.objectContaining({
+          quote: expect.objectContaining({
+            platformFee: fee,
+            minimumOutputAmount: 9.90025,
+          }) as Record<string, unknown>,
+          expectation: f.expectation,
+        }) as Record<string, unknown>,
+      }),
+    );
+    expect(f.rpc.inspect).toHaveBeenCalledWith(
+      'unsigned',
+      'wallet',
+      f.expectation,
+    );
   });
 });

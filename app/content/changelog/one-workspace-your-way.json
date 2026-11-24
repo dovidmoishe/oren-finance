@@ -1,0 +1,42 @@
+{
+  "slug": "one-workspace-your-way",
+  "date": "2026-11-17",
+  "status": "published",
+  "title": "One workspace. Your way.",
+  "summary": "A redesigned workspace brings your portfolio, market discovery, settings and investment copilot together, with a new dark theme and familiar lavender accents.",
+  "sections": [
+    {
+      "heading": "Improved",
+      "items": [
+        {
+          "title": "Your portfolio in focus",
+          "description": "See your portfolio history above your holdings in a clearer overview, with compact navigation and more room for the information you follow."
+        },
+        {
+          "title": "Keep your copilot beside you",
+          "description": "Open Ask Oren in a resizable panel alongside the desktop workspace. On smaller screens, navigating to another page closes the copilot so your destination stays visible."
+        },
+        {
+          "title": "Settings, together",
+          "description": "Manage your account, interests, email preferences and agent connections from one settings area. Related themes now sit beneath their sectors, giving you more specific interests to follow."
+        },
+        {
+          "title": "Light, dark or your system",
+          "description": "Choose an appearance from the header. Oren remembers your choice and adapts the workspace, charts and copilot while keeping its lavender accents."
+        }
+      ]
+    }
+  ],
+  "links": [
+    { "label": "Open your workspace", "href": "/app" },
+    { "label": "Explore Settings", "href": "/app/settings" }
+  ],
+  "video": {
+    "src": "/videos/oren-workspace-v1.mp4",
+    "poster": "/videos/oren-workspace-poster.png",
+    "label": "Portfolio, Markets, Settings, dark mode and copilot in Oren, a 10-second workspace reveal",
+    "caption": "One workspace. Your way. A tour of Portfolio, Markets, Settings, dark mode and Ask Oren, with portfolio balances hidden.",
+    "width": 1920,
+    "height": 1080
+  }
+}

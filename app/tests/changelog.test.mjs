@@ -52,7 +52,10 @@ test('uses publication sequence within a day before the slug fallback', () => {
   assert.deepEqual(visibleEntries(entries).map(e => e.slug), ['z-latest', 'a-earlier', 'legacy', 'older-day']);
   const dir = new URL('../content/changelog/', import.meta.url);
   const actual = validateEntries(readdirSync(dir).filter(f => f.endsWith('.json')).map(f => JSON.parse(readFileSync(new URL(f, dir), 'utf8'))));
-  assert.equal(visibleEntries(actual)[0].slug, 'oren-mcp-is-live');
+  assert.deepEqual(visibleEntries(actual).slice(0, 2).map(({ slug, date }) => [slug, date]), [
+    ['solana-wallet-login', '2026-11-22'],
+    ['one-workspace-your-way', '2026-11-17'],
+  ]);
   const published = findEntry(actual, 'transfer-stablecoins-and-stocks');
   assert.equal(published.status, 'published');
   assert.equal(published.date, '2026-11-03');
@@ -79,17 +82,15 @@ test('draft lookup and listing require explicit development preview; production 
   assert.equal(findEntry(entries, 'missing'), undefined);
 });
 
-test('seed entry references the approved video and checksum manifest and explains development status', () => {
+test('token entry preserves its public link and describes planned holder access', () => {
   const dir = new URL('../content/changelog/', import.meta.url);
   const entries = validateEntries(readdirSync(dir).filter(f => f.endsWith('.json')).map(f => JSON.parse(readFileSync(new URL(f, dir), 'utf8'))));
   const token = findEntry(entries, 'introducing-the-oren-token-page');
   assert.equal(token.date, '2026-10-31');
-  assert.equal(token.video.src, '/videos/oren-token-explainer-50-percent.mp4');
-  assert.match(token.video.caption, /in development and are not active yet/);
+  assert.equal(token.video, undefined);
+  assert.match(JSON.stringify(token.sections), /before activation/);
+  assert.doesNotMatch(JSON.stringify(token), /buyback|burn|fee allocation|50%/i);
   assert.equal(token.links[0].href, '/token');
-  const manifest = readFileSync(new URL('../../infra/videos.sha256', import.meta.url), 'utf8');
-  assert.ok(manifest.includes(token.video.src.split('/').at(-1)));
-  assert.ok(manifest.includes(token.video.poster.split('/').at(-1)));
 });
 
 function loadModule(file, require, process) {
@@ -116,8 +117,8 @@ test('real loader and route hide drafts from production params, metadata and pag
       if (id === '@/content/changelog') return data;
       if (id === '@/content/changelog/model.mjs') return model;
       if (id === 'next/navigation') return {notFound: () => {throw new Error('404');}};
-      if (id === '@hugeicons/core-free-icons') return {};
-      if (id === '@hugeicons/react') return {HugeiconsIcon: () => null};
+      if (id === 'lucide-react') return new Proxy({}, { get: () => () => null });
+      if (id === '@/components/ui/interface-icon') return {InterfaceIcon: () => null};
       if (id === 'react/jsx-runtime') return {jsx: () => ({}), jsxs: () => ({})};
       if (id === 'next/link' || id.includes('changelog-entry') || id.endsWith('.css')) return {};
       throw new Error(`Unexpected route import ${id}`);

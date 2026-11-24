@@ -31,10 +31,11 @@ function fixture({ authenticated = true, ready = true, apiOrigin = 'https://api.
       if (name === '@/components/auth/auth-context') return { useOrenAuth: () => auth };
       if (name === '@/services/mcp-api-origin') return { mcpApiOrigin: () => apiOrigin };
       if (name === 'next/link') return { default: ({ children, ...props }) => createElement('a', props, children) };
-      if (name === '@hugeicons/core-free-icons') return {};
-      if (name === '@hugeicons/react') return { HugeiconsIcon: () => null };
+      if (name === 'lucide-react') return new Proxy({}, { get: () => () => null });
+      if (name === '@/components/ui/interface-icon') return { InterfaceIcon: () => null };
+      if (name === '@/components/brand/agent-client') return { agentClient: () => undefined, AgentClientLogo: () => null };
       if (name === '@/app/settings/mcp/trade-grant') return { TradeGrant: ({ connectionUid }) => createElement('section', { 'data-connection': connectionUid }, 'Chat trading permission') };
-      if (name === '@/components/ui') return { Button: ({ children, ...props }) => { buttons.push(props); return createElement(props.href ? 'a' : 'button', props, children); } };
+      if (name === '@/components/ui') return { Button: ({ children, ...props }) => { buttons.push(props); return createElement(props.href ? 'a' : 'button', props, children); }, formatDate: (value) => String(value ?? "") };
       return require(name);
     },
   });

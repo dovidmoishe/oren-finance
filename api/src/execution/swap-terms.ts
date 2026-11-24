@@ -27,6 +27,7 @@ export interface SwapExpectation {
   outputMint: string;
   /** Most of the input token the wallet may spend (raw units). */
   maxInRaw: string;
+  platformFee?: { account: string; minAmountRaw: string };
   /** Least output the wallet must receive (raw units). */
   minOutRaw: string;
 }
@@ -109,12 +110,32 @@ export function expectationFor(
   const enforced = enforcedMinimumOut(quote);
   if (!maxIn || enforced === undefined) return undefined;
   const floor = reviewed ? BigInt(reviewed.minOutRaw) : enforced;
+  const minOut = floor > enforced ? floor : enforced;
+  const out = rawOut(quote);
+  const fee = quote.platformFee;
+  let minFee = BigInt(fee?.amountRaw ?? '0');
+  if (fee && quote.inputMint !== fee.mint) {
+    // Output fees move with actual proceeds, including stricter reviewed or
+    // venue slippage. The output floor and quoted output are already net.
+    minFee =
+      out && BigInt(out) > 0n
+        ? (minFee * minOut) / BigInt(out)
+        : minimumOut(fee.amountRaw, quote.slippageBps);
+  }
   return {
     inputMint: quote.inputMint,
     outputMint: quote.outputMint,
     maxInRaw: maxIn,
+    ...(quote.platformFee && quote.platformFeeAccount
+      ? {
+          platformFee: {
+            account: quote.platformFeeAccount,
+            minAmountRaw: minFee.toString(),
+          },
+        }
+      : {}),
     // Never expect less than either the reviewed floor or the route's own.
-    minOutRaw: (floor > enforced ? floor : enforced).toString(),
+    minOutRaw: minOut.toString(),
   };
 }
 
@@ -122,6 +143,20 @@ export function expectationFor(
 export function publicQuote<T extends Quote | undefined>(quote: T): T {
   if (!quote) return quote;
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const { routePayload, ...rest } = quote;
+  const { routePayload, platformFeeAccount, ...rest } = quote;
+  if (quote.platformFee?.bps) {
+    const floor = enforcedMinimumOut(quote);
+    const decimals = isTitanPayload(routePayload)
+      ? routePayload.outputDecimals
+      : quote.outputMint === quote.variant.mint
+        ? (quote.variant.decimals ?? 6)
+        : 6;
+    return {
+      ...rest,
+      ...(floor !== undefined
+        ? { minimumOutputAmount: Number(floor) / 10 ** decimals }
+        : {}),
+    } as T;
+  }
   return rest as T;
 }

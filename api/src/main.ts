@@ -18,9 +18,15 @@ import {
   mcpApiTradeAuthorizations,
 } from './database/schema';
 import { MarketService } from './market/market.service';
+import { ResearchService } from './research/research.service';
 import { PortfolioService } from './portfolio/portfolio.service';
 import { ExecutionService } from './execution/execution.service';
 import { handleMcpRequest } from './mcp-auth/mcp-resource';
+import {
+  isGrantUsdAmount,
+  MAX_GRANT_DAILY_USD,
+  MAX_MCP_TRADE_USD,
+} from './mcp-auth/grant-spend-limits';
 import { mcpConsentScopes } from './mcp-auth/consent-scopes';
 import { requireMcpOfflineConsent } from './mcp-auth/offline-consent';
 import { SignerGateClient } from './mcp-auth/signer-gate.client';
@@ -33,16 +39,23 @@ import {
 import {
   clientMayPrepareTrades,
   clientMayExecuteTrades,
+  mcpClientKind,
   createMcpOAuthRuntime,
   mountPathBasedDiscoveryAtIssuer,
 } from './mcp-auth/oauth-runtime';
 import { createRegistrationRateLimit } from './mcp-auth/registration-rate-limit';
+import { SlidingWindowLimiter, clientIp } from './common/rate-limit';
 import { approvalMatchesMcpIntent } from './mcp-auth/intent-approval';
 import { ApiTradeAuthorization } from './mcp-auth/api-trade-authorization';
 import { Connection } from '@solana/web3.js';
 import { TokensService } from './tokens/tokens.service';
 import { ApprovalRpc } from './execution/approval-rpc.service';
 import { ownerProofSchema } from './mcp-auth/grant-owner-proof';
+import {
+  DAY_MS,
+  MAX_GRANT_HOURS,
+  grantExpired,
+} from './mcp-auth/grant-duration';
 import {
   describeMcpConsentClient,
   nativeMcpConsentGranted,
@@ -51,6 +64,11 @@ import {
 async function bootstrap() {
   const env = validateEnv();
   const app = await NestFactory.create(AppModule);
+  // Caddy is the only hop in front of the API in production and previews, so
+  // trust exactly one proxy: req.ip becomes the client Caddy saw, which the
+  // client cannot forge through X-Forwarded-For.
+  if (env.DEPLOYMENT_ENV === 'production' || env.DEPLOYMENT_ENV === 'preview')
+    (app.getHttpAdapter().getInstance() as Express).set('trust proxy', 1);
 
   app.setGlobalPrefix('api');
   app.useGlobalPipes(
@@ -66,6 +84,7 @@ async function bootstrap() {
     const expressApp = app.getHttpAdapter().getInstance() as Express;
     const db = app.get(DatabaseService).db;
     const identity = app.get(PrivyWalletAuth, { strict: false });
+    const approvalRpc = app.get(ApprovalRpc, { strict: false });
     const delegatedAccess = {
       publicAccess: env.MCP_DELEGATED_TRADES_PUBLIC,
       allowedUsers: new Set(env.MCP_DELEGATED_TRADES_ALLOWED_USERS),
@@ -77,9 +96,12 @@ async function bootstrap() {
       ...delegatedAccess,
       buysEnabled: env.MCP_DELEGATED_BUYS_ENABLED,
       sellsEnabled: env.MCP_DELEGATED_SELLS_ENABLED,
+      gasSponsorship: env.PRIVY_MCP_GAS_SPONSORSHIP,
+      simulationPayer: env.PRIVY_GAS_SIMULATION_PAYER,
       signerQuorumId: env.PRIVY_MCP_SIGNER_QUORUM_ID ?? '',
+      signerPolicyId: env.PRIVY_MCP_SIGNER_POLICY_ID,
       tokens: app.get(TokensService, { strict: false }),
-      rpc: app.get(ApprovalRpc, { strict: false }),
+      rpc: approvalRpc,
       connection: new Connection(
         `https://solana-${env.SOLANA_NETWORK}.g.alchemy.com/v2/${env.ALCHEMY_API_KEY}`,
         'confirmed',
@@ -99,8 +121,11 @@ async function bootstrap() {
       auth: identity,
       market: app.get(MarketService, { strict: false }),
       portfolio: app.get(PortfolioService, { strict: false }),
+      research: app.get(ResearchService, { strict: false }),
       execution: app.get(ExecutionService, { strict: false }),
+      tradeRpc: approvalRpc,
       gate: env.MCP_DELEGATED_TRADES_ENABLED ? grantGate : undefined,
+      signerPolicyId: env.PRIVY_MCP_SIGNER_POLICY_ID,
       delegatedSides: {
         buy: env.MCP_DELEGATED_BUYS_ENABLED,
         sell: env.MCP_DELEGATED_SELLS_ENABLED,
@@ -133,7 +158,13 @@ async function bootstrap() {
           });
       },
     );
+    const mcpRequests = new SlidingWindowLimiter(120, 60_000);
     expressApp.post('/mcp', (req: Request, res: Response) => {
+      const retryAfter = mcpRequests.hit(clientIp(req));
+      if (retryAfter) {
+        res.setHeader('Retry-After', String(retryAfter));
+        return res.sendStatus(429);
+      }
       void handleMcpRequest(req, res, mcpDeps).catch(() => {
         if (!res.headersSent) res.sendStatus(500);
       });
@@ -177,15 +208,23 @@ async function bootstrap() {
             ),
           )
           .limit(1);
-        if (!delegation)
+        if (!delegation) {
+          const limits =
+            mcpDeps.gate &&
+            env.MCP_DELEGATED_BUYS_ENABLED &&
+            delegatedUserAllowed(delegatedAccess, owner.userId)
+              ? await mcpDeps.gate.grantLimits().catch(() => undefined)
+              : undefined;
+          const maxDurationHours = limits?.maxDurationHours ?? 0;
           return res.json({
             enabled: false,
-            canEnroll:
-              env.MCP_DELEGATED_TRADES_ENABLED &&
-              env.MCP_DELEGATED_BUYS_ENABLED &&
-              delegatedUserAllowed(delegatedAccess, owner.userId),
+            canEnroll: limits?.untilRevoked === true || maxDurationHours >= 1,
+            untilRevoked: limits?.untilRevoked === true,
+            maxDurationHours,
+            spendLimits: limits?.spendLimits,
             sellAvailable: env.MCP_DELEGATED_SELLS_ENABLED,
           });
+        }
         const [independent] = await db
           .select()
           .from(mcpApiTradeGrants)
@@ -199,9 +238,10 @@ async function bootstrap() {
           );
         if (
           !independent ||
+          independent.policyId !== delegation.policyId ||
           (env.PRIVY_MCP_SIGNER_POLICY_ID &&
             delegation.policyId !== env.PRIVY_MCP_SIGNER_POLICY_ID) ||
-          independent.expiresAt <= new Date() ||
+          grantExpired(independent.expiresAt) ||
           independent.status === 'revoked' ||
           (delegation.status === 'active' && independent.status !== 'active')
         )
@@ -227,9 +267,10 @@ async function bootstrap() {
               dailyUsd: independent.dailyLimitUsd,
               maxSlippageBps: independent.maxSlippageBps,
               allowSell: independent.allowSell,
-              expiresAt: independent.expiresAt.toISOString(),
+              expiresAt: independent.expiresAt?.toISOString() ?? null,
             },
           });
+        const budgetStart = new Date(Date.now() - DAY_MS);
         const [usage] = await db
           .select({
             total: sql<string>`COALESCE(SUM(${mcpBudgetReservations.amountUsd}), 0)`,
@@ -242,10 +283,7 @@ async function bootstrap() {
                 eq(mcpBudgetReservations.status, 'reserved'),
                 and(
                   eq(mcpBudgetReservations.status, 'consumed'),
-                  gt(
-                    mcpBudgetReservations.createdAt,
-                    new Date(Date.now() - 24 * 60 * 60_000),
-                  ),
+                  gt(mcpBudgetReservations.createdAt, budgetStart),
                 ),
               ),
             ),
@@ -255,7 +293,12 @@ async function bootstrap() {
             total: sql<string>`COALESCE(SUM(${mcpApiTradeAuthorizations.amountUsd}), 0)`,
           })
           .from(mcpApiTradeAuthorizations)
-          .where(eq(mcpApiTradeAuthorizations.delegationId, independent.id));
+          .where(
+            and(
+              eq(mcpApiTradeAuthorizations.delegationId, independent.id),
+              gt(mcpApiTradeAuthorizations.createdAt, budgetStart),
+            ),
+          );
         return res.json({
           enabled: true,
           sellAvailable: env.MCP_DELEGATED_SELLS_ENABLED,
@@ -269,7 +312,7 @@ async function bootstrap() {
               : usage.total,
           maxSlippageBps: independent.maxSlippageBps,
           sides: independent.allowSell ? ['buy', 'sell'] : ['buy'],
-          expiresAt: independent.expiresAt.toISOString(),
+          expiresAt: independent.expiresAt?.toISOString() ?? null,
         });
       } catch {
         return res.sendStatus(401);
@@ -280,10 +323,10 @@ async function bootstrap() {
     const grantSettingsSchema = z
       .object({
         allowSell: z.boolean(),
-        perTradeUsd: z.number().finite().min(0.01).max(25),
-        dailyUsd: z.number().finite().min(0.01).max(50),
+        perTradeUsd: z.number().max(MAX_MCP_TRADE_USD).refine(isGrantUsdAmount),
+        dailyUsd: z.number().max(MAX_GRANT_DAILY_USD).refine(isGrantUsdAmount),
         maxSlippageBps: z.number().int().min(1).max(50),
-        durationHours: z.number().int().min(1).max(24),
+        durationHours: z.number().int().min(1).max(MAX_GRANT_HOURS).nullable(),
       })
       .refine((value) => value.dailyUsd >= value.perTradeUsd);
     expressApp.post(
@@ -693,7 +736,10 @@ async function bootstrap() {
           )
             return res.sendStatus(403);
           const [delegation] = await db
-            .select({ id: mcpTradeDelegations.id })
+            .select({
+              id: mcpTradeDelegations.id,
+              policyId: mcpTradeDelegations.policyId,
+            })
             .from(mcpTradeDelegations)
             .where(
               and(
@@ -701,12 +747,17 @@ async function bootstrap() {
                 eq(mcpTradeDelegations.walletId, owner.walletId),
                 eq(mcpTradeDelegations.wallet, owner.wallet),
                 eq(mcpTradeDelegations.status, 'active'),
-                gt(mcpTradeDelegations.expiresAt, new Date()),
+                or(
+                  isNull(mcpTradeDelegations.expiresAt),
+                  gt(mcpTradeDelegations.expiresAt, new Date()),
+                ),
               ),
             )
             .limit(1);
           if (
             !delegation ||
+            (env.PRIVY_MCP_SIGNER_POLICY_ID &&
+              delegation.policyId !== env.PRIVY_MCP_SIGNER_POLICY_ID) ||
             req.headers['x-oren-delegation-id'] !== delegation.id
           )
             return res.sendStatus(403);
@@ -716,11 +767,15 @@ async function bootstrap() {
             .where(
               and(
                 eq(mcpApiTradeGrants.id, delegation.id),
+                eq(mcpApiTradeGrants.policyId, delegation.policyId),
                 eq(mcpApiTradeGrants.userId, owner.userId),
                 eq(mcpApiTradeGrants.walletId, owner.walletId),
                 eq(mcpApiTradeGrants.wallet, owner.wallet),
                 eq(mcpApiTradeGrants.status, 'active'),
-                gt(mcpApiTradeGrants.expiresAt, new Date()),
+                or(
+                  isNull(mcpApiTradeGrants.expiresAt),
+                  gt(mcpApiTradeGrants.expiresAt, new Date()),
+                ),
               ),
             );
           if (!independent) return res.sendStatus(403);
@@ -802,7 +857,25 @@ async function bootstrap() {
               ),
             );
           res.setHeader('Cache-Control', 'no-store');
-          return res.json(rows);
+          const connections = await Promise.all(
+            rows.map(async (row) => {
+              // Registered callbacks identify a client family for display only.
+              // Native callbacks do not attest the app or authorize a trade.
+              // Missing metadata must not prevent viewing or revoking a grant.
+              const client = await oauth.provider.Client.find(
+                row.clientId,
+              ).catch(() => undefined);
+              return {
+                ...row,
+                clientKind: mcpClientKind(client?.redirectUris) ?? null,
+                nativeClient:
+                  client?.redirectUris?.some(
+                    (uri) => !uri.startsWith('https:'),
+                  ) ?? false,
+              };
+            }),
+          );
+          return res.json(connections);
         } catch {
           return res.sendStatus(401);
         }
@@ -846,8 +919,8 @@ async function bootstrap() {
     const registrationRetryAfter = createRegistrationRateLimit();
     expressApp.post(
       '/oauth/reg',
-      (_req: Request, res: Response, next: NextFunction) => {
-        const retryAfter = registrationRetryAfter();
+      (req: Request, res: Response, next: NextFunction) => {
+        const retryAfter = registrationRetryAfter(clientIp(req));
         if (retryAfter) {
           res.setHeader('Retry-After', String(retryAfter));
           return res.sendStatus(429);
@@ -863,7 +936,12 @@ async function bootstrap() {
   // MCP browser routes answer their own credentialed preflights before the
   // general Nest CORS handler handles /api requests.
   app.enableCors({
-    origin: env.CORS_ORIGIN === '*' ? true : env.CORS_ORIGIN.split(','),
+    origin:
+      env.CORS_ORIGIN === '*'
+        ? true
+        : env.CORS_ORIGIN.split(',')
+            .map((origin) => origin.trim())
+            .filter(Boolean),
   });
 
   await app.listen(env.PORT);

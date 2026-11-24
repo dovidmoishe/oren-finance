@@ -1,5 +1,9 @@
 import { deploymentCapabilities } from './deployment';
 import { DEFAULT_VAULT_PROGRAM_ID } from './constants';
+import {
+  platformFeeConfig,
+  type PlatformFeeConfig,
+} from './platform-fee-config';
 
 export type SolanaNetwork = 'mainnet' | 'devnet';
 
@@ -45,6 +49,17 @@ export interface AppEnv {
   SOLANA_NETWORK: SolanaNetwork;
   PRIVY_APP_ID?: string;
   PRIVY_APP_SECRET?: string;
+  /** Native sponsorship is opt-in and applies only to eligible reviewed trades. */
+  PRIVY_REVIEWED_GAS_SPONSORSHIP?: boolean;
+  PRIVY_MCP_GAS_SPONSORSHIP?: boolean;
+  /** Public funded system account used ONLY for unsigned fee-free simulations. */
+  PRIVY_GAS_SIMULATION_PAYER?: string;
+  PLATFORM_FEE_BPS?: number;
+  PLATFORM_FEE_CONFIG?: PlatformFeeConfig;
+  PLATFORM_FEE_USDC_ACCOUNT?: string;
+  PLATFORM_FEE_OWNER?: string;
+  PLATFORM_FEE_CONFIG_INVALID?: boolean;
+  TITAN_PLATFORM_FEE_ENABLED?: boolean;
   MCP_DELEGATED_TRADES_ENABLED: boolean;
   MCP_DELEGATED_BUYS_ENABLED: boolean;
   MCP_DELEGATED_SELLS_ENABLED: boolean;
@@ -99,9 +114,43 @@ export interface AppEnv {
   DRIP_API_KEY?: string;
   DRIP_API_BASE_URL: string;
   DRIP_REQUEST_TIMEOUT_MS: number;
+  SENVIOK_API_KEY?: string;
+  SENVIOK_FROM?: string;
+  /**
+   * When "true", every opted-in user with a verified email receives the
+   * Morning Brief. NOTIFICATION_PILOT_USERS is not consulted. Unset or any
+   * other value leaves briefs off.
+   */
+  MORNING_BRIEF_ENABLED?: string;
+  PRICE_ALERTS_ENABLED?: string;
+  /**
+   * When "true", price alerts are available to every signed-in user with a
+   * verified email. Unset or any other value keeps the pilot allowlist.
+   * Defaults to off. Does not affect Morning Brief.
+   */
+  PRICE_ALERTS_PUBLIC?: string;
+  TOKENS_ALERT_TIMESTAMPS_VERIFIED?: string;
+  /** Comma-separated mints, or "*" for every tradable catalog variant. */
+  NOTIFICATION_ALERT_MINTS?: string;
+  /** Seconds a last trade may age before a quote is ignored. Default 120. */
+  NOTIFICATION_QUOTE_MAX_TRADE_AGE_SECONDS?: string;
+  NOTIFICATION_REDIS_URL?: string;
+  NOTIFICATION_APP_ORIGIN?: string;
+  NOTIFICATION_API_ORIGIN?: string;
+  NOTIFICATION_UNSUBSCRIBE_SECRET?: string;
+  NOTIFICATION_TOKENS_PER_MINUTE?: string;
+  NOTIFICATION_EMAIL_PER_MINUTE?: string;
+  NOTIFICATION_PILOT_USERS?: string;
+  NOTIFICATION_FIXTURE_MODE?: string;
+  NOTIFICATION_FIXTURE_RECIPIENT?: string;
   VAULT_PROGRAM_ID: string;
   /** When false, vault prepare/confirm routes return 503. Defaults to false until the program is deployed. */
   VAULT_PROGRAM_LIVE: boolean;
+  /**
+   * Operator mailbox for the SEC EDGAR User-Agent. Unset or invalid disables
+   * company-facts fetches. Do not invent an address.
+   */
+  SEC_CONTACT_EMAIL?: string;
 }
 
 const REQUIRED = ['POSTGRES_URL', 'TOKENS_API_KEY', 'ALCHEMY_API_KEY'] as const;
@@ -218,6 +267,43 @@ export function migrateJupiterUrl(url: string | undefined): string | undefined {
  * *before* those values are assigned to `process.env`. Always read from
  * that object (falling back to process.env when called later).
  */
+/**
+ * Browser origins allowed by the general CORS handler. Outside production an
+ * unset value keeps the permissive `*` default for local work. In production
+ * `*` is never used: fall back to the app origin (MCP_APP_ORIGIN, then
+ * https://DOMAIN, which Caddy already serves) and warn, so a deploy without an
+ * explicit CORS_ORIGIN keeps working while still being locked to the app.
+ */
+export function resolveCorsOrigin(
+  env: EnvSource,
+  environment: string | undefined,
+): string {
+  const configured = readEnv(env, 'CORS_ORIGIN');
+  if (environment !== 'production') return configured ?? '*';
+  if (configured && configured !== '*') return configured;
+
+  const domain = readEnv(env, 'DOMAIN');
+  const candidate =
+    readEnv(env, 'MCP_APP_ORIGIN') ??
+    (domain ? `https://${domain}` : undefined);
+  if (!candidate)
+    throw new Error(
+      'CORS_ORIGIN must name the app origin in production (or set MCP_APP_ORIGIN or DOMAIN)',
+    );
+  let origin: string;
+  try {
+    origin = new URL(candidate).origin;
+  } catch {
+    throw new Error(`Cannot derive a CORS origin from "${candidate}"`);
+  }
+  if (origin === 'null')
+    throw new Error(`Cannot derive a CORS origin from "${candidate}"`);
+  console.warn(
+    `CORS_ORIGIN is ${configured ? '"*"' : 'unset'} in production; allowing only ${origin}. Set CORS_ORIGIN explicitly.`,
+  );
+  return origin;
+}
+
 export function validateEnv(env: EnvSource = process.env): AppEnv {
   const missing = REQUIRED.filter((key) => !readEnv(env, key));
   if (missing.length > 0) {
@@ -240,6 +326,35 @@ export function validateEnv(env: EnvSource = process.env): AppEnv {
   }
 
   const deployment = deploymentCapabilities(env);
+  const platformFee = platformFeeConfig(env);
+  const feeBps = readEnv(env, 'PLATFORM_FEE_BPS') ?? '0';
+  const platformFeeInvalid =
+    !platformFee &&
+    (readBool(env, 'PLATFORM_FEE_CONFIG_INVALID', false) ||
+      !/^\d+$/.test(feeBps) ||
+      Number(feeBps) !== 0);
+  const reviewedSponsorship = readBool(
+    env,
+    'PRIVY_REVIEWED_GAS_SPONSORSHIP',
+    false,
+  );
+  const mcpSponsorship = readBool(env, 'PRIVY_MCP_GAS_SPONSORSHIP', false);
+  const simulationPayer = readEnv(env, 'PRIVY_GAS_SIMULATION_PAYER');
+  if (reviewedSponsorship || mcpSponsorship) {
+    if (deployment.environment === 'preview' || network !== 'mainnet')
+      throw new Error(
+        'Trade gas sponsorship requires a non-preview mainnet deployment',
+      );
+    requireEnv(env, 'PRIVY_APP_ID');
+    requireEnv(env, 'PRIVY_APP_SECRET');
+    if (
+      !simulationPayer ||
+      !/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(simulationPayer)
+    )
+      throw new Error(
+        'Trade gas sponsorship requires PRIVY_GAS_SIMULATION_PAYER',
+      );
+  }
   const delegatedEnabled = readBool(env, 'MCP_DELEGATED_TRADES_ENABLED', false);
   const delegatedUsers = readList(env, 'MCP_DELEGATED_TRADES_ALLOWED_USERS');
   const delegatedPublic =
@@ -281,7 +396,7 @@ export function validateEnv(env: EnvSource = process.env): AppEnv {
     PREVIEW_PR_NUMBER: deployment.prNumber,
     COMMIT_SHA: deployment.commitSha,
     PORT: port,
-    CORS_ORIGIN: readEnv(env, 'CORS_ORIGIN') ?? '*',
+    CORS_ORIGIN: resolveCorsOrigin(env, deployment.environment),
     POSTGRES_URL: requireEnv(env, 'POSTGRES_URL'),
     TOKENS_API_BASE_URL: (
       readEnv(env, 'TOKENS_API_BASE_URL') ?? 'https://api.tokens.xyz'
@@ -291,6 +406,19 @@ export function validateEnv(env: EnvSource = process.env): AppEnv {
     SOLANA_NETWORK: network,
     PRIVY_APP_ID: readEnv(env, 'PRIVY_APP_ID'),
     PRIVY_APP_SECRET: readEnv(env, 'PRIVY_APP_SECRET'),
+    PRIVY_REVIEWED_GAS_SPONSORSHIP: reviewedSponsorship,
+    PRIVY_MCP_GAS_SPONSORSHIP: mcpSponsorship,
+    PRIVY_GAS_SIMULATION_PAYER: simulationPayer,
+    PLATFORM_FEE_BPS: platformFee?.bps ?? 0,
+    PLATFORM_FEE_CONFIG: platformFee,
+    PLATFORM_FEE_USDC_ACCOUNT: readEnv(env, 'PLATFORM_FEE_USDC_ACCOUNT'),
+    PLATFORM_FEE_OWNER: readEnv(env, 'PLATFORM_FEE_OWNER'),
+    PLATFORM_FEE_CONFIG_INVALID: platformFeeInvalid,
+    TITAN_PLATFORM_FEE_ENABLED: readBool(
+      env,
+      'TITAN_PLATFORM_FEE_ENABLED',
+      false,
+    ),
     MCP_DELEGATED_TRADES_ENABLED: delegatedEnabled,
     MCP_DELEGATED_BUYS_ENABLED:
       delegatedEnabled && readBool(env, 'MCP_DELEGATED_BUYS_ENABLED', false),
@@ -371,8 +499,51 @@ export function validateEnv(env: EnvSource = process.env): AppEnv {
       'DRIP_REQUEST_TIMEOUT_MS',
       DEFAULT_DRIP_REQUEST_TIMEOUT_MS,
     ),
+    SENVIOK_API_KEY: readEnv(env, 'SENVIOK_API_KEY'),
+    SENVIOK_FROM: readEnv(env, 'SENVIOK_FROM'),
+    MORNING_BRIEF_ENABLED: readEnv(env, 'MORNING_BRIEF_ENABLED'),
+    PRICE_ALERTS_ENABLED: readEnv(env, 'PRICE_ALERTS_ENABLED'),
+    PRICE_ALERTS_PUBLIC: readEnv(env, 'PRICE_ALERTS_PUBLIC'),
+    TOKENS_ALERT_TIMESTAMPS_VERIFIED: readEnv(
+      env,
+      'TOKENS_ALERT_TIMESTAMPS_VERIFIED',
+    ),
+    NOTIFICATION_ALERT_MINTS: readEnv(env, 'NOTIFICATION_ALERT_MINTS'),
+    NOTIFICATION_QUOTE_MAX_TRADE_AGE_SECONDS: readEnv(
+      env,
+      'NOTIFICATION_QUOTE_MAX_TRADE_AGE_SECONDS',
+    ),
+    NOTIFICATION_REDIS_URL: readEnv(env, 'NOTIFICATION_REDIS_URL'),
+    NOTIFICATION_APP_ORIGIN: readEnv(env, 'NOTIFICATION_APP_ORIGIN'),
+    NOTIFICATION_API_ORIGIN: readEnv(env, 'NOTIFICATION_API_ORIGIN'),
+    NOTIFICATION_UNSUBSCRIBE_SECRET: readEnv(
+      env,
+      'NOTIFICATION_UNSUBSCRIBE_SECRET',
+    ),
+    NOTIFICATION_TOKENS_PER_MINUTE: readEnv(
+      env,
+      'NOTIFICATION_TOKENS_PER_MINUTE',
+    ),
+    NOTIFICATION_EMAIL_PER_MINUTE: readEnv(
+      env,
+      'NOTIFICATION_EMAIL_PER_MINUTE',
+    ),
+    NOTIFICATION_PILOT_USERS: readEnv(env, 'NOTIFICATION_PILOT_USERS'),
+    NOTIFICATION_FIXTURE_MODE: readEnv(env, 'NOTIFICATION_FIXTURE_MODE'),
+    NOTIFICATION_FIXTURE_RECIPIENT: readEnv(
+      env,
+      'NOTIFICATION_FIXTURE_RECIPIENT',
+    ),
     VAULT_PROGRAM_ID:
       readEnv(env, 'VAULT_PROGRAM_ID') || DEFAULT_VAULT_PROGRAM_ID,
     VAULT_PROGRAM_LIVE: readBool(env, 'VAULT_PROGRAM_LIVE', false),
+    SEC_CONTACT_EMAIL: secContactEmail(readEnv(env, 'SEC_CONTACT_EMAIL')),
   };
+}
+
+function secContactEmail(value: string | undefined): string | undefined {
+  if (!value || value.length > 254) return undefined;
+  return /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/.test(value)
+    ? value
+    : undefined;
 }

@@ -3,8 +3,73 @@ import type { StockAnalysis, NewsItem } from "./stock";
 export interface ResearchSource<T> {
   available: boolean;
   observedAt?: string;
+  publishedAt?: string;
+  fetchedAt?: string;
+  assembledAt?: string;
   data?: T;
   reason?: string;
+}
+
+export interface CompanyLink {
+  label: string;
+  url: string;
+}
+
+export interface CompanyCitationView {
+  form: string;
+  filed: string;
+  periodStart?: string;
+  periodEnd: string;
+  sourceUrl: string;
+}
+
+export interface CompanyMetricView {
+  available: boolean;
+  reason?: string;
+  display?: string;
+  value?: number;
+  derived?: boolean;
+  citation?: CompanyCitationView;
+  inputCitations?: CompanyCitationView[];
+}
+
+export interface CompanyPeriodView {
+  fiscalYear: number;
+  fiscalQuarter?: number;
+  start: string;
+  end: string;
+  derived?: boolean;
+  revenue?: CompanyMetricView;
+  netIncome?: CompanyMetricView;
+  operatingMargin?: CompanyMetricView;
+  revenueGrowth?: CompanyMetricView;
+}
+
+export interface CompanyResearchData {
+  coverage: string;
+  detail?: string;
+  briefing: string[];
+  links: CompanyLink[];
+  filingCadence?: "current" | "stale";
+  latestQuarter?: CompanyPeriodView;
+  latestAnnual?: CompanyPeriodView;
+  ttm?: {
+    revenue?: CompanyMetricView;
+    netIncome?: CompanyMetricView;
+    operatingMargin?: CompanyMetricView;
+    revenueGrowth?: CompanyMetricView;
+    start?: string;
+    end?: string;
+  };
+  filings: Array<{
+    form: string;
+    filed: string;
+    reportDate?: string;
+    acceptedAt?: string;
+    accession: string;
+    sourceUrl: string;
+    items?: string;
+  }>;
 }
 export interface ResearchOpinion {
   author: string;
@@ -63,6 +128,7 @@ export interface StockResearch {
     lockedAmount: number;
   } | null>;
   opinions: ResearchSource<OpinionOverlay>;
+  company?: ResearchSource<CompanyResearchData>;
   saved?: SavedThesis;
   changes?: ResearchChange[];
 }

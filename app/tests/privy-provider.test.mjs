@@ -15,27 +15,33 @@ const noBrowserRpc = (id) => {
 };
 
 for (const rpcOverride of [undefined, 'https://rpc.example.invalid/private-key-must-not-be-used']) {
-  test(`authentication stays email-only and does not initialize browser RPC (${rpcOverride ? 'override' : 'default'})`, () => {
+  test(`authentication supports wallet and email and does not initialize browser RPC (${rpcOverride ? 'override' : 'default'})`, () => {
     const exports = {};
     let config;
+    const theme = rpcOverride ? 'dark' : 'light';
+    const accentColor = theme === 'dark' ? '#ededea' : '#171717';
     vm.runInNewContext(transpile('../components/auth/privy-auth.tsx'), {
       exports, process: { env: { NEXT_PUBLIC_PRIVY_APP_ID: 'offline-app', NEXT_PUBLIC_SOLANA_RPC_URL: rpcOverride } },
       require(id) {
         noBrowserRpc(id);
+        if (id === '@privy-io/react-auth/solana') return { toSolanaWalletConnectors: options => ({ options }) };
         if (id === '@privy-io/react-auth') return { PrivyProvider(props) { config = props.config; return props.children; } };
-        if (id === '@solana/wallet-adapter-react') return { WalletContext: createContext({}), ConnectionProvider() { throw new Error('Browser RPC must not be initialized'); } };
+        if (id === '@/components/auth/wallet-context') return { useWallet: () => ({}), WalletContext: createContext({}), ConnectionProvider() { throw new Error('Browser RPC must not be initialized'); } };
         if (id === './auth-context') return { AuthContext: createContext({}) };
         if (id === './wallet-modal-context') return { WalletModalContext: createContext({}) };
         if (id === './privy-session') return { PrivySession: ({ children }) => children };
+        if (id === '../theme/theme') return { useResolvedTheme: () => theme, useThemePrimaryColor: () => accentColor };
         return require(id);
       },
     });
     renderToStaticMarkup(createElement(exports.PrivyAuth, { appId: 'offline-app', onSession() {} }));
-    assert.deepEqual(Array.from(config.loginMethods), ['email']);
+    assert.deepEqual(Array.from(config.loginMethods), ['wallet', 'email']);
+    assert.equal(config.appearance.theme, theme);
+    assert.equal(config.appearance.accentColor, accentColor);
     assert.equal(config.solana, undefined);
-    // No external wallets: no Solana connectors, no WalletConnect, no wallet detection.
-    assert.equal(config.externalWallets.solana, undefined);
-    assert.equal(config.externalWallets.disableAllExternalWallets, true);
+    // Discovery is available on demand, without automatic extension prompts or WalletConnect.
+    assert.equal(config.externalWallets.solana.connectors.options.shouldAutoConnect, false);
+    assert.equal(config.externalWallets.disableAllExternalWallets, undefined);
     assert.equal(config.externalWallets.walletConnect.enabled, false);
     assert.equal(config.embeddedWallets.solana.createOnLogin, 'off');
   });
@@ -52,10 +58,17 @@ function renderProviders(env) {
     require(id) {
       noBrowserRpc(id);
       if (id === 'next/dynamic') return { default: (load) => { privyLoads++; void load; return () => null; } };
-      if (id === '@solana/wallet-adapter-react') return { WalletContext, ConnectionProvider() { throw new Error('Browser RPC must not be initialized'); } };
+      if (id === '@/components/auth/wallet-context') return { WalletContext, ConnectionProvider() { throw new Error('Browser RPC must not be initialized'); } };
       if (id === '@/components/auth/auth-context') return { AuthContext };
       if (id === '@/components/auth/wallet-modal-context') return { WalletModalContext };
       if (id === '@/components/auth/privy-auth') throw new Error('Privy must be loaded lazily');
+      if (id === '@/lib/performance-client') return { recordPerformanceMetric() {} };
+      if (id === '@/lib/chunk-reload') {
+        const loaded = {};
+        vm.runInNewContext(transpile('../lib/chunk-reload.ts'), { exports: loaded, require });
+        return loaded;
+      }
+      if (id === '@/i18n/i18n') return require(id);
       return require(id);
     },
   });
@@ -103,6 +116,10 @@ test('MCP connection page receives the app authentication provider', () => {
     require(id) {
       if (id === '../../providers')
         return { AppProviders({ children }) { return createElement(AuthContext.Provider, { value: auth }, children); } };
+      if (id === '@/i18n/personalized-intl')
+        return { PersonalizedIntl({ children }) { return children; } };
+      if (id === '@/components/chunk-load-recovery')
+        return { ChunkLoadRecovery: () => null };
       return require(id);
     },
   });

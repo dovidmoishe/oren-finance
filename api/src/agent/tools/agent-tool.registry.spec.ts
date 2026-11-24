@@ -1,8 +1,10 @@
 import { PriceMovedError } from '../../common/errors/provider.errors';
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, HttpException } from '@nestjs/common';
+import { PROVIDER_REQUESTS_PER_MINUTE } from '../../common/rate-limit';
 import { AgentToolRegistry } from './agent-tool.registry';
 
 describe('AgentToolRegistry', () => {
+  const ctx = { walletAddress: 'wallet-1' };
   const bitget = {
     getMarketContext: jest.fn(),
   };
@@ -125,6 +127,11 @@ describe('AgentToolRegistry', () => {
         'prepareUnlock',
       ]),
     );
+    expect(
+      registry
+        .getSchemas()
+        .find((schema) => schema.name === 'findOpportunities')?.description,
+    ).toMatch(/not market sentiment/i);
   });
 
   it('combines canonical stock resolution with live Bitget context', async () => {
@@ -175,12 +182,50 @@ describe('AgentToolRegistry', () => {
     });
   });
 
+  it('ignores a wallet supplied by the model and uses the verified one', async () => {
+    portfolio.getActivity.mockResolvedValue({ items: [] });
+    calendar.getDay.mockResolvedValue({ agentEvents: [] });
+
+    await registry.dispatch(
+      'getPortfolioActivity',
+      { wallet: 'victim-wallet' },
+      ctx,
+    );
+    await registry.dispatch(
+      'getTradingCalendarDay',
+      { wallet: 'victim-wallet', date: '2026-09-15', timeZone: 'UTC' },
+      ctx,
+    );
+
+    expect(portfolio.getActivity).toHaveBeenCalledWith('wallet-1');
+    expect(calendar.getDay).toHaveBeenCalledWith('wallet-1', '2026-09-15', {
+      timeZone: 'UTC',
+    });
+  });
+
+  it('refuses wallet tools when the request has no verified wallet', async () => {
+    await expect(
+      registry.dispatch('getPortfolio', { wallet: 'victim-wallet' }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(portfolio.getPortfolio).not.toHaveBeenCalled();
+  });
+
+  it('never offers the model a wallet argument', () => {
+    for (const schema of registry.getSchemas({
+      userId: 'u',
+      walletAddress: 'wallet-1',
+    })) {
+      const properties = (
+        schema.parameters as { properties: Record<string, unknown> }
+      ).properties;
+      expect(Object.keys(properties)).not.toContain('wallet');
+    }
+  });
+
   it('dispatches valid read tools to backing services', async () => {
     portfolio.getPortfolio.mockResolvedValue({ walletAddress: 'wallet-1' });
 
-    await expect(
-      registry.dispatch('getPortfolio', { wallet: 'wallet-1' }),
-    ).resolves.toEqual({
+    await expect(registry.dispatch('getPortfolio', {}, ctx)).resolves.toEqual({
       output: { walletAddress: 'wallet-1' },
       artifact: {
         type: 'portfolio',
@@ -224,6 +269,27 @@ describe('AgentToolRegistry', () => {
     });
   });
 
+  it('labels rankings as momentum, trend, and trading activity', async () => {
+    intelligence.getOpportunities.mockResolvedValue([
+      {
+        assetId: 'ttwo',
+        ticker: 'TTWO',
+        name: 'Take-Two Interactive',
+        opportunityScore: 77.22,
+        highlights: ['Strong 7d momentum'],
+        signals: { momentum7d: 8, momentum30d: 4, volumeTrend: 1.4 },
+      },
+    ]);
+
+    const ranked = await registry.dispatch(
+      'findOpportunities',
+      { minScore: null, limit: null },
+      { walletAddress: 'wallet-1' },
+    );
+    expect(JSON.stringify(ranked.modelOutput)).toContain('TTWO');
+    expect(JSON.stringify(ranked.modelOutput)).toMatch(/not market sentiment/);
+  });
+
   it('dispatches vault tools and extracts artifacts', async () => {
     vault.prepareLock.mockResolvedValue({
       wallet: 'wallet-1',
@@ -231,12 +297,15 @@ describe('AgentToolRegistry', () => {
     });
 
     await expect(
-      registry.dispatch('prepareLock', {
-        wallet: 'wallet-1',
-        asset: 'NVDA',
-        amount: 1,
-        unlockAt: '2027-01-01T00:00:00Z',
-      }),
+      registry.dispatch(
+        'prepareLock',
+        {
+          asset: 'NVDA',
+          amount: 1,
+          unlockAt: '2027-01-01T00:00:00Z',
+        },
+        ctx,
+      ),
     ).resolves.toEqual({
       output: {
         wallet: 'wallet-1',
@@ -294,7 +363,7 @@ describe('AgentToolRegistry', () => {
     );
     const result = await registry.dispatch(
       'prepareSwap',
-      { quoteId: 'q-1', wallet: 'wallet-1' },
+      { quoteId: 'q-1' },
       { walletAddress: 'wallet-1' },
     );
     expect(result.output).toMatchObject({
@@ -317,10 +386,14 @@ describe('AgentToolRegistry', () => {
     });
 
     await expect(
-      registry.dispatch('createBasket', {
-        amountUsd: 100,
-        prompt: 'Build a basket',
-      }),
+      registry.dispatch(
+        'createBasket',
+        {
+          amountUsd: 100,
+          prompt: 'Build a basket',
+        },
+        ctx,
+      ),
     ).resolves.toEqual({
       output: {
         id: 'basket-1',
@@ -336,10 +409,13 @@ describe('AgentToolRegistry', () => {
     });
 
     await expect(
-      registry.dispatch('prepareBasketPurchase', {
-        basketId: 'basket-1',
-        wallet: 'wallet-1',
-      }),
+      registry.dispatch(
+        'prepareBasketPurchase',
+        {
+          basketId: 'basket-1',
+        },
+        ctx,
+      ),
     ).resolves.toEqual({
       output: {
         basketId: 'basket-1',
@@ -377,11 +453,14 @@ describe('AgentToolRegistry', () => {
     ).resolves.toEqual({ output: { profile: { slug: 'alpha' } } });
 
     await expect(
-      registry.dispatch('prepareCopyPortfolio', {
-        sourceSlug: 'alpha',
-        wallet: 'wallet-1',
-        amountUsd: 100,
-      }),
+      registry.dispatch(
+        'prepareCopyPortfolio',
+        {
+          sourceSlug: 'alpha',
+          amountUsd: 100,
+        },
+        ctx,
+      ),
     ).resolves.toEqual({
       output: {
         source: { slug: 'alpha', displayName: 'Alpha' },
@@ -409,13 +488,16 @@ describe('AgentToolRegistry', () => {
     });
 
     await expect(
-      registry.dispatch('getTradingCalendar', {
-        wallet: 'wallet-1',
-        month: '2026-09',
-        start: null,
-        end: null,
-        timeZone: 'UTC',
-      }),
+      registry.dispatch(
+        'getTradingCalendar',
+        {
+          month: '2026-09',
+          start: null,
+          end: null,
+          timeZone: 'UTC',
+        },
+        ctx,
+      ),
     ).resolves.toEqual({
       output: {
         walletAddress: 'wallet-1',
@@ -431,11 +513,14 @@ describe('AgentToolRegistry', () => {
     });
 
     await expect(
-      registry.dispatch('getTradingCalendarDay', {
-        wallet: 'wallet-1',
-        date: '2026-09-15',
-        timeZone: 'UTC',
-      }),
+      registry.dispatch(
+        'getTradingCalendarDay',
+        {
+          date: '2026-09-15',
+          timeZone: 'UTC',
+        },
+        ctx,
+      ),
     ).resolves.toEqual({
       output: {
         walletAddress: 'wallet-1',
@@ -451,6 +536,63 @@ describe('AgentToolRegistry', () => {
         },
       },
     });
+  });
+
+  it('caps paid tool calls per verified wallet without charging ordinary reads', async () => {
+    news.getEquityNews.mockResolvedValue({ items: [] });
+    portfolio.getPortfolio.mockResolvedValue({ walletAddress: 'wallet-1' });
+    for (let i = 0; i < PROVIDER_REQUESTS_PER_MINUTE; i++) {
+      await registry.dispatch('getPortfolio', {}, ctx);
+    }
+    await registry.dispatch('getStockNews', { assetIdOrTicker: 'NVDA' }, ctx);
+
+    const burst = await Promise.allSettled(
+      Array.from({ length: PROVIDER_REQUESTS_PER_MINUTE - 1 }, () =>
+        registry.dispatch('getStockNews', { assetIdOrTicker: 'NVDA' }, ctx),
+      ),
+    );
+    expect(burst.every((result) => result.status === 'fulfilled')).toBe(true);
+
+    await expect(
+      registry.dispatch('getStockNews', { assetIdOrTicker: 'NVDA' }, ctx),
+    ).rejects.toBeInstanceOf(HttpException);
+    expect(news.getEquityNews).toHaveBeenCalledTimes(
+      PROVIDER_REQUESTS_PER_MINUTE,
+    );
+
+    news.getEquityNews.mockClear();
+    await expect(
+      registry.dispatch(
+        'getStockNews',
+        { assetIdOrTicker: 'NVDA' },
+        {
+          walletAddress: 'wallet-2',
+        },
+      ),
+    ).resolves.toEqual({ output: [] });
+    expect(news.getEquityNews).toHaveBeenCalledTimes(1);
+  });
+
+  it('counts concurrent paid tool calls once each', async () => {
+    news.getEquityNews.mockResolvedValue({ items: [] });
+    const burst = await Promise.allSettled(
+      Array.from({ length: PROVIDER_REQUESTS_PER_MINUTE + 1 }, () =>
+        registry.dispatch(
+          'getSwapQuote',
+          { side: 'buy', ticker: 'NVDA', amountUsd: 10 },
+          ctx,
+        ),
+      ),
+    );
+    const rejected = burst.filter((result) => result.status === 'rejected');
+    expect(rejected).toHaveLength(1);
+    expect((rejected[0] as PromiseRejectedResult).reason).toBeInstanceOf(
+      HttpException,
+    );
+    expect((rejected[0] as PromiseRejectedResult).reason.getStatus()).toBe(429);
+    expect(execution.getQuote).toHaveBeenCalledTimes(
+      PROVIDER_REQUESTS_PER_MINUTE,
+    );
   });
 
   it('fails unknown tools cleanly', async () => {

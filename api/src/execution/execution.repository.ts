@@ -3,6 +3,7 @@ import { and, desc, eq, or } from 'drizzle-orm';
 import { DRIZZLE } from '../config/constants';
 import type { Database } from '../database/database.provider';
 import { executionJobs, executions } from '../database/schema';
+import type { PlatformFee } from '../../types/quote';
 import type {
   ExecutionFeature,
   ExecutionStatus,
@@ -22,6 +23,7 @@ export interface InsertExecutionInput {
   amount?: number;
   amountUsd?: number;
   provider?: string;
+  platformFee?: PlatformFee | null;
   featureSource?: ExecutionFeature;
   status: ExecutionStatus;
   transactionSignature?: string;
@@ -46,6 +48,9 @@ export class ExecutionRepository {
         amountUsd:
           input.amountUsd !== undefined ? String(input.amountUsd) : undefined,
         provider: input.provider,
+        platformFeeBps: input.platformFee?.bps,
+        platformFeeAmountRaw: input.platformFee?.amountRaw,
+        platformFeeMint: input.platformFee?.mint,
         featureSource: input.featureSource ?? 'direct',
         status: input.status,
         transactionSignature: input.transactionSignature,

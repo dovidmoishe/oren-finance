@@ -9,14 +9,14 @@ import ts from 'typescript';
 import { Children, isValidElement } from 'react';
 
 function load(file) {
-  const filename = file.startsWith('/') ? file : fileURLToPath(new URL(file, import.meta.url));
+  const filename = path.isAbsolute(file) ? file : fileURLToPath(new URL(file, import.meta.url));
   const localRequire = createRequire(filename);
   const exports = {};
   vm.runInNewContext(ts.transpileModule(readFileSync(filename, 'utf8'), {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX },
   }).outputText, { exports, require(id) {
-    if (id === '@hugeicons/core-free-icons') return {};
-    if (id === '@hugeicons/react') return { HugeiconsIcon: () => null };
+    if (id === 'lucide-react') return new Proxy({}, { get: () => () => null });
+    if (id === '@/components/ui/interface-icon') return { InterfaceIcon: () => null };
     if (id === '@/components/stock/stock-logo') return { StockLogo: () => null };
     if (id === '@/components/ui') return { Button: 'button', Toast: () => null, formatCurrency: (value) => `$${value.toFixed(2)}`, formatNumber: String };
     if (id.startsWith('.')) {

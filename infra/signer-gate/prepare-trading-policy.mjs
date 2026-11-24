@@ -6,7 +6,7 @@ import tokensService from '/app/dist/src/tokens/tokens.service.js';
 import gate from '/app/dist/src/signer-gate/signer-gate.service.js';
 import { buildTradingPolicy, samePolicySemantics, tradingPolicyIdl } from './trading-policy.mjs';
 import { preparePolicyOwner } from './policy-owner.mjs';
-import { selectLaunchMints } from './build-launch-policy.mjs';
+import { verifyLaunchMints } from './build-launch-policy.mjs';
 
 const required = key => { if (!process.env[key]) throw new Error(`Missing ${key}`); return process.env[key]; };
 const privy = new PrivyClient({ appId: required('PRIVY_APP_ID'), appSecret: required('PRIVY_APP_SECRET') });
@@ -15,7 +15,8 @@ if (prior.owner_id !== required('SIGNER_GATE_POLICY_OWNER_ID') || gate.gatePolic
   throw new Error('The live policy no longer matches its reviewed fingerprint');
 if (prior.owner_id === required('SIGNER_GATE_QUORUM_ID')) throw new Error('Policy owner must be separate from trade signers');
 const idl = tradingPolicyIdl(prior);
-const tokens = new tokensService.TokensService(new tokensClient.TokensClient({ TOKENS_API_BASE_URL: process.env.TOKENS_API_BASE_URL ?? 'https://api.tokens.xyz', TOKENS_API_KEY: required('TOKENS_API_KEY') }));
+const catalogClient = new tokensClient.TokensClient({ TOKENS_API_BASE_URL: process.env.TOKENS_API_BASE_URL ?? 'https://api.tokens.xyz', TOKENS_API_KEY: required('TOKENS_API_KEY') });
+const tokens = new tokensService.TokensService(catalogClient);
 let offset = 0;
 let hasMore = true;
 const stocks = [];
@@ -29,18 +30,29 @@ while (hasMore) {
 }
 const catalogMints = stocks.flatMap(stock => stock.variants.filter(variant => variant.tradable).map(variant => variant.mint));
 const reviewedMints = JSON.parse(readFileSync(required('SIGNER_GATE_LAUNCH_MINTS_FILE'), 'utf8'));
-const stockMints = selectLaunchMints(catalogMints, reviewedMints);
+const stockMints = await verifyLaunchMints(catalogMints, reviewedMints, {
+  resolveMint: mint => tokens.resolveMint(mint),
+  getRawVariants: async assetId => {
+    const response = await catalogClient.get(`/assets/${encodeURIComponent(assetId)}/variants`, { kind: 'tokenized_equity' });
+    return response.variants;
+  },
+});
 const resultPath = '/state/trading-policy.json';
 const existing = existsSync(resultPath) ? JSON.parse(readFileSync(resultPath, 'utf8')) : null;
 const allowDestinationAccountCreation = process.argv.includes('--allow-destination-account-creation');
+const untilRevoked = process.argv.includes('--until-revoked');
+const customSpendLimits = process.argv.includes('--custom-spend-limits');
+const gasSponsorship = process.argv.includes('--gas-sponsorship');
+if (existing && (existing.expiresAtUnix === null) !== untilRevoked)
+  throw new Error('Use a new state directory when changing policy expiry mode');
 const priorExpiry = Math.min(...prior.rules.filter(r => r.action === 'DENY').flatMap(r => r.conditions ?? [])
   .filter(c => c.field_source === 'system' && c.field === 'current_unix_timestamp' && c.operator === 'gte')
   .map(c => Number(c.value)));
-const expiresAtUnix = existing?.expiresAtUnix ?? (allowDestinationAccountCreation ? priorExpiry : Math.floor(Date.now() / 1000) + 7 * 86400);
-if (allowDestinationAccountCreation && (!Number.isSafeInteger(priorExpiry) || expiresAtUnix > priorExpiry))
+const expiresAtUnix = untilRevoked ? null : existing?.expiresAtUnix ?? (allowDestinationAccountCreation ? priorExpiry : Math.floor(Date.now() / 1000) + 7 * 86400);
+if (!untilRevoked && allowDestinationAccountCreation && (!Number.isSafeInteger(priorExpiry) || expiresAtUnix > priorExpiry))
   throw new Error('Account-creation rollout must preserve the reviewed policy expiry');
 const set = process.argv.includes('--create') ? await preparePolicyOwner(privy) : { ownerId: prior.owner_id };
-const candidate = buildTradingPolicy({ idl, stockMints, ownerId: set.ownerId, expiresAtUnix, allowDestinationAccountCreation });
+const candidate = buildTradingPolicy({ idl, stockMints, ownerId: set.ownerId, expiresAtUnix, allowDestinationAccountCreation, untilRevoked, customSpendLimits, gasSponsorship });
 const fingerprint = gate.gatePolicyFingerprint(candidate);
 if (existing?.policyId && existing.candidateFingerprint !== fingerprint) throw new Error('Saved candidate differs from the catalog or policy; review a new state directory');
 const result = { priorPolicyId: prior.id, candidate, fingerprint, candidateFingerprint: fingerprint, expiresAtUnix, stockMintCount: stockMints.length, reviewedMints: stockMints, catalogTradableMintCount: new Set(catalogMints).size };

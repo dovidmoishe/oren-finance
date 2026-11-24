@@ -1,5 +1,22 @@
 # Public video delivery
 
+## Portfolio changelog media (November 2026)
+
+The November 14 personalization entry uses `oren-morning-brief-v8-1080p.mp4`
+and `oren-morning-brief-v8-poster.png`. The November 17 workspace entry uses
+`oren-workspace-v1.mp4` and `oren-workspace-poster.png`. The dates follow the
+reviewed film dates, not the date these entries were authored.
+
+All four assets are listed in `videos.sha256` and belong under
+`app/public/videos/` locally and `/opt/oren/media/videos` in production.
+Sources are `videos/oren-morning-brief/renders/` and
+`videos/oren-workspace-reveal/renders/` in the main checkout. These binaries
+remain outside Git. Upload and verify all four before merging the changelog
+references; the production manifest gate will reject missing assets.
+
+The Morning Brief caption explicitly identifies sample figures and pending
+email delivery. The announcement does not enable notifications or price alerts.
+
 Video exports and local motion projects stay outside Git history. The token page
 uses `/videos/oren-token-explainer-50-percent.mp4` and `/videos/oren-token-poster.jpg`.
 For local development, keep both files under `app/public/videos/` (ignored).
@@ -48,3 +65,10 @@ film and its research-frame poster from `oren-mcp-launch/renders/` in the main
 checkout. Keep both under `app/public/videos/` locally. Their SHA-256 hashes are
 in `videos.sha256`; upload and verify them before merging/deploying the entry.
 Preparing the changelog PR does not upload media or activate a release.
+
+The Solana wallet login changelog entry uses `/videos/oren-wallet-login-v3.mp4`
+and `/videos/oren-wallet-login-v3-poster.jpg`. The nine-second 1080p60 film
+includes the final closing beat at 7.01 seconds. Editable source and export live
+under `videos/oren-wallet-login/` in the main checkout. Both files are listed in
+`videos.sha256`; upload and verify them before merging this release into the
+production branch. The PR stages the content and hashes, not the media upload.

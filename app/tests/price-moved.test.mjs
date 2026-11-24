@@ -58,14 +58,14 @@ function loadReview() {
   const ui = {
     Button: props => { buttons.push(props); return createElement('button', { 'data-variant': props.variant, disabled: props.disabled }, props.children); },
     Toast: ({ title, description }) => createElement('div', { role: 'status' }, `${title}: ${description}`),
-    formatNumber: (value, digits) => Number(value).toFixed(digits),
+    formatNumber: (value, _locale, digits) => Number(value).toFixed(digits),
   };
   const { PriceMovedReview } = load('../components/trading/price-moved-review.tsx', {
     '@/components/ui': ui,
     '@/services/price-moved': priceMoved,
     '@/services/environment': { financialExecutionEnabled: true },
-    '@hugeicons/core-free-icons': {},
-    '@hugeicons/react': { HugeiconsIcon: () => null },
+    'lucide-react': new Proxy({}, { get: () => () => null }),
+    '@/components/ui/interface-icon': { InterfaceIcon: () => null },
   });
   return { PriceMovedReview, buttons };
 }

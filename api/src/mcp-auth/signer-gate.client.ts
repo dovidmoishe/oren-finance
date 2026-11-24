@@ -2,6 +2,10 @@ import { generateAuthorizationSignature } from '@privy-io/node';
 import { SignerGateRejection } from './signer-gate.errors';
 import type { ApiTradeAuthorizer, TradeActor } from './api-trade-authorization';
 import type { OwnerProof } from './grant-owner-proof';
+import {
+  isSlippageSimulationError,
+  simulationGateCode,
+} from '../execution/simulation-reason';
 
 export type GateResult = {
   executionId: string;
@@ -10,6 +14,7 @@ export type GateResult = {
   submissionState?: string;
   reason?: string;
   message?: string;
+  slippageRequoted?: boolean;
 };
 
 /** MCP API holds only one Privy quorum key; the gate holds the other. */
@@ -55,10 +60,62 @@ export class SignerGateClient {
     const challenge = await this.post<
       GateResult & { canonicalRequestBase64?: string }
     >('/challenge', { intentId, idempotencyKey });
+    return this.finishWithSlippageRetry(
+      challenge,
+      intentId,
+      idempotencyKey,
+      actor,
+    );
+  }
+
+  private async finishWithSlippageRetry(
+    challenge: GateResult & { canonicalRequestBase64?: string },
+    intentId: string,
+    idempotencyKey: string,
+    actor: TradeActor,
+  ): Promise<GateResult> {
+    try {
+      return await this.finish(challenge, intentId, idempotencyKey, actor);
+    } catch (error) {
+      if (!isSlippageSimulationError(error)) classifyTradeError(error);
+      if (challenge.slippageRequoted || challenge.state !== 'challenged') {
+        await this.abortUnsigned(challenge.executionId);
+        throw new SignerGateRejection('slippage_exceeded');
+      }
+      let rebuilt: GateResult & { canonicalRequestBase64?: string };
+      try {
+        rebuilt = await this.post('/slippage-retry', {
+          executionId: challenge.executionId,
+        });
+      } catch (retryError) {
+        await this.abortUnsigned(challenge.executionId);
+        if (
+          retryError instanceof SignerGateRejection &&
+          retryError.code === 'slippage_exceeded'
+        )
+          throw retryError;
+        classifyTradeError(retryError);
+      }
+      try {
+        return await this.finish(rebuilt, intentId, idempotencyKey, actor);
+      } catch (again) {
+        if (!isSlippageSimulationError(again)) classifyTradeError(again);
+        await this.abortUnsigned(rebuilt.executionId);
+        throw new SignerGateRejection('slippage_exceeded');
+      }
+    }
+  }
+
+  private async finish(
+    challenge: GateResult & { canonicalRequestBase64?: string },
+    intentId: string,
+    idempotencyKey: string,
+    actor: TradeActor,
+  ): Promise<GateResult> {
     if (challenge.state !== 'challenged') return challenge;
     if (!challenge.canonicalRequestBase64)
       throw new SignerGateRejection('pending');
-    const independentlyAuthorized = await this.authorizer.authorize(
+    const independentlyAuthorized = await this.authorizer!.authorize(
       intentId,
       idempotencyKey,
       actor,
@@ -74,6 +131,26 @@ export class SignerGateClient {
     });
   }
 
+  private async abortUnsigned(executionId: string) {
+    try {
+      await this.post('/abort-unsigned', { executionId });
+    } catch {
+      /* The caller still reports the slippage failure. */
+    }
+  }
+
+  reconcile(executionId: string) {
+    return this.post<GateResult>('/reconcile', { executionId });
+  }
+
+  grantLimits() {
+    return this.post<{
+      maxDurationHours?: number;
+      untilRevoked?: boolean;
+      spendLimits?: { maxPerTradeUsd: number; maxDailyUsd: number };
+    }>('/grant/limits', {});
+  }
+
   prepareGrant(
     authorization: OwnerProof,
     settings: {
@@ -81,7 +158,7 @@ export class SignerGateClient {
       perTradeUsd: number;
       dailyUsd: number;
       maxSlippageBps: number;
-      durationHours: number;
+      durationHours: number | null;
     },
   ) {
     return this.post<{
@@ -93,7 +170,7 @@ export class SignerGateClient {
       dailyUsd: string;
       maxSlippageBps: number;
       allowSell: boolean;
-      expiresAt: string;
+      expiresAt: string | null;
     }>('/grant/prepare', { authorization, ...settings });
   }
 
@@ -101,7 +178,7 @@ export class SignerGateClient {
     return this.post<{
       active: boolean;
       delegationId: string;
-      expiresAt: string;
+      expiresAt: string | null;
     }>('/grant/activate', { authorization, delegationId });
   }
 
@@ -111,4 +188,19 @@ export class SignerGateClient {
       removeAllWalletSignersInBrowser: boolean;
     }>('/grant/revoke', { authorization, delegationId });
   }
+}
+
+function classifyTradeError(error: unknown): never {
+  if (error instanceof SignerGateRejection) throw error;
+  if (
+    error instanceof Error &&
+    (error.message === 'Independent trade authorization is inactive' ||
+      error.message === 'Delegated trade inactive' ||
+      error.message === 'Delegation is inactive or exceeds owner-only limits')
+  )
+    throw new SignerGateRejection('inactive_delegation');
+  const code = simulationGateCode(error);
+  if (code) throw new SignerGateRejection(code);
+  if (error instanceof Error) throw error;
+  throw new Error('Trade authorization failed');
 }

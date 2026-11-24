@@ -119,6 +119,14 @@ export class TitanClient {
       'maxPriceDeviationBps',
       String(params.maxPriceDeviationBps ?? this.maxPriceDeviationBps),
     );
+    if (params.feeBps && params.feeAccount) {
+      url.searchParams.set('feeAccount', params.feeAccount);
+      url.searchParams.set('feeBps', String(params.feeBps));
+      url.searchParams.set(
+        'feeFromInputMint',
+        String(params.feeFromInputMint === true),
+      );
+    }
     if (params.includeAltContents) {
       url.searchParams.set('includeAltContents', 'true');
     }

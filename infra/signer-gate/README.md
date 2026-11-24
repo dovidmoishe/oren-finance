@@ -43,7 +43,7 @@ exact request against its own budget. Gate-side state cannot reset that budget.
 An identical retry may reuse the same authorization; replacement bytes for an
 already claimed intent are rejected.
 
-API authorization charges are retained for the entire grant (at most 24 hours),
+API authorization charges count toward a rolling 24-hour budget,
 including uncertain or failed attempts. They are not released based on a gate
 failure report. This is deliberately conservative; a safe independent refund
 or reconciliation mechanism is separate future work. Browser settings report
@@ -111,8 +111,10 @@ and reconcile them before any new grant.
    `oren_signer_gate`. Run `roles.sql` as the migration owner with psql variables
    `api_password` and `gate_password`. Do not place either on a command line or
    in a log. The provisioning workflow performs this step and stores the gate
-   role URL only in the private pending file. Re-run the grants after future
-   schema migrations.
+   role URL only in the private pending file. `roles.sql` also sets default
+   privileges so later tables created by this owner inherit runtime DML grants.
+   Ordinary app tables no longer need a manual re-run after migrations.
+   Sensitive MCP tables must still revoke in their own migration.
 3. Create `/opt/oren/.env.api` with the `oren_api_runtime` `POSTGRES_URL` and,
    when ready for the owner trial, only the API quorum key and gate URL/token.
    The later `.env.api` overrides `.env` in Compose. The API service blanks
@@ -160,9 +162,10 @@ the API and gate remain enforced independently.
 For each rotation, write the approved mint addresses as a JSON array in a private
 state file, for example `/state/launch-mints.json`, and set
 `SIGNER_GATE_LAUNCH_MINTS_FILE=/state/launch-mints.json` in the one-off provisioning
-container. `prepare-trading-policy.mjs` requires this file, validates its 1..100
-unique entries against the complete current tradable catalog, and records the
-reviewed subset in the candidate checkpoint. Newly listed stocks never expand
+container. `prepare-trading-policy.mjs` requires this file and validates its 1..100
+unique entries. For a reviewed mint omitted from the curated catalog, it resolves
+the exact address and requires an explicit tradable flag in the raw variant record.
+The candidate checkpoint records the reviewed subset. Newly listed stocks never expand
 that reviewed subset automatically. A missing, stale or broader list fails closed.
 Rebuild the pinned web release and require explicit user re-enrollment when the
 production policy ID changes. Policy creation and sign-only diagnostics are not
@@ -175,9 +178,26 @@ on the gate. Each service checks its own flag, so both must agree before any
 non-allowlisted user can enroll or trade; with either flag off, the named
 allowlists apply as before. A `*` allowlist entry is rejected on both services.
 Public access lifts only the allowlist: every grant still needs the owner's
-wallet-signed terms, the $25 per-trade and $50 daily ceilings, 0.5% slippage,
-24-hour expiry, the tradable-stock check and the two-key quorum all still apply.
+wallet-signed spending limits, 0.5% slippage,
+owner-authorized expiry and revocation,
+the tradable-stock check and the two-key quorum all still apply.
+
+A policy candidate generated with `--until-revoked` omits the shared time cutoff
+and retains the trade amount, asset, route and slippage rules. Use a new state
+directory for the candidate. Enrollment requires migration `0015_mcp_grant_expiry`
+and the new policy pins. The wallet owner must approve the exact until-revoked
+grant and attach the new policy. Existing dated grants retain their expiry.
+Connector OAuth expiration is independent of wallet permission.
 Turn the flags off to return to the allowlist without a redeploy of code.
+
+To enable custom spend limits, provision a new candidate with
+`--custom-spend-limits` in a fresh state directory. Keep the existing expiry
+mode, destination account settings, and reviewed mints. The flag raises the
+Privy USDC route ceiling to the existing $100,000 MCP quote limit. Both services
+still enforce the wallet's signed per-trade and rolling 24-hour budgets.
+Apply `0016_mcp_custom_spend_limits` before enrolling higher-limit grants.
+Verify the new policy by readback, rotate the API, gate and web pins, then have
+users re-enroll. The previous policy continues to advertise $25 and $50.
 
 ## Request and retry states
 

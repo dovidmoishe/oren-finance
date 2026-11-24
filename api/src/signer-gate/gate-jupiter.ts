@@ -21,10 +21,12 @@ import { staticJupiterAccounts } from './static-jupiter-accounts';
 import { buyNotionalUsd, microsUsd } from '../mcp-auth/trade-budget';
 import { rawSellReferenceUsd } from '../mcp-auth/delegated-amounts';
 import { reviewedQuoteFloor } from './reviewed-quote';
+import { sponsorshipEligible } from '../execution/gas-sponsorship';
 
 type Intent = typeof mcpTradeIntents.$inferSelect;
 
 export type GateRoute = {
+  gasSponsored?: boolean;
   createsDestinationAccount: boolean;
   transaction: string;
   rawInput: string;
@@ -48,10 +50,14 @@ export async function buildGateJupiterRoute(
     rpc: ApprovalRpc;
     connection: Connection;
   },
+  options?: { allowExecuting?: boolean; simulationPayer?: string },
 ): Promise<GateRoute> {
+  const statusAllowed =
+    intent.status === 'prepared' ||
+    (options?.allowExecuting === true && intent.status === 'executing');
   if (
     intent.mode !== 'delegated' ||
-    intent.status !== 'prepared' ||
+    !statusAllowed ||
     intent.expiresAt <= new Date() ||
     !intent.stockMint ||
     !positiveRaw(intent.maxInRaw) ||
@@ -107,6 +113,8 @@ export async function buildGateJupiterRoute(
     intent.side === 'buy' ? stockProgram : TOKEN_PROGRAM_ID;
   const inputMint = intent.side === 'buy' ? USDC_MINT : intent.stockMint;
   const outputMint = intent.side === 'buy' ? intent.stockMint : USDC_MINT;
+  // In-chat signing and its slippage re-quote stay on Jupiter at the
+  // original slippage. Titan cannot be signed by the delegated grant.
   const freshQuote = await deps.jupiter.getQuote({
     inputMint,
     outputMint,
@@ -183,12 +191,20 @@ export async function buildGateJupiterRoute(
     },
     resolve,
   );
-  await deps.rpc.inspect(transaction, intent.wallet, {
-    inputMint,
-    outputMint,
-    maxInRaw: intent.maxInRaw,
-    minOutRaw: quote.otherAmountThreshold,
-  });
+  const gasSponsored =
+    !!options?.simulationPayer &&
+    sponsorshipEligible(transaction, intent.wallet);
+  await deps.rpc.inspect(
+    transaction,
+    intent.wallet,
+    {
+      inputMint,
+      outputMint,
+      maxInRaw: intent.maxInRaw,
+      minOutRaw: quote.otherAmountThreshold,
+    },
+    ...(gasSponsored ? [options?.simulationPayer] : []),
+  );
   let referenceValueUsd: string | undefined;
   let quotedProceedsUsd: string | undefined;
   if (intent.side === 'sell') {
@@ -204,6 +220,7 @@ export async function buildGateJupiterRoute(
     quotedProceedsUsd = microsUsd(BigInt(quote.outAmount));
   }
   return {
+    gasSponsored,
     createsDestinationAccount: inspection.createsDestinationAccount,
     transaction,
     rawInput: quote.inAmount,

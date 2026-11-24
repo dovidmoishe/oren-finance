@@ -31,6 +31,7 @@ import {
 } from './swap-balance-guard';
 import type { SwapExpectation } from './swap-terms';
 import { STOCK, USDC, WALLET } from '../test/titan.fixtures';
+import { JUPITER_V6_PROGRAM, TITAN_SWAP_PROGRAM } from './simulation-reason';
 
 const USDC_ACCOUNT = Keypair.generate().publicKey.toBase58();
 
@@ -102,13 +103,13 @@ function fakeRpc(post: {
   };
 }
 
-function walletTx(): string {
+function walletTx(program = STOCK): string {
   const message = new TransactionMessage({
     payerKey: new PublicKey(WALLET),
     recentBlockhash: 'GHtXQBsoZHVnNFa9YevAzFr17DJjgHXk3ycTKD5xD3Zi',
     instructions: [
       new TransactionInstruction({
-        programId: new PublicKey(STOCK),
+        programId: new PublicKey(program),
         keys: [],
         data: Buffer.from([1]),
       }),
@@ -120,6 +121,55 @@ function walletTx(): string {
 }
 
 describe('swap balance guard', () => {
+  it('allows an absent zero-SOL account only for a complete sponsored token simulation', async () => {
+    const rpc = fakeRpc({
+      usdc: 50_000_000n,
+      stock: 398_000_000n,
+      lamports: 0,
+    });
+    const probe = await probeBalances(rpc as never, WALLET, buy);
+    probe.preLamports = 0n;
+    const addresses = simulationAddresses(probe);
+    const sim = (await rpc.call('simulateTransaction', [
+      'tx',
+      { accounts: { addresses } },
+    ])) as { value: { accounts: (SimulatedAccount | null)[] } };
+    sim.value.accounts[0] = null;
+    expect(
+      checkSimulatedBalances(probe, buy, addresses, sim.value.accounts, 0n).ok,
+    ).toBe(false);
+    expect(
+      checkSimulatedBalances(
+        probe,
+        buy,
+        addresses,
+        sim.value.accounts,
+        0n,
+        true,
+      ).ok,
+    ).toBe(true);
+    expect(
+      checkSimulatedBalances(
+        probe,
+        buy,
+        addresses,
+        sim.value.accounts.slice(0, -1),
+        0n,
+        true,
+      ).ok,
+    ).toBe(false);
+    probe.preLamports = 1n;
+    expect(
+      checkSimulatedBalances(
+        probe,
+        buy,
+        addresses,
+        sim.value.accounts,
+        0n,
+        true,
+      ).ok,
+    ).toBe(false);
+  });
   it('reads raw token amounts at offset 64 and treats missing accounts as 0', () => {
     expect(tokenAmount(tokenAccount(123n))).toBe(123n);
     expect(tokenAmount(null)).toBe(0n);
@@ -239,6 +289,40 @@ describe('swap balance guard', () => {
 });
 
 describe('ApprovalRpc.inspect with an expectation', () => {
+  it('simulates a separate payer while preserving reviewed amounts and returning zero user gas', async () => {
+    const payer = Keypair.generate().publicKey.toBase58();
+    const base = fakeRpc({
+      usdc: 50_000_000n,
+      stock: 398_000_000n,
+      lamports: 1_000_000_000,
+    });
+    const rpc = {
+      call: jest.fn((method: string, params: unknown[]) =>
+        method === 'getAccountInfo'
+          ? Promise.resolve({
+              value: {
+                owner: '11111111111111111111111111111111',
+                executable: false,
+                lamports: 10_000_000,
+              },
+            })
+          : base.call(method, params),
+      ),
+    };
+    const service = new ApprovalRpc(rpc as never);
+    expect(await service.inspect(walletTx(), WALLET, buy, payer)).toBe('0');
+    const encoded = rpc.call.mock.calls.find(
+      (call) => call[0] === 'simulateTransaction',
+    )![1][0] as string;
+    const simulation = VersionedTransaction.deserialize(
+      Buffer.from(encoded, 'base64'),
+    );
+    expect(simulation.message.staticAccountKeys[0].toBase58()).toBe(payer);
+    expect(simulation.message.staticAccountKeys[1].toBase58()).toBe(WALLET);
+    expect(
+      rpc.call.mock.calls.some((call) => call[0] === 'sendTransaction'),
+    ).toBe(false);
+  });
   it.each([
     [
       { InsufficientFundsForRent: { account_index: 0 } },
@@ -297,6 +381,37 @@ describe('ApprovalRpc.inspect with an expectation', () => {
     await expect(service.inspect(walletTx(), WALLET, buy)).rejects.toThrow(
       'no longer matches the terms you reviewed',
     );
+  });
+
+  it('names Jupiter 6001 and Titan minimum-out as slippage, not a generic failure', async () => {
+    for (const [program, code] of [
+      [JUPITER_V6_PROGRAM, 6001],
+      [TITAN_SWAP_PROGRAM, 6008],
+    ] as const) {
+      const rpc = fakeRpc({
+        usdc: 0n,
+        stock: null,
+        lamports: 0,
+        err: { InstructionError: [0, { Custom: code }] },
+      });
+      const service = new ApprovalRpc(rpc as never);
+      try {
+        await service.inspect(walletTx(program), WALLET);
+        throw new Error('expected rejection');
+      } catch (error) {
+        expect(
+          (
+            error as { getResponse: () => { code?: string; message?: string } }
+          ).getResponse(),
+        ).toMatchObject({
+          code: 'QUOTE_SLIPPAGE_EXCEEDED',
+        });
+        expect((error as Error).message).toContain('slippage limit');
+        expect((error as Error).message).not.toMatch(
+          /signing grant|signing permission/i,
+        );
+      }
+    }
   });
 
   it('keeps the plain simulation for non-swap approvals', async () => {

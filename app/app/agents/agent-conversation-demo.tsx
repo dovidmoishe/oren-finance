@@ -1,11 +1,9 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { RefreshIcon } from '@hugeicons/core-free-icons';
-import { HugeiconsIcon } from '@hugeicons/react';
+import { RefreshCcw as RefreshCcwIcon } from "lucide-react";
+
 import { OrenLogo } from '@/components/brand/oren-logo';
-import styles from './agents.module.css';
-import './conversation-motion.css';
 
 export function AgentConversationDemo() {
   const root = useRef<HTMLDivElement>(null);
@@ -42,32 +40,32 @@ export function AgentConversationDemo() {
   }, [beat, playing, visible, reduced]);
 
   const reveal = (shown: boolean) => `t-stagger${shown ? ' is-shown' : ''}`;
-  return <div ref={root} className={styles.conversation}>
-    <div className={styles.conversationBar}>
-      <span className={styles.conversationIdentity}><OrenLogo size={25} /><strong>Oren</strong><span>Example conversation</span></span>
-      {!reduced && <button type="button" className={styles.demoControl} onClick={() => {
+  return <div ref={root} className="agents-conversation">
+    <div className="agents-conversation-bar">
+      <span className="agents-conversation-identity"><OrenLogo size={25} /><strong>Oren</strong><span>Example conversation</span></span>
+      {!reduced && <button type="button" className="agents-demo-control" onClick={() => {
         if (beat === 4) { setBeat(0); setPlaying(true); }
         else setPlaying(value => !value);
-      }}><HugeiconsIcon icon={RefreshIcon} size={14} aria-hidden="true" />{beat === 4 ? 'Replay' : playing ? 'Pause' : 'Play'}</button>}
+      }}><RefreshCcwIcon size={14} aria-hidden="true" />{beat === 4 ? 'Replay' : playing ? 'Pause' : 'Play'}</button>}
     </div>
-    <div className={styles.transcript} aria-hidden="true">
-      <div className={reveal(beat >= 1)}><div className={`t-stagger-line ${styles.userMessage}`}>Buy $5 of NVIDIA.</div></div>
-      <div className={styles.replySlot}>
-        {beat === 1 && <span className={styles.thinking}>Checking your limits<span>…</span></span>}
-        <div className={reveal(beat >= 2)}><div className={`t-stagger-line ${styles.demoReply}`}>
+    <div className="agents-transcript" aria-hidden="true">
+      <div className={reveal(beat >= 1)}><div className={`t-stagger-line agents-user-message`}>Buy $5 of NVIDIA.</div></div>
+      <div className="agents-reply-slot">
+        {beat === 1 && <span className="agents-thinking">Checking your limits<span>…</span></span>}
+        <div className={reveal(beat >= 2)}><div className={`t-stagger-line agents-demo-reply`}>
           <p>Bought <strong>$5 of NVIDIA.</strong></p>
-          <div className={styles.tradeReceipt}><span>0.024 NVDA</span><span>$45 left today</span></div>
+          <div className="agents-trade-receipt"><span>0.024 NVDA</span><span>$45 left today</span></div>
         </div></div>
       </div>
-      <div className={reveal(beat >= 3)}><div className={`t-stagger-line ${styles.userMessage}`}>Sell all my Tesla.</div></div>
-      <div className={styles.replySlot}>
-        {beat === 3 && <span className={styles.thinking}>Preparing your review<span>…</span></span>}
-        <div className={reveal(beat >= 4)}><div className={`t-stagger-line ${styles.demoReply}`}>
+      <div className={reveal(beat >= 3)}><div className={`t-stagger-line agents-user-message`}>Sell all my Tesla.</div></div>
+      <div className="agents-reply-slot">
+        {beat === 3 && <span className="agents-thinking">Preparing your review<span>…</span></span>}
+        <div className={reveal(beat >= 4)}><div className={`t-stagger-line agents-demo-reply`}>
           <p>That’s <strong>$82.10</strong>, above your limit.</p>
         </div></div>
       </div>
     </div>
-    <p className={styles.screenReaderOnly}>Example: You ask to buy $5 of NVIDIA. Oren buys 0.024 NVDA within your $25 per-trade limit, leaving $45 today. You ask to sell all your Tesla. The $82.10 trade exceeds your limit. Prices and amounts are illustrative.</p>
-    <div className={styles.conversationFooter}><span className={styles.statusDot} />Your wallet. Your limits. Your call.</div>
+    <p className="agents-screen-reader-only">Example: You ask to buy $5 of NVIDIA. Oren buys 0.024 NVDA within your $25 per-trade limit, leaving $45 today. You ask to sell all your Tesla. The $82.10 trade exceeds your limit. Prices and amounts are illustrative.</p>
+    <div className="agents-conversation-footer"><span className="[width:5px] [height:5px] [border-radius:50%] [background:#81916e]" />Your wallet. Your limits. Your call.</div>
   </div>;
 }

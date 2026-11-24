@@ -26,7 +26,6 @@ import type {
   PostExecutionQuoteResponse,
 } from '../../types/api';
 import type {
-  BasketCandidate,
   PreparedBasketPurchase,
   QuoteRequest,
   TradeIntent,
@@ -46,6 +45,11 @@ import { publicQuote } from './swap-terms';
 
 /** Accepts either TradeIntent or mint-level QuoteRequest fields. */
 class ExecutionQuoteDto {
+  // Accepted for older browser clients; manual subsidy provenance is retired.
+  @IsOptional()
+  @IsIn(['agent'])
+  reviewOrigin?: 'agent';
+
   @IsIn(['buy', 'sell'])
   side!: TradeSide;
 
@@ -312,7 +316,7 @@ export class ExecutionController {
   basket(@Body() body: BasketCreateDto): Promise<PostBasketResponse> {
     return this.execution.createBasket({
       ...body,
-      candidates: body.candidates as BasketCandidate[] | undefined,
+      candidates: body.candidates,
     });
   }
 

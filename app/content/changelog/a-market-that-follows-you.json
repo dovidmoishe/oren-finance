@@ -1,0 +1,38 @@
+{
+  "slug": "a-market-that-follows-you",
+  "date": "2026-11-14",
+  "status": "published",
+  "title": "A market that follows you",
+  "summary": "Choose the sectors you follow and discover stocks in a For You section on Markets. Set your email preferences for the Morning Brief and Breaking News as delivery prepares to launch.",
+  "sections": [
+    {
+      "heading": "Added",
+      "items": [
+        {
+          "title": "Start with your interests",
+          "description": "Choose sectors during signup or update them in Settings. Personalization is optional, and you can change your choices later."
+        },
+        {
+          "title": "Discover stocks picked for your sectors",
+          "description": "For You highlights stocks from your selected sectors while the full market and search remain available."
+        },
+        {
+          "title": "Choose what reaches your inbox",
+          "description": "Morning Brief and Breaking News have separate opt-ins, both off by default. Choose a daily brief time and time zone, or turn either preference off in Settings. Email delivery is still in rollout; saving a preference does not start emails yet."
+        }
+      ]
+    }
+  ],
+  "links": [
+    { "label": "Explore Markets", "href": "/app/markets" },
+    { "label": "Choose your interests", "href": "/app/settings/preferences" }
+  ],
+  "video": {
+    "src": "/videos/oren-morning-brief-v8-1080p.mp4",
+    "poster": "/videos/oren-morning-brief-v8-poster.png",
+    "label": "Personalized Markets and the upcoming Morning Brief, a 24-second Oren film",
+    "caption": "A look at personalized Markets and the upcoming Morning Brief. The film shows sample portfolio figures; email delivery is still in rollout.",
+    "width": 1920,
+    "height": 1080
+  }
+}

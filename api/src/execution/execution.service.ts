@@ -102,7 +102,7 @@ export class ExecutionService {
       return this.quoteFromMints(body);
     }
 
-    const intent = body as TradeIntent;
+    const intent = body;
     if (!intent.ticker && !intent.assetId) {
       throw new BadRequestException('ticker or assetId is required');
     }
@@ -114,7 +114,11 @@ export class ExecutionService {
       throw new BadRequestException('amount must be > 0 for sells');
     }
 
-    const { quote } = await this.selector.selectAndQuote(intent);
+    const { quote } = await this.selector.selectAndQuote(
+      intent,
+      false,
+      !intent.jupiterOnly,
+    );
     stampQuoteMarketSession(quote);
     this.cache.set(quote);
     return quote;
@@ -192,6 +196,9 @@ export class ExecutionService {
           : routed.quote.inputAmount,
       amountUsd: routed.quote.amountUsd,
       provider: routed.quote.provider,
+      ...(routed.quote.platformFee
+        ? { platformFee: routed.quote.platformFee }
+        : {}),
       featureSource: 'agent',
       status: 'awaiting_signature',
     });
@@ -377,7 +384,8 @@ export class ExecutionService {
     featureSource: ExecutionFeature = 'direct',
   ): Promise<PreparedTransaction> {
     assertFinancialExecutionEnabled();
-    return (await this.prepareWithQuote(input, featureSource)).prepared;
+    const result = await this.prepareWithQuote(input, featureSource);
+    return result.prepared;
   }
 
   /**
@@ -428,13 +436,17 @@ export class ExecutionService {
       amount: quote.side === 'buy' ? quote.outputAmount : quote.inputAmount,
       amountUsd: quote.amountUsd,
       provider: quote.provider,
+      ...(quote.platformFee ? { platformFee: quote.platformFee } : {}),
       featureSource,
       status: 'awaiting_signature',
     });
 
     this.cache.attachExecution(quote.id, row.id, wallet, prepared.transaction);
     return {
-      prepared: { ...prepared, executionId: row.id },
+      prepared: {
+        ...prepared,
+        executionId: row.id,
+      },
       quote,
       expectation,
     };
@@ -549,7 +561,7 @@ export class ExecutionService {
       amount = intent.amount;
     }
 
-    let rates;
+    let rates: ReturnType<typeof computeLimitOrderAmounts>;
     try {
       rates = computeLimitOrderAmounts({
         side: intent.side,
@@ -1086,6 +1098,7 @@ export class ExecutionService {
       amountUsd,
       slippageBps: req.slippageBps ?? DEFAULT_SLIPPAGE_BPS,
       wallet: req.wallet,
+      reviewedTrade: true,
     });
 
     if (req.side === 'sell' && quote.amountUsd === 0) {

@@ -106,6 +106,76 @@
       "breakpoints": true,
       "tag": "0014_independent_trade_authorization",
       "idx": 14
+    },
+    {
+      "version": "7",
+      "when": 1794441600000,
+      "breakpoints": true,
+      "tag": "0015_mcp_grant_expiry",
+      "idx": 15
+    },
+    {
+      "version": "7",
+      "when": 1794528000000,
+      "breakpoints": true,
+      "tag": "0016_mcp_custom_spend_limits",
+      "idx": 16
+    },
+    {
+      "version": "7",
+      "when": 1794528000001,
+      "breakpoints": true,
+      "tag": "0017_user_preferences",
+      "idx": 17
+    },
+    {
+      "version": "7",
+      "when": 1794528000002,
+      "breakpoints": true,
+      "tag": "0018_cached_stock_sectors",
+      "idx": 18
+    },
+    {
+      "version": "7",
+      "when": 1794528000003,
+      "breakpoints": true,
+      "tag": "0019_notifications",
+      "idx": 19
+    },
+    {
+      "version": "7",
+      "when": 1794528000004,
+      "breakpoints": true,
+      "tag": "0020_price_alert_failed",
+      "idx": 20
+    },
+    {
+      "version": "7",
+      "when": 1794528000005,
+      "breakpoints": true,
+      "tag": "0021_runtime_table_grants",
+      "idx": 21
+    },
+    {
+      "version": "7",
+      "when": 1794528000006,
+      "breakpoints": true,
+      "tag": "0022_notification_job_send_errors",
+      "idx": 22
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1795219200000,
+      "tag": "0023_ata_rent_sponsorships",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1795305600000,
+      "tag": "0024_platform_fees",
+      "breakpoints": true
     }
   ]
 }

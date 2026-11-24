@@ -1,10 +1,13 @@
 import { randomUUID } from 'crypto';
 import type { TokenizedEquity } from '../../../types/equity';
 import type { Quote, TradeSide } from '../../../types/quote';
-import { QUOTE_TTL_MS } from '../../config/constants';
+import { QUOTE_TTL_MS, USDC_MINT } from '../../config/constants';
 import type { JupiterQuoteRaw } from './jupiter.types';
+import type { PlatformFeeConfig } from '../../config/platform-fee-config';
+import { mappedPlatformFee } from '../platform-fee';
 
 export interface MapJupiterQuoteInput {
+  platformFee?: PlatformFeeConfig;
   raw: JupiterQuoteRaw;
   side: TradeSide;
   assetId: string;
@@ -53,6 +56,11 @@ export function parsePriceImpactPercent(
  * `routePayload` stores the full raw response for /swap.
  */
 export function mapJupiterQuoteToDomain(input: MapJupiterQuoteInput): Quote {
+  const platformFee = mappedPlatformFee(
+    input.raw.platformFee,
+    input.platformFee,
+    input.raw.inputMint === USDC_MINT ? input.raw.inAmount : undefined,
+  );
   const now = input.quotedAt ?? new Date();
   const expiresAt =
     input.expiresAt ?? new Date(now.getTime() + QUOTE_TTL_MS);
@@ -88,6 +96,9 @@ export function mapJupiterQuoteToDomain(input: MapJupiterQuoteInput): Quote {
     priceImpactPercent: parsePriceImpactPercent(input.raw.priceImpactPct),
     slippageBps: input.slippageBps,
     provider: 'jupiter',
+    ...(platformFee
+      ? { platformFee, platformFeeAccount: input.platformFee!.account }
+      : {}),
     routePayload: input.raw,
     expiresAt,
     quotedAt: now,

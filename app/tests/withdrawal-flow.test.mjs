@@ -3,6 +3,7 @@ import test from 'node:test';
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 import ts from 'typescript';
+import { englishI18n } from './support/i18n-english.mjs';
 
 const tick = () => new Promise(resolve => setImmediate(resolve));
 function deferred() { let resolve; const promise = new Promise(yes => { resolve = yes; }); return { promise, resolve }; }
@@ -35,10 +36,11 @@ function fixture() {
     require(id) {
       if (id === 'react') return react;
       if (id === 'react/jsx-runtime') return { jsx, jsxs: jsx, Fragment: 'fragment' };
-      if (id === '@hugeicons/core-free-icons') return {};
-      if (id === '@hugeicons/react') return {};
+      if (id === 'lucide-react') return new Proxy({}, { get: () => () => null });
+      if (id === '@/components/ui/interface-icon') return {};
       if (id === '@/components/auth/auth-context') return { useOrenAuth: () => auth };
       if (id === '@/components/ui') return { Button: 'button' };
+    if (id === '@/i18n/i18n') return englishI18n;
       if (id === '@/components/stock/stock-logo-assets') return { stockLogos: { TSLA: '/landing/tesla.png' } };
       if (id === '@/hooks/use-funding') return { useFunding: () => ({ snapshot: { usdc: '5', sol: '0.1' } }) };
       if (id === '@/hooks/use-portfolio-refresh') return { usePortfolioRefresh: () => async () => {} };

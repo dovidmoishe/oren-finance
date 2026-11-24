@@ -1,9 +1,23 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { asc, count, desc, ilike, inArray, or } from 'drizzle-orm';
+import {
+  asc,
+  count,
+  desc,
+  eq,
+  ilike,
+  inArray,
+  isNotNull,
+  or,
+  and,
+} from 'drizzle-orm';
 import type { Equity, EquityCategory, EquitySummary } from '../../types/equity';
+import { isSectorId, isThemeId, type InterestId } from '../../types/sectors';
 import { DRIZZLE } from '../config/constants';
 import type { Database } from '../database/database.provider';
 import { cachedStocks } from '../database/schema';
+
+import { resolveStockSector } from './stock-sectors';
+import { themeAssetIds } from './stock-themes';
 
 export type CachedStockRow = typeof cachedStocks.$inferSelect;
 
@@ -38,6 +52,61 @@ export class StockCatalogRepository {
       isFresh:
         total > 0 &&
         Boolean(latestRows[0]?.expiresAt.getTime() > now.getTime()),
+    };
+  }
+
+  async findSectorCandidates(interests: InterestId[], now = new Date()) {
+    const sectors = interests.filter(isSectorId);
+    const themes = interests.filter(isThemeId);
+    const themedAssets = [
+      ...new Set(themes.flatMap((theme) => themeAssetIds[theme])),
+    ];
+    // Sector matches require a classified generation. Curated theme identities
+    // can also match rows whose provider sector is unavailable.
+    const [generation] = await this.db
+      .select({ expiresAt: cachedStocks.expiresAt })
+      .from(cachedStocks)
+      .where(
+        or(
+          isNotNull(cachedStocks.sectorId),
+          inArray(cachedStocks.assetId, themedAssets),
+        ),
+      )
+      .limit(1);
+    if (!generation) return null;
+
+    const rows = await this.db
+      .select()
+      .from(cachedStocks)
+      .where(
+        and(
+          eq(cachedStocks.category, 'equity'),
+          or(
+            inArray(cachedStocks.sectorId, sectors),
+            inArray(cachedStocks.assetId, themedAssets),
+          ),
+        ),
+      );
+    return {
+      items: [...themes, ...sectors].flatMap((interestId) =>
+        rows.flatMap((row) => {
+          const matches = isThemeId(interestId)
+            ? themeAssetIds[interestId].includes(row.assetId)
+            : row.sectorId === interestId;
+          return matches
+            ? [
+                {
+                  id: row.assetId,
+                  stock: rowToStockSummary(row),
+                  sectorId: isSectorId(row.sectorId) ? row.sectorId : null,
+                  interestId,
+                  sortRank: row.sortRank,
+                },
+              ]
+            : [];
+        }),
+      ),
+      isFresh: generation.expiresAt > now,
     };
   }
 
@@ -78,6 +147,13 @@ export class StockCatalogRepository {
           ticker: stock.ticker,
           name: stock.name,
           category: stock.category,
+          alertVariants: stock.variants
+            .filter((variant) => variant.tradable)
+            .map(({ mint, symbol }) => ({ mint, symbol })),
+          sectorId:
+            stock.category === 'equity'
+              ? resolveStockSector(stock.id, stock.sector)
+              : null,
           logo: stock.logo,
           price: toNumeric(stock.price),
           priceChange24h: toNumeric(stock.priceChange24h),
