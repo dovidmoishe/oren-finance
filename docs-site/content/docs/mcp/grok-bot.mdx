@@ -1,0 +1,12 @@
+---
+title: Grok Bot
+description: Connect your Grok Bot to Oren using a remote HTTPS connector.
+---
+
+1. In the Grok Bot desktop app, open **Connect apps** and select **Add a custom connector**.
+2. Enter **Oren** as the name, choose **Remote HTTPS** and set the server URL to `https://api.oren.finance/mcp`.
+3. Set the OAuth Client ID to `https://cursor.com/oauth/mcp-client.json`. Leave the secret and headers empty, then select **Add plugin**.
+4. Open the connector's sign-in prompt. Sign in to Oren, check the wallet, requested permissions and callback destination, then approve. Grok Bot shares connector infrastructure with Cursor. Older clients that register only Cursor callbacks can appear as Cursor in Oren. If the selected callback is local, Oren asks you to acknowledge the local app.
+5. Return to Grok Bot and ask **Show my Oren portfolio** to check read access.
+
+You can revoke access in [Oren's Agent connections settings](https://oren.finance/settings/mcp). Teams can restrict which MCP servers members may add. [Grok Bot connector documentation](https://docs.x.ai/grok-bot/computer-and-apps)

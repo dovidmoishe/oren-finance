@@ -933,7 +933,7 @@
     "loading": "Loading connections…",
     "tryAgain": "Try again",
     "firstTitle": "Connect your first agent",
-    "firstBody": "Bring Oren into Claude, Cursor, or Codex to research stocks and manage your portfolio from a chat.",
+    "firstBody": "Bring Oren into Claude, Cursor, Codex, or Grok Bot to research stocks and manage your portfolio from a chat.",
     "setupGuide": "View setup guide",
     "connectionN": "Agent connection {n}",
     "connectedOn": "Connected {date}",

@@ -933,7 +933,7 @@
     "loading": "正在加载连接…",
     "tryAgain": "重试",
     "firstTitle": "连接你的第一个智能体",
-    "firstBody": "在 Claude、Cursor 或 Codex 中使用 Oren，直接在聊天中研究股票和管理投资组合。",
+    "firstBody": "在 Claude、Cursor、Codex 或 Grok Bot 中使用 Oren，直接在聊天中研究股票和管理投资组合。",
     "setupGuide": "查看设置指南",
     "connectionN": "智能体连接 {n}",
     "connectedOn": "连接于 {date}",

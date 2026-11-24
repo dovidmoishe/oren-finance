@@ -1,6 +1,7 @@
 const CONNECTORS = {
   claude: { name: 'Claude', logo: '/integrations/claude.svg' },
   cursor: { name: 'Cursor', logo: '/integrations/cursor.svg' },
+  grok: { name: 'Grok Bot', logo: '/integrations/grok.svg' },
   codex: { name: 'Codex', logo: '/integrations/codex.svg' },
 };
 
@@ -12,6 +13,9 @@ export function mcpConnectorForKind(kind?: string | null) {
 export function mcpConnector(callbackUrl?: string) {
   if (!callbackUrl) return undefined;
   switch (callbackUrl) {
+    case 'https://www.cursor.com/bot/mcp/oauth/callback':
+    case 'https://grok.com/connectors-oauth-exchange-code/':
+      return CONNECTORS.grok;
     case 'https://claude.ai/api/mcp/auth_callback':
       return CONNECTORS.claude;
     case 'https://www.cursor.com/agents/mcp/oauth/callback':

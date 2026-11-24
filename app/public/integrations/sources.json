@@ -39,6 +39,11 @@
     "source": "https://media.alchemy.com/1699253173-alchemy-logo.svg"
   },
   {
+    "name": "Grok",
+    "file": "grok.svg",
+    "source": "https://cdn.jsdelivr.net/npm/@lobehub/icons-static-svg@1.102.0/icons/grok.svg"
+  },
+  {
     "name": "Claude",
     "file": "claude.svg",
     "source": "https://cdn.jsdelivr.net/npm/simple-icons@15/icons/claude.svg",

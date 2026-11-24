@@ -444,8 +444,28 @@ async function completeConnection(registration, redirectUri, nativeConsent, inte
     assert.equal(nextRefresh.status,200,'rotated token must retain the same requested renewal scopes')
     assert.equal((await exchange(verifier)).status, 400, 'authorization code is single-use')
   }
+  return details.body.clientKind
 }
+const grokCallbacks = [
+  'https://www.cursor.com/agents/mcp/oauth/callback',
+  'https://www.cursor.com/bot/mcp/oauth/callback',
+  'https://grok.com/connectors-oauth-exchange-code/',
+  'http://localhost:8787/callback',
+  'http://127.0.0.1:8787/callback',
+]
+const grok = await register(grokCallbacks)
+assert.equal(grok.status, 201, JSON.stringify(grok.body))
 await completeConnection(registration, 'https://claude.ai/api/mcp/auth_callback', false)
+assert.equal(await completeConnection(grok, grokCallbacks[1], false), 'grok')
+assert.equal(await completeConnection({
+  body: {
+    client_id: 'https://cursor.com/oauth/mcp-client.json',
+    application_type: 'native',
+    scope: 'oren.read oren.trade.prepare offline_access',
+  },
+}, grokCallbacks[4], true), 'grok')
+const mixedGrok = await register([...grokCallbacks.slice(0, 4), 'http://127.0.0.1:49152/callback'])
+assert.equal(mixedGrok.status, 400)
 await completeConnection(cursor, 'https://www.cursor.com/agents/mcp/oauth/callback', false)
 await completeConnection(cursor, 'http://localhost:49153/callback', true)
 await completeConnection(cursor, 'cursor://anysphere.cursor-mcp/oauth/callback', true)
