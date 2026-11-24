@@ -1,9 +1,9 @@
 import { randomUUID } from 'crypto';
 import type { TokenizedEquity } from '../../../types/equity';
-import type { Quote, TradeSide } from '../../../types/quote';
+import type { PlatformFee, Quote, TradeSide } from '../../../types/quote';
 import { QUOTE_TTL_MS, USDC_MINT } from '../../config/constants';
 import type { PlatformFeeConfig } from '../../config/platform-fee-config';
-import { mappedPlatformFee } from '../platform-fee';
+import { QuoteExpiredError } from '../../common/errors/provider.errors';
 import { rawAmountToUi } from '../jupiter/jupiter.mapper';
 import { TitanError } from './titan.errors';
 import type {
@@ -34,6 +34,63 @@ export interface MapTitanQuoteInput {
   wallet: string;
   quotedAt?: Date;
   quoteId?: string;
+}
+
+/**
+ * Titan accepts integrator (user-specified) fees for every portal key and
+ * rejects the whole request when fees are not enabled, so a returned quote
+ * means our feeAccount/feeBps were applied. `route.platformFee` is Titan's own
+ * routing-platform fee (Titan charges none), not ours, and is normally empty.
+ * Fail closed when the route would not write to our fee account, or when Titan
+ * reports a routing fee we did not expect.
+ */
+export function titanUserFee(
+  input: Pick<
+    MapTitanQuoteInput,
+    'platformFee' | 'inputMint' | 'outputMint' | 'amountRaw'
+  >,
+  route: TitanRoute,
+  providerId: string,
+): PlatformFee | undefined {
+  const expected = input.platformFee;
+  const routing = route.platformFee;
+  const routingBps = routing ? (routing.feeBps ?? routing.fee_bps ?? 0) : 0;
+  const routingAmount = routing
+    ? u64ToString(routing.amount, 'platformFee.amount')
+    : '0';
+  // Accept an echo of our own fee; reject any other routing-platform charge.
+  if (
+    (routingBps > 0 || routingAmount !== '0') &&
+    (!expected || routingBps !== expected.bps)
+  )
+    throw new QuoteExpiredError('Unexpected platform fee');
+  if (!expected) return undefined;
+  if (!(expected.bps > 0 && expected.bps < 10_000))
+    throw new QuoteExpiredError('Invalid platform fee configuration');
+  const paysFee = route.instructions.some((ix) =>
+    ix.a.some((meta) => meta.p === expected.account && meta.w && !meta.s),
+  );
+  if (!paysFee)
+    throw new QuoteExpiredError(
+      `Titan route ${providerId} does not pay the requested platform fee`,
+    );
+  const bps = BigInt(expected.bps);
+  let amountRaw: bigint;
+  if (input.inputMint === USDC_MINT) {
+    // Buys: fee is taken from the requested USDC input (feeFromInputMint).
+    amountRaw = (BigInt(input.amountRaw) * bps) / 10_000n;
+  } else if (input.outputMint === USDC_MINT) {
+    // Sells: outAmount is already net of the output fee; recover the gross.
+    const net = BigInt(u64ToString(route.outAmount, 'outAmount'));
+    amountRaw = (net * bps) / (10_000n - bps);
+  } else {
+    throw new QuoteExpiredError('Platform fees require a USDC pair');
+  }
+  return {
+    bps: expected.bps,
+    amountRaw: amountRaw.toString(),
+    mint: USDC_MINT,
+  };
 }
 
 /**
@@ -185,15 +242,7 @@ export function mapTitanQuoteToDomain(input: MapTitanQuoteInput): Quote {
   const { providerId, route } = selectTitanWinner(input.response);
   validateTitanResponse(input, input.response, route, providerId);
 
-  const platformFee = mappedPlatformFee(
-    route.platformFee
-      ? {
-          amount: u64ToString(route.platformFee.amount, 'platformFee.amount'),
-          feeBps: route.platformFee.feeBps ?? route.platformFee.fee_bps!,
-        }
-      : undefined,
-    input.platformFee,
-  );
+  const platformFee = titanUserFee(input, route, providerId);
   // A buy's input budget includes its USDC fee, never an additional debit.
   const inAmountRaw =
     platformFee && input.inputMint === USDC_MINT

@@ -63,13 +63,27 @@ budgets, minimum trade, balance floor and confirmation handling still apply.
 
 TITAN_PLATFORM_FEE_ENABLED defaults to false. When a reviewed trade owes a fee
 and Titan fee support is off, the router uses Jupiter only, including shadow
-mode. This avoids comparing a fee-free Titan route with a fee-bearing Jupiter
-route. Enable the flag only after Titan validates the fee account. With it on,
-both venues receive identical fees, Titan buys set feeFromInputMint=true, and
-the router compares provider net outputs and network costs as before. Titan's
-returned swap instructions are passed through unchanged; recipient availability
-and net balances are still checked before browser signing. Missing or mismatched
-provider fee metadata is rejected rather than silently dropping the fee.
+mode, so a fee-free Titan route is never compared with a fee-bearing Jupiter
+route. With it on, both venues receive identical fees: Titan buys send
+feeFromInputMint=true (fee from the USDC input) and sells send false (fee from
+the USDC output), both to the classic USDC fee account.
+
+Titan enables integrator fees for every Developers Portal key and rejects a
+request outright when fees are not enabled, so a returned quote means the
+feeAccount/feeBps were accepted. Titan does not echo integrator fees: its
+`platformFee` field is the routing platform's own fee (Titan charges none) and
+is normally empty. Oren therefore derives the fee from its own configuration:
+buys use floor(amount * bps / 10000) of the USDC input; sells use
+floor(outAmount * bps / (10000 - bps)), because Titan's outAmount is already
+net of the output fee. A route whose instructions never reference the fee
+account as writable and non-signer is rejected, and any non-zero routing fee
+other than an echo of ours is rejected. Titan's swap instructions are passed
+through unchanged; the fee recipient and net balances are still checked in
+simulation before browser signing.
+
+Verified read-only on mainnet (Nov 24, 2026, unsigned simulation): a 5 USDC
+TSLAx buy paid 25000 raw USDC to the fee account and a 0.02 TSLAx sell paid
+38330 raw USDC; quoted outAmounts were 0.48% and 0.51% below fee-free quotes.
 
 ## Exclusions
 
