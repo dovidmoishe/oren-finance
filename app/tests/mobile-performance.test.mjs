@@ -106,7 +106,9 @@ function stockStore() {
 }
 test("stock identity and chart render while optional analysis/news remain pending", async () => {
   const { store, requests } = stockStore();
+  assert.equal(store.getState().requestedAssetId, undefined);
   const done = store.getState().loadStock("nvda");
+  assert.equal(store.getState().requestedAssetId, "nvda");
   requests.get("getStock:nvda").resolve({ assetId: "nvda" });
   requests.get("getStockChart:nvda:1M").resolve([{ close: 10 }]);
   await tick();
@@ -139,6 +141,7 @@ test("navigation aborts old stock reads and late responses cannot repopulate res
   const { store, requests } = stockStore();
   const done = store.getState().loadStock("old");
   store.getState().reset();
+  assert.equal(store.getState().requestedAssetId, undefined);
   assert.equal(requests.get("getStock:old").signal.aborted, true);
   for (const [key, request] of requests) request.resolve(key.startsWith("getStock:") ? { assetId: "old" } : []);
   await done;

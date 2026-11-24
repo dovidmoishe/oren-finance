@@ -5,6 +5,7 @@ import { getStock, getStockAnalysis, getStockChart, getStockNews } from "@/servi
 import type { ChartInterval, ChartRange, MarketCandle, NewsItem, StockAnalysis, StockDetail } from "@/types";
 
 interface StockState {
+  requestedAssetId?: string;
   selected?: StockDetail;
   chart: MarketCandle[];
   analysis?: StockAnalysis;
@@ -40,6 +41,7 @@ export const useStockStore = create<StockState>((set) => ({
     const detail = detailController = new AbortController();
     const chart = chartController = new AbortController();
     set({
+      requestedAssetId: assetId,
       selected: undefined,
       chart: [],
       analysis: undefined,
@@ -95,6 +97,7 @@ export const useStockStore = create<StockState>((set) => ({
     stockRequestId += 1;
     chartRequestId += 1;
     set({
+      requestedAssetId: undefined,
       selected: undefined,
       chart: [],
       analysis: undefined,

@@ -5,6 +5,7 @@ import { ChevronLeft as ChevronLeftIcon, RefreshCw as RefreshCwIcon } from "luci
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { MarketChart, type MarketChartMode, type MarketChartRange } from "@/components/charts";
+import { MarketStockLogo } from "@/components/markets/market-stock-logo";
 import { StockPriceAlerts } from "@/components/stock/price-alerts";
 import { StockMarketOutlook } from "@/components/stock/stock-market-outlook";
 import { StockResearchPanel } from "@/components/stock/stock-research";
@@ -42,6 +43,7 @@ function DetailSkeleton() {
 }
 
 export function StockDetail({ assetId }: { assetId: string }) {
+  const requestedAssetId = useStockStore((state) => state.requestedAssetId);
   const stock = useStockStore((state) => state.selected);
   const chart = useStockStore((state) => state.chart);
   const analysis = useStockStore((state) => state.analysis);
@@ -70,7 +72,9 @@ export function StockDetail({ assetId }: { assetId: string }) {
     [chart],
   );
 
-  if (isLoading && !stock) return <DetailSkeleton />;
+  // The first render precedes the loading effect; an idle or previous route's
+  // state is not a failed request for this stock.
+  if (requestedAssetId !== assetId || (isLoading && !stock)) return <DetailSkeleton />;
 
   if (!stock) {
     return (
@@ -117,6 +121,7 @@ export function StockDetail({ assetId }: { assetId: string }) {
           compact
           technical
           symbol={stock.ticker}
+          symbolLogo={<MarketStockLogo stock={stock} />}
           interval={interval}
           onIntervalChange={handleIntervalChange}
           activeRange={range}

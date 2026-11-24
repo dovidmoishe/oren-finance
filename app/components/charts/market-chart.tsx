@@ -3,7 +3,7 @@
 import { ChartCandlestick, ChartLine, Check, ChevronDown, Crosshair, Minus, MoveUpRight, RotateCcw, Rows3, SlidersHorizontal, Trash2 } from "lucide-react";
 import type { KLineData, Locales } from "klinecharts";
 import type { ChartInterval } from "@/types";
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { EmptyState, LoadingState, Tabs, cn, formatCurrency, formatDate, formatPercent } from "@/components/ui";
 import { THEME_CHANGE_EVENT } from "@/components/theme/theme-script";
 import { useI18n } from "@/i18n/i18n";
@@ -40,6 +40,7 @@ interface MarketChartProps {
   showSummary?: boolean;
   technical?: boolean;
   symbol?: string;
+  symbolLogo?: ReactNode;
   interval?: ChartInterval;
   onIntervalChange?: (interval: ChartInterval) => void;
 }
@@ -53,7 +54,7 @@ export function MarketChart({
   mode, lineData = EMPTY_LINES, candleData = EMPTY_CANDLES,
   ranges = ["24H", "7D", "30D", "90D", "1Y"], activeRange, onRangeChange, onModeChange,
   value, changePct, dateLabel, loading, error, emptyDescription, className,
-  compact = false, showSummary = true, technical = false, symbol = "Portfolio", interval, onIntervalChange,
+  compact = false, showSummary = true, technical = false, symbol = "Portfolio", symbolLogo, interval, onIntervalChange,
 }: MarketChartProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [session, setSession] = useState<KlineSession | null>(null);
@@ -148,7 +149,7 @@ export function MarketChart({
 
   if (technical) return <section className={cn("w-full min-w-0 rounded-[16px] border border-border bg-panel text-muted", className)}>
     <div className="flex h-14 min-w-0 items-center gap-4 border-b border-border px-3 sm:gap-6">
-      <span className="shrink-0 rounded-lg border border-border px-2 py-1.5 text-sm font-semibold text-foreground">{symbol}</span>
+      {symbolLogo ?? <span className="shrink-0 rounded-lg border border-border px-2 py-1.5 text-sm font-semibold text-foreground">{symbol}</span>}
       <div><p className="text-[10px] leading-4">{t("chart.price")}</p><p className="font-money text-base font-semibold leading-5 tabular-nums text-foreground">{formatCurrency(value, locale)}</p></div>
       <div><p className="text-[10px] leading-4">{t("chart.change24h")}</p><p className={cn("font-money text-sm font-semibold leading-5 tabular-nums", (changePct ?? 0) < 0 ? "text-negative" : "text-positive")}>{formatPercent(changePct, locale)}</p></div>
       <div className="ml-auto flex items-center gap-0.5">{modeButtons}</div>
