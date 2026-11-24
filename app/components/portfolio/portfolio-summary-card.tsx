@@ -22,7 +22,7 @@ export function PortfolioAllocation({ portfolio, hidden }: { portfolio: Portfoli
     color: allocationColors[index],
   }));
   if (other > 0) allocations.push({ key: "other", label: t("portfolio.otherAssets"), value: other, color: "bg-[#9bacc9]" });
-  if (portfolio.cashValueUsd > 0) allocations.push({ key: "cash", label: "USDC", value: portfolio.cashValueUsd, color: "bg-[#399d8a]" });
+  if (portfolio.cashValueUsd > 0) allocations.push({ key: "cash", label: t("cashFlow.cash"), value: portfolio.cashValueUsd, color: "bg-[#399d8a]" });
   const percent = new Intl.NumberFormat(locale, { style: "percent", maximumFractionDigits: 1 });
   const balance = (value: number) => hidden ? masked : formatCurrency(value, locale);
   const metrics = [
@@ -84,7 +84,7 @@ export function PortfolioSummaryCard({ portfolio, hidden, onToggleHidden, onDepo
           <div className="flex items-center gap-1">
             <h2 className="text-sm font-medium text-muted">{t("portfolio.totalValue")}</h2>
             <button
-              aria-label={t("portfolio.hideBalances")}
+              aria-label={t(hidden ? "portfolio.showBalances" : "portfolio.hideBalances")}
               aria-pressed={hidden}
               className="grid size-8 shrink-0 place-items-center rounded-full text-muted hover:bg-panel hover:text-foreground focus-visible:outline-2 focus-visible:outline-focus pointer-coarse:size-10"
               onClick={onToggleHidden}
@@ -102,9 +102,16 @@ export function PortfolioSummaryCard({ portfolio, hidden, onToggleHidden, onDepo
             </p>
           )}
         </div>
-        <Button className="rounded-lg" onClick={onDeposit} size="md" variant="primary">
+      </div>
+      <div className="mt-6 flex flex-wrap items-center justify-between gap-4 border-t border-border/60 pt-5">
+        <div className="min-w-0">
+          <h3 className="text-sm text-muted">{t("cashFlow.cash")}</h3>
+          <p className="mt-1 text-2xl font-medium font-money tabular-nums">{hidden ? masked : formatCurrency(portfolio.cashValueUsd, locale)}</p>
+          <p className="mt-1 text-xs leading-5 text-muted">{t("cashFlow.cashNote")}</p>
+        </div>
+        <Button className="rounded-xl" onClick={onDeposit} size="md" variant="primary">
           <PlusIcon aria-hidden="true" size={16} strokeWidth={1.8} />
-          {t("account.deposit")}
+          {t("cashFlow.addMoney")}
         </Button>
       </div>
     </section>

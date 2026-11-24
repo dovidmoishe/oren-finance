@@ -743,7 +743,6 @@
     "ttmGrowthExplanation": "与此前12个月相比",
     "reportDetails": "详情与来源",
     "staleSummary": "这些数据可能已过时。",
-
     "filings": "公司申报文件",
     "filingsNote": "申报数据，不是 Oren 评分，也不构成推荐。",
     "sourceFilings": "来源申报文件",
@@ -1127,5 +1126,13 @@
     "system": "跟随系统",
     "light": "浅色",
     "dark": "深色"
+  },
+  "cashFlow": {
+    "cash": "现金",
+    "cashNote": "以 USDC 持有，金额以美元显示。",
+    "addMoney": "添加资金",
+    "sendMoney": "转账",
+    "showQr": "显示二维码",
+    "transferMethod": "通过 Solana 转入 USDC"
   }
 }

@@ -33,7 +33,7 @@ export function DepositModal() {
     const rect = event.currentTarget.getBoundingClientRect();
     if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) auth.closeDeposit();
   }} ref={dialog}>
-    <div className="flex items-center justify-between gap-4"><h2 className="font-display text-xl font-semibold" id="deposit-title">{t("deposit.title")}</h2><button aria-label={t("deposit.close")} className="grid h-8 w-8 place-items-center rounded-full text-xl text-muted hover:bg-background" onClick={auth.closeDeposit} type="button"><XIcon size={16} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className="inline-block shrink-0 align-middle" /></button></div>
+    <div className="flex items-center justify-between gap-4"><h2 className="font-display text-xl font-semibold" id="deposit-title">{t("cashFlow.addMoney")}</h2><button aria-label={t("deposit.close")} className="grid h-8 w-8 place-items-center rounded-full text-xl text-muted hover:bg-background" onClick={auth.closeDeposit} type="button"><XIcon size={16} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className="inline-block shrink-0 align-middle" /></button></div>
     {auth.depositOpen && <div className="mt-5">
       {!auth.authenticated ? <div><p className="text-sm text-muted">{t("deposit.signInPrompt")}</p><Button className="mt-4" onClick={() => { auth.closeDeposit(); auth.open(); }}>{t("deposit.signIn")}</Button></div>
         : !auth.address ? <div role="status"><p className="text-sm text-muted">{auth.error ? t("deposit.walletMoment") : t("deposit.preparingWallet")}</p>{auth.error && <><p className="mt-2 text-sm text-error" role="alert">{auth.error}</p><Button className="mt-4" disabled={auth.busy} onClick={() => void auth.createWallet()}>{t("deposit.retryWallet")}</Button></>}</div>
@@ -58,23 +58,30 @@ function DepositAddress({ wallet, getAccessToken }: { wallet: string; getAccessT
   }, [wallet]);
   return <>
     <p className="text-sm leading-6 text-muted">{t("deposit.intro")}</p>
-    <div className="mx-auto my-4 flex h-48 w-48 items-center justify-center rounded-2xl border border-border bg-asset-surface">
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      {qr ? <img alt={t("deposit.qrAlt")} className="h-44 w-44" height={176} width={176} src={qr} /> : <span className="text-sm text-muted">{t("deposit.preparingQr")}</span>}
+    <div className="my-5 rounded-2xl border border-border bg-background p-4">
+      <p className="text-sm font-semibold">{t("cashFlow.transferMethod")}</p>
+      <p className="mt-2 text-xs leading-5 text-muted">{t("deposit.warning")}</p>
     </div>
     <p className="text-xs font-semibold text-muted">{t("deposit.addressLabel")}</p>
-    <div className="mt-2 flex items-center gap-3 rounded-xl border border-border bg-background p-3">
-    <code className="min-w-0 flex-1 select-all break-all text-xs leading-5">{wallet}</code>
-    <Button aria-label={copied ? t("deposit.copied") : t("deposit.copy")} className="h-9 w-9 shrink-0" size="icon" variant="ghost" onClick={async () => {
-      try { await navigator.clipboard.writeText(wallet); setCopied(true); setCopyError(false); }
-      catch { setCopyError(true); }
-    }}>
-      <InterfaceIcon icon={copied ? CheckIcon : CopyIcon} size={18} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className="inline-block shrink-0 align-middle" />
-    </Button>
+    <div className="mt-2 space-y-3 rounded-xl border border-border bg-background p-3">
+      <code className="block select-all break-all text-sm leading-6">{wallet}</code>
+      <Button aria-label={copied ? t("deposit.copied") : t("deposit.copy")} className="w-full" variant="primary" onClick={async () => {
+        try { await navigator.clipboard.writeText(wallet); setCopied(true); setCopyError(false); }
+        catch { setCopyError(true); }
+      }}>
+        <InterfaceIcon icon={copied ? CheckIcon : CopyIcon} size={18} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className="inline-block shrink-0 align-middle" />
+        {copied ? t("deposit.copied") : t("deposit.copy")}
+      </Button>
     </div>
     <span aria-live="polite" className="sr-only">{copied ? t("deposit.copied") : ""}</span>
     {copyError && <p className="mt-2 text-xs text-muted" role="status">{t("deposit.copyManually")}</p>}
-    <p className="mt-4 text-xs leading-5 text-muted">{t("deposit.warning")}</p>
+    <details className="mt-4 rounded-xl border border-border px-4 py-3">
+      <summary className="cursor-pointer text-sm font-medium focus-visible:outline-2 focus-visible:outline-focus">{t("cashFlow.showQr")}</summary>
+      <div className="mx-auto my-4 flex h-48 w-48 items-center justify-center rounded-2xl border border-border bg-asset-surface">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        {qr ? <img alt={t("deposit.qrAlt")} className="h-44 w-44" height={176} width={176} src={qr} /> : <span className="text-sm text-muted">{t("deposit.preparingQr")}</span>}
+      </div>
+    </details>
     {received && <p className="mt-4 text-sm font-medium text-success" role="status">{t("deposit.received")}</p>}
   </>;
 }
