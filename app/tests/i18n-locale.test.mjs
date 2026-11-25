@@ -85,11 +85,10 @@ test("dates, currency and relative time follow the active locale", () => {
   assert.match(format.formatRelativeTime(past, "de", { justNow: "gerade eben", unknown: "Unbekannt" }), /Tag/);
 });
 
-test("a returning browser with no saved locale is pinned to English", () => {
-  assert.equal(locales.hasOtherOrenStorage(["oren.active-wallet.v1"]), true);
-  assert.equal(locales.hasOtherOrenStorage(["oren-agent-panel-v1", "oren-locale"]), true);
-  assert.equal(locales.hasOtherOrenStorage(["oren-locale"]), false);
-  assert.equal(locales.hasOtherOrenStorage(["theme"]), false);
+test("only /app, /connect and /settings read the locale cookie", () => {
+  // The launch-time "returning browser means English" check is gone: it also
+  // pinned every new non-English visitor once the app saved any setting.
+  assert.equal(locales.hasOtherOrenStorage, undefined);
   assert.equal(locales.isPersonalizedPath("/app"), true);
   assert.equal(locales.isPersonalizedPath("/app/markets"), true);
   assert.equal(locales.isPersonalizedPath("/connect/mcp"), true);

@@ -475,3 +475,55 @@ test("sidebar motion avoids the full motion bundle and shares one framer-motion 
   assert.match(shell, /<LazyMotion features=\{loadMotionFeatures\}>/);
   assert.match(shell, /import\("\.\/motion-features"\)/);
 });
+
+/** Runs LocaleSync's effects once in a fresh page with the given cookies and storage. */
+function runLocaleSync({ force, pathname, locale = "en", cookie = "", local = {} }) {
+  const refreshes = [];
+  const effects = [];
+  const env = browser({ cookie, local });
+  const exports = {};
+  vm.runInNewContext(transpile("../i18n/locale-sync.tsx"), {
+    exports, document: env.document, localStorage: env.window.localStorage,
+    Intl: { DateTimeFormat: () => ({ resolvedOptions: () => ({ timeZone: "Europe/Berlin" }) }) },
+    window: { location: { protocol: "https:" }, addEventListener() {}, removeEventListener() {} },
+    require(id) {
+      if (id === "react") return { useEffect: (effect) => effects.push(effect) };
+      if (id === "next-intl") return { useLocale: () => locale };
+      if (id === "next/navigation") return { usePathname: () => pathname, useRouter: () => ({ refresh: () => refreshes.push(pathname) }) };
+      if (id === "./locales") {
+        const loaded = {};
+        vm.runInNewContext(transpile("../i18n/locales.ts"), { exports: loaded });
+        return loaded;
+      }
+      return require(id);
+    },
+  });
+  exports.LocaleSync({ force });
+  effects.forEach((effect) => effect());
+  return { refreshes, written: env.written, storage: env.window.localStorage };
+}
+
+test("marketing pages save locale cookies without refreshing; the app still refreshes", () => {
+  assert.deepEqual(runLocaleSync({ force: false, pathname: "/" }).refreshes, []);
+  assert.deepEqual(runLocaleSync({ force: true, pathname: "/app" }).refreshes, ["/app"]);
+});
+
+test("a browser that never chose a language keeps its own, whatever else Oren saved", () => {
+  // The reported case: a German browser's second visit, after the agent panel saved
+  // its state. It used to be pinned to English here.
+  const second = runLocaleSync({
+    force: true, pathname: "/app", locale: "de", cookie: "NEXT_TIMEZONE=Europe%2FBerlin",
+    local: { "oren-agent-panel-v1": "{}", "oren.growth.v1": "{}", "oren-theme": "dark", "oren.active-wallet.v1": "{}" },
+  });
+  assert.equal(second.written.some((value) => value.startsWith("NEXT_LOCALE=")), false);
+  assert.equal(second.storage.has("oren-locale"), false);
+  assert.deepEqual(second.refreshes, []);
+});
+
+test("a saved language choice still restores its missing cookie", () => {
+  const restored = runLocaleSync({
+    force: true, pathname: "/app", locale: "de", cookie: "NEXT_TIMEZONE=Europe%2FBerlin", local: { "oren-locale": "fr" },
+  });
+  assert.equal(restored.written.some((value) => value.startsWith("NEXT_LOCALE=fr;")), true);
+  assert.deepEqual(restored.refreshes, ["/app"]);
+});
