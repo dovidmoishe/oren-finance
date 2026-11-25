@@ -12,6 +12,7 @@ import {
 import { USDC_MINT } from '../config/constants';
 import type { JupiterQuoteRaw } from '../execution/jupiter/jupiter.types';
 
+export const HOUR = 3_600_000;
 export const DAY = 86_400_000;
 export const STRATEGIES = PAPER_STRATEGIES;
 export type Strategy = PaperStrategy;
@@ -25,12 +26,18 @@ type Observation = PaperBar;
 
 /** A later observation may restore enough coverage to evaluate this strategy. */
 export class IncompleteHistory extends Error {
-  constructor() {
-    super('insufficient_recent_daily_bars');
+  constructor(interval: 'daily' | 'hourly' = 'daily') {
+    super('insufficient_recent_' + interval + '_bars');
   }
 }
 
-export function history(bars: MarketCandle[], now: number): Observation[] {
+export function history(
+  bars: MarketCandle[],
+  now: number,
+  interval: 'daily' | 'hourly' = 'daily',
+): Observation[] {
+  const hourly = interval === 'hourly';
+  const duration = hourly ? HOUR : DAY;
   const rows = bars
     .map((b) => ({
       time: b.timestamp.getTime(),
@@ -38,22 +45,27 @@ export function history(bars: MarketCandle[], now: number): Observation[] {
       low: b.low,
       close: b.close,
     }))
-    .filter((b) => b.time + DAY <= now)
+    .filter((b) => b.time + duration <= now)
     .sort((a, b) => a.time - b.time)
     .slice(-21);
-  if (rows.length < 21 || now - rows[20].time > 5 * DAY)
-    throw new IncompleteHistory();
+  if (rows.length < 21 || now - rows[20].time > (hourly ? 2 * HOUR : 5 * DAY))
+    throw new IncompleteHistory(interval);
+  if (
+    hourly &&
+    !rows.some((row, i) => i > 0 && row.time - rows[i - 1].time === HOUR)
+  )
+    throw new IncompleteHistory(interval);
   for (const [index, row] of rows.entries()) {
-    const gap = index ? row.time - rows[index - 1].time : DAY;
-    if (gap > 5 * DAY) throw new IncompleteHistory();
+    const gap = index ? row.time - rows[index - 1].time : duration;
+    if (gap > 5 * DAY) throw new IncompleteHistory(interval);
     if (
-      gap < DAY - 3600000 ||
+      gap < (hourly ? HOUR : DAY - HOUR) ||
       ![row.close, row.high, row.low].every(Number.isFinite) ||
       row.low <= 0 ||
       row.close < row.low ||
       row.close > row.high
     )
-      throw new Error('invalid_daily_bars');
+      throw new Error('invalid_' + interval + '_bars');
   }
   return rows;
 }

@@ -22,12 +22,21 @@ export interface ScreenRow {
 }
 export interface MarketBook {
   cash: string;
-  positions: Record<string, { mint: string; quantity: string }>;
+  positions: Record<
+    string,
+    {
+      mint: string;
+      quantity: string;
+      entryRule?: 'breakout-v1' | 'pullback-v1';
+    }
+  >;
 }
 export interface MarketObservation {
   asset: string;
   mint?: string;
   rows?: PaperBar[];
+  hourlyRows?: PaperBar[];
+  repeatedBar?: boolean;
   signal?: PaperSignal;
   filled?: boolean;
   error?: string;
@@ -38,6 +47,8 @@ export interface MarketObservation {
 }
 export interface MarketRound {
   epoch: number;
+  method?: 'daily-v1' | 'hourly-swing-v1';
+  screenEpoch?: number;
   at: string;
   universeSize: number;
   candidates: string[];

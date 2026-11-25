@@ -17,9 +17,12 @@ import {
   type MarketRound,
   type ScreenRow,
 } from '../../types/paper-market';
-import { DAY, history, orderInput, settle } from './strategy';
+import { DAY, HOUR, history, orderInput, settle } from './strategy';
 import { PaperService } from './paper.service';
 import { PaperResearchAgent } from './paper-research';
+
+const FINAL_HOUR = 48;
+const SCREEN_HOURS = 4;
 
 type Account = typeof accounts.$inferSelect;
 export const startingBook = (): MarketBook => ({
@@ -48,11 +51,13 @@ export class MarketBenchmark {
     const due = await this.db
       .select()
       .from(accounts)
-      .where(and(lt(accounts.epoch, 2), lte(accounts.nextAt, new Date())));
+      .where(
+        and(lt(accounts.epoch, FINAL_HOUR), lte(accounts.nextAt, new Date())),
+      );
     for (const account of due) {
       const epoch = Math.min(
-        2,
-        Math.floor((Date.now() - +account.startedAt) / DAY),
+        FINAL_HOUR,
+        Math.floor((Date.now() - +account.startedAt) / HOUR),
       );
       if (epoch <= account.epoch) continue;
       const [claimed] = await this.db
@@ -74,9 +79,11 @@ export class MarketBenchmark {
         eq(accounts.revision, claimed.revision),
       );
       try {
-        const universe = epoch === 2 ? [] : await this.screen(epoch);
-        const round = await this.evaluate(claimed, epoch, universe);
-        if (epoch < 2 && Date.now() >= +claimed.startedAt + (epoch + 1) * DAY)
+        const round = await this.evaluate(claimed, epoch);
+        if (
+          epoch < FINAL_HOUR &&
+          Date.now() >= +claimed.startedAt + (epoch + 1) * HOUR
+        )
           throw new Error('round_expired');
         await this.db
           .update(accounts)
@@ -85,7 +92,9 @@ export class MarketBenchmark {
             state: claimed.state,
             lastError: null,
             rounds: [...claimed.rounds, round],
-            nextAt: new Date(+claimed.startedAt + Math.min(2, epoch + 1) * DAY),
+            nextAt: new Date(
+              +claimed.startedAt + Math.min(FINAL_HOUR, epoch + 1) * HOUR,
+            ),
           })
           .where(fence);
       } catch {
@@ -138,23 +147,36 @@ export class MarketBenchmark {
   private async evaluate(
     account: Account,
     epoch: number,
-    universe: ScreenRow[],
   ): Promise<MarketRound> {
     const book = account.state;
     const round: MarketRound = {
       epoch,
       at: new Date().toISOString(),
-      universeSize: universe.length,
+      method: 'hourly-swing-v1',
+      universeSize: 0,
       candidates: [],
       observations: [],
       equityRaw: null,
       cashRaw: book.cash,
     };
-    if (epoch < 2) {
-      try {
-        round.candidates = await this.agent.shortlist(universe, book);
-      } catch {
-        round.screenError = 'shortlist_unavailable';
+    if (epoch < FINAL_HOUR) {
+      const block = epoch - (epoch % SCREEN_HOURS);
+      const previous = account.rounds.at(-1);
+      if (previous) {
+        round.candidates = previous.candidates;
+        round.universeSize = previous.universeSize;
+      }
+      if (previous?.screenEpoch === block) {
+        round.screenEpoch = block;
+      } else {
+        try {
+          const universe = await this.screen(block);
+          round.universeSize = universe.length;
+          round.candidates = await this.agent.shortlist(universe, book);
+          round.screenEpoch = block;
+        } catch {
+          round.screenError = 'shortlist_unavailable';
+        }
       }
     }
     // Review held mints before spending cash on any new entry. Each fill updates the same book.
@@ -178,32 +200,54 @@ export class MarketBenchmark {
         obs.mint = mint;
         const local = { cash: book.cash, position: holding?.quantity ?? '0' };
         let signal: PaperSignal = 'hold';
-        if (epoch !== 2) {
-          const asOf = new Date();
-          const rows = history(
-            await this.tokens.getOHLCV(asset, {
-              mint,
-              timeframe: '1D',
-              start: new Date(+asOf - 65 * DAY),
-              end: asOf,
-            }),
-            +asOf,
-          );
-          obs.rows = rows;
-          const prev = account.rounds
-            .at(-1)
-            ?.observations.find((o) => o.asset === asset)
-            ?.rows?.at(-1)?.time;
-          if (prev === undefined || rows.at(-1)!.time > prev) {
-            const analysis = await this.agent.investigate(
-              asset,
-              mint,
-              rows,
-              local,
-              book,
+        if (epoch < FINAL_HOUR) {
+          try {
+            const asOf = new Date();
+            const [daily, hourly] = await Promise.all([
+              this.tokens.getOHLCV(asset, {
+                mint,
+                timeframe: '1D',
+                start: new Date(+asOf - 65 * DAY),
+                end: asOf,
+              }),
+              this.tokens.getOHLCV(asset, {
+                mint,
+                timeframe: '1H',
+                start: new Date(+asOf - 10 * DAY),
+                end: asOf,
+              }),
+            ]);
+            obs.rows = history(daily, +asOf);
+            obs.hourlyRows = history(hourly, +asOf, 'hourly');
+            const candle = obs.hourlyRows.at(-1)!.time;
+            obs.repeatedBar = account.rounds.some((r) =>
+              r.observations.some(
+                (o) =>
+                  o.asset === asset &&
+                  o.mint === mint &&
+                  (o.hourlyRows?.at(-1)?.time ?? -1) >= candle,
+              ),
             );
-            obs.research = analysis.research;
-            signal = analysis.signal;
+            if (!obs.repeatedBar) {
+              const analysis = await this.agent.investigate(
+                asset,
+                mint,
+                obs.rows,
+                obs.hourlyRows,
+                local,
+                book,
+              );
+              obs.research = analysis.research;
+              signal = analysis.signal;
+            }
+          } catch (err) {
+            obs.error =
+              err instanceof Error &&
+              /^(invalid|insufficient_recent)_(hourly|daily)_bars$/.test(
+                err.message,
+              )
+                ? err.message
+                : 'market_data_unavailable';
           }
         }
         obs.signal = signal;
@@ -234,7 +278,20 @@ export class MarketBenchmark {
           throw new Error('stale_quote');
         book.cash = fill.book.cash;
         if (fill.book.position === '0') delete book.positions[asset];
-        else book.positions[asset] = { mint, quantity: fill.book.position };
+        else {
+          const selected = obs.research?.selected;
+          const entryRule =
+            holding?.entryRule ??
+            (signal === 'buy' &&
+            (selected === 'breakout-v1' || selected === 'pullback-v1')
+              ? selected
+              : undefined);
+          book.positions[asset] = {
+            mint,
+            quantity: fill.book.position,
+            entryRule,
+          };
+        }
         marked += mark;
         obs.mark = mark.toString();
         obs.filled = signal !== 'hold';
@@ -283,6 +340,11 @@ export class MarketBenchmark {
         .orderBy(previousAccounts.policy),
       startingUsdcPerAccount: 10000,
       totalStartingUsdc: all.length * 10000,
+      cadence: {
+        reviewHours: 1,
+        marketScreenHours: SCREEN_HOURS,
+        durationHours: FINAL_HOUR,
+      },
       coverage,
       accounts: all.map((a) => {
         const latest = a.rounds.at(-1);
@@ -304,8 +366,14 @@ export class MarketBenchmark {
           accountId: a.accountId,
           policy: 'guided' as const,
           startedAt: a.startedAt,
-          endsAt: new Date(+a.startedAt + 2 * DAY),
-          status: a.epoch === 2 ? 'ended' : latest ? 'observing' : 'starting',
+          endsAt: new Date(+a.startedAt + FINAL_HOUR * HOUR),
+          nextCheckAt: a.epoch === FINAL_HOUR ? null : a.nextAt,
+          status:
+            a.epoch === FINAL_HOUR
+              ? 'ended'
+              : latest
+                ? 'observing'
+                : 'starting',
           book: a.state,
           lastError: a.lastError,
           netPnlUsdc,

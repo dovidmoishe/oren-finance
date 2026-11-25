@@ -19,7 +19,7 @@ import { PaperResearchAgent } from './paper-research';
 import { PreviewBenchmark } from './preview-benchmark';
 import type { AppEnv } from '../config/env.schema';
 import { PAPER_QUOTES } from './quotes';
-import { DAY, decide, settle } from './strategy';
+import { DAY, HOUR, decide, settle } from './strategy';
 
 // HTTP tests inject two test identities. Keep the external identity SDK out of Jest.
 jest.mock('@privy-io/node', () => ({ PrivyClient: jest.fn() }));
@@ -44,14 +44,19 @@ const url = process.env.PAPER_TEST_DATABASE_URL;
     };
     const today = Math.floor(Date.now() / DAY) * DAY;
     let closes = [...Array<number>(20).fill(100), 110];
+    let hourlyEnd = Math.floor(Date.now() / HOUR) * HOUR - HOUR;
     const tokens = {
       getStock: (id: string) => ({
         id,
         variants: [{ mint: 'stock', tradable: true }],
       }),
-      getOHLCV: () =>
+      getOHLCV: (_asset: string, params?: { timeframe?: string }) =>
         closes.map((close, i) => ({
-          timestamp: new Date(today + (i - 22) * DAY),
+          timestamp: new Date(
+            params?.timeframe === '1H'
+              ? hourlyEnd + (i - 20) * HOUR
+              : today + (i - 22) * DAY,
+          ),
           open: close,
           high: close,
           low: close,
@@ -90,6 +95,28 @@ const url = process.env.PAPER_TEST_DATABASE_URL;
           'utf8',
         ),
       );
+      await client`insert into paper_ai_accounts (account_id,state,epoch,next_at,rounds) values ('old','{"cash":"999","positions":{}}',1,now()+interval '48 hours','[{"epoch":0},{"epoch":1}]')`;
+      await client.unsafe(
+        readFileSync(
+          resolve(
+            __dirname,
+            '../../lib/db/migrations/0028_paper_hourly_reviews.sql',
+          ),
+          'utf8',
+        ),
+      );
+      const [migrated] =
+        await client`select epoch, state, rounds, extract(epoch from next_at - started_at)/3600 as due_hour from paper_ai_accounts where account_id='old'`;
+      expect(migrated).toMatchObject({
+        epoch: 24,
+        state: { cash: '999' },
+        rounds: [
+          { epoch: 0, method: 'daily-v1' },
+          { epoch: 24, method: 'daily-v1' },
+        ],
+      });
+      expect(Number(migrated.due_hour)).toBe(25);
+      await client`delete from paper_ai_accounts where account_id='old'`;
       const module = await Test.createTestingModule({
         controllers: [PaperController],
         providers: [
@@ -227,6 +254,37 @@ const url = process.env.PAPER_TEST_DATABASE_URL;
       ).toHaveLength(1);
       await new PreviewBenchmark(env, service, markets).poll();
       expect((await fixture.report()).accounts).toEqual(report.accounts);
+      const advance = async (hour: number) => {
+        await client`update paper_ai_accounts set started_at=now()-make_interval(hours => ${hour}::int), next_at=now()`;
+        await fixture.poll();
+      };
+      await advance(1);
+      expect(agent.shortlist.mock.calls).toHaveLength(6); // Only the failed shortlist retries.
+      expect(agent.investigate.mock.calls).toHaveLength(8); // Only that account has new evidence.
+      const repeated = (await fixture.report()).accounts.find(
+        (a) => a.accountId === invested[0].accountId,
+      )!;
+      expect(repeated.book).toEqual(invested[0].book);
+      expect(
+        repeated.rounds
+          .at(-1)
+          ?.observations.every((o) => o.repeatedBar && !o.filled),
+      ).toBe(true);
+      hourlyEnd -= 4 * HOUR;
+      await advance(2);
+      const stale = (await fixture.report()).accounts.find(
+        (a) => a.accountId === invested[0].accountId,
+      )!;
+      expect(
+        stale.rounds
+          .at(-1)
+          ?.observations.every(
+            (o) => o.error === 'insufficient_recent_hourly_bars' && !o.filled,
+          ),
+      ).toBe(true);
+      expect(stale.rounds.at(-1)?.equityRaw).not.toBeNull();
+      await advance(4);
+      expect(agent.shortlist.mock.calls).toHaveLength(11);
       await client`update paper_ai_accounts set started_at=started_at-interval '3 days',next_at=now()`;
       await fixture.poll();
       expect(
@@ -236,8 +294,8 @@ const url = process.env.PAPER_TEST_DATABASE_URL;
             a.rounds.at(-1)?.observations.every((o) => !o.filled),
         ),
       ).toBe(true);
-      expect(agent.shortlist.mock.calls).toHaveLength(5);
-      expect(agent.investigate.mock.calls).toHaveLength(6);
+      expect(agent.shortlist.mock.calls).toHaveLength(11);
+      expect(agent.investigate.mock.calls).toHaveLength(8);
     });
     afterAll(async () => {
       await app?.close();

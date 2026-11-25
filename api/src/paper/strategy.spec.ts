@@ -1,4 +1,12 @@
-import { DAY, decide, history, INITIAL, quoteTerms, settle } from './strategy';
+import {
+  DAY,
+  HOUR,
+  decide,
+  history,
+  INITIAL,
+  quoteTerms,
+  settle,
+} from './strategy';
 import { backtest } from '../../scripts/paper-backtest';
 import type { MarketCandle } from '../../types/market';
 import type { JupiterQuoteRaw } from '../execution/jupiter/jupiter.types';
@@ -53,6 +61,19 @@ describe('daily paper strategies', () => {
     expect(() => history(candles, 20 * DAY)).toThrow();
     candles[1] = candles[0];
     expect(() => history(candles, 21 * DAY)).toThrow();
+  });
+  it('uses only closed hourly candles and rejects stale or daily-resolution hourly data', () => {
+    const hourly = bars(Array<number>(22).fill(100)).map((bar, i) => ({
+      ...bar,
+      timestamp: new Date(i * HOUR),
+    }));
+    expect(history(hourly, 21.5 * HOUR, 'hourly').at(-1)?.time).toBe(20 * HOUR);
+    expect(() => history(hourly, 25 * HOUR, 'hourly')).toThrow(
+      'insufficient_recent_hourly_bars',
+    );
+    expect(() =>
+      history(bars(Array<number>(21).fill(100)), 20 * DAY + HOUR, 'hourly'),
+    ).toThrow('insufficient_recent_hourly_bars');
   });
   it('rejects unmatched routes and missing exit marks', () => {
     expect(() =>

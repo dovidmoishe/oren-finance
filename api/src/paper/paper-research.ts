@@ -31,7 +31,7 @@ const descriptions = {
   inspectSignals:
     'Read deterministic breakout and pullback signals for this position.',
   inspectBars:
-    'Inspect the 21 completed daily observations, timestamps, highs, lows and closes.',
+    'Inspect the last 21 completed hourly and daily candles for this exact mint.',
   inspectRisk:
     'Read virtual cash and holdings, entry allocation and decline from the recent closing peak.',
 };
@@ -122,16 +122,29 @@ export class PaperResearchAgent {
   async investigate(
     asset: string,
     mint: string,
-    rows: PaperBar[],
+    daily: PaperBar[],
+    hourly: PaperBar[],
     book: PaperBook,
     account?: MarketBook,
   ): Promise<{ signal: PaperSignal; research: PaperResearch }> {
-    const signals = {
-      'breakout-v1': decide('breakout-v1', rows, book),
-      'pullback-v1': decide('pullback-v1', rows, book),
+    const trendMean =
+      daily.slice(0, -1).reduce((sum, bar) => sum + bar.close, 0) /
+      (daily.length - 1);
+    const trendAllowsEntry = daily.at(-1)!.close >= trendMean;
+    const eligible = (rule: 'breakout-v1' | 'pullback-v1') => {
+      const signal = decide(rule, hourly, book);
+      return signal === 'buy' && !trendAllowsEntry ? 'hold' : signal;
     };
+    const signals = {
+      'breakout-v1': eligible('breakout-v1'),
+      'pullback-v1': eligible('pullback-v1'),
+    };
+    const entryRule = account?.positions[asset]?.entryRule;
     const riskExit =
-      book.position !== '0' && Object.values(signals).includes('sell');
+      book.position !== '0' &&
+      (signals['breakout-v1'] === 'sell' ||
+        decide('breakout-v1', daily, book) === 'sell' ||
+        (entryRule === 'pullback-v1' && signals['pullback-v1'] === 'sell'));
     const research: PaperResearch = {
       version: tradingSkillVersion,
       model: this.env.OPENAI_MODEL,
@@ -141,14 +154,18 @@ export class PaperResearchAgent {
     };
     const evidence = {
       inspectSignals: signals,
-      inspectBars: rows,
+      inspectBars: { daily, hourly },
       inspectRisk: {
         book,
+        trendMean,
+        trendAllowsEntry,
+        riskExit,
+        entryRule,
         portfolio: account,
         entryCashBps: PAPER_MODEL.entryCashBps,
         declineFromPeakPct:
           100 *
-          (1 - rows.at(-1)!.close / Math.max(...rows.map((r) => r.close))),
+          (1 - daily.at(-1)!.close / Math.max(...daily.map((r) => r.close))),
       },
     };
     const messages: ChatCompletionMessageParam[] = [
@@ -156,14 +173,17 @@ export class PaperResearchAgent {
         role: 'system',
         content:
           instructions +
-          '\nInvestigate the paper account. Select relevant distinct evidence tools in one batch. Then choose breakout-v1, pullback-v1, or cash and give an evidence-based rationale under 500 characters. Cash abstains from new entries. The engine enforces mandatory exits.',
+          '\nInvestigate this multi-day long-only paper account. Entries use hourly breakout or pullback timing with the daily trend filter. Select relevant distinct evidence tools in one batch. Then choose breakout-v1, pullback-v1, or cash and give an evidence-based rationale under 500 characters. Cash abstains from new entries. The engine enforces mandatory exits.',
       },
       {
         role: 'user',
         content: JSON.stringify({
           asset,
           mint,
-          barTime: rows.at(-1)!.time,
+          hourlyBarTime: hourly.at(-1)!.time,
+          dailyBarTime: daily.at(-1)!.time,
+          trendAllowsEntry,
+          riskExit,
           holding: book.position !== '0',
           signals,
         }),
