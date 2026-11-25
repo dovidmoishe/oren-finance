@@ -1,0 +1,8 @@
+# Edge route for the admin dashboard. infra/admin/deploy.sh writes it to
+# /opt/oren/preview/sites/production-admin.caddy, which the production Caddyfile
+# imports before its snippets are defined, so this block stands alone.
+admin.oren.finance {
+  encode zstd gzip
+  header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+  reverse_proxy oren-admin-dashboard:8080
+}
