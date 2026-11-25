@@ -23,6 +23,8 @@ Suggested limits, already the defaults:
 
 `TRUST_PROXY_HOPS=1` matches Caddy. The forwarded address is used only for the collect rate limit and is not stored.
 
+The growth-only backup runs from the production deploy user's crontab with `bash /opt/oren/infra/growth/backup.sh`. It verifies the archive and keeps local snapshots for 14 days under `/opt/oren/backups/growth`. Recovery after loss of the VPS requires a separate copy.
+
 ## Migration
 
 `api/lib/db/migrations/0025_growth_reporting.sql` creates the tables and grants them to `oren_api_runtime` when that role exists. The normal `api-migrate` service applies it. It does not insert visits, imports, or grants.
