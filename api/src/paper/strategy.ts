@@ -9,6 +9,7 @@ import {
   type PaperValuation,
   type PaperStrategy,
 } from '../../types/paper';
+import type { PaperBarSource, PaperExitGuard } from '../../types/paper-market';
 import { USDC_MINT } from '../config/constants';
 import type { JupiterQuoteRaw } from '../execution/jupiter/jupiter.types';
 
@@ -103,6 +104,77 @@ export function decide(
 }
 
 export type Signal = ReturnType<typeof decide>;
+
+/**
+ * Exit prices for a long holding: the price at which `decide` would sell if it
+ * were the next close after these 21-bar windows. Breakout exits on either
+ * timeframe set the stop. A pullback entry also exits below the hourly 20-bar
+ * mean and takes profit at the hourly five-bar mean.
+ */
+export function exitLevels(
+  daily: Observation[],
+  hourly: Observation[],
+  entryRule?: 'breakout-v1' | 'pullback-v1',
+): { stop: number; target?: number } {
+  const recentLow = (rows: Observation[]) =>
+    Math.min(...rows.slice(-5).map((r) => r.low));
+  const meanClose = (rows: Observation[]) =>
+    rows.reduce((sum, r) => sum + r.close, 0) / rows.length;
+  const stop = Math.max(recentLow(hourly), recentLow(daily));
+  if (entryRule !== 'pullback-v1') return { stop };
+  return {
+    stop: Math.max(stop, meanClose(hourly.slice(-20))),
+    target: meanClose(hourly.slice(-5)),
+  };
+}
+
+const GUARD_SCALE = 1_000_000_000;
+
+/**
+ * Restate exit prices as the holding's quoted sale value. `referencePrice` is
+ * the candle series' latest price and `referenceValueUsdcRaw` the position's
+ * quoted USDC output, both observed in the same review, so the guard carries
+ * the token's price relative to its candles without needing token decimals.
+ */
+export function exitGuard(
+  levels: { stop: number; target?: number },
+  referencePrice: number,
+  referenceValueUsdcRaw: string,
+  source: PaperBarSource,
+  at: Date,
+): PaperExitGuard | null {
+  const value = BigInt(referenceValueUsdcRaw);
+  const valid = (price?: number): price is number =>
+    price !== undefined && Number.isFinite(price) && price > 0;
+  if (!valid(referencePrice) || value <= 0n || !valid(levels.stop)) return null;
+  const scaled = (price: number) =>
+    (
+      (value * BigInt(Math.round((price / referencePrice) * GUARD_SCALE))) /
+      BigInt(GUARD_SCALE)
+    ).toString();
+  return {
+    stopUsdcRaw: scaled(levels.stop),
+    ...(valid(levels.target) ? { targetUsdcRaw: scaled(levels.target) } : {}),
+    source,
+    referencePrice,
+    referenceValueUsdcRaw,
+    setAt: at.toISOString(),
+  };
+}
+
+/** Compare the holding's live quoted sale value with its guard. */
+export function guardExit(
+  guard: PaperExitGuard | undefined,
+  liveValueUsdcRaw: string,
+): 'stop' | 'target' | null {
+  if (!guard) return null;
+  const live = BigInt(liveValueUsdcRaw);
+  if (live < BigInt(guard.stopUsdcRaw)) return 'stop';
+  if (guard.targetUsdcRaw !== undefined && live >= BigInt(guard.targetUsdcRaw))
+    return 'target';
+  return null;
+}
+
 export function orderInput(signal: Signal, book: Book) {
   if (signal === 'buy')
     return (BigInt(book.cash) * BigInt(PAPER_MODEL.entryCashBps)) / 10000n;

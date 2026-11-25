@@ -86,6 +86,21 @@ describe('tokens mapper', () => {
     expect(equity.logo).toBe('ipfs://tesla-logo');
   });
 
+  it('keeps the canonical market source that names the chart feed', () => {
+    const stock = mapEquity({
+      asset: {
+        assetId: 'tesla',
+        symbol: 'TSLA',
+        category: 'equity',
+        canonicalMarket: { source: 'clickhouse_stock', symbol: 'TSLA' },
+      },
+    });
+    expect(stock.canonicalMarketSource).toBe('clickhouse_stock');
+    expect(
+      mapEquity({ assetId: 'soxs', category: 'equity' }),
+    ).not.toHaveProperty('canonicalMarketSource');
+  });
+
   it('keeps explicit equities and rejects unrelated assets leaked by curated lists', () => {
     const equities = mapEquityList([
       {

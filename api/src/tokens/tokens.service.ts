@@ -160,6 +160,26 @@ export class TokensService implements TokensServiceContract {
     }));
   }
 
+  /**
+   * The canonical `/price-chart` series only, with no OHLCV fallback. Tokens
+   * serves the first source with data (stock-market candles for mapped
+   * equities, then provider candles, then on-chain candles for `mint`) and
+   * does not say which one won, so callers must check the series themselves.
+   */
+  async getCanonicalCandles(
+    assetId: string,
+    window: ChartWindow,
+    mint?: string,
+  ): Promise<MarketCandle[]> {
+    const raw = await this.client.get<unknown>(
+      `/assets/${encodeURIComponent(assetId)}/price-chart`,
+      { interval: window.interval, from: window.from, to: window.to, mint },
+    );
+    return mapCandles(extractCandles(raw)).sort(
+      (a, b) => +a.timestamp - +b.timestamp,
+    );
+  }
+
   async getOHLCV(
     assetId: string,
     params?: { start?: Date; end?: Date; timeframe?: string; mint?: string },
@@ -209,9 +229,9 @@ export class TokensService implements TokensServiceContract {
     mints: string[],
   ): Promise<TokensMarketSnapshotRaw[]> {
     if (mints.length === 0) return [];
-    const raw = await this.client.post<Parameters<typeof normalizeMarketSnapshots>[0]>(
-      '/assets/market-snapshots', { mints: mints.slice(0, 250) },
-    );
+    const raw = await this.client.post<
+      Parameters<typeof normalizeMarketSnapshots>[0]
+    >('/assets/market-snapshots', { mints: mints.slice(0, 250) });
     return normalizeMarketSnapshots(raw);
   }
 

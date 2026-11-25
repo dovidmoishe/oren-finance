@@ -2,6 +2,9 @@ import {
   DAY,
   HOUR,
   decide,
+  exitGuard,
+  exitLevels,
+  guardExit,
   history,
   INITIAL,
   quoteTerms,
@@ -75,6 +78,66 @@ describe('daily paper strategies', () => {
       history(bars(Array<number>(21).fill(100)), 20 * DAY + HOUR, 'hourly'),
     ).toThrow('insufficient_recent_hourly_bars');
   });
+  it('derives exit prices that match the rules decide applies to the next close', () => {
+    const rows = (lows: number[], closes: number[]) =>
+      closes.map((close, i) => ({
+        time: i * HOUR,
+        high: close + 1,
+        low: lows[i],
+        close,
+      }));
+    const closes = [...Array<number>(16).fill(100), 104, 106, 108, 110, 112];
+    const hourly = rows(
+      closes.map((c) => c - 2),
+      closes,
+    );
+    const daily = rows(Array<number>(21).fill(95), Array<number>(21).fill(100));
+    const breakout = exitLevels(daily, hourly);
+    expect(breakout).toEqual({ stop: 102 }); // lowest of the last five hourly lows
+    const held = { cash: '9000000000', position: '1' };
+    const next = (close: number) => [
+      ...hourly.slice(1),
+      { time: 21 * HOUR, high: close, low: close, close },
+    ];
+    expect(decide('breakout-v1', next(101.99), held)).toBe('sell');
+    expect(decide('breakout-v1', next(102), held)).toBe('hold');
+    const pullback = exitLevels(daily, hourly, 'pullback-v1');
+    expect(pullback.stop).toBeCloseTo(
+      (15 * 100 + 104 + 106 + 108 + 110 + 112) / 20,
+    );
+    expect(pullback.target).toBeCloseTo(108);
+    expect(decide('pullback-v1', next(108), held)).toBe('sell');
+    expect(decide('pullback-v1', next(107.9), held)).toBe('hold');
+  });
+
+  it('states exit prices as the position quote and checks live quotes against them', () => {
+    const at = new Date('2026-11-25T15:30:00Z');
+    const guard = exitGuard(
+      { stop: 95, target: 110 },
+      100,
+      '1000000000',
+      'stock',
+      at,
+    )!;
+    expect(guard).toEqual({
+      stopUsdcRaw: '950000000',
+      targetUsdcRaw: '1100000000',
+      source: 'stock',
+      referencePrice: 100,
+      referenceValueUsdcRaw: '1000000000',
+      setAt: at.toISOString(),
+    });
+    expect(guardExit(guard, '949999999')).toBe('stop');
+    expect(guardExit(guard, '950000000')).toBeNull();
+    expect(guardExit(guard, '1100000000')).toBe('target');
+    expect(guardExit(undefined, '1')).toBeNull();
+    expect(
+      exitGuard({ stop: Number.NaN }, 100, '1000', 'token', at),
+    ).toBeNull();
+    expect(exitGuard({ stop: 95 }, 0, '1000', 'token', at)).toBeNull();
+    expect(exitGuard({ stop: 95 }, 100, '0', 'token', at)).toBeNull();
+  });
+
   it('rejects unmatched routes and missing exit marks', () => {
     expect(() =>
       quoteTerms(

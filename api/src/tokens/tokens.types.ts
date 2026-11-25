@@ -61,6 +61,12 @@ export interface TokensAssetRaw {
   };
   variants?: TokensVariantRaw[];
   primaryVariant?: TokensVariantRaw;
+  /** Off-chain reference for the asset; `source` is additive (clickhouse_stock, coingecko, prestocks, ...). */
+  canonicalMarket?: {
+    source?: string;
+    symbol?: string;
+    providerLastUpdatedAt?: number | null;
+  };
   asset?: TokensAssetRaw;
 }
 

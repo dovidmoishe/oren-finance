@@ -130,6 +130,9 @@ export function mapEquity(rawInput: TokensAssetRaw): Equity {
       raw.primaryVariant?.market?.liquidity ??
       raw.primaryVariant?.market?.liquidityUSD,
     sector: raw.sector,
+    ...(raw.canonicalMarket?.source
+      ? { canonicalMarketSource: raw.canonicalMarket.source }
+      : {}),
     variants,
   };
 }

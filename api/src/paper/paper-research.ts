@@ -19,7 +19,11 @@ import {
   type PaperSignal,
 } from '../../types/paper';
 import { decide } from './strategy';
-import type { MarketBook, ScreenRow } from '../../types/paper-market';
+import type {
+  MarketBook,
+  PaperBarSource,
+  ScreenRow,
+} from '../../types/paper-market';
 
 const selection = z
   .object({
@@ -31,7 +35,7 @@ const descriptions = {
   inspectSignals:
     'Read deterministic breakout and pullback signals for this position.',
   inspectBars:
-    'Inspect the last 21 completed hourly and daily candles for this exact mint.',
+    'Inspect the last 21 completed hourly and daily candles behind these signals. barsSource "stock" means stock-market session candles for the company; "token" means on-chain candles for this exact mint.',
   inspectRisk:
     'Read virtual cash and holdings, entry allocation and decline from the recent closing peak.',
 };
@@ -126,6 +130,7 @@ export class PaperResearchAgent {
     hourly: PaperBar[],
     book: PaperBook,
     account?: MarketBook,
+    barsSource: PaperBarSource = 'token',
   ): Promise<{ signal: PaperSignal; research: PaperResearch }> {
     const trendMean =
       daily.slice(0, -1).reduce((sum, bar) => sum + bar.close, 0) /
@@ -180,6 +185,7 @@ export class PaperResearchAgent {
         content: JSON.stringify({
           asset,
           mint,
+          barsSource,
           hourlyBarTime: hourly.at(-1)!.time,
           dailyBarTime: daily.at(-1)!.time,
           trendAllowsEntry,
