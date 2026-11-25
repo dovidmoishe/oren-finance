@@ -125,6 +125,8 @@ const server = http.createServer(async (request, response) => {
     },
     distinctDurableVisitorsFirstSeenInRange: count(1024),
   };
+  if (path === "dashboard/activity")
+    return send({ volumeUsd: 10842.50, trades: 81, chats: 47, messages: 119 });
   if (path === "reports/traffic") return send(traffic);
   if (path === "reports/daily") {
     response.writeHead(200, { "Content-Type": "text/csv" });

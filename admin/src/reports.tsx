@@ -17,11 +17,11 @@ import {
   missingValue,
   percent,
   readable,
-  totalSlice,
   trafficCoverage,
 } from "./model";
 import { useAuth, useReport, useReportQuery } from "./state";
 import type {
+  Activity,
   Comparison,
   Coverage,
   Day,
@@ -94,8 +94,13 @@ export function ReportPage({ view }: { view: ReportView }) {
       <DateFilters
         utcOnly={["funnel", "retention", "campaigns"].includes(view)}
       />
-      {view === "overview" || view === "traffic" ? (
-        <TrafficPage overview={view === "overview"} />
+      {view === "overview" ? (
+        <>
+          <OverviewMetrics />
+          <TrafficPage overview />
+        </>
+      ) : view === "traffic" ? (
+        <TrafficPage />
       ) : view === "funnel" ? (
         <FunnelPage />
       ) : view === "retention" ? (
@@ -107,7 +112,68 @@ export function ReportPage({ view }: { view: ReportView }) {
   );
 }
 
-function TrafficPage({ overview }: { overview: boolean }) {
+const usd = new Intl.NumberFormat("en-US", {
+  style: "currency",
+  currency: "USD",
+});
+
+function OverviewMetrics() {
+  const { params, valid } = useReport();
+  const traffic = useReportQuery<Traffic>("traffic");
+  const activity = useQuery({
+    queryKey: ["report", "activity", params.toString()],
+    queryFn: () => api<Activity>(`dashboard/activity?${params}`),
+    enabled: valid,
+  });
+  if (!valid) return null;
+  const { data } = activity;
+  const pending = activity.isPending ? "?" : missingValue;
+  const pageviews =
+    traffic.data && trafficCoverage(traffic.data.daily).recordedPageviews;
+  return (
+    <>
+      <div
+        className={metricGrid}
+        aria-busy={activity.isPending || traffic.isPending}
+      >
+        <Metric
+          label="Trading volume"
+          value={data ? usd.format(data.volumeUsd) : pending}
+          note="Verified stock fills"
+        />
+        <Metric
+          label="Trades"
+          value={data ? data.trades.toLocaleString() : pending}
+        />
+        <Metric
+          label="In-app chats"
+          value={data ? data.chats.toLocaleString() : pending}
+          note={data && `${data.messages.toLocaleString()} messages sent`}
+        />
+        <Metric
+          label="Pageviews"
+          value={
+            pageviews?.toLocaleString() ??
+            (traffic.isPending ? "?" : missingValue)
+          }
+        />
+      </div>
+      {activity.error && (
+        <p
+          className="mb-4 flex items-center gap-3 text-sm text-muted"
+          role="status"
+        >
+          Couldn?t load trading and chat totals.
+          <button className={button} onClick={() => void activity.refetch()}>
+            Retry
+          </button>
+        </p>
+      )}
+    </>
+  );
+}
+
+function TrafficPage({ overview = false }: { overview?: boolean }) {
   const query = useReportQuery<Traffic>("traffic");
   const { params, valid } = useReport();
   const [exportError, setExportError] = useState("");
@@ -140,71 +206,64 @@ function TrafficPage({ overview }: { overview: boolean }) {
   }
   return (
     <>
-      <div className="mb-5 grid grid-cols-2 gap-3 min-[900px]:grid-cols-3">
-        <Metric
-          label="Recorded pageviews"
-          value={recordedPageviews?.toLocaleString() ?? missingValue}
-        />
-        <Metric
-          label="New visitors"
-          value={visitorCount}
-          note="Recognized visitors first seen in range"
-        />
-        <Metric
-          label="Days with data"
-          value={`${traffic.daily.length - missing} / ${traffic.daily.length}`}
-          compact
-        />
-      </div>
-      <div
-        className={
-          overview
-            ? "grid items-start gap-5 min-[1120px]:grid-cols-[minmax(0,1fr)_280px]"
-            : undefined
+      {!overview && (
+        <div className="mb-5 grid grid-cols-2 gap-3 min-[900px]:grid-cols-3">
+          <Metric
+            label="Recorded pageviews"
+            value={recordedPageviews?.toLocaleString() ?? missingValue}
+          />
+          <Metric
+            label="New visitors"
+            value={visitorCount}
+            note="Recognized visitors first seen in range"
+          />
+          <Metric
+            label="Days with data"
+            value={`${traffic.daily.length - missing} / ${traffic.daily.length}`}
+            compact
+          />
+        </div>
+      )}
+      <Panel
+        title="Daily pageviews"
+        action={
+          overview ? (
+            <Link className={button} to="/traffic">
+              View traffic <Icon icon={icons.arrow} size={14} />
+            </Link>
+          ) : (
+            <button
+              className={button}
+              onClick={() => void download()}
+              disabled={exporting}
+            >
+              <Icon icon={icons.download} size={16} />
+              {exporting ? "Exporting?" : "Export CSV"}
+            </button>
+          )
         }
       >
-        <Panel
-          title="Daily pageviews"
-          action={
-            overview ? (
-              <Link className={button} to="/traffic">
-                View traffic <Icon icon={icons.arrow} size={14} />
-              </Link>
-            ) : (
-              <button
-                className={button}
-                onClick={() => void download()}
-                disabled={exporting}
-              >
-                <Icon icon={icons.download} size={16} />
-                {exporting ? "Exporting?" : "Export CSV"}
-              </button>
-            )
-          }
-        >
-          {exportError && (
-            <div className={`${notice} mx-5`} role="alert">
-              {exportError}
-            </div>
-          )}
-          {recordedPageviews != null ? (
-            <TrafficChart days={traffic.daily} />
-          ) : (
-            <Empty title="No visits recorded for these dates" />
-          )}
-          {recordedPageviews != null && (missing > 0 || partial) && (
-            <p className="px-5 pb-4 text-xs text-muted">
-              {[
-                missing > 0 && "Gaps mark days without data.",
-                partial && "Open dots mark partial days.",
-              ]
-                .filter(Boolean)
-                .join(" ")}
-            </p>
-          )}
-        </Panel>
-        {overview && <OverviewActivity />}
-      </div>
+        {exportError && (
+          <div className={`${notice} mx-5`} role="alert">
+            {exportError}
+          </div>
+        )}
+        {recordedPageviews != null ? (
+          <TrafficChart days={traffic.daily} />
+        ) : (
+          <Empty title="No visits recorded for these dates" />
+        )}
+        {recordedPageviews != null && (missing > 0 || partial) && (
+          <p className="px-5 pb-4 text-xs text-muted">
+            {[
+              missing > 0 && "Gaps are days without data.",
+              partial && "Open dots are partial days.",
+            ]
+              .filter(Boolean)
+              .join(" ")}
+          </p>
+        )}
+      </Panel>
       {!overview && (
         <Panel title="Daily observations">
           <div className={tableScroll}>
@@ -372,53 +431,6 @@ function TrafficChart({ days }: { days: Day[] }) {
         ))}
       </svg>
     </div>
-  );
-}
-
-function OverviewActivity() {
-  const query = useReportQuery<Funnel>("funnel");
-  const slice = query.data && totalSlice(query.data.slices);
-  return (
-    <Panel title="Activation">
-      {query.isPending ? (
-        <Loading />
-      ) : query.error ? (
-        <div className="px-4">
-          <ErrorState error={query.error} retry={() => void query.refetch()} />
-        </div>
-      ) : slice ? (
-        <dl className="px-5">
-          {[
-            { label: "Setup sessions", value: slice.setupSessions },
-            { label: "Connected accounts", value: slice.connectedAccounts },
-            {
-              label: "In-app research accounts",
-              value: slice.researchAccounts,
-            },
-          ].map(({ label, value }) => (
-            <div
-              className="flex items-center justify-between gap-3 border-t border-border py-3"
-              key={label}
-            >
-              <dt className="text-xs text-muted">{label}</dt>
-              <dd className="font-medium tabular-nums">
-                {value.toLocaleString()}
-              </dd>
-            </div>
-          ))}
-        </dl>
-      ) : (
-        <Empty title="No activation data for these dates" />
-      )}
-      <div className="px-5 pt-2 pb-4">
-        <Link
-          className="inline-flex items-center gap-1 text-xs font-medium text-brand hover:underline"
-          to="/funnel"
-        >
-          View funnel <Icon icon={icons.arrow} size={14} />
-        </Link>
-      </div>
-    </Panel>
   );
 }
 
