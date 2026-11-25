@@ -1,4 +1,7 @@
+import type { Metadata } from "next";
 import { PagePlaceholder } from "@/components/shell";
+
+export const metadata: Metadata = { title: "Venues" };
 
 export default function VenuesPage() {
   return (

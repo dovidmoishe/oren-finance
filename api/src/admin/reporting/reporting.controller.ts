@@ -34,6 +34,17 @@ export class ReportingController {
     return this.reports.traffic(start, end, timezone);
   }
 
+  @Get('breakdowns')
+  @Header('Cache-Control', 'no-store')
+  breakdowns(
+    @Query('from') from: string,
+    @Query('to') to: string,
+    @Query('timezone') timezone?: string,
+  ) {
+    const [start, end] = range(from, to);
+    return this.reports.breakdowns(start, end, timezone);
+  }
+
   @Get('funnel')
   @Header('Cache-Control', 'no-store')
   funnel(

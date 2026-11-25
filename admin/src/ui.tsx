@@ -10,7 +10,7 @@ import type { LucideIcon } from "lucide-react";
 import { CircleAlert, RefreshCw, ArrowRight, Download } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useReport } from "./state";
-import { initialRange, readable } from "./model";
+import { initialRange, missingValue, readable } from "./model";
 
 export function Icon({
   icon: Glyph,
@@ -41,7 +41,7 @@ export function Panel({
 }) {
   return (
     <section
-      className={`mb-5 min-w-0 overflow-hidden rounded-xl border border-border bg-white ${className}`}
+      className={`mb-5 min-w-0 overflow-hidden rounded-xl border border-border bg-surface ${className}`}
     >
       <div className="flex flex-wrap items-center justify-between gap-3 px-5 pt-4 pb-3 [&_h2]:text-base [&_h2]:font-semibold [&_h2]:tracking-tight [&_p]:mt-1 [&_p]:text-xs [&_p]:text-muted">
         <div>
@@ -67,11 +67,11 @@ export function Metric({
 }) {
   return (
     <section
-      className={`flex min-w-0 flex-col gap-2 rounded-xl border border-border bg-white p-5 mobile:p-3 [&_p]:text-[11px] [&_p]:leading-relaxed [&_p]:text-muted ${compact ? "max-[899px]:col-span-2 max-[899px]:flex-row max-[899px]:items-center max-[899px]:justify-between min-[900px]:min-h-24" : "min-h-24"}`}
+      className={`flex min-w-0 flex-col gap-2 rounded-xl border border-border bg-surface p-5 mobile:p-3 [&_p]:text-[11px] [&_p]:leading-relaxed [&_p]:text-muted ${compact ? "max-[899px]:col-span-2 max-[899px]:flex-row max-[899px]:items-center max-[899px]:justify-between min-[900px]:min-h-24" : "min-h-24"}`}
     >
       <span className="text-xs font-medium text-muted">{label}</span>
       <strong
-        className={`leading-tight font-medium tracking-tight tabular-nums ${value === "Unavailable" ? "text-lg text-muted" : "text-3xl mobile:text-2xl"}`}
+        className={`leading-tight font-medium tracking-tight tabular-nums ${value === missingValue ? "text-lg text-muted" : "text-3xl mobile:text-2xl"}`}
       >
         {value}
       </strong>
@@ -88,11 +88,11 @@ export function Badge({
 }) {
   const colors =
     tone === "green"
-      ? "bg-emerald-50 text-emerald-800"
+      ? "bg-success-surface text-success"
       : tone === "red"
-        ? "bg-rose-50 text-rose-800"
+        ? "bg-error-surface text-error"
         : tone === "amber"
-          ? "bg-amber-50 text-amber-800"
+          ? "bg-warning-surface text-warning"
           : "bg-panel text-muted";
   return (
     <span
@@ -209,7 +209,7 @@ export function DateFilters({ utcOnly = false }: { utcOnly?: boolean }) {
             state.update(initialRange(utcOnly ? "UTC" : state.timezone))
           }
         >
-          Reset to 14 days
+          Last 14 days
         </button>
         <button
           className={iconButton}
@@ -231,10 +231,10 @@ export function DateFilters({ utcOnly = false }: { utcOnly?: boolean }) {
   );
 }
 export function DateTime({ value }: { value: string | null }) {
-  if (!value) return <span className="text-muted">Unavailable</span>;
+  if (!value) return <span className="text-muted">{missingValue}</span>;
   const date = new Date(value);
   if (Number.isNaN(date.getTime()))
-    return <span className="text-muted">Unavailable</span>;
+    return <span className="text-muted">{missingValue}</span>;
   return (
     <time dateTime={value}>
       {new Intl.DateTimeFormat("en-GB", {

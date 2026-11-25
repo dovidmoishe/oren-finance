@@ -10,6 +10,8 @@ import { LandingFooter } from "@/components/landing/landing-footer";
 import { TokenArt, ArrowIcon } from "./token-art";
 import { TokenAddress } from "./token-address";
 import { ButtonLink } from "@/components/ui";
+import { JsonLd } from "@/components/seo/json-ld";
+import { faqJsonLd, pageMetadata } from "@/lib/seo";
 
 const tokenBadgeClass = "text-[10px] text-[#85796a] [border:1px_solid_#e4e0d8] rounded-[999px] [padding:5px_10px] whitespace-nowrap";
 
@@ -17,10 +19,11 @@ const tokenSectionHeadingClass = "flex items-center justify-between gap-[20px] a
 
 const tokenTextLinkClass = "inline-flex gap-[24px] items-center min-h-[44px] text-[12px] mt-[18px]";
 
-export const metadata: Metadata = {
-  title: "$OREN — Holder access & token utility",
+export const metadata: Metadata = pageMetadata({
+  title: { absolute: "$OREN — Holder access & token utility" },
   description: "Explore $OREN on Solana, its official token address, and the holder access and membership benefits we are building.",
-};
+  path: "/token",
+});
 
 const questions = [
   ["What is $OREN for?", "We are building holding-based membership tiers. Your $OREN holdings will determine access to platform features and usage allowances. We will publish the benefits and holding requirements before access goes live."],
@@ -68,7 +71,7 @@ export default function TokenPage() {
 
       <section className="token-section token-faq" id="token-faq" aria-labelledby="faq-heading">
         <h2 id="faq-heading">A little more clarity.</h2>
-        <div>{questions.map(([question, answer]) => <details key={question} className="token-question"><summary>{question}<PlusIcon size={16} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className="inline-block shrink-0 align-middle" /></summary><p>{answer}</p></details>)}</div>
+        <div>{questions.map(([question, answer]) => <details key={question} className="token-question"><summary>{question}<PlusIcon size={16} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className="inline-block shrink-0 align-middle" /></summary><p>{answer}</p></details>)}</div><JsonLd data={faqJsonLd(questions.map(([question, answer]) => ({ question, answer })))} />
       </section>
       <section className="token-closing" aria-labelledby="closing-heading"><h2 id="closing-heading">It starts with a useful product.</h2><ButtonLink className="h-12 rounded-full px-5 text-[14px] font-medium" href="/app" variant="primary">Launch Oren <ArrowIcon /></ButtonLink></section>
     </main>

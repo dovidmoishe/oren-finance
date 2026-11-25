@@ -1,6 +1,9 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { isIP } from 'node:net';
+import { Inject, Injectable, Optional } from '@nestjs/common';
 import { APP_ENV } from '../../config/constants';
 import type { AppEnv } from '../../config/env.schema';
+import { breakdown, originHosts } from './growth-breakdowns';
+import { GrowthGeoService } from './growth-geo.service';
 import { digest } from './growth-privacy';
 import { assertPublicReport } from './growth-privacy';
 import {
@@ -36,12 +39,14 @@ const X_METRICS = [
   'x_follower_delta',
 ] as const;
 const REVENUE_METRICS = ['cost', 'revenue', 'contribution_margin'] as const;
+const BREAKDOWN_LIMIT = 50;
 
 @Injectable()
 export class GrowthReportService {
   constructor(
     private readonly repository: GrowthRepository,
     @Inject(APP_ENV) private readonly env: AppEnv,
+    @Optional() private readonly geo?: GrowthGeoService,
   ) {}
 
   async coverage() {
@@ -51,7 +56,8 @@ export class GrowthReportService {
       laptopRequired: false,
       scheduler: 'api-process',
       rawRetentionDays: this.env.GROWTH_RAW_RETENTION_DAYS,
-      identityRetentionDays: this.env.GROWTH_IDENTITY_RETENTION_DAYS,
+      // Visitor ids are no longer deleted. Null means kept.
+      identityRetentionDays: null,
       idempotencyRetentionDays: this.env.GROWTH_IDEMPOTENCY_RETENTION_DAYS,
       attribution: {
         model: this.env.GROWTH_ATTRIBUTION_MODEL,
@@ -102,11 +108,8 @@ export class GrowthReportService {
     const combined = combineDaily(telemetry, imported);
     const bounds = rangeBounds(from, to, timezone);
     const now = new Date();
+    // False only if visitor ids were ever deleted, which no longer happens.
     const identitiesExact = await this.repository.identitiesExact();
-    const identitiesCover =
-      bounds.start.getTime() >=
-      now.getTime() -
-        this.env.GROWTH_IDENTITY_RETENTION_DAYS * 24 * 60 * 60 * 1000;
     const closed = closedPageviews(
       combined,
       new Set(
@@ -137,26 +140,49 @@ export class GrowthReportService {
             value: null,
             reason: 'identity_keys_purged',
           }
-        : identitiesCover
-          ? {
-              status: 'exact' as const,
-              value: await this.repository.durableVisitors(
-                bounds.start,
-                bounds.end,
-              ),
-              note: 'First-seen durable visitors in this range. Not a sum of daily uniques and not people.',
-            }
-          : {
-              status: 'unavailable' as const,
-              value: null,
-              reason: 'identity_retention_does_not_cover_the_range',
-            },
+        : {
+            status: 'exact' as const,
+            value: await this.repository.durableVisitors(
+              bounds.start,
+              bounds.end,
+            ),
+            note: 'First-seen durable visitors in this range. Not a sum of daily uniques and not people.',
+          },
       historicalWindowPageviews: resolveWindow(
         observations,
         'window_page_views',
       ),
       caddyDayVisitorsAreNotLifetime: true,
       days: days.length,
+    };
+    assertPublicReport(report);
+    return report;
+  }
+
+  /** Visits by country and by the referring site that started them. */
+  async breakdowns(from: string, to: string, timezoneValue?: string) {
+    const timezone = assertTimezone(timezoneValue);
+    const metrics = await this.repository.dailyMetrics(from, to, timezone);
+    const ownHosts = originHosts(this.env.CORS_ORIGIN);
+    const report = {
+      timezone,
+      unit: 'visits' as const,
+      note: 'A visit is a session. One that crosses midnight counts on each day.',
+      countries: breakdown(metrics, 'country', {
+        limit: BREAKDOWN_LIMIT,
+        isMissing: (key) => key === '(unknown)',
+      }),
+      referrers: breakdown(metrics, 'referrer', {
+        limit: BREAKDOWN_LIMIT,
+        // Links within the site and bare addresses from older rows count as direct.
+        isMissing: (key) =>
+          key === '(direct)' || ownHosts.has(key) || isIP(key) !== 0,
+      }),
+      geolocation: {
+        provider: 'DB-IP',
+        attributionUrl: 'https://db-ip.com',
+        database: this.geo?.version ?? null,
+      },
     };
     assertPublicReport(report);
     return report;

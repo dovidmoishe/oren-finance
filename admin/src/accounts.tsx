@@ -51,7 +51,7 @@ function Modal({
   return (
     <dialog
       ref={ref}
-      className="m-auto max-h-[90dvh] w-[min(440px,calc(100%-2rem))] overflow-y-auto rounded-lg border border-border bg-white p-6 text-foreground shadow-2xl backdrop:bg-black/30 [&_form]:grid [&_form]:gap-3 [&_fieldset]:grid [&_fieldset]:gap-2 [&_legend]:mb-2 [&_legend]:text-xs [&_legend]:font-semibold"
+      className="m-auto max-h-[90dvh] w-[min(440px,calc(100%-2rem))] overflow-y-auto rounded-lg border border-border bg-surface p-6 text-foreground shadow-2xl backdrop:bg-black/30 [&_form]:grid [&_form]:gap-3 [&_fieldset]:grid [&_fieldset]:gap-2 [&_legend]:mb-2 [&_legend]:text-xs [&_legend]:font-semibold"
       onCancel={(event) => {
         event.preventDefault();
         close();

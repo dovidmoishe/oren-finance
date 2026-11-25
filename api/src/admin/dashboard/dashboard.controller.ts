@@ -9,6 +9,8 @@ import {
 import { AdminAuthService } from '../auth/admin-auth.service';
 import { ADMIN_COOKIE, ADMIN_HEADER, readCookie } from '../auth/admin-cookie';
 import { AdminNoStoreInterceptor } from '../auth/admin-no-store.interceptor';
+import { assertTimezone, dayBounds, eachDay } from '../reporting/growth-time';
+import { requiredDay } from '../reporting/reporting-auth.guard';
 import { DashboardRepository } from './dashboard.repository';
 
 /** Session-only operations. Machine report credentials never authorize these routes. */
@@ -19,6 +21,20 @@ export class DashboardController {
     private readonly auth: AdminAuthService,
     private readonly repository: DashboardRepository,
   ) {}
+
+  @Get('activity')
+  async activity(
+    @Headers('cookie') cookie: string | undefined,
+    @Headers(ADMIN_HEADER) marker: string | undefined,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+    @Query('timezone') timezone?: string,
+  ) {
+    requireMarker(marker);
+    await this.auth.reportActor(readCookie(cookie, ADMIN_COOKIE));
+    const { start, end } = activityRange(from, to, timezone);
+    return this.repository.activity(start, end);
+  }
 
   @Get('users')
   async users(
@@ -80,4 +96,20 @@ export function pageNumber(value?: string): number {
   if (!/^[1-9]\d{0,4}$/.test(value))
     throw new BadRequestException('Invalid page');
   return Number(value);
+}
+
+function activityRange(from?: string, to?: string, timezone?: string) {
+  const first = requiredDay(from, 'from');
+  const last = requiredDay(to, 'to');
+  try {
+    const zone = assertTimezone(timezone);
+    const days = eachDay(first, last);
+    if (days[0] !== first || days.at(-1) !== last) throw new Error();
+    return {
+      start: dayBounds(first, zone).start,
+      end: dayBounds(last, zone).end,
+    };
+  } catch {
+    throw new BadRequestException('Invalid date range or timezone');
+  }
 }

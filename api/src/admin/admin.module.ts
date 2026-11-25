@@ -4,6 +4,7 @@ import { AdminAuthRepository } from './auth/admin-auth.repository';
 import { AdminAuthService } from './auth/admin-auth.service';
 import { GrowthAccessService } from './reporting/growth-access.service';
 import { GrowthCollectController } from './reporting/growth-collect.controller';
+import { GrowthGeoService } from './reporting/growth-geo.service';
 import { GrowthRecorder } from './reporting/growth-recorder.service';
 import { GrowthReportService } from './reporting/growth-report.service';
 import { GrowthRepository } from './reporting/growth.repository';
@@ -26,6 +27,7 @@ import { DashboardRepository } from './dashboard/dashboard.repository';
     GrowthRecorder,
     GrowthReportService,
     GrowthRollupService,
+    GrowthGeoService,
     GrowthAccessService,
     ReportingAuthGuard,
     AdminAuthRepository,

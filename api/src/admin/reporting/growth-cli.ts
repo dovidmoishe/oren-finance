@@ -8,6 +8,11 @@ import {
   type PageviewDraft,
 } from './growth-collect';
 import {
+  CountryDatabase,
+  openCountryDatabase,
+  type CountryLookup,
+} from './growth-geo';
+import {
   contentHash,
   recoveryToImport,
   validateImport,
@@ -126,6 +131,7 @@ async function inspectCaddy(url: string, apply: boolean) {
     .split('\n')
     .filter(Boolean);
   const pepper = process.env.GROWTH_HASH_KEY || 'oren-growth-unset-pepper';
+  const countryOf = await importCountries();
   const accepted: PageviewDraft[] = [];
   for (const line of lines) {
     try {
@@ -133,6 +139,7 @@ async function inspectCaddy(url: string, apply: boolean) {
         JSON.parse(line) as CaddyEvent,
         pepper,
         'Africa/Lagos',
+        countryOf,
       );
       if (draft) accepted.push(draft);
     } catch {
@@ -140,25 +147,49 @@ async function inspectCaddy(url: string, apply: boolean) {
     }
   }
   console.log(
-    JSON.stringify({ lines: lines.length, pageviews: accepted.length, apply }),
+    JSON.stringify({
+      lines: lines.length,
+      pageviews: accepted.length,
+      withCountry: accepted.filter((draft) => draft.country).length,
+      apply,
+    }),
   );
   if (!apply) return;
   const sql = postgres(url, { max: 1 });
   try {
     for (const draft of accepted) {
+      // A repeat import fills in the country of a row that was imported without one.
       await sql`
         insert into growth_pageviews (
-          occurred_at, path, visitor_hash, session_hash, visitor_stability, source, ingest_key, referrer_host
+          occurred_at, path, visitor_hash, session_hash, visitor_stability, source, ingest_key,
+          referrer_host, country
         ) values (
           ${draft.occurredAt}, ${draft.path}, ${draft.visitorHash}, ${draft.sessionHash},
-          ${draft.visitorStability}, ${draft.source}, ${draft.ingestKey}, ${draft.referrerHost}
+          ${draft.visitorStability}, ${draft.source}, ${draft.ingestKey}, ${draft.referrerHost},
+          ${draft.country}
         )
-        on conflict (ingest_key) do nothing
+        on conflict (ingest_key) do update set country = excluded.country
+          where growth_pageviews.country is null and excluded.country is not null
       `;
     }
   } finally {
     await sql.end({ timeout: 5 });
   }
+}
+
+/** The collector's country source: GROWTH_GEOIP_DB_PATH, or this month's DB-IP Lite. */
+async function importCountries(): Promise<CountryLookup> {
+  const path = process.env.GROWTH_GEOIP_DB_PATH;
+  if (path) return openCountryDatabase(readFileSync(path));
+  const log = (message: string) => console.error(message);
+  const database = new CountryDatabase({
+    fetch,
+    now: () => new Date(),
+    logger: { log, warn: log },
+  });
+  // Without a database the import still runs; its rows have no country.
+  await database.refresh();
+  return database.lookup;
 }
 
 async function access(url: string, apply: boolean) {

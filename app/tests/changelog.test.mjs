@@ -4,6 +4,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import vm from 'node:vm';
 import ts from 'typescript';
 import * as model from '../content/changelog/model.mjs';
+import { loadSeo } from './support/load-seo.mjs';
 import { draftsEnabled, findEntry, formatReleaseDate, groupEntries, supportedLink, validateEntries, visibleEntries } from '../content/changelog/model.mjs';
 
 const entry = (overrides = {}) => ({slug: 'release', date: '2026-10-31', status: 'published', title: 'Release', summary: 'Something shipped.', ...overrides});
@@ -52,7 +53,10 @@ test('uses publication sequence within a day before the slug fallback', () => {
   assert.deepEqual(visibleEntries(entries).map(e => e.slug), ['z-latest', 'a-earlier', 'legacy', 'older-day']);
   const dir = new URL('../content/changelog/', import.meta.url);
   const actual = validateEntries(readdirSync(dir).filter(f => f.endsWith('.json')).map(f => JSON.parse(readFileSync(new URL(f, dir), 'utf8'))));
-  assert.deepEqual(visibleEntries(actual).slice(0, 2).map(({ slug, date }) => [slug, date]), [
+  assert.deepEqual(visibleEntries(actual).slice(0, 5).map(({ slug, date }) => [slug, date]), [
+    ['gas-sponsorship', '2026-11-25'],
+    ['grok-bot-mcp', '2026-11-25'],
+    ['stock-charts-upgrade', '2026-11-25'],
     ['solana-wallet-login', '2026-11-22'],
     ['one-workspace-your-way', '2026-11-17'],
   ]);
@@ -116,6 +120,8 @@ test('real loader and route hide drafts from production params, metadata and pag
     const route = loadModule('../app/changelog/[slug]/page.tsx', id => {
       if (id === '@/content/changelog') return data;
       if (id === '@/content/changelog/model.mjs') return model;
+      if (id === '@/lib/seo') return loadSeo();
+      if (id === '@/components/seo/json-ld') return {JsonLd: () => null};
       if (id === 'next/navigation') return {notFound: () => {throw new Error('404');}};
       if (id === 'lucide-react') return new Proxy({}, { get: () => () => null });
       if (id === '@/components/ui/interface-icon') return {InterfaceIcon: () => null};

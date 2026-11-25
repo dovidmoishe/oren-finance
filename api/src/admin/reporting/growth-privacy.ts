@@ -1,4 +1,5 @@
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
+import { isIP } from 'node:net';
 
 const FORBIDDEN_KEY =
   /^(user_?id|email|wallet|walletaddress|client_?ip|remote_?ip|ip|authorization|cookie|visitorid|useragent|rawua|prompt|payload|privy)$/i;
@@ -32,6 +33,30 @@ export function referrerHost(value: string | undefined): string | null {
   } catch {
     return null;
   }
+}
+
+/** Lower case, without a port or a leading "www.", so www.google.com and google.com group. */
+export function siteHost(host: string): string {
+  return host
+    .toLowerCase()
+    .replace(/:\d+$/, '')
+    .replace(/^www\./, '');
+}
+
+/**
+ * The site that sent the visitor, or null for no referrer or a link within the
+ * same site. Only the host is kept, never the referring page's path.
+ */
+export function externalReferrer(
+  referrer: string | undefined,
+  pageHost: string | undefined,
+): string | null {
+  const host = referrerHost(referrer);
+  if (!host) return null;
+  const bare = siteHost(host);
+  // An address is not a site name, and reports refuse anything that looks like one.
+  if (!bare || isIP(bare.replace(/^\[(.*)\]$/, '$1'))) return null;
+  return !pageHost || bare !== siteHost(pageHost) ? bare : null;
 }
 
 export function assertPublicReport(value: unknown): void {

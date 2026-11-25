@@ -7,6 +7,7 @@ import type { Database } from '../database/database.provider';
 import { AdminAuthRepository } from './auth/admin-auth.repository';
 import { AdminAuthService } from './auth/admin-auth.service';
 import { hashPassword, temporaryPassword } from './auth/admin-password';
+import { DashboardRepository } from './dashboard/dashboard.repository';
 import { validateEnv } from '../config/env.schema';
 import { GrowthRecorder } from './reporting/growth-recorder.service';
 import { GrowthReportService } from './reporting/growth-report.service';
@@ -159,6 +160,7 @@ databaseSuite('admin sessions and growth events in Postgres', () => {
       sessionHash: randomUUID(),
       visitorStability: 'durable' as const,
       referrerHost: null,
+      country: null,
       source: 'beacon' as const,
       ingestKey: randomUUID(),
       excluded: false,
@@ -252,6 +254,36 @@ databaseSuite('admin sessions and growth events in Postgres', () => {
     expect(csv.body).toContain('2025-04-02,exact,5,,telemetry');
   });
 
+  it('adds verified stock fills and counts chats with a user message within the range', async () => {
+    const activity = new DashboardRepository(db);
+    const chat = randomUUID();
+    const quietChat = randomUUID();
+    const signature = randomUUID();
+    const wallet = randomUUID();
+    await client`insert into agent_threads (id, wallet_address) values (${chat}, ${wallet}), (${quietChat}, ${wallet})`;
+    try {
+      await client`insert into agent_messages (thread_id, role, content, created_at)
+        values
+          (${chat}, 'user', 'sample', '2025-06-11T01:00Z'),
+          (${chat}, 'user', 'sample', '2025-06-11T02:00Z'),
+          (${quietChat}, 'assistant', 'sample', '2025-06-11T02:00Z'),
+          (${quietChat}, 'user', 'sample', '2025-06-12T00:00Z')`;
+      await client`insert into trade_fills
+        (transaction_signature, fill_index, wallet_address, asset_id, ticker, token_mint, side,
+          stock_amount, usd_notional, execution_price_usd, feature_source, provider, slot, block_time)
+        values
+          (${signature}, 0, ${wallet}, 'fixture', 'TEST', 'fixture', 'buy', 1, 10, 10, 'direct', 'test', 1, '2025-06-11T01:00Z'),
+          (${signature}, 1, ${wallet}, 'fixture', 'TEST', 'fixture', 'sell', 1, 12, 12, 'direct', 'test', 1, '2025-06-11T01:00Z'),
+          (${signature}, 2, ${wallet}, 'fixture', 'TEST', 'fixture', 'sell', 1, 30, 30, 'direct', 'test', 2, '2025-06-12T00:00Z')`;
+      await expect(
+        activity.activity(new Date('2025-06-11'), new Date('2025-06-12')),
+      ).resolves.toEqual({ volumeUsd: 22, trades: 1, chats: 1, messages: 2 });
+    } finally {
+      await client`delete from trade_fills where wallet_address = ${wallet}`;
+      await client`delete from agent_threads where id in (${chat}, ${quietChat})`;
+    }
+  });
+
   it('counts a linked browser trade on its intent day across midnight', async () => {
     const repo = new GrowthRepository(db);
     const wallet = randomUUID();
@@ -285,5 +317,76 @@ databaseSuite('admin sessions and growth events in Postgres', () => {
       await client`delete from trade_approvals where id = ${approval}`;
       await client`delete from executions where wallet_address = ${wallet}`;
     }
+  });
+
+  it('replaces a recomputed day so a visit that changes group counts once', async () => {
+    const repo = new GrowthRepository(db);
+    const at = (time: string) => new Date(`2024-02-29T${time}Z`);
+    const caddyKey = `caddy:${randomUUID()}`;
+    const visitorHash = randomUUID();
+    const sessionHash = randomUUID();
+    const view = {
+      path: '/',
+      excluded: false,
+      excludeReason: null,
+      country: null,
+    };
+    await repo.insertPageview({
+      ...view,
+      occurredAt: at('09:00:00'),
+      visitorHash: randomUUID(),
+      sessionHash: randomUUID(),
+      visitorStability: 'day',
+      source: 'caddy',
+      ingestKey: caddyKey,
+      referrerHost: null,
+    });
+    await repo.insertPageview({
+      ...view,
+      occurredAt: at('10:05:00'),
+      visitorHash,
+      sessionHash,
+      visitorStability: 'durable',
+      source: 'beacon',
+      ingestKey: randomUUID(),
+      referrerHost: 't.co',
+    });
+    const rollup = () =>
+      repo.rollupPageviews(
+        new Date('2024-03-02T00:00:00Z'),
+        new Date('2024-01-01T00:00:00Z'),
+        new Date('2024-01-01T00:00:00Z'),
+      );
+    await rollup();
+    // A repeat import fills in the country, and the visit's first page arrives late.
+    await client`update growth_pageviews set country = 'NG' where ingest_key = ${caddyKey}`;
+    await repo.insertPageview({
+      ...view,
+      occurredAt: at('10:00:00'),
+      visitorHash,
+      sessionHash,
+      visitorStability: 'durable',
+      source: 'beacon',
+      ingestKey: randomUUID(),
+      referrerHost: 'news.ycombinator.com',
+    });
+    await rollup();
+    const rows = await client<
+      { grain: string; dimension: string; source: string; sessions: number }[]
+    >`select grain, dimension, source, sessions from growth_daily_metrics
+      where day = '2024-02-29' and timezone = 'UTC' and grain in ('country', 'referrer')`;
+    // Sorted here so the database collation cannot change the order.
+    expect(
+      rows
+        .map((row) =>
+          [row.grain, row.dimension, row.source, row.sessions].join(' '),
+        )
+        .sort(),
+    ).toEqual([
+      'country (unknown) beacon 1',
+      'country NG caddy 1',
+      'referrer (direct) caddy 1',
+      'referrer news.ycombinator.com beacon 1',
+    ]);
   });
 });

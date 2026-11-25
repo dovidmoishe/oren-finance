@@ -1,0 +1,37 @@
+{
+  "slug": "stock-charts-upgrade",
+  "date": "2026-11-25",
+  "sequence": 1,
+  "status": "published",
+  "title": "A closer look at stock charts",
+  "summary": "Stock pages now open with a candlestick chart, with candle intervals, indicators and drawing tools within reach.",
+  "sections": [
+    {
+      "heading": "Improved",
+      "items": [
+        {
+          "title": "Choose the view you need",
+          "description": "Switch between candles and a line chart, and choose candle intervals from one minute to one day."
+        },
+        {
+          "title": "Add your own analysis",
+          "description": "Turn on moving averages, RSI or MACD, and mark price levels or draw trend lines directly on the chart."
+        }
+      ]
+    }
+  ],
+  "links": [
+    {
+      "label": "Open the SpaceX chart",
+      "href": "/app/stocks/spacex"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/changelog/stock-charts-upgrade.webp",
+      "alt": "SpaceX candlestick chart in Oren with the one-hour interval selected, an Indicators menu, and drawing tools on the left.",
+      "width": 1638,
+      "height": 896
+    }
+  ]
+}

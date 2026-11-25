@@ -1,9 +1,11 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { desc, sql } from 'drizzle-orm';
+import { and, desc, eq, gte, lt, sql } from 'drizzle-orm';
 import { DRIZZLE } from '../../config/constants';
 import type { Database } from '../../database/database.provider';
 import {
   adminAuditEvents,
+  agentMessages,
+  tradeFills,
   mcpConnections,
   mcpTradeIntents,
 } from '../../database/schema';
@@ -13,6 +15,38 @@ const PAGE_SIZE = 25;
 @Injectable()
 export class DashboardRepository {
   constructor(@Inject(DRIZZLE) private readonly db: Database) {}
+
+  async activity(start: Date, end: Date) {
+    const [[stock], [chat]] = await Promise.all([
+      this.db
+        .select({
+          volumeUsd: sql<string>`coalesce(sum(${tradeFills.usdNotional}), 0)`,
+          trades: sql<number>`count(distinct ${tradeFills.transactionSignature})::int`,
+        })
+        .from(tradeFills)
+        .where(
+          and(gte(tradeFills.blockTime, start), lt(tradeFills.blockTime, end)),
+        ),
+      this.db
+        .select({
+          chats: sql<number>`count(distinct ${agentMessages.threadId})::int`,
+          messages: sql<number>`count(*)::int`,
+        })
+        .from(agentMessages)
+        .where(
+          and(
+            eq(agentMessages.role, 'user'),
+            gte(agentMessages.createdAt, start),
+            lt(agentMessages.createdAt, end),
+          ),
+        ),
+    ]);
+    return {
+      volumeUsd: Number(stock.volumeUsd),
+      trades: stock.trades,
+      ...chat,
+    };
+  }
 
   async users(page: number) {
     const rows = await this.db

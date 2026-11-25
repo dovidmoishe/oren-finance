@@ -12,6 +12,7 @@ export function nextAttribution(
   nowIso: string,
   path: string,
 ): Record<string, unknown>;
+export function referrerOrigin(value: string | undefined): string | undefined;
 export function attributionHeader(state: {
   first?: unknown;
   last?: unknown;

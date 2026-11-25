@@ -1,0 +1,37 @@
+{
+  "slug": "grok-bot-mcp",
+  "date": "2026-11-25",
+  "sequence": 2,
+  "status": "published",
+  "title": "Connect Oren to Grok Bot",
+  "summary": "Grok Bot can now connect to Oren through MCP so you can check your portfolio and look up tokenized stocks from chat.",
+  "sections": [
+    {
+      "heading": "Added",
+      "items": [
+        {
+          "title": "Set up Grok Bot from Agents",
+          "description": "Choose Grok Bot on Oren's Agents page, follow the setup instructions and approve the connection in Oren."
+        },
+        {
+          "title": "Keep control of trading",
+          "description": "Review trades in Oren or opt in to in-chat execution with revocable per-trade and daily limits."
+        }
+      ]
+    }
+  ],
+  "links": [
+    {
+      "label": "Connect Grok Bot",
+      "href": "/agents"
+    }
+  ],
+  "video": {
+    "src": "/videos/oren-grok-bot-15s-solana.mp4",
+    "poster": "/videos/oren-grok-bot-15s-poster.jpg",
+    "label": "Connecting Oren to Grok Bot, a 15-second demo",
+    "caption": "The NVIDIA research and $10 buy are illustrative. In-chat execution requires trading limits approved in Oren.",
+    "width": 1920,
+    "height": 1080
+  }
+}

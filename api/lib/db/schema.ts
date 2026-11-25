@@ -1049,6 +1049,8 @@ export const growthPageviews = pgTable(
     utmContent: text('utm_content'),
     utmTerm: text('utm_term'),
     referrerHost: text('referrer_host'),
+    /** ISO 3166-1 alpha-2 from the request address, which is not stored. */
+    country: text('country'),
     source: text('source').$type<'beacon' | 'caddy'>().notNull(),
     ingestKey: text('ingest_key').notNull().unique(),
     excluded: boolean('excluded').notNull().default(false),
@@ -1062,7 +1064,9 @@ export const growthDailyMetrics = pgTable(
   {
     day: date('day').notNull(),
     timezone: text('timezone').$type<'UTC' | 'Africa/Lagos'>().notNull(),
-    grain: text('grain').$type<'site' | 'path' | 'campaign'>().notNull(),
+    grain: text('grain')
+      .$type<'site' | 'path' | 'campaign' | 'country' | 'referrer'>()
+      .notNull(),
     dimension: text('dimension').notNull().default(''),
     source: text('source').$type<'beacon' | 'caddy'>().notNull(),
     pageviews: integer('pageviews').notNull(),

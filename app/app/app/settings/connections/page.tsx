@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { mcpEnrollmentLinks } from "@/services/mcp-enrollment-flow";
 import { AgentConnections } from "@/components/settings/agent-connections";
 
-export const metadata: Metadata = { title: "Agent connections | Oren" };
+export const metadata: Metadata = { title: "Agent connections" };
 
 export default async function ConnectionsPage({ searchParams }: {
   searchParams: Promise<{ connection?: string | string[] }>;

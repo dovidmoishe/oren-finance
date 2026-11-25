@@ -12,12 +12,18 @@ import { ProductFoundations } from "@/components/landing/product-foundations";
 import { LandingHeader } from "@/components/landing/landing-header";
 import { TradingSteps } from "@/components/landing/trading-steps";
 import { LandingFaqCta } from "@/components/landing/landing-faq-cta";
+import { LANDING_FAQ } from "@/components/landing/landing-faq-data";
 import { LandingFooter } from "@/components/landing/landing-footer";
+import { JsonLd } from "@/components/seo/json-ld";
+import { DEFAULT_DESCRIPTION, HOME_TITLE, faqJsonLd, pageMetadata, siteJsonLd } from "@/lib/seo";
 
+export const metadata = pageMetadata({ title: { absolute: HOME_TITLE }, description: DEFAULT_DESCRIPTION, path: "/" });
 
 export default function Home() {
   return (
     <div id="top" className="relative min-h-screen overflow-x-clip bg-[#f9f9f7] text-[#111110]">
+      <JsonLd data={siteJsonLd()} />
+      <JsonLd data={faqJsonLd(LANDING_FAQ)} />
       <div aria-hidden className="landing-backdrop" />
       <LandingHeader>
         <nav aria-label="Main navigation" className="agents-nav">

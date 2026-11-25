@@ -55,6 +55,7 @@
     "drizzle-orm": "^0.45.2",
     "express": "^5.2.1",
     "ioredis": "^6.0.0",
+    "mmdb-lib": "3.0.5",
     "oidc-provider": "^9.13.3",
     "openai": "^7.15.0",
     "postgres": "^3.4.9",

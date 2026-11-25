@@ -1,8 +1,10 @@
 @import "tailwindcss";
 
-@theme {
+@theme static {
   --font-sans: "Onest Variable", system-ui, sans-serif;
-  /* Light product palette from app/app/styles/theme.css. */
+  /* Oren product colors from app/app/styles/theme.css. */
+  --color-background: #ffffff;
+  --color-surface: #ffffff;
   --color-foreground: #24242b;
   --color-muted: #62626f;
   --color-border: #e6e6ec;
@@ -10,8 +12,45 @@
   --color-panel: #f6f6f8;
   --color-brand: #6652b3;
   --color-nav-active: #eaeaf0;
+  --color-primary: #171717;
+  --color-primary-foreground: #ffffff;
   --color-primary-hover: #393939;
   --color-focus: #2563eb;
+  --color-success: #166534;
+  --color-success-surface: #f0fdf4;
+  --color-error: #b42318;
+  --color-error-surface: #fef2f2;
+  --color-warning: #854d0e;
+  --color-warning-surface: #fffbeb;
+  --color-danger: #b42318;
+  --color-danger-foreground: #ffffff;
+  --color-danger-hover: #912018;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --color-background: #0f0f0e;
+  --color-surface: #171716;
+  --color-foreground: #ededea;
+  --color-muted: #a3a39c;
+  --color-border: #2a2a27;
+  --color-border-strong: #3b3b37;
+  --color-panel: #20201e;
+  --color-brand: #b8a5f0;
+  --color-nav-active: #2c263b;
+  --color-primary: #ededea;
+  --color-primary-foreground: #0f0f0e;
+  --color-primary-hover: #cacac5;
+  --color-focus: #82aaff;
+  --color-success: #bbf7d0;
+  --color-success-surface: #10241a;
+  --color-error: #fecaca;
+  --color-error-surface: #2b1515;
+  --color-warning: #fde68a;
+  --color-warning-surface: #2a200d;
+  --color-danger: #f87171;
+  --color-danger-foreground: #220b0b;
+  --color-danger-hover: #fca5a5;
 }
 
 @custom-variant mobile (@media (max-width: 700px));

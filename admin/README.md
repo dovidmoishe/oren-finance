@@ -1,6 +1,6 @@
 # Oren Admin
 
-Independent React + TypeScript + Vite admin app, built on PR #87 (`afc015b`). TanStack Router handles routes and TanStack Query handles server state. The admin and consumer app share animated sidebar icons. The admin uses the Oren product?s light palette and Onest type. The overview shows traffic and activation, with detailed reports in the sidebar.
+Independent React + TypeScript + Vite admin app, built on PR #87 (`afc015b`). TanStack Router handles routes and TanStack Query handles server state. The admin and consumer app share animated sidebar icons. The admin uses Oren?s light and dark palettes and Onest type. The appearance menu follows your system by default and saves your choice on this browser. The overview shows verified stock trading volume, on-chain transactions, chats with a user message in the selected period, and recorded pageviews. Detailed analytics are under **Reports**. **Operations** and **Settings** expand when you need them.
 
 ## Local development
 
@@ -43,6 +43,7 @@ Fixture sign-in: `admin@example.test` / `local-preview-only`. Both servers bind 
 ## API additions
 
 - `GET /api/admin/auth/session`: restores safe account metadata and a deterministic session-bound CSRF token. No password/session hashes are returned. Earlier sessions with randomly generated CSRF tokens require sign-in again. Tokens remain in memory, session IDs in HttpOnly cookies.
+- `GET /api/admin/dashboard/activity?from=YYYY-MM-DD&to=YYYY-MM-DD&timezone=Africa/Lagos` requires a browser session with `reports.read`. It returns four totals without message content or account identifiers.
 - `GET /api/admin/dashboard/users?page=1`
 - `GET /api/admin/dashboard/connections?page=1`
 - `GET /api/admin/dashboard/trades?page=1`

@@ -7,13 +7,14 @@ import { LandingHeader } from '@/components/landing/landing-header';
 import { LandingFooter } from '@/components/landing/landing-footer';
 import { ButtonLink } from '@/components/ui';
 import { RoadmapExplorer } from './roadmap-explorer';
+import { pageMetadata } from '@/lib/seo';
 
-export const metadata: Metadata = {
-  title: 'Roadmap — Oren',
+export const metadata: Metadata = pageMetadata({
+  title: 'Roadmap',
   description: 'What comes next for Oren. Explore MCP, developer SDKs, $OREN membership and fundamentals-focused crypto research.',
-  alternates: { canonical: '/roadmap' },
-  openGraph: { title: 'Roadmap — Oren', description: 'A little further ahead. Explore what we’re building at Oren.', url: '/roadmap', type: 'website' },
-};
+  path: '/roadmap',
+  socialDescription: 'A little further ahead. Explore what we’re building at Oren.',
+});
 
 export default function RoadmapPage() {
   return <div className="roadmap-page" id="top">

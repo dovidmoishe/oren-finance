@@ -6,6 +6,7 @@ import vm from 'node:vm';
 import ts from 'typescript';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { createContext, createElement, useContext } from 'react';
+import { loadSeo } from './support/load-seo.mjs';
 const require = createRequire(import.meta.url);
 const transpile = (path) => ts.transpileModule(readFileSync(new URL(path, import.meta.url), 'utf8'), {
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX },
@@ -120,6 +121,7 @@ test('MCP connection page receives the app authentication provider', () => {
         return { PersonalizedIntl({ children }) { return children; } };
       if (id === '@/components/chunk-load-recovery')
         return { ChunkLoadRecovery: () => null };
+      if (id === '@/lib/seo') return loadSeo();
       return require(id);
     },
   });
