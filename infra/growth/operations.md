@@ -8,14 +8,13 @@ The production Compose file is unchanged apart from a comment. Postgres stays on
 
 Caddy still keeps 10 access logs of 50 MB and deletes them after 90 days (`roll_keep_for 2160h`). That disk log is not the report. `infra/visits.sh` remains an ad hoc view.
 
-The API process takes a short lease on `growth_checkpoints` before a rollup. A second process skips the tick. The lease expires after 10 minutes if the holder dies, and the next pass recomputes only unfrozen days. Frozen daily pageviews are not rebuilt from a later partial raw set. Raw rows are deleted only before the earlier of the UTC and WAT day starts that contain the retention cutoff, so an open WAT day is not trimmed. After identity keys are purged, lifetime distinct visitors become `unavailable` instead of a smaller exact count.
+The API process takes a short lease on `growth_checkpoints` before a rollup. A second process skips the tick. The lease expires after 10 minutes if the holder dies, and the next pass recomputes only unfrozen days. Frozen daily pageviews are not rebuilt from a later partial raw set. Raw rows are deleted only before the earlier of the UTC and WAT day starts that contain the retention cutoff, so an open WAT day is not trimmed. The rollup and that deletion run in one transaction: raw rows leave only after they are added to `growth_daily_metrics`, and a failed rollup deletes nothing. Daily totals are never deleted. Visitor and session ids are kept too, so first-seen visitor counts stay exact for every date range.
 
 Suggested limits, already the defaults:
 
 | Setting | Default |
 | --- | --- |
 | `GROWTH_RAW_RETENTION_DAYS` | 30 |
-| `GROWTH_IDENTITY_RETENTION_DAYS` | 400 |
 | `GROWTH_IDEMPOTENCY_RETENTION_DAYS` | 90 |
 | `TRUST_PROXY_HOPS` | 1 |
 | `GROWTH_GEOIP_ENABLED` | true |

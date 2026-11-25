@@ -892,12 +892,16 @@ function CoveragePage() {
         <Metric
           label="Raw observations"
           value={`${coverage.rawRetentionDays} days`}
-          note="Rolling raw-data retention"
+          note="Then deleted, after being added to the daily totals, which are kept"
         />
         <Metric
           label="Identity keys"
-          value={`${coverage.identityRetentionDays} days`}
-          note="Distinct counts depend on retained keys"
+          value={
+            coverage.identityRetentionDays == null
+              ? "Kept"
+              : `${coverage.identityRetentionDays} days`
+          }
+          note="New-visitor counts stay available for every date range"
         />
         <Metric
           label="Attribution"

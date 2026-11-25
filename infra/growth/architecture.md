@@ -40,7 +40,7 @@ Sessions are HttpOnly cookies scoped to `/api/admin`, with a CSRF header require
 | Country | ISO 3166-1 code from the visitor's address at collection time, using DB-IP Lite. The address is not stored. Visits before country capture, and private or unknown addresses, have none. |
 | Referrer | The other site, without `www.`, on a visit's first pageview that day. Same-site links and visits without a referrer are direct. Only the host is kept, never the referring page. |
 | Daily uniques | Distinct durable visitor ids that day. |
-| Lifetime uniques | Distinct durable visitor ids still inside identity retention. Unavailable once those keys are purged. Never the sum of daily uniques. |
+| Lifetime uniques | Distinct durable visitor ids. Visitor ids are kept, not purged. Never the sum of daily uniques. |
 | People | Unavailable. Oren has accounts, not a person id. |
 | Connection | A row in `mcp_connections`. A setup click, a refused prompt, a failed prompt, and an expired or revoked grant are not connections. |
 | Research activation | In-app `getStockResearch` and MCP `get_stock_research`. Prompts are not stored. |

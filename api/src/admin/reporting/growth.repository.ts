@@ -550,23 +550,6 @@ export class GrowthRepository {
     return row?.identitiesExact ?? true;
   }
 
-  async purgeIdentities(cutoff: Date): Promise<number> {
-    const visitors = await this.db
-      .delete(growthVisitors)
-      .where(lt(growthVisitors.lastSeenAt, cutoff))
-      .returning({ visitorHash: growthVisitors.visitorHash });
-    await this.db
-      .delete(growthSessions)
-      .where(lt(growthSessions.lastSeenAt, cutoff));
-    if (visitors.length > 0) {
-      await this.db
-        .update(growthCheckpoints)
-        .set({ identitiesExact: false, updatedAt: new Date() })
-        .where(eq(growthCheckpoints.name, 'rollup'));
-    }
-    return visitors.length;
-  }
-
   async markCheckpoint(name: string): Promise<void> {
     await this.db
       .insert(growthCheckpoints)

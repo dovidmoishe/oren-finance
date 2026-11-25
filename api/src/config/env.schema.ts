@@ -153,7 +153,6 @@ export interface AppEnv {
   SEC_CONTACT_EMAIL?: string;
   GROWTH_COLLECT_ENABLED: boolean;
   GROWTH_RAW_RETENTION_DAYS: number;
-  GROWTH_IDENTITY_RETENTION_DAYS: number;
   GROWTH_IDEMPOTENCY_RETENTION_DAYS: number;
   GROWTH_SESSION_IDLE_MINUTES: number;
   GROWTH_ATTRIBUTION_WINDOW_DAYS: number;
@@ -592,11 +591,6 @@ function growthEnv(env: EnvSource) {
       env,
       'GROWTH_RAW_RETENTION_DAYS',
       30,
-    ),
-    GROWTH_IDENTITY_RETENTION_DAYS: readPositiveInt(
-      env,
-      'GROWTH_IDENTITY_RETENTION_DAYS',
-      400,
     ),
     GROWTH_IDEMPOTENCY_RETENTION_DAYS: readPositiveInt(
       env,

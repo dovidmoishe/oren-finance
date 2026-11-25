@@ -103,7 +103,8 @@ export interface Comparison {
 }
 export interface Coverage {
   rawRetentionDays: number;
-  identityRetentionDays: number;
+  /** Null: visitor ids are kept. */
+  identityRetentionDays: number | null;
   idempotencyRetentionDays: number;
   attribution: { model: string; windowDays: number };
   collectors: { source: string; startedAt: string }[];

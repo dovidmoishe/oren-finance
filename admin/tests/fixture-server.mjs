@@ -216,7 +216,7 @@ const server = http.createServer(async (request, response) => {
   if (path === "reports/coverage")
     return send({
       rawRetentionDays: 30,
-      identityRetentionDays: 400,
+      identityRetentionDays: null,
       idempotencyRetentionDays: 90,
       attribution: { model: "first", windowDays: 7 },
       collectors: [{ source: "beacon", startedAt: "2026-10-29T00:25:00Z" }],
