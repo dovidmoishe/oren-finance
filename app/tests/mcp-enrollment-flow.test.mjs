@@ -54,7 +54,7 @@ test('active permission offers a continuation link, or instructions without a pe
   assert.match(pending, /href="\/connect\/mcp\?uid=pending_42"/);
   assert.match(pending, /Continue connection/);
   const standalone = renderToStaticMarkup(createElement(ConnectionNextStep));
-  assert.match(standalone, /Return to Claude, Cursor or Codex/);
+  assert.match(standalone, /Return to your agent app/);
   assert.doesNotMatch(standalone, /href=/);
 });
 

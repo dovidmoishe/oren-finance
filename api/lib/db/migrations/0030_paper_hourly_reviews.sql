@@ -12,4 +12,7 @@ UPDATE paper_ai_accounts a SET
       'epoch', (r->>'epoch')::int * 24, 'method', 'daily-v1'
     ) ORDER BY ord)
     FROM jsonb_array_elements(a.rounds) WITH ORDINALITY AS j(r, ord)
-  ), '[]'::jsonb);
+  ), '[]'::jsonb)
+WHERE a.epoch >= 0 AND NOT EXISTS (
+  SELECT 1 FROM jsonb_array_elements(a.rounds) AS r WHERE r ? 'method'
+);

@@ -14,15 +14,17 @@ import {
 
 import { OrenLogo } from '@/components/brand/oren-logo';
 import { mcpApiOrigin } from '@/services/mcp-api-origin';
-import { mcpConnector } from '@/services/mcp-connector';
+import { mcpConnector, mcpConnectorForKind } from '@/services/mcp-connector';
 import { mcpEnrollmentLinks } from '@/services/mcp-enrollment-flow';
 import { useI18n } from '@/i18n/i18n';
 import { formatDateTime, formatNumber } from '@/components/ui';
+import { consentAttributionHeader } from '@/components/growth/growth-collector';
 
 type Interaction = {
   clientId: string;
   scope: string;
   resource: string;
+  clientKind?: string;
   callbackUrl: string;
   callbackDestination: string;
   requiresNativeConsent: boolean;
@@ -57,7 +59,7 @@ function McpConnection({ uid }: { uid: string }) {
   const apiOrigin = mcpApiOrigin();
   const requestsExecute = details?.scope.split(/\s+/).includes('oren.trade.execute') ?? false;
   const needsNativeConsent = details?.requiresNativeConsent === true;
-  const connector = mcpConnector(details?.callbackUrl);
+  const connector = mcpConnectorForKind(details?.clientKind) ?? mcpConnector(details?.callbackUrl);
   const appName = connector?.name ?? 'your app';
   const scopes = details?.scope.split(/\s+/) ?? [];
   const unavailable = !uid || !apiOrigin;
@@ -105,6 +107,31 @@ function McpConnection({ uid }: { uid: string }) {
     return () => controller.abort();
   }, [requestsExecute, authenticated, requiresEmbeddedWallet, getAccessToken, apiOrigin]);
 
+  async function resumeInteraction(response: Response) {
+    const body = (await response.json()) as { redirect?: string };
+    const redirect = new URL(body.redirect ?? '');
+    if (redirect.origin !== apiOrigin || !redirect.pathname.startsWith('/oauth/'))
+      throw new Error('Invalid authorization redirect.');
+    window.location.assign(redirect.href);
+  }
+
+  async function refuse() {
+    if (!apiOrigin || !uid) return;
+    setBusy(true);
+    try {
+      const response = await fetch(`${apiOrigin}/oauth/interaction/${encodeURIComponent(uid)}`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'X-Oren-Consent-Decision': 'deny', ...consentAttributionHeader() },
+      });
+      if (!response.ok) throw new Error();
+      await resumeInteraction(response);
+    } catch {
+      setError('Unable to cancel this connection. Try again.');
+      setBusy(false);
+    }
+  }
+
   async function authorize() {
     if (!apiOrigin || !uid || !details || !auth.authenticated || !auth.address || requiresEmbeddedWallet || (needsNativeConsent && !allowNativeClient) || (requestsExecute && (!allowExecute || !delegation?.enabled || !delegation.delegationId))) return;
     setBusy(true);
@@ -117,16 +144,13 @@ function McpConnection({ uid }: { uid: string }) {
         credentials: 'include',
         headers: {
           Authorization: `Bearer ${token}`,
+          ...consentAttributionHeader(),
           ...(needsNativeConsent && allowNativeClient ? { 'X-Oren-Native-Client-Consent': 'true' } : {}),
           ...(requestsExecute ? { 'X-Oren-Trade-Execute-Consent': 'true', 'X-Oren-Delegation-Id': delegation!.delegationId! } : {}),
         },
       });
       if (!response.ok) throw new Error('Unable to authorize this connection. Start again in your agent.');
-      const body = (await response.json()) as { redirect?: string };
-      const redirect = new URL(body.redirect ?? '');
-      if (redirect.origin !== apiOrigin || !redirect.pathname.startsWith('/oauth/'))
-        throw new Error('Invalid authorization redirect.');
-      window.location.assign(redirect.href);
+      await resumeInteraction(response);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Unable to connect.');
       setBusy(false);
@@ -215,6 +239,7 @@ function McpConnection({ uid }: { uid: string }) {
           {!busy && <ChevronRightIcon size={18} />}
         </button>
       )}
+      {details && <button className="mt-3 text-sm text-muted-foreground hover:text-foreground" disabled={busy} onClick={() => void refuse()} type="button">{t('common.cancel')}</button>}
       {!auth.authenticated && <p className="mcp-connect-sign-in-note">{t('walletAuth.optionalEmail')}</p>}
       </section>
       <p className="mcp-connect-footer">

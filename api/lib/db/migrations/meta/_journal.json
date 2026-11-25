@@ -180,29 +180,43 @@
     {
       "idx": 25,
       "version": "7",
-      "when": 1795392000000,
-      "tag": "0025_paper_trading",
+      "when": 1795478400000,
+      "tag": "0025_growth_reporting",
       "breakpoints": true
     },
     {
       "idx": 26,
       "version": "7",
-      "when": 1795392001000,
-      "tag": "0026_paper_market_benchmark",
+      "when": 1795478400001,
+      "tag": "0026_admin_auth",
       "breakpoints": true
     },
     {
       "idx": 27,
       "version": "7",
-      "when": 1795392002000,
-      "tag": "0027_paper_ai_accounts",
+      "when": 1795478400002,
+      "tag": "0027_paper_trading",
       "breakpoints": true
     },
     {
       "idx": 28,
       "version": "7",
-      "when": 1795392003000,
-      "tag": "0028_paper_hourly_reviews",
+      "when": 1795478400003,
+      "tag": "0028_paper_market_benchmark",
+      "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1795478400004,
+      "tag": "0029_paper_ai_accounts",
+      "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1795478400005,
+      "tag": "0030_paper_hourly_reviews",
       "breakpoints": true
     }
   ]

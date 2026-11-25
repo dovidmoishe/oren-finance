@@ -1,0 +1,6 @@
+-- Reports are not a database role.
+-- Do not create oren_reporting, do not GRANT report tables to a shared login,
+-- and do not give the marketing bot a database password.
+-- After an approved deployment, the operator issues one bearer for the
+-- marketing bot and stores it only in that bot's secret manager.
+-- Migrate does not apply this file.

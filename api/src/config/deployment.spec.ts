@@ -66,6 +66,15 @@ describe('preview capabilities', () => {
       guard.canActivate(context('POST', '/api/agent/message/stream')),
     ).toBe(true);
     expect(guard.canActivate(context('POST', '/api/feedback'))).toBe(true);
+    expect(guard.canActivate(context('POST', '/api/growth/collect'))).toBe(
+      true,
+    );
+    expect(guard.canActivate(context('POST', '/api/admin/auth/session'))).toBe(
+      true,
+    );
+    expect(() =>
+      guard.canActivate(context('POST', '/api/admin/imports/aggregates')),
+    ).toThrow(ForbiddenException);
     for (const [method, path] of [
       ['POST', '/api/execution/prepare'],
       ['POST', '/api/future-money-endpoint'],

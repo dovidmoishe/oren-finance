@@ -1,0 +1,17 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Onest Variable", system-ui, sans-serif;
+  /* Light product palette from app/app/styles/theme.css. */
+  --color-foreground: #24242b;
+  --color-muted: #62626f;
+  --color-border: #e6e6ec;
+  --color-border-strong: #cdcdd7;
+  --color-panel: #f6f6f8;
+  --color-brand: #6652b3;
+  --color-nav-active: #eaeaf0;
+  --color-primary-hover: #393939;
+  --color-focus: #2563eb;
+}
+
+@custom-variant mobile (@media (max-width: 700px));

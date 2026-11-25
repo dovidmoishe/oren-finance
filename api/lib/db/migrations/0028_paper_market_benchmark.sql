@@ -1,10 +1,10 @@
-CREATE TABLE paper_market_screens (
+CREATE TABLE IF NOT EXISTS paper_market_screens (
   epoch integer PRIMARY KEY,
   captured_at timestamptz NOT NULL DEFAULT now(),
   universe jsonb NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE paper_market_accounts (
+CREATE TABLE IF NOT EXISTS paper_market_accounts (
   policy text PRIMARY KEY,
   started_at timestamptz NOT NULL DEFAULT now(),
   epoch integer NOT NULL DEFAULT -1,

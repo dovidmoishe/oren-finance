@@ -12,6 +12,7 @@ import { ConfigModule } from './config/config.module';
 import { DatabaseModule } from './database/database.module';
 import { ExecutionModule } from './execution/execution.module';
 import { FeedbackModule } from './feedback/feedback.module';
+import { AdminModule } from './admin/admin.module';
 import { HealthModule } from './health/health.module';
 import { IntelligenceModule } from './intelligence/intelligence.module';
 import { MarketModule } from './market/market.module';
@@ -53,6 +54,7 @@ import { VaultModule } from './vault/vault.module';
     SenviokModule,
     VaultModule,
     FeedbackModule,
+    AdminModule,
   ],
 })
 export class AppModule {}

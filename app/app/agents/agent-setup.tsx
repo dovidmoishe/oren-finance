@@ -5,6 +5,7 @@ import { Copy as CopyIcon, Check as CheckIcon } from "lucide-react";
 import { InterfaceIcon } from "@/components/ui/interface-icon";
 
 import { AGENT_CLIENTS, AgentLogo, isAgentClient, type AgentClient } from './agent-clients';
+import { trackSetup } from '@/components/growth/growth-collector';
 
 const PRODUCTION_MCP_URL = 'https://api.oren.finance/mcp';
 
@@ -13,6 +14,7 @@ type Client = AgentClient;
 const CLIENTS: { id: Client; label: string; where: string }[] = [
   { id: 'claude', label: 'Claude', where: 'In Claude settings' },
   { id: 'cursor', label: 'Cursor', where: 'In ~/.cursor/mcp.json' },
+  { id: 'grok', label: 'Grok Bot', where: 'In Grok Bot desktop' },
   { id: 'codex', label: 'Codex', where: 'In your terminal' },
 ];
 
@@ -21,6 +23,7 @@ function CodeBlock({ label, code }: { label: string; code: string }) {
   async function copy() {
     try {
       await navigator.clipboard.writeText(code);
+      trackSetup('copy_instructions', 'setup');
       setCopied(true);
       window.setTimeout(() => setCopied(false), 1600);
     } catch {
@@ -60,14 +63,17 @@ export function AgentSetup() {
   const cursorConfig = JSON.stringify({ mcpServers: { oren: { url } } }, null, 2);
 
   return <div className="agents-setup">
-    <div aria-label="Choose your agent app" className="flex justify-center [gap:4px] [padding:8px] [border-bottom:1px_solid_#ece8df] [background:#f7f6f2]" role="tablist">
+    <div aria-label="Choose your agent app" className="flex flex-wrap justify-center [gap:4px] [padding:8px] [border-bottom:1px_solid_#ece8df] [background:#f7f6f2]" role="tablist">
       {CLIENTS.map(item => <button
         aria-controls={`${id}-${item.id}`}
         aria-selected={client === item.id}
         className="agents-tab"
         id={`${id}-${item.id}-tab`}
         key={item.id}
-        onClick={() => setClient(item.id)}
+        onClick={() => {
+          trackSetup('choose_client', item.id);
+          setClient(item.id);
+        }}
         role="tab"
         type="button"
       ><AgentLogo src={AGENT_CLIENTS.find(entry => entry.id === item.id)!.logo} />{item.label}</button>)}
@@ -88,6 +94,15 @@ export function AgentSetup() {
           <li>Select <strong>Connect</strong> next to Oren, sign in with your email, and approve access.</li>
         </ol>
         <CodeBlock label="mcp.json" code={cursorConfig} />
+      </>}
+      {client === 'grok' && <>
+        <ol className="agents-mini-steps">
+          <li>In <strong>Connect apps</strong>, select <strong>Add a custom connector</strong>.</li>
+          <li>Name it <strong>Oren</strong>, choose <strong>Remote HTTPS</strong>, and paste the server URL and OAuth Client ID below. Leave the secret and headers empty.</li>
+          <li>Select <strong>Add plugin</strong>, then sign in to Oren and review access.</li>
+        </ol>
+        <CodeBlock label="Server URL" code={url} />
+        <CodeBlock label="OAuth Client ID" code="https://cursor.com/oauth/mcp-client.json" />
       </>}
       {client === 'codex' && <>
         <ol className="agents-mini-steps">

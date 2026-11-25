@@ -11,6 +11,7 @@ import en from "@/i18n/messages/en.json";
 import { IntlErrorProvider } from "@/i18n/intl-error";
 import { LocaleSync } from "@/i18n/locale-sync";
 import { DEFAULT_LOCALE } from "@/i18n/locales";
+import { GrowthCollector } from "@/components/growth/growth-collector";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://oren.finance"),
@@ -35,6 +36,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           <IntlErrorProvider>
             <LocaleSync />
             <PreviewBanner />
+            <GrowthCollector />
             <PerformanceReporter />
             <ChunkLoadRecoveryGate />
             {children}

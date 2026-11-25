@@ -73,7 +73,7 @@ const url = process.env.PAPER_TEST_DATABASE_URL;
       client = postgres(url!, { connection: { search_path: namespace } });
       await client.unsafe(
         readFileSync(
-          resolve(__dirname, '../../lib/db/migrations/0025_paper_trading.sql'),
+          resolve(__dirname, '../../lib/db/migrations/0027_paper_trading.sql'),
           'utf8',
         ),
       );
@@ -81,7 +81,7 @@ const url = process.env.PAPER_TEST_DATABASE_URL;
         readFileSync(
           resolve(
             __dirname,
-            '../../lib/db/migrations/0026_paper_market_benchmark.sql',
+            '../../lib/db/migrations/0028_paper_market_benchmark.sql',
           ),
           'utf8',
         ),
@@ -90,7 +90,7 @@ const url = process.env.PAPER_TEST_DATABASE_URL;
         readFileSync(
           resolve(
             __dirname,
-            '../../lib/db/migrations/0027_paper_ai_accounts.sql',
+            '../../lib/db/migrations/0029_paper_ai_accounts.sql',
           ),
           'utf8',
         ),
@@ -100,7 +100,7 @@ const url = process.env.PAPER_TEST_DATABASE_URL;
         readFileSync(
           resolve(
             __dirname,
-            '../../lib/db/migrations/0028_paper_hourly_reviews.sql',
+            '../../lib/db/migrations/0030_paper_hourly_reviews.sql',
           ),
           'utf8',
         ),

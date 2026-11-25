@@ -933,7 +933,7 @@
     "loading": "正在載入連線…",
     "tryAgain": "再試一次",
     "firstTitle": "連線你的第一個 AI 代理",
-    "firstBody": "在 Claude、Cursor 或 Codex 中使用 Oren，直接在聊天中研究股票並管理投資組合。",
+    "firstBody": "在 Claude、Cursor、Codex 或 Grok Bot 中使用 Oren，直接在聊天中研究股票並管理投資組合。",
     "setupGuide": "查看設定指南",
     "connectionN": "AI 代理連線 {n}",
     "connectedOn": "連線於 {date}",

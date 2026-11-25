@@ -1,6 +1,7 @@
-import { mcpClientKind } from './oauth-runtime';
+import { mcpClientKind, type McpClientKind } from './oauth-runtime';
 
 export interface McpConsentClient {
+  clientKind: McpClientKind;
   callbackUrl: string;
   callbackDestination: string;
   requiresNativeConsent: boolean;
@@ -23,6 +24,7 @@ export function describeMcpConsentClient(
     return undefined;
   const callback = new URL(redirectUri);
   return {
+    clientKind: kind,
     callbackUrl: callback.href,
     callbackDestination: `${callback.protocol}//${callback.host}`,
     // Loopback and private-use schemes cannot attest the receiving app. A

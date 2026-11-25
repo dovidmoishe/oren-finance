@@ -25,6 +25,9 @@ describe('MCP client redirect allowlist', () => {
   });
 
   it.each([
+    'https://grok.com.example/connectors-oauth-exchange-code/',
+    'https://grok.com/connectors-oauth-exchange-code/?next=elsewhere',
+    'https://www.cursor.com/bot/mcp/oauth/callback/extra',
     'https://claude.ai.evil.test/api/mcp/auth_callback',
     'https://claude.ai/api/mcp/auth_callback?next=evil',
     'http://127.0.0.2:49152/callback',
