@@ -2,7 +2,7 @@
   "slug": "stock-charts-upgrade",
   "date": "2026-11-25",
   "sequence": 1,
-  "status": "draft",
+  "status": "published",
   "title": "A closer look at stock charts",
   "summary": "Stock pages now open with a candlestick chart, with candle intervals, indicators and drawing tools within reach.",
   "sections": [

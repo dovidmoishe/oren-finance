@@ -2,7 +2,7 @@
   "slug": "grok-bot-mcp",
   "date": "2026-11-25",
   "sequence": 2,
-  "status": "draft",
+  "status": "published",
   "title": "Connect Oren to Grok Bot",
   "summary": "Grok Bot can now connect to Oren through MCP so you can check your portfolio and look up tokenized stocks from chat.",
   "sections": [
