@@ -1,0 +1,31 @@
+{
+  "slug": "gas-sponsorship",
+  "date": "2026-11-25",
+  "sequence": 3,
+  "status": "draft",
+  "title": "Gas sponsorship for eligible trades",
+  "summary": "We're preparing gas sponsorship for eligible trades you review in Oren. When enabled, Oren covers the Solana network fee.",
+  "sections": [
+    {
+      "heading": "Added",
+      "items": [
+        {
+          "title": "Coverage for eligible first buys",
+          "description": "Sponsorship can also cover the cost of creating the token account that receives your stock on an eligible first purchase."
+        },
+        {
+          "title": "Check fees before approving",
+          "description": "The trade review shows any fees you pay. Sponsorship applies to eligible trades reviewed in Oren with an embedded wallet."
+        }
+      ]
+    }
+  ],
+  "video": {
+    "src": "/videos/oren-gas-covered-v2.mp4",
+    "poster": "/videos/oren-gas-covered-v2-poster.png",
+    "label": "Gas, covered, a nine-second Oren demo",
+    "caption": "Illustrative trade review. Any Oren fee appears separately from the sponsored network fee.",
+    "width": 1920,
+    "height": 1080
+  }
+}
