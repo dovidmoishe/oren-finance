@@ -19,5 +19,13 @@
         }
       ]
     }
-  ]
+  ],
+  "video": {
+    "src": "/videos/oren-gas-covered-v2.mp4",
+    "poster": "/videos/oren-gas-covered-v2-poster.png",
+    "label": "Gas, covered, a nine-second Oren demo",
+    "caption": "Illustrative trade review. Any Oren fee appears separately from the sponsored network fee.",
+    "width": 1920,
+    "height": 1080
+  }
 }
