@@ -74,4 +74,14 @@ docker build -f admin/Dockerfile -t oren-admin:local .
 
 The runtime is static Caddy on port 8080, with `ADMIN_API_UPSTREAM` defaulting to the pinned production API container name `oren-api-1:3000`. Put it on the appropriate API network and publish it through the existing TLS edge on the chosen admin host. The runtime proxies only `/api/admin/*`; other `/api/*` paths return 404. SPA routes fall back to `index.html`; hashed assets are immutable and HTML revalidates. CSP blocks third-party scripts and framing.
 
-There are no automatic deployment changes, DNS changes, production accounts, permission grants, historical imports, or financial actions in this implementation. Production deployment must use the API containing these additions and the two existing #87 migrations (`0025_growth_reporting`, `0026_admin_auth`).
+## Deployment
+
+Production deploys itself. `.github/workflows/deploy-admin.yml` runs on every master change to `admin/`, the shared icons or `infra/admin/`:
+
+1. **Build.** Runs the dashboard tests and `infra/admin` tests, builds `ghcr.io/<owner>/oren-admin:<sha>`, checks the real container (page, headers, cached assets, SPA routes, `/api/*` 404), validates `compose.yml` and the edge route against the production Caddyfile, then publishes the image.
+2. **Gate.** Waits for the production release of the same commit (`deploy-production.yml`) to succeed, so the dashboard never ships ahead of the API it calls.
+3. **Deploy.** Shares the `production-deploy` queue with the other releases. `infra/admin/deploy.sh` activates the digest-pinned image as `oren-admin-dashboard` on `oren_oren` (files in `/opt/oren/admin-release`) and checks that the dashboard serves its page and reaches the API. It then points `/opt/oren/preview/sites/production-admin.caddy` at the new container and confirms that `https://admin.oren.finance` serves this release through Caddy. Any failure restores the previous route and release. The workflow then verifies the public page and API proxy again.
+
+The first automated release replaces the hand-run dashboard. That container keeps serving until the new release passes the edge check. It is then stopped, with its restart policy set to `no`, and never removed. `docker start <name>` brings it back if needed.
+
+Roll back by running the workflow on master with a previously published full SHA.
