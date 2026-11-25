@@ -27,7 +27,7 @@
     "klinecharts": "10.1.1",
     "lucide-react": "^1.72.0",
     "motion": "^14.13.0",
-    "next": "16.4.2",
+    "next": "16.4.6",
     "next-intl": "4.14.9",
     "qrcode": "1.5.4",
     "react": "19.2.8",
@@ -41,7 +41,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
-    "eslint-config-next": "16.4.2",
+    "eslint-config-next": "16.4.6",
     "sharp": "^0.35.4",
     "tailwindcss": "^4",
     "typescript": "^5"
