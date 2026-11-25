@@ -27,6 +27,8 @@ export interface OrenAuth {
   openDeposit: () => void;
   closeDeposit: () => void;
   open: () => void;
+  /** Starts downloading sign-in ahead of a likely click (hover, focus, touch). */
+  prefetch?: () => void;
   signOut: () => Promise<void>;
   selectWallet: (address: string) => void;
   createWallet: () => Promise<void>;

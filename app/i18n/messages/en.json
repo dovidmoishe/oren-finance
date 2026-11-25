@@ -1179,5 +1179,17 @@
     "change24h": "24h change",
     "interval": "Candle interval",
     "intervalEmpty": "No candles are available for this interval from the data feed. Choose another interval."
+  },
+  "cookies": {
+    "label": "Cookie preferences",
+    "title": "Cookies on Oren",
+    "body": "We use essential cookies to keep you signed in and remember your settings. With your permission, we’d also use analytics to see how Oren is used and keep it fast. You can change this at any time.",
+    "reject": "Reject analytics",
+    "accept": "Accept analytics",
+    "settings": "Cookie settings",
+    "analyticsOn": "Analytics allowed",
+    "analyticsOff": "Analytics off",
+    "analyticsUnset": "Not chosen yet",
+    "change": "Change"
   }
 }

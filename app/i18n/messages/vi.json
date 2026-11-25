@@ -1179,5 +1179,17 @@
     "change24h": "Thay đổi 24 giờ",
     "interval": "Khoảng nến",
     "intervalEmpty": "Nguồn dữ liệu không có nến cho khoảng này. Hãy chọn khoảng khác."
+  },
+  "cookies": {
+    "label": "Tùy chọn cookie",
+    "title": "Cookie trên Oren",
+    "body": "Chúng tôi dùng cookie thiết yếu để giữ bạn đăng nhập và ghi nhớ cài đặt của bạn. Nếu bạn cho phép, chúng tôi cũng dùng phân tích để hiểu cách Oren được sử dụng và giữ cho Oren luôn nhanh. Bạn có thể thay đổi lựa chọn này bất cứ lúc nào.",
+    "reject": "Từ chối phân tích",
+    "accept": "Chấp nhận phân tích",
+    "settings": "Cài đặt cookie",
+    "analyticsOn": "Đã cho phép phân tích",
+    "analyticsOff": "Đã tắt phân tích",
+    "analyticsUnset": "Chưa chọn",
+    "change": "Thay đổi"
   }
 }

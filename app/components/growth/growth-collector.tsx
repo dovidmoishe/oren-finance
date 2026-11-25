@@ -3,6 +3,8 @@
 import { useEffect } from 'react';
 import { usePathname } from 'next/navigation';
 import { buildApiUrl } from '@/services/api-client';
+import { analyticsAllowed } from '@/lib/consent';
+import { useConsent } from '@/lib/use-consent';
 import { nextAttribution, nextSession, readUtms, attributionHeader, referrerOrigin } from '@/lib/growth-client.mjs';
 
 const KEY = 'oren.growth.v1';
@@ -16,10 +18,16 @@ function landingReferrer() {
   return referrerOrigin(document.referrer);
 }
 
-/** Anonymous page and setup collection. Failures stay on the page. */
+/**
+ * Anonymous page and setup collection. Failures stay on the page. Nothing is
+ * stored or sent until the visitor accepts analytics; accepting counts the
+ * current page, and refusing deletes the saved visitor state.
+ */
 export function GrowthCollector() {
   const pathname = usePathname();
+  const consent = useConsent();
   useEffect(() => {
+    if (consent !== 'granted') return;
     const state = load();
     const now = Date.now();
     const session = nextSession(state, now);
@@ -65,11 +73,12 @@ export function GrowthCollector() {
     };
     document.addEventListener('click', onClick);
     return () => document.removeEventListener('click', onClick);
-  }, [pathname]);
+  }, [pathname, consent]);
   return null;
 }
 
 export function trackSetup(action: string, slot: string) {
+  if (!analyticsAllowed()) return;
   const current = load();
   if (!current.visitorId || !current.sessionId) return;
   void send({
@@ -88,6 +97,7 @@ export function trackSetup(action: string, slot: string) {
 }
 
 export function consentAttributionHeader(): Record<string, string> {
+  if (!analyticsAllowed()) return {};
   const header = attributionHeader(load());
   return header ? { 'X-Oren-Attribution': header } : {};
 }

@@ -4,10 +4,14 @@ import {
   WalletContext,
   type WalletContextState,
 } from "@/components/auth/wallet-context";
+import { LoaderCircle as LoaderCircleIcon } from "lucide-react";
 import dynamic from "next/dynamic";
-import { useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
+import { useEffect, useState, useSyncExternalStore } from "react";
+import { preconnect } from "react-dom";
 import { AuthContext, type OrenAuth } from "@/components/auth/auth-context";
 import type { PublishedSession } from "@/components/auth/privy-auth";
+import { browserHasPrivySession, isPrivyTokenKey, PRIVY_ORIGIN } from "@/components/auth/privy-session-hint";
 import {
   WalletModalContext,
   type WalletModalContextState,
@@ -40,7 +44,7 @@ function subscribePrivyModule(listener: (state: PrivyModuleState) => void) {
   };
 }
 
-function loadPrivyAuth() {
+function importPrivyAuth() {
   return import("@/components/auth/privy-auth")
     .then((mod) => {
       setPrivyModuleState({ status: "loaded" });
@@ -54,9 +58,31 @@ function loadPrivyAuth() {
     });
 }
 
+let privyAuthModule: ReturnType<typeof importPrivyAuth> | undefined;
+
+/** One download per page, shared by restore, sign-in intent and the dynamic component. */
+function loadPrivyAuth() {
+  privyAuthModule ??= importPrivyAuth();
+  return privyAuthModule;
+}
+
 // Privy (with its bundled wallet libraries) is the largest part of the app's
-// JavaScript. Load it after the shell renders; until then auth is "not ready".
+// JavaScript. Visitors without a saved session never download it until they
+// sign in; until a saved session restores, auth is "not ready".
 const PrivyAuth = dynamic(loadPrivyAuth, { ssr: false });
+
+/** `/deposit` and `/app/deposit` redirect to `?deposit=1`; `PrivySession` opens Add money for it. */
+function hasDepositLink() {
+  return new URLSearchParams(window.location.search).get("deposit") === "1";
+}
+
+// A saved session or an Add money link needs Privy straight away. Start the
+// download while the page hydrates, instead of after it, and open Privy's
+// connection alongside.
+if (appId && typeof document !== "undefined" && (browserHasPrivySession() || hasDepositLink())) {
+  preconnect(PRIVY_ORIGIN);
+  void loadPrivyAuth();
+}
 
 const REVIEW_IN_OREN =
   "Review and confirm this trade in Oren before submission.";
@@ -111,11 +137,36 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
   );
 }
 
+/** Another tab signing in or out changes Privy's tokens; read the hint again then. */
+function subscribeSessionHint(onChange: () => void) {
+  const onStorage = (event: StorageEvent) => {
+    if (isPrivyTokenKey(event.key)) onChange();
+  };
+  window.addEventListener("storage", onStorage);
+  return () => window.removeEventListener("storage", onStorage);
+}
+
+/**
+ * Whether this page has seen a saved Privy session. It stays true: signing out
+ * removes the tokens, and only a mounted Privy can then publish the signed-out
+ * session and open sign-in again.
+ */
+let sessionSeen = false;
+function sessionHint() {
+  sessionSeen ||= browserHasPrivySession();
+  return sessionSeen;
+}
+
+/** The server cannot see web storage, so it and hydration render "not ready". */
+const unknownSessionHint = () => null;
+
+type AuthRequest = "signIn" | "deposit";
+
 /** Auth while Privy loads: not ready, signed out, with sign-in/deposit requests queued. */
-function createLoadingSession(start: () => void) {
+function createLoadingSession(start: (request: AuthRequest) => void) {
   const queued = { signIn: false, deposit: false };
   const signIn = () => {
-    start();
+    start("signIn");
     queued.signIn = true;
   };
   const auth: OrenAuth = {
@@ -130,13 +181,16 @@ function createLoadingSession(start: () => void) {
     walletPreparing: false,
     depositOpen: false,
     openDeposit() {
-      start();
+      start("deposit");
       queued.deposit = true;
     },
     closeDeposit() {
       queued.deposit = false;
     },
     open: signIn,
+    prefetch() {
+      void loadPrivyAuth();
+    },
     async signOut() {},
     selectWallet() {},
     async createWallet() {},
@@ -170,7 +224,18 @@ function createLoadingSession(start: () => void) {
     if (wantsSignIn) session.auth.open();
     if (deposit) session.auth.openDeposit();
   }
-  return { auth, wallet: signedOutWallet(true, signIn), modal, replay };
+  /** Forgets a sign-in whose waiting notice was closed. Privy keeps loading. */
+  function cancelSignIn() {
+    queued.signIn = false;
+  }
+  return {
+    auth,
+    wallet: signedOutWallet(true, signIn),
+    idleWallet: signedOutWallet(false, signIn),
+    modal,
+    replay,
+    cancelSignIn,
+  };
 }
 
 function DeferredPrivy({
@@ -181,30 +246,40 @@ function DeferredPrivy({
   children: React.ReactNode;
 }) {
   const t = useT();
+  const pathname = usePathname();
   const [session, setSession] = useState<PublishedSession>();
   const [restoreStarted] = useState(() => Date.now());
-  const [startPrivy, setStartPrivy] = useState(false);
-  const [loading] = useState(() => createLoadingSession(() => setStartPrivy(true)));
+  // null on the server and while hydrating; then whether this page has seen a session to restore.
+  const savedSession = useSyncExternalStore(subscribeSessionHint, sessionHint, unknownSessionHint);
+  const [requested, setRequested] = useState(false);
+  const [signInPending, setSignInPending] = useState(false);
+  const [loading] = useState(() => createLoadingSession((request) => {
+    setRequested(true);
+    if (request === "signIn") setSignInPending(true);
+  }));
   const [moduleLoaded, setModuleLoaded] = useState(false);
   const [stillLoading, setStillLoading] = useState(false);
   const [restoreTimedOut, setRestoreTimedOut] = useState(false);
   const [restoreError, setRestoreError] = useState<string>();
+  // A saved session restores at once (its download already started); otherwise
+  // Privy loads when the visitor asks to sign in or add money. Both stay true,
+  // so Privy stays mounted once it starts.
+  const startPrivy = requested || savedSession === true;
+  // Nothing to restore: this browser is signed out until Privy says otherwise.
+  const signedOut = savedSession === false;
 
   useEffect(() => {
-    if (session?.auth.ready) recordPerformanceMetric({ name: "account-ready", value: Date.now() - restoreStarted });
-  }, [restoreStarted, session?.auth.ready]);
+    // An Add money link needs Privy even when signed out. `PrivySession` then
+    // opens the dialog and removes the link, as it does for a signed-in visitor.
+    if (!hasDepositLink()) return;
+    const frame = window.requestAnimationFrame(() => setRequested(true));
+    return () => window.cancelAnimationFrame(frame);
+  }, [pathname]);
 
   useEffect(() => {
-    if (startPrivy) return;
-    // Allow the shell/data requests to start first, but always restore existing
-    // sessions. Explicit sign-in/deposit requests bypass the idle delay.
-    if (typeof window.requestIdleCallback === "function") {
-      const idle = window.requestIdleCallback(() => setStartPrivy(true), { timeout: 500 });
-      return () => window.cancelIdleCallback(idle);
-    }
-    const timer = window.setTimeout(() => setStartPrivy(true), 0);
-    return () => window.clearTimeout(timer);
-  }, [startPrivy]);
+    // Restores only: a sign-in started by a click would also time the visitor's pause.
+    if (session?.auth.ready && !requested) recordPerformanceMetric({ name: "account-ready", value: Date.now() - restoreStarted });
+  }, [restoreStarted, session?.auth.ready, requested]);
 
   useEffect(() => {
     return subscribePrivyModule((state) => {
@@ -214,22 +289,24 @@ function DeferredPrivy({
   }, []);
 
   useEffect(() => {
-    if (session?.auth.ready || restoreError) return;
+    // Timed from the moment Privy is needed: at load for a saved session, at the click otherwise.
+    if (!startPrivy || session?.auth.ready || restoreError) return;
     const still = window.setTimeout(() => setStillLoading(true), PRIVY_STILL_LOADING_MS);
     const timeout = window.setTimeout(() => setRestoreTimedOut(true), PRIVY_READY_TIMEOUT_MS);
     return () => {
       window.clearTimeout(still);
       window.clearTimeout(timeout);
     };
-  }, [restoreError, session?.auth.ready]);
+  }, [startPrivy, restoreError, session?.auth.ready]);
 
   useEffect(() => {
     if (session) loading.replay(session);
   }, [loading, session]);
 
   const current = session ?? loading;
+  const privyReady = Boolean(current.auth.ready);
   const failed = Boolean(restoreError);
-  const timedOut = restoreTimedOut && !current.auth.ready && !failed;
+  const timedOut = restoreTimedOut && !privyReady && !failed;
   // The failed import never publishes a session, so a queued sign-in cannot open. Reload instead.
   const retryFailedImport = () => window.location.reload();
   const auth = failed
@@ -250,8 +327,13 @@ function DeferredPrivy({
           open: moduleLoaded ? current.auth.open : retryFailedImport,
           openDeposit: moduleLoaded ? current.auth.openDeposit : retryFailedImport,
         }
-      : current.auth;
-  const wallet = failed ? signedOutWallet(false, retryFailedImport) : current.wallet;
+      : signedOut && !privyReady
+        // Nothing to restore, so this browser is signed out until Privy says otherwise.
+        ? { ...current.auth, ready: true, authenticated: false, busy: signInPending && !session }
+        : current.auth;
+  const wallet = failed
+    ? signedOutWallet(false, retryFailedImport)
+    : signedOut && !privyReady ? loading.idleWallet : current.wallet;
   const modal = failed ? { visible: false, setVisible(next: boolean) { if (next) retryFailedImport(); } } : current.modal;
   return (
     <>
@@ -265,7 +347,7 @@ function DeferredPrivy({
             {t("auth.reload")}
           </button>
         </div>
-      ) : stillLoading && !current.auth.ready ? (
+      ) : stillLoading && !privyReady ? (
         <div className="mx-auto flex max-w-6xl items-center px-4 py-3 text-sm text-muted" role="status">
           {t("auth.restoreStillLoading")}
         </div>
@@ -277,6 +359,21 @@ function DeferredPrivy({
           </WalletModalContext.Provider>
         </WalletContext.Provider>
       </AuthContext.Provider>
+      {signInPending && !session && !failed ? (
+        // Shown from the click until Privy's sign-in dialog can take over.
+        <div className="fixed inset-0 z-50 grid place-items-center bg-scrim/30 p-4">
+          <div aria-live="polite" className="flex w-full max-w-md items-start gap-3 rounded-2xl border border-border bg-panel p-6 text-foreground shadow-xl" role="status">
+            <LoaderCircleIcon aria-hidden="true" className="mt-0.5 shrink-0 text-muted motion-safe:animate-spin" size={18} strokeWidth={1.7} />
+            <div className="min-w-0 flex-1">
+              <p className="font-semibold">{t("auth.title")}</p>
+              <p className="mt-1 text-sm text-muted">{t("auth.waiting")}</p>
+            </div>
+            <button className="text-sm text-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-focus" onClick={() => { loading.cancelSignIn(); setSignInPending(false); }} type="button">
+              {t("auth.close")}
+            </button>
+          </div>
+        </div>
+      ) : null}
       {/* Rendered beside the app so Privy loading in never remounts the page. */}
       {startPrivy ? <PrivyAuth appId={appId} onSession={setSession} /> : null}
     </>

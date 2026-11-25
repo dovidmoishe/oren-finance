@@ -84,7 +84,7 @@ export function PortfolioDashboard() {
           restoreBlocked(auth) ? <RestoreActions signInLabel={t("portfolio.signIn")} />
             : auth.authenticated
               ? auth.error && <Button disabled={auth.busy} onClick={() => void auth.createWallet()}>{t("portfolio.retryWallet")}</Button>
-              : <Button disabled={auth.configured === false} onClick={auth.open}>{t("portfolio.signIn")}</Button>
+              : <Button disabled={auth.configured === false} onClick={auth.open} onFocus={auth.prefetch} onPointerEnter={auth.prefetch} onTouchStart={auth.prefetch}>{t("portfolio.signIn")}</Button>
         }
         description={restoreBlocked(auth) ? t("auth.restoreSlow") : auth.authenticated ? auth.error || t("portfolio.preparingDescription") : auth.configured === false ? t("account.signInUnavailable") : t("portfolio.signedOutDescription")}
         title={restoreBlocked(auth) ? t("auth.restoreSlowTitle") : auth.authenticated ? auth.error ? t("portfolio.walletRetryTitle") : t("portfolio.preparingTitle") : t("portfolio.signedOutTitle")}

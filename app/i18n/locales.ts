@@ -71,18 +71,6 @@ export function isPersonalizedPath(pathname: string): boolean {
     || pathname === "/settings" || pathname.startsWith("/settings/");
 }
 
-/**
- * A returning browser that already stored Oren state, but never a locale.
- * The old switcher deleted `oren-locale` when the choice was English.
- */
-export function hasOtherOrenStorage(keys: Iterable<string>): boolean {
-  for (const key of keys) {
-    if (key === LEGACY_LOCALE_STORAGE_KEY) continue;
-    if (key.startsWith("oren-") || key.startsWith("oren.")) return true;
-  }
-  return false;
-}
-
 function languageRanges(header: string): string[] {
   return header
     .split(",")

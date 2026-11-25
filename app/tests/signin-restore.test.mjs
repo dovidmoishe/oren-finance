@@ -151,6 +151,8 @@ function mountPrivy({ fail }) {
       }];
     },
     useEffect(effect, deps) { pending.push({ effect, deps }); },
+    // Client snapshot: this window has no storage, so it counts as a saved session.
+    useSyncExternalStore: (_subscribe, getSnapshot) => getSnapshot(),
     useContext: (context) => context.value,
     createElement,
   };
@@ -163,12 +165,14 @@ function mountPrivy({ fail }) {
   vm.runInNewContext(transpile("../app/providers.tsx"), {
     exports,
     window,
+    URLSearchParams,
     Date: clock,
     process: { env: { NEXT_PUBLIC_PRIVY_APP_ID: "offline-app" } },
     require(id) {
       if (id === "react") return hooks;
       if (id === "react/jsx-runtime") return require("react/jsx-runtime");
       if (id === "next/dynamic") return { default: (load) => { bridge.load = load; return (props) => { bridge.publish = props.onSession; return null; }; } };
+      if (id === "next/navigation") return { usePathname: () => "/app" };
       if (id === "@/components/auth/wallet-context") return { WalletContext: createContext({}) };
       if (id === "@/components/auth/auth-context") return { AuthContext };
       if (id === "@/components/auth/wallet-modal-context") return { WalletModalContext: createContext({}) };
@@ -177,6 +181,12 @@ function mountPrivy({ fail }) {
         return { PrivyAuth() { return null; } };
       }
       if (id === "@/lib/performance-client") return { recordPerformanceMetric() {} };
+      // No document or storage here, so the hint counts as a saved session: restore on load.
+      if (id === "@/components/auth/privy-session-hint") {
+        const loaded = {};
+        vm.runInNewContext(transpile("../components/auth/privy-session-hint.ts"), { exports: loaded, window });
+        return loaded;
+      }
       if (id === "@/lib/chunk-reload") {
         const loaded = {};
         vm.runInNewContext(transpile("../lib/chunk-reload.ts"), {

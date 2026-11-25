@@ -381,7 +381,8 @@ test("performance collector enforces payload, origin and log budgets", async () 
 test("telemetry sampling honors privacy preferences and sends only bucketed values without cookies", async () => {
   const sent = [];
   function client(navigator) {
-    return load("../lib/performance-client.ts", { "./performance-schema": { routeBucket } }, {
+    const consent = { analyticsAllowed: () => true, currentConsent: () => "granted", subscribeConsent: () => () => {} };
+    return load("../lib/performance-client.ts", { "./performance-schema": { routeBucket }, "./consent": consent }, {
       process: { env: { NEXT_PUBLIC_PERFORMANCE_SAMPLE_RATE: "1" } },
       window: { location: { pathname: "/app/stocks/private-asset" }, innerWidth: 390 }, navigator,
       fetch: async (...args) => { sent.push(args); }, setTimeout: () => 1, clearTimeout() {},

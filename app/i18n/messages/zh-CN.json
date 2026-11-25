@@ -1179,5 +1179,17 @@
     "change24h": "24小时涨跌",
     "interval": "K线周期",
     "intervalEmpty": "数据源暂无此周期的K线，请选择其他周期。"
+  },
+  "cookies": {
+    "label": "Cookie 偏好",
+    "title": "Oren 上的 Cookie",
+    "body": "我们使用必要的 Cookie 来保持你的登录状态并记住你的设置。经你同意后，我们还会使用分析功能，了解 Oren 的使用情况并让它保持快速。你可以随时更改此选择。",
+    "reject": "拒绝分析",
+    "accept": "接受分析",
+    "settings": "Cookie 设置",
+    "analyticsOn": "已允许分析",
+    "analyticsOff": "已关闭分析",
+    "analyticsUnset": "尚未选择",
+    "change": "更改"
   }
 }

@@ -39,6 +39,9 @@ for (const rpcOverride of [undefined, 'https://rpc.example.invalid/private-key-m
     assert.deepEqual(Array.from(config.loginMethods), ['wallet', 'email']);
     assert.equal(config.appearance.theme, theme);
     assert.equal(config.appearance.accentColor, accentColor);
+    // Solana-only sign-in shows installed Solana wallets and Phantom; EVM entries
+    // (Coinbase, Base, MetaMask...) would start their SDKs on every restore.
+    assert.deepEqual(Array.from(config.appearance.walletList), ['detected_solana_wallets', 'phantom']);
     assert.equal(config.solana, undefined);
     // Discovery is available on demand, without automatic extension prompts or WalletConnect.
     assert.equal(config.externalWallets.solana.connectors.options.shouldAutoConnect, false);
@@ -59,11 +62,13 @@ function renderProviders(env) {
     require(id) {
       noBrowserRpc(id);
       if (id === 'next/dynamic') return { default: (load) => { privyLoads++; void load; return () => null; } };
+      if (id === 'next/navigation') return { usePathname: () => '/app' };
       if (id === '@/components/auth/wallet-context') return { WalletContext, ConnectionProvider() { throw new Error('Browser RPC must not be initialized'); } };
       if (id === '@/components/auth/auth-context') return { AuthContext };
       if (id === '@/components/auth/wallet-modal-context') return { WalletModalContext };
       if (id === '@/components/auth/privy-auth') throw new Error('Privy must be loaded lazily');
       if (id === '@/lib/performance-client') return { recordPerformanceMetric() {} };
+      if (id === '@/components/auth/privy-session-hint') return { browserHasPrivySession: () => true, isPrivyTokenKey: () => false, PRIVY_ORIGIN: 'https://auth.privy.io' };
       if (id === '@/lib/chunk-reload') {
         const loaded = {};
         vm.runInNewContext(transpile('../lib/chunk-reload.ts'), { exports: loaded, require });

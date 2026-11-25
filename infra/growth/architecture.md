@@ -14,6 +14,12 @@ The standalone admin dashboard and marketing bot use the reporting API to read t
 - Trade counts read from the existing intent, approval, and execution tables. Signing and transaction behavior are unchanged.
 - A provenance-aware import format. The November 2026 recovery file is a fixture and a manual import source. It is not loaded by deploy and it is not a baseline.
 
+## Consent
+
+The web collector runs only after a visitor accepts analytics in the cookie notice. Until then it stores and sends nothing: no `oren.growth.v1` visitor id, no pageview, no setup event, and no `X-Oren-Attribution` header. Accepting counts the current page. Refusing or withdrawing deletes `oren.growth.v1`. Global Privacy Control and Do Not Track count as a refusal without showing the notice. The choice is the first-party `oren-consent` cookie (`1.granted` or `1.denied`, about six months), and the footer and Settings both reopen it. Performance timings follow the same choice; timings measured before it wait in memory and are dropped on refusal.
+
+Browser pageviews, sessions and uniques therefore cover consenting visitors only. Caddy access logs still record every request, but reports prefer beacon totals for any day that has them, so traffic from this release onward counts consenting visitors rather than all visitors.
+
 ## What is not implemented
 
 - No X, BulkPublish, or revenue sync, and no invented charges. Those series stay `unavailable` until a manual import.

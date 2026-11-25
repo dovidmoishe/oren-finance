@@ -1179,5 +1179,17 @@
     "change24h": "Variation sur 24 h",
     "interval": "Intervalle des bougies",
     "intervalEmpty": "Le flux ne fournit pas de bougies pour cet intervalle. Choisissez un autre intervalle."
+  },
+  "cookies": {
+    "label": "Préférences de cookies",
+    "title": "Cookies sur Oren",
+    "body": "Nous utilisons des cookies essentiels pour que vous restiez connecté et que vos réglages soient mémorisés. Avec votre accord, nous utiliserons aussi des statistiques pour comprendre l’usage d’Oren et le garder rapide. Vous pouvez modifier ce choix à tout moment.",
+    "reject": "Refuser les statistiques",
+    "accept": "Accepter les statistiques",
+    "settings": "Paramètres des cookies",
+    "analyticsOn": "Statistiques autorisées",
+    "analyticsOff": "Statistiques désactivées",
+    "analyticsUnset": "Pas encore choisi",
+    "change": "Modifier"
   }
 }

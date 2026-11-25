@@ -2,14 +2,17 @@
 
 import { useOrenAuth } from "@/components/auth/auth-context";
 import { RestoreActions, restoreBlocked } from "@/components/auth/restore-actions";
+import { CookieSettingsButton } from "@/components/consent/cookie-consent";
 import { LanguageMenu } from "@/components/language/language-menu";
 import { Button } from "@/components/ui";
 import { useI18n } from "@/i18n/i18n";
 import { LOCALES } from "@/i18n/locales";
+import { useConsent } from "@/lib/use-consent";
 
 export function AccountSettings() {
   const auth = useOrenAuth();
   const { locale, t } = useI18n();
+  const consent = useConsent();
   return (
     <section aria-labelledby="settings-account-title" className="space-y-5">
       <div>
@@ -48,6 +51,17 @@ export function AccountSettings() {
         <div className="flex items-center justify-between gap-4 border-t border-border p-5">
           <div><p className="text-sm font-medium">{t("language.title")}</p><p className="mt-1 text-sm text-muted">{LOCALES.find(({ code }) => code === locale)?.name}</p></div>
           <LanguageMenu />
+        </div>
+        <div className="flex items-center justify-between gap-4 border-t border-border p-5">
+          <div>
+            <p className="text-sm font-medium">{t("cookies.settings")}</p>
+            <p className="mt-1 min-h-5 text-sm text-muted">
+              {consent === "granted" ? t("cookies.analyticsOn") : consent === "denied" ? t("cookies.analyticsOff") : consent === "undecided" ? t("cookies.analyticsUnset") : null}
+            </p>
+          </div>
+          <CookieSettingsButton className="inline-flex min-h-9 shrink-0 items-center rounded-full border border-border px-3.5 text-sm font-medium hover:bg-panel-subtle focus-visible:outline-2 focus-visible:outline-focus pointer-coarse:min-h-11">
+            {t("cookies.change")}
+          </CookieSettingsButton>
         </div>
       </div>
       {auth.authenticated && <Button disabled={auth.busy} onClick={() => void auth.signOut()} type="button" variant="secondary">{t("account.signOut")}</Button>}

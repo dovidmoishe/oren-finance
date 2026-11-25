@@ -1,4 +1,6 @@
 import { themeBootScript } from "@/components/theme/theme-script";
+import { CookieConsentGate } from "@/components/consent/cookie-consent";
+import { consentBootScript } from "@/lib/consent";
 import type { Metadata } from "next";
 import { NextIntlClientProvider } from "next-intl";
 import "@fontsource-variable/geist";
@@ -7,7 +9,7 @@ import "./globals.css";
 import { ChunkLoadRecoveryGate } from "@/components/chunk-load-recovery";
 import { PreviewBanner } from "@/components/preview-banner";
 import { PerformanceReporter } from "@/components/performance-reporter";
-import en from "@/i18n/messages/en.json";
+import { rootMessages } from "@/i18n/root-messages";
 import { IntlErrorProvider } from "@/i18n/intl-error";
 import { LocaleSync } from "@/i18n/locale-sync";
 import { DEFAULT_LOCALE } from "@/i18n/locales";
@@ -36,12 +38,13 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       className="h-full antialiased"
       suppressHydrationWarning
     >
-      <head><script dangerouslySetInnerHTML={{ __html: themeBootScript }} /></head>
+      <head><script dangerouslySetInnerHTML={{ __html: themeBootScript + consentBootScript }} /></head>
       <body className="min-h-full bg-background text-foreground font-sans selection:bg-primary selection:text-primary-foreground">
-        <NextIntlClientProvider locale={DEFAULT_LOCALE} messages={en} timeZone="UTC">
+        <NextIntlClientProvider locale={DEFAULT_LOCALE} messages={rootMessages} timeZone="UTC">
           <IntlErrorProvider>
             <LocaleSync />
             <PreviewBanner />
+            <CookieConsentGate />
             <GrowthCollector />
             <PerformanceReporter />
             <ChunkLoadRecoveryGate />

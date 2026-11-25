@@ -45,6 +45,9 @@ importers:
       '@solana/web3.js':
         specifier: ^1.99.0
         version: 1.99.0(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@6.0.6)
+      framer-motion:
+        specifier: 14.13.0
+        version: 14.13.0(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
       klinecharts:
         specifier: 10.1.1
         version: 10.1.1

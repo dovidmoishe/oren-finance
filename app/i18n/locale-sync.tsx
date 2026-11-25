@@ -4,13 +4,11 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { useLocale } from "next-intl";
 import {
-  DEFAULT_LOCALE,
   LEGACY_LOCALE_STORAGE_KEY,
   LOCALE_COOKIE,
   LOCALE_MAX_AGE,
   TIME_ZONE_COOKIE,
   cookieValue,
-  hasOtherOrenStorage,
   isLocale,
   isPersonalizedPath,
   isTimeZone,
@@ -43,25 +41,21 @@ export function rememberLocale(locale: Locale) {
   }
 }
 
-function storageKeys(): string[] {
-  const keys: string[] = [];
-  for (let index = 0; index < localStorage.length; index += 1) {
-    const key = localStorage.key(index);
-    if (key) keys.push(key);
-  }
-  return keys;
-}
-
 /**
- * Copies a saved `oren-locale` into the cookie once, pins English for a
- * returning browser that never stored a locale, remembers the time zone,
+ * Copies a saved `oren-locale` into the cookie once, remembers the time zone,
  * keeps `<html lang>` current, and follows a language change from another tab.
+ * A browser that never chose a language keeps the one it asks for: other Oren
+ * storage (theme, agent panel, analytics) says nothing about a language choice.
+ * Only /app, /connect and /settings (`force`) refresh: marketing pages are static
+ * English, so a refresh there re-downloads the same page. Their cookies still
+ * reach the app on the next navigation.
  */
 export function LocaleSync({ force = false }: { force?: boolean }) {
   const locale = useLocale();
   const pathname = usePathname();
   const router = useRouter();
   const enabled = force || !isPersonalizedPath(pathname);
+  const refreshes = force;
 
   useEffect(() => {
     if (!enabled) return;
@@ -77,11 +71,11 @@ export function LocaleSync({ force = false }: { force?: boolean }) {
     }
     // A refresh that started before the latest click can still arrive. Retry
     // twice, then stop so a rejected cookie cannot refresh forever.
-    if (pendingAttempts >= 2) return;
+    if (!refreshes || pendingAttempts >= 2) return;
     pendingAttempts += 1;
     writeCookie(LOCALE_COOKIE, pendingLocale);
     router.refresh();
-  }, [enabled, locale, router]);
+  }, [enabled, refreshes, locale, router]);
 
   useEffect(() => {
     if (!enabled || bootstrapped) return;
@@ -90,19 +84,11 @@ export function LocaleSync({ force = false }: { force?: boolean }) {
     try {
       const saved = localStorage.getItem(LEGACY_LOCALE_STORAGE_KEY);
       const cookie = readCookie(LOCALE_COOKIE);
-      // A tap already chose a language. Do not pin English over that cookie.
+      // A saved choice whose cookie is missing: restore the cookie. Without a
+      // saved choice the browser's language decides, on every visit.
       if (!pendingLocale && isLocale(saved) && !isLocale(cookie)) {
         writeCookie(LOCALE_COOKIE, saved);
         if (locale !== saved) refresh = true;
-      } else if (!pendingLocale && !isLocale(cookie) && !isLocale(saved) && hasOtherOrenStorage(storageKeys())) {
-        // The previous switcher removed oren-locale for an explicit English choice.
-        writeCookie(LOCALE_COOKIE, DEFAULT_LOCALE);
-        try {
-          localStorage.setItem(LEGACY_LOCALE_STORAGE_KEY, DEFAULT_LOCALE);
-        } catch {
-          // The cookie is the part the server reads.
-        }
-        if (locale !== DEFAULT_LOCALE) refresh = true;
       }
     } catch {
       // Ignore blocked storage and keep the negotiated language.
@@ -112,8 +98,8 @@ export function LocaleSync({ force = false }: { force?: boolean }) {
       writeCookie(TIME_ZONE_COOKIE, zone);
       refresh = true;
     }
-    if (refresh) router.refresh();
-  }, [enabled, locale, router]);
+    if (refresh && refreshes) router.refresh();
+  }, [enabled, refreshes, locale, router]);
 
   useEffect(() => {
     if (!enabled) return;
@@ -121,11 +107,11 @@ export function LocaleSync({ force = false }: { force?: boolean }) {
       if (event.key !== LEGACY_LOCALE_STORAGE_KEY || !isLocale(event.newValue)) return;
       if (readCookie(LOCALE_COOKIE) === event.newValue) return;
       rememberLocale(event.newValue);
-      router.refresh();
+      if (refreshes) router.refresh();
     }
     window.addEventListener("storage", onStorage);
     return () => window.removeEventListener("storage", onStorage);
-  }, [enabled, router]);
+  }, [enabled, refreshes, router]);
 
   return null;
 }

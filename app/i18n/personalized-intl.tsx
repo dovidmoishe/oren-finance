@@ -1,5 +1,6 @@
 import { cookies, headers } from "next/headers";
 import { NextIntlClientProvider } from "next-intl";
+import { CookieConsent } from "@/components/consent/cookie-consent";
 import type { ReactNode } from "react";
 import { messagesFor } from "./catalog";
 import { IntlErrorProvider } from "./intl-error";
@@ -19,6 +20,7 @@ export async function PersonalizedIntl({ children }: { children: ReactNode }) {
       <IntlErrorProvider>
         <script dangerouslySetInnerHTML={{ __html: `document.documentElement.lang=${JSON.stringify(locale)}` }} />
         <LocaleSync force />
+        <CookieConsent placement="app" />
         {children}
       </IntlErrorProvider>
     </NextIntlClientProvider>

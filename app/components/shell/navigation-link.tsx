@@ -1,11 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { motion, useReducedMotion } from "motion/react";
+import { useReducedMotion } from "framer-motion";
+import * as m from "motion/react-m";
 import { cn } from "@/components/ui";
 import { AnimatedNavigationIcon, type NavigationIconName } from "./AnimatedIcons";
 
-const MotionLink = motion.create(Link);
+// Motion's lightweight entry points: importing anything from `motion/react`
+// also evaluates its full `motion` component and every feature (drag, layout,
+// projection) into the first bundle. `m` animates once the shell's LazyMotion
+// loads the features; the same framer-motion copy backs `motion/react-m`.
+const MotionLink = m.create(Link);
 
 export function NavigationLink({ href, label, icon, active, compact, onNavigate }: {
   href: string;
