@@ -1,0 +1,29 @@
+# Admin dashboard release on the existing production network. CI deploys it with
+# infra/admin/deploy.sh once the matching production release has succeeded.
+name: oren-admin
+services:
+  admin:
+    image: ${ADMIN_IMAGE:?set ADMIN_IMAGE to the built admin image}
+    # A new name, so the first automated release cannot collide with the
+    # hand-run container it replaces.
+    container_name: oren-admin-dashboard
+    restart: unless-stopped
+    environment:
+      ADMIN_API_UPSTREAM: oren-api-1:3000
+      ADMIN_RELEASE_SHA: ${ADMIN_RELEASE_SHA:?set ADMIN_RELEASE_SHA to the release commit}
+    read_only: true
+    tmpfs:
+      - /config
+      - /data
+      - /tmp
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks: [production]
+networks:
+  production:
+    external: true
+    name: oren_oren

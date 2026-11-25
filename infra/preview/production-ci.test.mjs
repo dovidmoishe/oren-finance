@@ -83,3 +83,14 @@ test('invalid SHA and API errors fail closed', async () => {
   f.args.github.rest.actions.listWorkflowRuns = async () => {throw Error('unavailable');};
   await assert.rejects(requireProductionCi(f.args), /unavailable/);
 });
+
+test('a later release can wait for another exact master workflow', async () => {
+  const release = {...good, id: 20, path: '.github/workflows/deploy-production.yml'};
+  const options = {workflow: 'deploy-production.yml', label: 'production release'};
+  const f = fixture([[{...release, status: 'in_progress', conclusion: null}], [release]]);
+  assert.equal(await requireProductionCi({...f.args, ...options}), 20);
+  assert.ok(f.queries.every(q => q.workflow_id === 'deploy-production.yml' && q.head_sha === sha));
+  // Master CI alone cannot stand in for the release, and a failed release blocks.
+  await assert.rejects(requireProductionCi({...fixture([[good]]).args, ...options}), /Timed out waiting for successful production release/);
+  await assert.rejects(requireProductionCi({...fixture([[{...release, conclusion: 'failure'}]]).args, ...options}), /Production release 20: failure/);
+});
