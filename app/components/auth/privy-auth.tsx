@@ -11,6 +11,12 @@ import { WalletModalContext, type WalletModalContextState } from "./wallet-modal
 
 const solanaConnectors = toSolanaWalletConnectors({ shouldAutoConnect: false });
 
+// What Solana-only sign-in can show: installed Solana wallets, and Phantom when
+// it is not installed. Privy's default list also names EVM wallets (Coinbase,
+// Base, MetaMask, Rainbow, Robinhood, WalletConnect) and starts their connectors
+// even for "solana-only", downloading the Coinbase SDK on every restore.
+const solanaWalletList: ("detected_solana_wallets" | "phantom")[] = ["detected_solana_wallets", "phantom"];
+
 export interface PublishedSession {
   auth: OrenAuth;
   wallet: WalletContextState;
@@ -38,7 +44,7 @@ export const PrivyAuth = memo(function PrivyAuth({ appId, onSession }: { appId: 
   return (
     <PrivyProvider appId={appId} config={{
       loginMethods: ["wallet", "email"],
-      appearance: { theme, accentColor, walletChainType: "solana-only" },
+      appearance: { theme, accentColor, walletChainType: "solana-only", walletList: solanaWalletList },
       externalWallets: { solana: { connectors: solanaConnectors }, walletConnect: { enabled: false } },
       embeddedWallets: { solana: { createOnLogin: "off" }, showWalletUIs: true },
     }}>

@@ -6,6 +6,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import Link from "next/link";
 import Image from "next/image";
 import { OrenLogo } from "@/components/brand/oren-logo";
+import { CookieSettingsButton } from "@/components/consent/cookie-consent";
 
 const groups = [
   { title: "Product", links: [
@@ -53,7 +54,10 @@ export function LandingFooter() {
         </nav>
       </div>
       <div className="flex items-center justify-between gap-[24px] [border-top:1px_solid_#e7e3da] pt-[18px] text-[11px] leading-[1.6] text-[#9b9081] at-most-700:block at-most-700:text-[10px] at-most-700:pt-[20px]">
-        <p>© {new Date().getFullYear()} Oren</p>
+        <div className="flex items-center gap-[24px]">
+          <p>© {new Date().getFullYear()} Oren</p>
+          <CookieSettingsButton className="inline-flex min-h-[36px] items-center text-[#7d7263] hover:text-[#28241e] focus-visible:rounded-[3px] focus-visible:outline-2 focus-visible:outline-offset-[5px] focus-visible:outline-[#ab96c0] at-most-700:min-h-[40px]">Cookie settings</CookieSettingsButton>
+        </div>
         <div className="flex items-center gap-[36px] at-most-700:justify-between at-most-700:gap-[20px] at-most-700:mt-[12px]">
           <span className="inline-flex items-center gap-[7px] whitespace-nowrap">Built on <Image className="h-[12px] w-[15px] flex-none object-contain" src="/integrations/solana.svg" alt="" width={15} height={12} /><span>Solana</span></span>
           <a href="#top" className="inline-flex items-center justify-center gap-[9px] min-h-[36px] text-[#7d7263] at-most-700:min-h-[40px]">Back to top <ArrowUpIcon size={14} strokeWidth={1.5} color="currentColor" aria-hidden="true" focusable="false" className="inline-block shrink-0 align-middle" /></a>

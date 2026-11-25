@@ -24,6 +24,8 @@ function fixture(override = {}) {
     if (id === '@/components/language/language-menu') return { LanguageMenu: () => null };
     if (id === '@/components/ui') return { Button };
     if (id === '@/i18n/locales') return { LOCALES: [{ code: 'en', name: 'English' }] };
+    if (id === '@/components/consent/cookie-consent') return { CookieSettingsButton: ({ children }) => createElement('button', null, children) };
+    if (id === '@/lib/use-consent') return { useConsent: () => 'undecided' };
     return require(id);
   } });
   return { html: () => renderToStaticMarkup(createElement(exports.AccountSettings)), tree: () => exports.AccountSettings(),

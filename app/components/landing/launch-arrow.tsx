@@ -3,12 +3,14 @@ import { ArrowRight as ArrowRightIcon, LoaderCircle as LoaderCircleIcon } from "
 
 import { useLinkStatus } from "next/link";
 import { useEffect, useState } from "react";
+import { browserHasPrivySession } from "@/components/auth/privy-session-hint";
 
-// Sign-in (Privy) loads after /app renders. Start that download as soon as the
-// visitor shows intent, so the account restores sooner after they land.
+// A saved session restores as soon as /app loads. Start that download when the
+// visitor shows intent, so it is ready sooner. Signed-out visitors skip it: the
+// app shows Sign in without Privy and loads it only when they choose to sign in.
 let privyWarmed = false;
 function warmPrivy() {
-  if (privyWarmed) return;
+  if (privyWarmed || !browserHasPrivySession()) return;
   privyWarmed = true;
   void import("@/components/auth/privy-auth").catch(() => { privyWarmed = false; });
 }

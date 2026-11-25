@@ -30,7 +30,7 @@ export function AccountMenu() {
   if (!auth.configured) return <span className="sr-only text-xs text-muted sm:not-sr-only">{t("account.signInUnavailable")}</span>;
   if (restoreBlocked(auth)) return <RestoreActions signInLabel={t("account.signIn")} size="sm" />;
   if (!auth.ready) return <span className="sr-only text-xs text-muted sm:not-sr-only" role="status">{t("account.loading")}</span>;
-  if (!auth.authenticated) return <Button onClick={auth.open} size="sm">{t("account.signIn")}</Button>;
+  if (!auth.authenticated) return <Button onClick={auth.open} onFocus={auth.prefetch} onPointerEnter={auth.prefetch} onTouchStart={auth.prefetch} size="sm">{t("account.signIn")}</Button>;
   const initial = (auth.email?.[0] || "U").toUpperCase();
   const close = () => menu.current?.hidePopover();
   return <>

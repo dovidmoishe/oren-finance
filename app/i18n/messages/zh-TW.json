@@ -1179,5 +1179,17 @@
     "change24h": "24小時漲跌",
     "interval": "K線週期",
     "intervalEmpty": "資料源暫無此週期的K線，請選擇其他週期。"
+  },
+  "cookies": {
+    "label": "Cookie 偏好設定",
+    "title": "Oren 的 Cookie",
+    "body": "我們使用必要的 Cookie 來維持你的登入狀態並記住你的設定。經你同意後，我們也會使用分析功能，了解 Oren 的使用情形並讓它保持快速。你可以隨時變更此選擇。",
+    "reject": "拒絕分析",
+    "accept": "接受分析",
+    "settings": "Cookie 設定",
+    "analyticsOn": "已允許分析",
+    "analyticsOff": "已關閉分析",
+    "analyticsUnset": "尚未選擇",
+    "change": "變更"
   }
 }

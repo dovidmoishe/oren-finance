@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { InterfaceIcon } from "@/components/ui/interface-icon";
 
+import { LazyMotion } from "framer-motion";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -29,6 +30,8 @@ import type { NavigationIconName } from "./AnimatedIcons";
 import { CopilotResizeHandle, MAX_COPILOT_WIDTH, MIN_COPILOT_WIDTH } from "./copilot-resize-handle";
 
 const AgentPanel = dynamic(() => import("@/components/agent/agent-panel").then((mod) => mod.AgentPanel), { ssr: false });
+// Sidebar icon animation arrives after the shell paints; icons render still until then.
+const loadMotionFeatures = () => import("./motion-features").then((mod) => mod.default);
 const DepositModal = dynamic(() => import("@/components/portfolio/deposit-dashboard").then((mod) => mod.DepositModal), { ssr: false });
 
 // Remember the first opening so closing the panel preserves drafts and review
@@ -141,6 +144,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }
 
   return (
+    <LazyMotion features={loadMotionFeatures}>
     <div ref={shell} style={{ "--copilot-preferred-width": width + "px" } as CSSProperties} className={cn(
       "mx-auto min-h-dvh overflow-x-clip bg-panel-subtle text-foreground [&_h2]:font-medium [&_h2]:tracking-[-0.025em] [&_h3]:font-medium [&_h3]:tracking-[-0.015em] lg:grid lg:grid-cols-[var(--nav-width)_minmax(0,1fr)_var(--copilot-width)] lg:grid-rows-[var(--app-nav-height)_1fr] lg:[--app-shell-inset:0px] motion-reduce:transition-none [--app-header-bottom:calc(var(--app-nav-height)+var(--app-shell-inset,0px))]",
       collapsed ? "lg:[--nav-width:3.5rem]" : "lg:[--nav-width:12.5rem] xl:[--nav-width:13.5rem]",
@@ -229,5 +233,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <AppSearch dialog={search} />
       {depositOpen ? <DepositModal /> : null}
     </div>
+    </LazyMotion>
   );
 }

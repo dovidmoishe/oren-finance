@@ -1179,5 +1179,17 @@
     "change24h": "Perubahan 24 jam",
     "interval": "Interval candle",
     "intervalEmpty": "Feed data tidak menyediakan candle untuk interval ini. Pilih interval lain."
+  },
+  "cookies": {
+    "label": "Preferensi cookie",
+    "title": "Cookie di Oren",
+    "body": "Kami menggunakan cookie penting agar Anda tetap masuk dan pengaturan Anda tersimpan. Dengan izin Anda, kami juga akan menggunakan analitik untuk memahami cara Oren digunakan dan menjaganya tetap cepat. Anda dapat mengubah pilihan ini kapan saja.",
+    "reject": "Tolak analitik",
+    "accept": "Terima analitik",
+    "settings": "Pengaturan cookie",
+    "analyticsOn": "Analitik diizinkan",
+    "analyticsOff": "Analitik nonaktif",
+    "analyticsUnset": "Belum dipilih",
+    "change": "Ubah"
   }
 }

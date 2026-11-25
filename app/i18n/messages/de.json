@@ -1179,5 +1179,17 @@
     "change24h": "24h-Änderung",
     "interval": "Kerzenintervall",
     "intervalEmpty": "Der Datenfeed liefert für dieses Intervall keine Kerzen. Wähle ein anderes Intervall."
+  },
+  "cookies": {
+    "label": "Cookie-Einstellungen",
+    "title": "Cookies bei Oren",
+    "body": "Wir verwenden notwendige Cookies, damit du angemeldet bleibst und deine Einstellungen erhalten bleiben. Mit deiner Zustimmung nutzen wir außerdem Analysen, um zu sehen, wie Oren genutzt wird, und es schnell zu halten. Du kannst das jederzeit ändern.",
+    "reject": "Analysen ablehnen",
+    "accept": "Analysen erlauben",
+    "settings": "Cookie-Einstellungen",
+    "analyticsOn": "Analysen erlaubt",
+    "analyticsOff": "Analysen aus",
+    "analyticsUnset": "Noch nicht gewählt",
+    "change": "Ändern"
   }
 }

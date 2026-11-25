@@ -505,8 +505,8 @@ export function PrivySession({ children }: { children: React.ReactNode }) {
             >
               {t("auth.close")}
             </button>
-            {visible && <EmailLogin sendCode={sendCode} loginWithCode={loginWithCode} />}
-            {visible && <><div className="my-4 flex items-center gap-3 text-xs text-muted"><span className="h-px flex-1 bg-border" />{t('walletAuth.or')}<span className="h-px flex-1 bg-border" /></div><button type="button" className="w-full rounded-xl border border-border px-4 py-3 text-sm font-semibold hover:bg-panel-subtle focus-visible:outline-2 focus-visible:outline-offset-2" onClick={() => { dialog.current?.close(); setVisible(false); login({ loginMethods: ['wallet'] }); }}>{t('walletAuth.continueWallet')}</button><p className="mt-3 text-center text-xs leading-5 text-muted">{t('walletAuth.optionalEmail')}</p></>}
+            {visible && <EmailLogin ready={ready} sendCode={sendCode} loginWithCode={loginWithCode} />}
+            {visible && <><div className="my-4 flex items-center gap-3 text-xs text-muted"><span className="h-px flex-1 bg-border" />{t('walletAuth.or')}<span className="h-px flex-1 bg-border" /></div><button type="button" disabled={!ready} className="w-full rounded-xl border border-border px-4 py-3 text-sm font-semibold hover:bg-panel-subtle focus-visible:outline-2 focus-visible:outline-offset-2 disabled:opacity-50" onClick={() => { dialog.current?.close(); setVisible(false); login({ loginMethods: ['wallet'] }); }}>{t('walletAuth.continueWallet')}</button><p className="mt-3 text-center text-xs leading-5 text-muted">{t('walletAuth.optionalEmail')}</p></>}
           </dialog>
           {onboardingUserId && authenticated && !signingOut && !visible && inApp &&
             user?.id === onboardingUserId && (

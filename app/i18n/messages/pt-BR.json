@@ -1179,5 +1179,17 @@
     "change24h": "Variação em 24 h",
     "interval": "Intervalo das velas",
     "intervalEmpty": "O feed não tem velas para este intervalo. Escolha outro intervalo."
+  },
+  "cookies": {
+    "label": "Preferências de cookies",
+    "title": "Cookies na Oren",
+    "body": "Usamos cookies essenciais para manter você conectado e lembrar suas configurações. Com a sua permissão, também usaremos análises para entender como a Oren é usada e mantê-la rápida. Você pode mudar isso a qualquer momento.",
+    "reject": "Recusar análises",
+    "accept": "Aceitar análises",
+    "settings": "Configurações de cookies",
+    "analyticsOn": "Análises permitidas",
+    "analyticsOff": "Análises desativadas",
+    "analyticsUnset": "Ainda não escolhido",
+    "change": "Alterar"
   }
 }

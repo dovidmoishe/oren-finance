@@ -5,8 +5,12 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useT } from "@/i18n/i18n";
 import { signInErrorKey, type SignInErrorKey } from "./sign-in-error";
 
-/** The enclosing dialog owns visibility; Privy owns OTP delivery and verification. */
-export function EmailLogin({ sendCode, loginWithCode }: Pick<UseLoginWithEmail, "sendCode" | "loginWithCode">) {
+/**
+ * The enclosing dialog owns visibility; Privy owns OTP delivery and verification.
+ * The dialog can open while Privy is still starting, so typing works at once and
+ * submitting waits for `ready`.
+ */
+export function EmailLogin({ ready = true, sendCode, loginWithCode }: Pick<UseLoginWithEmail, "sendCode" | "loginWithCode"> & { ready?: boolean }) {
   const t = useT();
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
@@ -98,8 +102,8 @@ export function EmailLogin({ sendCode, loginWithCode }: Pick<UseLoginWithEmail, 
         </label>
       )}
       {error ? <p className="text-sm text-error" role="alert">{t(error)}</p> : null}
-      <button className="w-full rounded-xl bg-primary px-4 py-3 text-sm font-medium text-primary-foreground disabled:opacity-50" disabled={busy} type="submit">
-        {busy ? t("auth.waiting") : step === "email" ? t("auth.continue") : t("auth.verify")}
+      <button className="w-full rounded-xl bg-primary px-4 py-3 text-sm font-medium text-primary-foreground disabled:opacity-50" disabled={busy || !ready} type="submit">
+        {busy || !ready ? t("auth.waiting") : step === "email" ? t("auth.continue") : t("auth.verify")}
       </button>
       {step === "code" ? (
         <div className="flex justify-between text-sm">

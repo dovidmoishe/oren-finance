@@ -151,6 +151,8 @@ function mountPrivy({ fail }) {
       }];
     },
     useEffect(effect, deps) { pending.push({ effect, deps }); },
+    // Client snapshot: this window has no storage, so it counts as a saved session.
+    useSyncExternalStore: (_subscribe, getSnapshot) => getSnapshot(),
     useContext: (context) => context.value,
     createElement,
   };
@@ -177,6 +179,12 @@ function mountPrivy({ fail }) {
         return { PrivyAuth() { return null; } };
       }
       if (id === "@/lib/performance-client") return { recordPerformanceMetric() {} };
+      // No document or storage here, so the hint counts as a saved session: restore on load.
+      if (id === "@/components/auth/privy-session-hint") {
+        const loaded = {};
+        vm.runInNewContext(transpile("../components/auth/privy-session-hint.ts"), { exports: loaded, window });
+        return loaded;
+      }
       if (id === "@/lib/chunk-reload") {
         const loaded = {};
         vm.runInNewContext(transpile("../lib/chunk-reload.ts"), {
