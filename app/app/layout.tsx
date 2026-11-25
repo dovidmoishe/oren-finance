@@ -12,12 +12,18 @@ import { IntlErrorProvider } from "@/i18n/intl-error";
 import { LocaleSync } from "@/i18n/locale-sync";
 import { DEFAULT_LOCALE } from "@/i18n/locales";
 import { GrowthCollector } from "@/components/growth/growth-collector";
+import { DEFAULT_DESCRIPTION, HOME_TITLE, SITE_NAME, SITE_URL, X_HANDLE, siteRobots } from "@/lib/seo";
 
+// Defaults only. No canonical or og:url here: every page would inherit them.
+// No og:title either, so each page's own title fills its social cards.
 export const metadata: Metadata = {
-  metadataBase: new URL("https://oren.finance"),
-  title: "Oren",
-  description: "Tokenized equities portfolio and investing copilot.",
-  openGraph: { locale: "en_US" },
+  metadataBase: new URL(SITE_URL),
+  title: { default: HOME_TITLE, template: `%s — ${SITE_NAME}` },
+  description: DEFAULT_DESCRIPTION,
+  applicationName: SITE_NAME,
+  openGraph: { siteName: SITE_NAME, locale: "en_US", type: "website" },
+  twitter: { card: "summary_large_image", site: X_HANDLE },
+  robots: siteRobots(),
 };
 
 // English, with no cookies() or headers(), so marketing pages can stay static.

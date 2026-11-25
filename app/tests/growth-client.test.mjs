@@ -23,3 +23,14 @@ test('a session rotates after 30 idle minutes and stays put before that', () => 
   assert.notEqual(rotated.sessionId, first.sessionId);
   assert.equal(rotated.fresh, true);
 });
+
+test('a referrer keeps only its origin, including Android apps, and never throws', async () => {
+  const { referrerOrigin } = await import('../lib/growth-client.mjs');
+  assert.equal(referrerOrigin('https://t.co/AbC123?x=1'), 'https://t.co');
+  assert.equal(referrerOrigin('https://www.google.com/search?q=oren'), 'https://www.google.com');
+  assert.equal(referrerOrigin('android-app://com.google.android.gm/'), 'android-app://com.google.android.gm');
+  assert.equal(referrerOrigin('android-app://'), undefined);
+  assert.equal(referrerOrigin('chrome-extension://abc/page.html'), undefined);
+  assert.equal(referrerOrigin('not a url'), undefined);
+  assert.equal(referrerOrigin(''), undefined);
+});

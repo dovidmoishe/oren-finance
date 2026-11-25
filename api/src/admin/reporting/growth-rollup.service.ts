@@ -52,16 +52,13 @@ export class GrowthRollupService implements OnModuleInit, OnModuleDestroy {
         now,
         this.env.GROWTH_RAW_RETENTION_DAYS,
       );
+      // Raw pageviews are added into the permanent daily totals in the same
+      // transaction that deletes them. Visitor ids are kept so "new visitors"
+      // stays countable for every date range.
       await this.repository.rollupPageviews(
         now,
         boundary.cutoff,
         boundary.purgeBefore,
-      );
-      await this.repository.purgeIdentities(
-        new Date(
-          now.getTime() -
-            this.env.GROWTH_IDENTITY_RETENTION_DAYS * 24 * 60 * 60 * 1000,
-        ),
       );
       await this.repository.markCheckpoint('rollup');
     } catch (error) {

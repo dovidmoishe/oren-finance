@@ -6,7 +6,7 @@ export function hasPermission(session: Session, permission: string) {
     session.permissions.includes(permission as Permission)
   );
 }
-export const missingValue = "?";
+export const missingValue = "—";
 
 export function hasObservation<T extends Count>(
   count: T | undefined,
@@ -67,6 +67,42 @@ export function totalSlice(slices: Slice[]): Slice | undefined {
   // An ungrouped report has one slice. Grouped distinct-account counts are not additive.
   return slices.length === 1 ? slices[0] : undefined;
 }
+const regions =
+  typeof Intl.DisplayNames === "function"
+    ? new Intl.DisplayNames(["en"], { type: "region" })
+    : undefined;
+
+/** "Nigeria" for NG. Unknown codes stay as the code. */
+export function countryName(code: string) {
+  try {
+    return regions?.of(code) ?? code;
+  } catch {
+    return code;
+  }
+}
+
+/** Flag emoji from regional indicators. Some systems, such as Windows, draw the letters instead. */
+export function countryFlag(code: string) {
+  return /^[A-Z]{2}$/.test(code)
+    ? String.fromCodePoint(
+        ...[...code].map((letter) => 0x1f1e6 + letter.charCodeAt(0) - 65),
+      )
+    : "";
+}
+
+const referrerNames: Record<string, string> = {
+  "t.co": "X (t.co)",
+  "com.google.android.gm": "Gmail app",
+  "com.google.android.googlequicksearchbox": "Google app",
+  "org.telegram.messenger": "Telegram app",
+  "com.linkedin.android": "LinkedIn app",
+};
+
+/** Hosts as recorded, with names for the few that hide where a visit came from. */
+export function referrerLabel(host: string) {
+  return referrerNames[host] ?? host;
+}
+
 export function readable(value?: string | null) {
   return value ? value.replaceAll("_", " ") : missingValue;
 }

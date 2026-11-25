@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 import sharp from 'sharp';
 import ts from 'typescript';
+import { loadSeo } from './support/load-seo.mjs';
 
 const imageUrl = new URL('../app/agents/opengraph-image.png', import.meta.url);
 const altUrl = new URL('../app/agents/opengraph-image.alt.txt', import.meta.url);
@@ -51,26 +52,26 @@ test('agents metadata keeps the production canonical url and a large summary car
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX },
   }).outputText;
   const exports = {};
+  const seo = loadSeo({ NEXT_PUBLIC_DEPLOYMENT_ENV: 'production' });
   vm.runInNewContext(compiled, {
     exports,
     require: (id) => {
       if (id === 'react/jsx-runtime') return { jsx: () => null, jsxs: () => null };
+      if (id === '@/lib/seo') return seo;
       if (id.endsWith('.css') || id === 'next/link' || id.startsWith('@/') || id === 'lucide-react' || id.startsWith('./')) return {};
       throw new Error(`Unexpected import ${id}`);
     },
   });
   const { metadata } = exports;
-  assert.equal(metadata.title, 'Connect your agent — Oren');
+  // The root layout's title template adds " — Oren"; Next fills og:title and the
+  // Twitter title and description from the page's title and description.
+  assert.equal(metadata.title, 'Connect your agent');
   assert.match(metadata.description, /Research stocks, understand your portfolio, and trade/);
   assert.match(metadata.description, /Claude, Cursor, Codex or Grok Bot/);
   assert.equal(metadata.alternates.canonical, '/agents');
   assert.equal(metadata.openGraph.url, '/agents');
   assert.equal(metadata.openGraph.type, 'website');
-  assert.equal(metadata.openGraph.title, metadata.title);
-  assert.equal(metadata.openGraph.description, metadata.description);
   assert.equal(Object.hasOwn(metadata.openGraph, 'images'), false);
   assert.equal(metadata.twitter.card, 'summary_large_image');
-  assert.equal(metadata.twitter.title, metadata.title);
-  assert.equal(metadata.twitter.description, metadata.description);
   assert.equal(Object.hasOwn(metadata.twitter, 'images'), false);
 });
