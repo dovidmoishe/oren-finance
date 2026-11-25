@@ -2,6 +2,7 @@ import { primaryButton, notice, field } from "./control-styles";
 import { useState, type FormEvent } from "react";
 import { post, setCsrfToken } from "./api";
 import { useAuth } from "./state";
+import { ThemeControl } from "./theme-control";
 import { Icon } from "./ui";
 import { ArrowRight } from "lucide-react";
 
@@ -44,7 +45,10 @@ export function AuthScreen({ changing = false }: { changing?: boolean }) {
     }
   }
   return (
-    <div className="relative flex min-h-dvh items-center justify-center bg-white px-6 py-24">
+    <div className="relative flex min-h-dvh items-center justify-center bg-background px-6 py-24">
+      <div className="absolute top-6 right-6">
+        <ThemeControl />
+      </div>
       <a
         href="https://oren.finance"
         className="absolute top-6 left-7 flex items-center gap-2 text-lg font-semibold [&_img]:w-6"

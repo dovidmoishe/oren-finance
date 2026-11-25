@@ -1,6 +1,6 @@
 # Oren Admin
 
-Independent React + TypeScript + Vite admin app, built on PR #87 (`afc015b`). TanStack Router handles routes and TanStack Query handles server state. The admin and consumer app share animated sidebar icons. The admin uses the Oren product?s light palette and Onest type. The overview shows verified stock trading volume, on-chain transactions, chats with a user message in the selected period, and recorded pageviews. Detailed analytics are under **More reports**.
+Independent React + TypeScript + Vite admin app, built on PR #87 (`afc015b`). TanStack Router handles routes and TanStack Query handles server state. The admin and consumer app share animated sidebar icons. The admin uses Oren?s light and dark palettes and Onest type. The appearance menu follows your system by default and saves your choice on this browser. The overview shows verified stock trading volume, on-chain transactions, chats with a user message in the selected period, and recorded pageviews. Detailed analytics are under **Reports**. **Operations** and **Settings** expand when you need them.
 
 ## Local development
 

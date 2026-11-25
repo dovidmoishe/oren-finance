@@ -139,7 +139,7 @@ function OverviewMetrics() {
         <Metric
           label="Trading volume"
           value={data ? usd.format(data.volumeUsd) : pending}
-          note="Verified stock fills"
+          note="Verified stock trades"
         />
         <Metric
           label="Trades"
@@ -215,7 +215,7 @@ function TrafficPage({ overview = false }: { overview?: boolean }) {
           <Metric
             label="New visitors"
             value={visitorCount}
-            note="Recognized visitors first seen in range"
+            note="First seen in this range"
           />
           <Metric
             label="Days with data"
@@ -393,7 +393,11 @@ function TrafficChart({ days }: { days: Day[] }) {
               cx={x(index)}
               cy={y(day.value)}
               r={day.status === "partial" ? 5 : 3}
-              fill={day.status === "partial" ? "white" : "var(--color-brand)"}
+              fill={
+                day.status === "partial"
+                  ? "var(--color-surface)"
+                  : "var(--color-brand)"
+              }
               stroke="var(--color-brand)"
               strokeWidth="2"
             >
@@ -560,7 +564,7 @@ function RetentionPage() {
   const renderWindow = (value: Retention, days: number) => (
     <Panel
       title={`${days}-day research return`}
-      subtitle="Research or a confirmed trade after the first in-range research"
+      subtitle="Returned to research or trade"
     >
       <div className="px-5 pb-3 text-4xl font-medium tracking-tight tabular-nums">
         {value.value == null ||
@@ -594,10 +598,8 @@ function RetentionPage() {
         <div>
           <strong>Give cohorts time to mature</strong>
           <p>
-            Only accounts whose full follow-up window has elapsed enter the
-            denominator. Returns can fall after the selected end date. Each
-            cohort starts with an account?s earliest research in the selected
-            period.
+            Each account gets the full follow-up window after its first
+            research.
           </p>
         </div>
       </div>
@@ -615,7 +617,7 @@ function CampaignPage() {
   if (!valid) return null;
   return (
     <Panel
-      title="Acquisition, in context"
+      title="Campaign results"
       action={
         <label className="grid gap-1.5 text-xs font-medium">
           <span className="sr-only">Comparison dimension</span>
@@ -781,16 +783,12 @@ function CoveragePage() {
         </Panel>
         <Panel title="History & provenance">
           <p className="px-5 pb-4 text-sm leading-relaxed text-muted">
-            Historical imports are manual operator actions. Missing days remain
-            unavailable. Point-in-time snapshots are not daily deltas and are
-            never added to live trade counts.
-          </p>
-          <p className={panelNote}>
-            This workspace does not import history or issue machine credentials.
+            Imported totals and historical snapshots keep their original dates
+            and coverage.
           </p>
         </Panel>
       </div>
-      <Panel title="A shared vocabulary">
+      <Panel title="Metric definitions">
         <dl className="divide-y divide-border px-5 pb-4 [&>div]:grid [&>div]:gap-1 [&>div]:py-3 sm:[&>div]:grid-cols-[140px_1fr] [&_dt]:text-xs [&_dt]:font-semibold [&_dd]:text-xs [&_dd]:leading-relaxed [&_dd]:text-muted">
           {Object.entries(coverage.definitions).map(([key, value]) => (
             <div key={key}>
