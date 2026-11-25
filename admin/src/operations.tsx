@@ -200,7 +200,19 @@ export function OperationsPage({ view }: { view: View }) {
                 </button>
               </div>
             </div>
-            <p className={panelNote}>{query.data.note}</p>
+            {view === "users" && (
+              <p className={panelNote}>Accounts that connected an agent.</p>
+            )}
+            {view === "connections" && (
+              <p className={panelNote}>
+                An unrevoked connection can still expire.
+              </p>
+            )}
+            {view === "trades" && (
+              <p className={panelNote}>
+                Agent trade requests and their latest status.
+              </p>
+            )}
           </>
         )}
       </Panel>
@@ -336,12 +348,10 @@ function TradeSummary() {
                 query.data.trades.confirmed.browser +
                 query.data.trades.confirmed.delegated
               ).toLocaleString()}
-              note="Application-confirmed browser + delegated"
             />
             <Metric
               label="Activated accounts"
               value={query.data.trades.uniqueActivatedAccounts.toLocaleString()}
-              note="Distinct accounts with confirmed intents"
             />
           </div>
         )
