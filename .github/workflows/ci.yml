@@ -32,8 +32,8 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
-      - run: node --test infra/ci/*.test.mjs infra/preview/*.test.mjs infra/docs/*.test.mjs
-      - run: for script in infra/ci/*.sh; do bash -n "$script"; done
+      - run: node --test infra/ci/*.test.mjs infra/preview/*.test.mjs infra/docs/*.test.mjs infra/admin/*.test.mjs
+      - run: for script in infra/ci/*.sh infra/admin/*.sh; do bash -n "$script"; done
       - run: node --test infra/signer-gate/trading-policy.test.mjs infra/signer-gate/build-launch-policy.test.mjs
       - run: node --check infra/signer-gate/prepare-trading-policy.mjs && node --check infra/signer-gate/policy-owner.mjs
       - run: for script in infra/preview/*.sh; do bash -n "$script"; done
