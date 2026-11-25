@@ -10,7 +10,7 @@ import type { LucideIcon } from "lucide-react";
 import { CircleAlert, RefreshCw, ArrowRight, Download } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useReport } from "./state";
-import { initialRange, readable } from "./model";
+import { initialRange, missingValue, readable } from "./model";
 
 export function Icon({
   icon: Glyph,
@@ -71,7 +71,7 @@ export function Metric({
     >
       <span className="text-xs font-medium text-muted">{label}</span>
       <strong
-        className={`leading-tight font-medium tracking-tight tabular-nums ${value === "Unavailable" ? "text-lg text-muted" : "text-3xl mobile:text-2xl"}`}
+        className={`leading-tight font-medium tracking-tight tabular-nums ${value === missingValue ? "text-lg text-muted" : "text-3xl mobile:text-2xl"}`}
       >
         {value}
       </strong>
@@ -231,10 +231,10 @@ export function DateFilters({ utcOnly = false }: { utcOnly?: boolean }) {
   );
 }
 export function DateTime({ value }: { value: string | null }) {
-  if (!value) return <span className="text-muted">Unavailable</span>;
+  if (!value) return <span className="text-muted">{missingValue}</span>;
   const date = new Date(value);
   if (Number.isNaN(date.getTime()))
-    return <span className="text-muted">Unavailable</span>;
+    return <span className="text-muted">{missingValue}</span>;
   return (
     <time dateTime={value}>
       {new Intl.DateTimeFormat("en-GB", {

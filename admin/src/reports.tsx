@@ -12,10 +12,13 @@ import { useQuery } from "@tanstack/react-query";
 import { api, exportDaily } from "./api";
 import {
   formatCount,
+  hasObservation,
   hasPermission,
+  missingValue,
   percent,
   readable,
   totalSlice,
+  trafficCoverage,
 } from "./model";
 import { useAuth, useReport, useReportQuery } from "./state";
 import type {
@@ -116,11 +119,14 @@ function TrafficPage({ overview }: { overview: boolean }) {
       <ErrorState error={query.error} retry={() => void query.refetch()} />
     );
   const traffic = query.data;
-  const known = traffic.daily.filter(
-    (day) => day.value != null && day.status !== "unavailable",
+  const { recordedPageviews, partial, missing } = trafficCoverage(
+    traffic.daily,
   );
-  const complete = traffic.daily.filter((day) => day.status === "exact").length;
-  const incomplete = complete < traffic.daily.length;
+  const visitors = traffic.distinctDurableVisitorsFirstSeenInRange;
+  const visitorCount =
+    recordedPageviews == null && visitors.value === 0
+      ? missingValue
+      : formatCount(visitors);
   async function download() {
     setExportError("");
     setExporting(true);
@@ -136,18 +142,17 @@ function TrafficPage({ overview }: { overview: boolean }) {
     <>
       <div className="mb-5 grid grid-cols-2 gap-3 min-[900px]:grid-cols-3">
         <Metric
-          label="Pageviews"
-          value={formatCount(traffic.pageviews)}
-          note="Complete days"
+          label="Recorded pageviews"
+          value={recordedPageviews?.toLocaleString() ?? missingValue}
         />
         <Metric
           label="New visitors"
-          value={formatCount(traffic.distinctDurableVisitorsFirstSeenInRange)}
+          value={visitorCount}
           note="Recognized visitors first seen in range"
         />
         <Metric
-          label="Days with complete data"
-          value={`${complete} / ${traffic.daily.length}`}
+          label="Days with data"
+          value={`${traffic.daily.length - missing} / ${traffic.daily.length}`}
           compact
         />
       </div>
@@ -182,14 +187,19 @@ function TrafficPage({ overview }: { overview: boolean }) {
               {exportError}
             </div>
           )}
-          {known.length ? (
+          {recordedPageviews != null ? (
             <TrafficChart days={traffic.daily} />
           ) : (
-            <Empty title="No traffic data for these dates" />
+            <Empty title="No visits recorded for these dates" />
           )}
-          {incomplete && known.length > 0 && (
+          {recordedPageviews != null && (missing > 0 || partial) && (
             <p className="px-5 pb-4 text-xs text-muted">
-              Gaps mark missing days. Larger dots mark partial days.
+              {[
+                missing > 0 && "Gaps mark days without data.",
+                partial && "Open dots mark partial days.",
+              ]
+                .filter(Boolean)
+                .join(" ")}
             </p>
           )}
         </Panel>
@@ -216,11 +226,15 @@ function TrafficPage({ overview }: { overview: boolean }) {
                     <td className="tabular-nums">
                       {traffic.dailyUniques.days
                         .find((item) => item.day === day.day)
-                        ?.value.toLocaleString() ?? "Unavailable"}
+                        ?.value.toLocaleString() ?? missingValue}
                     </td>
                     <td>
-                      <Status value={day.status} />
-                      {day.reason && (
+                      <Status
+                        value={
+                          day.status === "unavailable" ? "no data" : day.status
+                        }
+                      />
+                      {day.reason && day.reason !== "no_observation" && (
                         <span className="mt-1 block max-w-60 truncate text-[11px] text-muted">
                           {readable(day.reason)}
                         </span>
@@ -233,7 +247,8 @@ function TrafficPage({ overview }: { overview: boolean }) {
             </table>
           </div>
           <p className={panelNote}>
-            Daily uniques count visitors separately each day.
+            A dash means no observation. Daily uniques count visitors separately
+            each day.
           </p>
         </Panel>
       )}
@@ -257,7 +272,7 @@ function TrafficChart({ days }: { days: Day[] }) {
     bottom = 36;
   const maximum = Math.max(
     1,
-    ...days.map((day) => (day.status !== "unavailable" ? (day.value ?? 0) : 0)),
+    ...days.map((day) => (hasObservation(day) ? day.value : 0)),
   );
   const max = Math.max(4, Math.ceil(maximum / 4) * 4);
   const x = (index: number) =>
@@ -267,7 +282,7 @@ function TrafficChart({ days }: { days: Day[] }) {
   const segments: string[] = [];
   let segment = "";
   days.forEach((day, index) => {
-    if (day.value == null || day.status === "unavailable") {
+    if (!hasObservation(day)) {
       if (segment) segments.push(segment);
       segment = "";
     } else segment += `${segment ? " L" : "M"} ${x(index)} ${y(day.value)}`;
@@ -313,17 +328,15 @@ function TrafficChart({ days }: { days: Day[] }) {
           />
         ))}
         {days.map((day, index) =>
-          day.value != null && day.status !== "unavailable" ? (
+          hasObservation(day) ? (
             <circle
               key={day.day}
               cx={x(index)}
               cy={y(day.value)}
               r={day.status === "partial" ? 5 : 3}
-              fill={
-                day.status === "partial"
-                  ? "var(--color-muted)"
-                  : "var(--color-brand)"
-              }
+              fill={day.status === "partial" ? "white" : "var(--color-brand)"}
+              stroke="var(--color-brand)"
+              strokeWidth="2"
             >
               <title>
                 {day.day}: {day.value.toLocaleString()} pageviews ({day.status})
@@ -339,7 +352,7 @@ function TrafficChart({ days }: { days: Day[] }) {
                 stroke="var(--color-border-strong)"
                 strokeWidth="2"
               />
-              <title>{day.day}: unavailable</title>
+              <title>{day.day}: no observation</title>
             </g>
           ),
         )}
@@ -541,15 +554,15 @@ function RetentionPage() {
         {value.value == null ||
         value.status === "unavailable" ||
         !value.denominator
-          ? "Unavailable"
+          ? missingValue
           : percent((value.retained ?? value.value) / value.denominator)}
       </div>
       <div className="flex flex-wrap gap-6 px-5 pb-5 text-xs text-muted [&_strong]:mt-1 [&_strong]:block [&_strong]:text-base [&_strong]:text-foreground">
         <span>
-          Returned<strong>{value.retained ?? "Unavailable"}</strong>
+          Returned<strong>{value.retained ?? missingValue}</strong>
         </span>
         <span>
-          Eligible accounts<strong>{value.denominator ?? "Unavailable"}</strong>
+          Eligible accounts<strong>{value.denominator ?? missingValue}</strong>
         </span>
         <span>
           Window<strong>{days} days</strong>
@@ -636,7 +649,7 @@ function CampaignPage() {
                     <td className="tabular-nums">
                       {query.data.denominator === "pageviews"
                         ? row.sampleSize.toLocaleString()
-                        : "Unavailable"}
+                        : missingValue}
                     </td>
                     <td className="tabular-nums">{row.connections}</td>
                     <td className="tabular-nums">{row.researchAccounts}</td>
@@ -745,7 +758,6 @@ function CoveragePage() {
               (name) => (
                 <div key={name}>
                   <span>{name}</span>
-                  <Badge>Unavailable</Badge>
                 </div>
               ),
             )}

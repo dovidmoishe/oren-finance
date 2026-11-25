@@ -3,6 +3,7 @@ import {
   formatCount,
   hasPermission,
   initialRange,
+  trafficCoverage,
   percent,
   totalSlice,
   validRange,
@@ -11,24 +12,43 @@ import type { Session } from "../src/types";
 
 describe("report presentation", () => {
   it("keeps missing metrics distinct from measured zero", () => {
-    expect(formatCount({ status: "unavailable", value: null })).toBe(
-      "Unavailable",
-    );
-    expect(formatCount({ status: "unavailable", value: 99 })).toBe(
-      "Unavailable",
-    );
+    expect(formatCount({ status: "unavailable", value: null })).toBe("?");
+    expect(formatCount({ status: "unavailable", value: 99 })).toBe("?");
     expect(formatCount({ status: "exact", value: 0 })).toBe("0");
     expect(formatCount({ status: "partial", value: 12 })).toBe("12");
-    expect(percent(null)).toBe("Unavailable");
+    expect(percent(null)).toBe("?");
     expect(percent(0)).toBe("0.0%");
   });
-  it("defaults to closed days in Lagos even around UTC midnight", () => {
+  it("includes the current report day in Lagos and UTC", () => {
     expect(
       initialRange("Africa/Lagos", new Date("2026-11-07T23:30:00Z")),
-    ).toEqual({ from: "2026-10-25", to: "2026-11-07" });
+    ).toEqual({ from: "2026-10-26", to: "2026-11-08" });
     expect(initialRange("UTC", new Date("2026-11-07T23:30:00Z"))).toEqual({
-      from: "2026-10-24",
-      to: "2026-11-06",
+      from: "2026-10-25",
+      to: "2026-11-07",
+    });
+  });
+  it("shows recorded pageviews when the range includes gaps and a partial day", () => {
+    const missing = {
+      day: "2026-11-23",
+      status: "unavailable",
+      value: null,
+    } as const;
+    expect(trafficCoverage([missing])).toEqual({
+      recordedPageviews: null,
+      partial: false,
+      missing: 1,
+    });
+    expect(
+      trafficCoverage([
+        missing,
+        { day: "2026-11-24", status: "exact", value: 0 },
+        { day: "2026-11-25", status: "partial", value: 22 },
+      ]),
+    ).toEqual({
+      recordedPageviews: 22,
+      partial: true,
+      missing: 1,
     });
   });
   it("rejects invalid dates and ranges beyond the API limit", () => {

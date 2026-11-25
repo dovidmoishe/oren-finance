@@ -1,4 +1,4 @@
-import type { Count, Permission, Session, Slice } from "./types";
+import type { Count, Day, Permission, Session, Slice } from "./types";
 
 export function hasPermission(session: Session, permission: string) {
   return (
@@ -6,14 +6,31 @@ export function hasPermission(session: Session, permission: string) {
     session.permissions.includes(permission as Permission)
   );
 }
+export const missingValue = "?";
+
+export function hasObservation<T extends Count>(
+  count: T | undefined,
+): count is T & { value: number } {
+  return count != null && count.status !== "unavailable" && count.value != null;
+}
+
+export function trafficCoverage(days: Day[]) {
+  const observed = days.filter(hasObservation);
+  return {
+    recordedPageviews: observed.length
+      ? observed.reduce((total, day) => total + day.value, 0)
+      : null,
+    partial: observed.some((day) => day.status === "partial"),
+    missing: days.length - observed.length,
+  };
+}
+
 export function formatCount(value?: Count) {
-  return value?.value == null || value.status === "unavailable"
-    ? "Unavailable"
-    : value.value.toLocaleString();
+  return hasObservation(value) ? value.value.toLocaleString() : missingValue;
 }
 export function percent(value: number | null | undefined) {
   return value == null || !Number.isFinite(value)
-    ? "Unavailable"
+    ? missingValue
     : `${(value * 100).toFixed(1)}%`;
 }
 export function dateInZone(date: Date, timezone: string) {
@@ -27,7 +44,6 @@ export function dateInZone(date: Date, timezone: string) {
 export function initialRange(timezone = "Africa/Lagos", now = new Date()) {
   const today = dateInZone(now, timezone);
   const end = new Date(`${today}T12:00:00Z`);
-  end.setUTCDate(end.getUTCDate() - 1);
   const start = new Date(end);
   start.setUTCDate(start.getUTCDate() - 13);
   return {
@@ -52,12 +68,12 @@ export function totalSlice(slices: Slice[]): Slice | undefined {
   return slices.length === 1 ? slices[0] : undefined;
 }
 export function readable(value?: string | null) {
-  return value ? value.replaceAll("_", " ") : "Unavailable";
+  return value ? value.replaceAll("_", " ") : missingValue;
 }
 export function shortId(value?: string | null) {
   return value
     ? value.length > 18
       ? `${value.slice(0, 8)}…${value.slice(-6)}`
       : value
-    : "Unavailable";
+    : missingValue;
 }
