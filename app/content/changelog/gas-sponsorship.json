@@ -2,9 +2,9 @@
   "slug": "gas-sponsorship",
   "date": "2026-11-25",
   "sequence": 3,
-  "status": "draft",
+  "status": "published",
   "title": "Gas sponsorship for eligible trades",
-  "summary": "We're preparing gas sponsorship for eligible trades you review in Oren. When enabled, Oren covers the Solana network fee.",
+  "summary": "Oren now covers the Solana network fee on eligible trades you review in Oren.",
   "sections": [
     {
       "heading": "Added",
