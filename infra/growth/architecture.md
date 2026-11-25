@@ -8,6 +8,7 @@ The standalone admin dashboard and marketing bot use the reporting API to read t
 - Aggregate reports accept the marketing bot bearer or an admin session with reports.read.
 - Historical import is an offline operator command. There is no import HTTP route.
 - Durable pageviews in Postgres, daily rollups inside the existing API process, and configurable raw-data retention.
+- Country for each pageview from the request address, using the free DB-IP Lite database the API downloads each month. Only the two-letter code is stored. Visits by country and by referring site roll up daily and are reported at `GET /api/admin/reports/breakdowns`.
 - Funnel events for setup, OAuth outcomes, in-app `getStockResearch`, and successful MCP `get_stock` as `mcp_stock_context`.
 - Successful MCP get_stock_research calls count toward research activation. The funnel reports stock detail calls separately.
 - Trade counts read from the existing intent, approval, and execution tables. Signing and transaction behavior are unchanged.
@@ -35,6 +36,9 @@ Sessions are HttpOnly cookies scoped to `/api/admin`, with a CSRF header require
 | --- | --- |
 | Pageview | An accepted document navigation after bot, prefetch, asset, API, and internal-host filters. |
 | Session | A browser session id rotated after 30 idle minutes. A session that crosses midnight counts once per civil day. Summing those days is not the all-time session count. |
+| Visit | A session on one civil day. Country and referrer breakdowns count visits, not people. |
+| Country | ISO 3166-1 code from the visitor's address at collection time, using DB-IP Lite. The address is not stored. Visits before country capture, and private or unknown addresses, have none. |
+| Referrer | The other site, without `www.`, on a visit's first pageview that day. Same-site links and visits without a referrer are direct. Only the host is kept, never the referring page. |
 | Daily uniques | Distinct durable visitor ids that day. |
 | Lifetime uniques | Distinct durable visitor ids still inside identity retention. Unavailable once those keys are purged. Never the sum of daily uniques. |
 | People | Unavailable. Oren has accounts, not a person id. |

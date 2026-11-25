@@ -13,6 +13,7 @@ import { APP_ENV } from '../../config/constants';
 import type { AppEnv } from '../../config/env.schema';
 import { cleanUtm } from './growth-attribution';
 import { decideCollect } from './growth-collect';
+import { GrowthGeoService } from './growth-geo.service';
 import { GrowthRecorder } from './growth-recorder.service';
 
 const buckets = new Map<string, { count: number; reset: number }>();
@@ -21,6 +22,7 @@ const buckets = new Map<string, { count: number; reset: number }>();
 export class GrowthCollectController {
   constructor(
     private readonly recorder: GrowthRecorder,
+    private readonly geo: GrowthGeoService,
     @Inject(APP_ENV) private readonly env: AppEnv,
   ) {}
 
@@ -43,7 +45,11 @@ export class GrowthCollectController {
       throw new BadRequestException({ reason: decision.reason });
     }
     if (decision.status === 'pageview')
-      await this.recorder.recordPageview(decision.draft);
+      // request.ip is the visitor behind Caddy (TRUST_PROXY_HOPS). Only its country is kept.
+      await this.recorder.recordPageview({
+        ...decision.draft,
+        country: this.geo.country(request.ip),
+      });
     if (decision.status === 'setup_cta') {
       const utm = cleanUtm(decision.utm ?? {});
       await this.recorder.recordSetup({

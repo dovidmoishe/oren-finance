@@ -5,23 +5,29 @@ import {
   panelNote,
   notice,
   field,
+  quietButton,
 } from "./control-styles";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, type UseQueryResult } from "@tanstack/react-query";
 import { api, exportDaily } from "./api";
 import {
+  countryFlag,
+  countryName,
   formatCount,
   hasObservation,
   hasPermission,
   missingValue,
   percent,
   readable,
+  referrerLabel,
   trafficCoverage,
 } from "./model";
 import { useAuth, useReport, useReportQuery } from "./state";
 import type {
   Activity,
+  Breakdown,
+  Breakdowns,
   Comparison,
   Coverage,
   Day,
@@ -163,7 +169,7 @@ function OverviewMetrics() {
           className="mb-4 flex items-center gap-3 text-sm text-muted"
           role="status"
         >
-          Couldn?t load trading and chat totals.
+          Couldn’t load trading and chat totals.
           <button className={button} onClick={() => void activity.refetch()}>
             Retry
           </button>
@@ -175,6 +181,8 @@ function OverviewMetrics() {
 
 function TrafficPage({ overview = false }: { overview?: boolean }) {
   const query = useReportQuery<Traffic>("traffic");
+  // Started with the traffic query so the panels do not wait for the chart.
+  const breakdowns = useReportQuery<Breakdowns>("breakdowns");
   const { params, valid } = useReport();
   const [exportError, setExportError] = useState("");
   const [exporting, setExporting] = useState(false);
@@ -238,7 +246,7 @@ function TrafficPage({ overview = false }: { overview?: boolean }) {
               disabled={exporting}
             >
               <Icon icon={icons.download} size={16} />
-              {exporting ? "Exporting?" : "Export CSV"}
+              {exporting ? "Exporting…" : "Export CSV"}
             </button>
           )
         }
@@ -264,6 +272,7 @@ function TrafficPage({ overview = false }: { overview?: boolean }) {
           </p>
         )}
       </Panel>
+      <AudiencePanels query={breakdowns} rows={overview ? 5 : 10} />
       {!overview && (
         <Panel title="Daily observations">
           <div className={tableScroll}>
@@ -312,6 +321,175 @@ function TrafficPage({ overview = false }: { overview?: boolean }) {
         </Panel>
       )}
     </>
+  );
+}
+
+export function AudiencePanels({
+  query,
+  rows,
+}: {
+  query: UseQueryResult<Breakdowns>;
+  rows: number;
+}) {
+  if (query.isPending) return <Loading />;
+  if (query.error)
+    return (
+      <ErrorState error={query.error} retry={() => void query.refetch()} />
+    );
+  const { countries, referrers, geolocation } = query.data;
+  return (
+    <div className="grid items-start gap-x-4 min-[901px]:grid-cols-2">
+      <BreakdownPanel
+        title="Referrers"
+        subtitle="Sites that started a visit"
+        column="Site"
+        breakdown={referrers}
+        // Share of every visit, so direct visits still count in the whole.
+        denominator={referrers.total + referrers.missing}
+        rows={rows}
+        other="Other sites"
+        label={(key) => (
+          <span className="truncate" title={key}>
+            {referrerLabel(key)}
+          </span>
+        )}
+        empty="No visits came from another site in these dates."
+        note={
+          referrers.missing > 0
+            ? `${referrers.missing.toLocaleString()} direct ${referrers.missing === 1 ? "visit" : "visits"} had no referring site.`
+            : undefined
+        }
+      />
+      <BreakdownPanel
+        title="Countries"
+        subtitle="From each visit’s IP address, which isn’t stored"
+        column="Country"
+        breakdown={countries}
+        denominator={countries.total}
+        rows={rows}
+        other="Other countries"
+        label={(key) => (
+          <>
+            <span aria-hidden="true">{countryFlag(key)}</span>
+            <span className="truncate">{countryName(key)}</span>
+          </>
+        )}
+        empty={
+          geolocation.database
+            ? "No visits with a country in these dates."
+            : "Countries aren’t being recorded yet."
+        }
+        note={
+          <>
+            {!geolocation.database &&
+              "The location database isn’t loaded, so new visits have no country. "}
+            {countries.missing > 0 &&
+              `${countries.missing.toLocaleString()} ${countries.missing === 1 ? "visit has" : "visits have"} no country: recorded before country tracking began, or from a private network. `}
+            <a
+              className="underline underline-offset-2 hover:text-foreground"
+              href={geolocation.attributionUrl}
+              rel="noreferrer"
+              target="_blank"
+            >
+              IP Geolocation by {geolocation.provider}
+            </a>
+          </>
+        }
+      />
+    </div>
+  );
+}
+
+function BreakdownPanel({
+  title,
+  subtitle,
+  column,
+  breakdown,
+  denominator,
+  rows,
+  other,
+  label,
+  empty,
+  note,
+}: {
+  title: string;
+  subtitle: string;
+  column: string;
+  breakdown: Breakdown;
+  denominator: number;
+  rows: number;
+  other: string;
+  label: (key: string) => ReactNode;
+  empty: string;
+  note?: ReactNode;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const visible = expanded ? breakdown.rows : breakdown.rows.slice(0, rows);
+  const largest = breakdown.rows[0]?.visits || 1;
+  const share = (visits: number) =>
+    percent(denominator > 0 ? visits / denominator : null);
+  const row =
+    "relative flex min-h-9 items-center gap-3 overflow-hidden rounded-md px-3 text-xs";
+  return (
+    <Panel title={title} subtitle={subtitle}>
+      {visible.length ? (
+        <>
+          <div
+            className="flex gap-3 px-6 pb-1 text-[11px] font-medium text-muted"
+            aria-hidden="true"
+          >
+            <span className="flex-1">{column}</span>
+            <span>Visits</span>
+            <span className="w-12 text-right">Share</span>
+          </div>
+          <ol className="grid gap-1 px-3 pb-3" aria-label={`Visits by ${column.toLowerCase()}`}>
+            {visible.map((item) => (
+              <li className={row} key={item.key}>
+                <span
+                  aria-hidden="true"
+                  className="absolute inset-y-0 left-0 rounded-md bg-panel"
+                  style={{ width: `${(item.visits / largest) * 100}%` }}
+                />
+                <span className="relative flex min-w-0 flex-1 items-center gap-2">
+                  {label(item.key)}
+                </span>
+                <span className="relative font-medium tabular-nums">
+                  {item.visits.toLocaleString()}
+                  <span className="sr-only"> visits</span>
+                </span>
+                <span className="relative w-12 text-right tabular-nums text-muted">
+                  {share(item.visits)}
+                </span>
+              </li>
+            ))}
+            {expanded && breakdown.otherVisits > 0 && (
+              <li className={`${row} text-muted`}>
+                <span className="relative flex-1">{other}</span>
+                <span className="relative tabular-nums">
+                  {breakdown.otherVisits.toLocaleString()}
+                  <span className="sr-only"> visits</span>
+                </span>
+                <span className="relative w-12 text-right tabular-nums">
+                  {share(breakdown.otherVisits)}
+                </span>
+              </li>
+            )}
+          </ol>
+          {breakdown.rows.length > rows && (
+            <button
+              className={`${quietButton} mx-3 mb-3`}
+              onClick={() => setExpanded((value) => !value)}
+              aria-expanded={expanded}
+            >
+              {expanded ? "Show fewer" : `Show all ${breakdown.rows.length}`}
+            </button>
+          )}
+        </>
+      ) : (
+        <Empty title={empty} />
+      )}
+      {note && <p className={panelNote}>{note}</p>}
+    </Panel>
   );
 }
 

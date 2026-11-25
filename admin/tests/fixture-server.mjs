@@ -128,6 +128,28 @@ const server = http.createServer(async (request, response) => {
   if (path === "dashboard/activity")
     return send({ volumeUsd: 10842.50, trades: 81, chats: 47, messages: 119 });
   if (path === "reports/traffic") return send(traffic);
+  if (path === "reports/breakdowns") {
+    const rows = (entries) =>
+      entries.map(([key, visits]) => ({ key, visits, pageviews: Math.round(visits * 2.4) }));
+    const referrers = rows([
+      ["t.co", 412], ["google.com", 238], ["com.google.android.gm", 61], ["news.ycombinator.com", 44],
+      ["reddit.com", 37], ["docs.oren.finance", 29], ["github.com", 18], ["linkedin.com", 11],
+      ["duckduckgo.com", 7], ["bing.com", 6], ["youtube.com", 4], ["t.me", 3],
+    ]);
+    const countries = rows([
+      ["NG", 611], ["US", 284], ["GB", 121], ["IN", 74], ["DE", 52], ["CA", 41],
+      ["GH", 33], ["FR", 21], ["KE", 17], ["ZA", 12], ["BR", 9], ["AE", 6],
+    ]);
+    const total = (list) => list.reduce((sum, item) => sum + item.visits, 0);
+    return send({
+      timezone: traffic.timezone,
+      unit: "visits",
+      note: "A visit is a session. One that crosses midnight counts on each day.",
+      referrers: { total: total(referrers), rows: referrers, otherVisits: 0, missing: 532 },
+      countries: { total: total(countries), rows: countries, otherVisits: 0, missing: 88 },
+      geolocation: { provider: "DB-IP", attributionUrl: "https://db-ip.com", database: "2026-11" },
+    });
+  }
   if (path === "reports/daily") {
     response.writeHead(200, { "Content-Type": "text/csv" });
     return response.end(

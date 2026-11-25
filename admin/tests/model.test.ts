@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
+  countryFlag,
+  countryName,
   formatCount,
   hasPermission,
+  referrerLabel,
   initialRange,
   trafficCoverage,
   percent,
@@ -12,11 +15,11 @@ import type { Session } from "../src/types";
 
 describe("report presentation", () => {
   it("keeps missing metrics distinct from measured zero", () => {
-    expect(formatCount({ status: "unavailable", value: null })).toBe("?");
-    expect(formatCount({ status: "unavailable", value: 99 })).toBe("?");
+    expect(formatCount({ status: "unavailable", value: null })).toBe("—");
+    expect(formatCount({ status: "unavailable", value: 99 })).toBe("—");
     expect(formatCount({ status: "exact", value: 0 })).toBe("0");
     expect(formatCount({ status: "partial", value: 12 })).toBe("12");
-    expect(percent(null)).toBe("?");
+    expect(percent(null)).toBe("—");
     expect(percent(0)).toBe("0.0%");
   });
   it("includes the current report day in Lagos and UTC", () => {
@@ -78,5 +81,19 @@ describe("access presentation", () => {
         "dashboard.access",
       ),
     ).toBe(false);
+  });
+});
+
+describe("audience labels", () => {
+  it("names countries and draws flags from ISO codes", () => {
+    expect(countryName("NG")).toBe("Nigeria");
+    expect(countryName("GB")).toBe("United Kingdom");
+    expect(countryFlag("NG")).toBe("\u{1F1F3}\u{1F1EC}");
+    expect(countryFlag("(unknown)")).toBe("");
+  });
+  it("names the referrers that hide where a visit came from", () => {
+    expect(referrerLabel("t.co")).toBe("X (t.co)");
+    expect(referrerLabel("com.google.android.gm")).toBe("Gmail app");
+    expect(referrerLabel("news.ycombinator.com")).toBe("news.ycombinator.com");
   });
 });

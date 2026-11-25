@@ -160,6 +160,7 @@ databaseSuite('admin sessions and growth events in Postgres', () => {
       sessionHash: randomUUID(),
       visitorStability: 'durable' as const,
       referrerHost: null,
+      country: null,
       source: 'beacon' as const,
       ingestKey: randomUUID(),
       excluded: false,

@@ -24,6 +24,31 @@ export interface Traffic {
   distinctDurableVisitorsFirstSeenInRange: Count;
   dailyUniques: { days: { day: string; value: number }[] };
 }
+export interface BreakdownRow {
+  key: string;
+  visits: number;
+  pageviews: number;
+}
+export interface Breakdown {
+  /** Visits in rows and otherVisits. */
+  total: number;
+  rows: BreakdownRow[];
+  otherVisits: number;
+  /** Visits without a key: no recorded country, or no referring site. */
+  missing: number;
+}
+export interface Breakdowns {
+  timezone: string;
+  unit: "visits";
+  note: string;
+  countries: Breakdown;
+  referrers: Breakdown;
+  geolocation: {
+    provider: string;
+    attributionUrl: string;
+    database: string | null;
+  };
+}
 export interface Activity {
   volumeUsd: number;
   trades: number;

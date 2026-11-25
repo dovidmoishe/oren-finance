@@ -1,6 +1,7 @@
-import { digest, referrerHost } from './growth-privacy';
+import { digest, externalReferrer } from './growth-privacy';
 import { exclusionReason } from './growth-bots';
 import { cleanUtm } from './growth-attribution';
+import type { CountryLookup } from './growth-geo';
 import { zonedDay, type ReportTimezone } from './growth-time';
 
 export interface PageviewDraft {
@@ -16,7 +17,10 @@ export interface PageviewDraft {
   utmCampaign?: string;
   utmContent?: string;
   utmTerm?: string;
+  /** Another site that linked here, without "www.". Null for none or the same site. */
   referrerHost: string | null;
+  /** ISO 3166-1 alpha-2 from the request address. The address is not kept. */
+  country: string | null;
   excluded: boolean;
   excludeReason: string | null;
 }
@@ -161,9 +165,12 @@ export function decideCollect(
       utmCampaign: utm?.campaign,
       utmContent: utm?.content,
       utmTerm: utm?.term,
-      referrerHost: referrerHost(
+      referrerHost: externalReferrer(
         typeof body.referrer === 'string' ? body.referrer : undefined,
+        host,
       ),
+      // The collect controller adds the country from the request address.
+      country: null,
       excluded: false,
       excludeReason: null,
     },
@@ -195,6 +202,7 @@ export interface CaddyEvent {
   status?: number;
   request?: {
     method?: string;
+    host?: string;
     uri?: string;
     remote_ip?: string;
     client_ip?: string;
@@ -207,6 +215,7 @@ export function caddyLineToPageview(
   event: CaddyEvent,
   pepper: string,
   timezone: ReportTimezone,
+  countryOf?: CountryLookup,
 ): PageviewDraft | null {
   const request = event.request ?? {};
   const uri = (request.uri ?? '').split('?')[0];
@@ -239,7 +248,8 @@ export function caddyLineToPageview(
     visitorStability: 'day',
     source: 'caddy',
     ingestKey: `caddy:${digest(pepper, 'caddy-line', String(event.ts), request.method ?? '', uri, String(event.status ?? ''), ipHash, uaHash)}`,
-    referrerHost: referrerHost(headers.Referer?.[0]),
+    referrerHost: externalReferrer(headers.Referer?.[0], request.host),
+    country: countryOf?.(ip) ?? null,
     excluded: false,
     excludeReason: null,
   };

@@ -3,9 +3,18 @@
 import { useEffect } from 'react';
 import { usePathname } from 'next/navigation';
 import { buildApiUrl } from '@/services/api-client';
-import { nextAttribution, nextSession, readUtms, attributionHeader } from '@/lib/growth-client.mjs';
+import { nextAttribution, nextSession, readUtms, attributionHeader, referrerOrigin } from '@/lib/growth-client.mjs';
 
 const KEY = 'oren.growth.v1';
+
+// document.referrer belongs to the page load, and client-side navigations keep it.
+// Only the load's first pageview reports where the visitor came from.
+let landingReferrerSent = false;
+function landingReferrer() {
+  if (landingReferrerSent) return undefined;
+  landingReferrerSent = true;
+  return referrerOrigin(document.referrer);
+}
 
 /** Anonymous page and setup collection. Failures stay on the page. */
 export function GrowthCollector() {
@@ -30,7 +39,7 @@ export function GrowthCollector() {
       visitorId: next.visitorId,
       sessionId: session.sessionId,
       host: window.location.host,
-      referrer: document.referrer ? new URL(document.referrer).origin : undefined,
+      referrer: landingReferrer(),
       userAgent: navigator.userAgent,
       utm: utm ?? undefined,
     });

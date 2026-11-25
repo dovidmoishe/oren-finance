@@ -24,6 +24,21 @@ export function nextAttribution(state, utm, nowIso, path) {
   return { ...state, first: state?.first ?? touch, last: touch };
 }
 
+/**
+ * Where a page load came from, without the referring page's path. Android apps
+ * such as Gmail send android-app://<package>, which URL.origin reports as "null".
+ */
+export function referrerOrigin(value) {
+  if (!value) return undefined;
+  try {
+    const url = new URL(value);
+    if (url.protocol === 'http:' || url.protocol === 'https:') return url.origin;
+    return url.protocol === 'android-app:' && url.host ? `android-app://${url.host}` : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export function attributionHeader(state) {
   if (!state?.first && !state?.last) return null;
   const json = JSON.stringify({

@@ -45,6 +45,7 @@ export class GrowthRepository {
           utmContent: draft.utmContent,
           utmTerm: draft.utmTerm,
           referrerHost: draft.referrerHost,
+          country: draft.country,
           source: draft.source,
           ingestKey: draft.ingestKey,
           excluded: draft.excluded,
@@ -452,18 +453,32 @@ export class GrowthRepository {
     await this.db.transaction(
       async (tx) => {
         for (const zone of ['UTC', 'Africa/Lagos']) {
+          // A visit belongs to the site that started it: the referrer on the session's
+          // first pageview that day. Older rows repeat it on every page and may keep
+          // "www." or a port, so hosts are normalised here as well as at collection.
           await tx.execute(sql`
-          WITH visits AS (
+          WITH views AS (
             SELECT (occurred_at AT TIME ZONE ${zone})::date AS day, source, path,
-              coalesce(nullif(utm_campaign, ''), '(none)') AS campaign, session_hash, visitor_hash
+              coalesce(nullif(utm_campaign, ''), '(none)') AS campaign,
+              coalesce(country, '(unknown)') AS country,
+              nullif(regexp_replace(regexp_replace(lower(coalesce(referrer_host, '')),
+                ':[0-9]+$', ''), '^www\\.', ''), '') AS referrer_host,
+              occurred_at, ingest_key, session_hash, visitor_hash
             FROM growth_pageviews
             WHERE NOT excluded AND occurred_at <= ${now.toISOString()}::timestamptz
+          ), visits AS (
+            SELECT *, coalesce(first_value(referrer_host) OVER (
+                PARTITION BY day, source, session_hash ORDER BY occurred_at, ingest_key
+              ), '(direct)') AS referrer
+            FROM views
           )
           INSERT INTO growth_daily_metrics
             (day, timezone, grain, dimension, source, pageviews, sessions, daily_uniques, frozen)
           SELECT v.day, ${zone}, CASE WHEN grouping(path) = 0 THEN 'path'
-              WHEN grouping(campaign) = 0 THEN 'campaign' ELSE 'site' END,
-            coalesce(path, campaign, ''), v.source, count(*),
+              WHEN grouping(campaign) = 0 THEN 'campaign'
+              WHEN grouping(country) = 0 THEN 'country'
+              WHEN grouping(referrer) = 0 THEN 'referrer' ELSE 'site' END,
+            coalesce(path, campaign, country, referrer, ''), v.source, count(*),
             count(DISTINCT session_hash), count(DISTINCT visitor_hash),
             ((v.day + 1)::timestamp AT TIME ZONE ${zone}) <= ${cutoff.toISOString()}::timestamptz
           FROM visits v
@@ -471,7 +486,8 @@ export class GrowthRepository {
             SELECT 1 FROM growth_daily_metrics m WHERE m.day = v.day AND m.timezone = ${zone}
               AND m.grain = 'site' AND m.dimension = '' AND m.source = v.source AND m.frozen
           )
-          GROUP BY v.day, v.source, GROUPING SETS ((), (path), (campaign))
+          GROUP BY v.day, v.source,
+            GROUPING SETS ((), (path), (campaign), (country), (referrer))
           ON CONFLICT (day, timezone, grain, source, dimension) DO UPDATE SET
             pageviews = excluded.pageviews, sessions = excluded.sessions,
             daily_uniques = excluded.daily_uniques, frozen = excluded.frozen, rolled_at = now()

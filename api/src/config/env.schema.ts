@@ -162,6 +162,10 @@ export interface AppEnv {
   GROWTH_ROLLUP_INTERVAL_MS: number;
   GROWTH_HASH_KEY?: string;
   GROWTH_EXCLUDE_HOSTS: string[];
+  /** Record each pageview's country from the request address. The address is not stored. */
+  GROWTH_GEOIP_ENABLED: boolean;
+  /** A local .mmdb or .mmdb.gz country database. When unset, the API downloads DB-IP Lite monthly. */
+  GROWTH_GEOIP_DB_PATH?: string;
   /** How many reverse-proxy hops may set X-Forwarded-For. Never stored. */
   TRUST_PROXY_HOPS: number;
 }
@@ -622,6 +626,8 @@ function growthEnv(env: EnvSource) {
     ),
     GROWTH_HASH_KEY: readEnv(env, 'GROWTH_HASH_KEY'),
     GROWTH_EXCLUDE_HOSTS: hosts.length > 0 ? hosts : ['localhost', '127.0.0.1'],
+    GROWTH_GEOIP_ENABLED: readBool(env, 'GROWTH_GEOIP_ENABLED', true),
+    GROWTH_GEOIP_DB_PATH: readEnv(env, 'GROWTH_GEOIP_DB_PATH'),
     TRUST_PROXY_HOPS: readNonNegativeInt(env, 'TRUST_PROXY_HOPS', 1),
   };
 }

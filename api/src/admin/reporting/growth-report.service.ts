@@ -1,6 +1,9 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { isIP } from 'node:net';
+import { Inject, Injectable, Optional } from '@nestjs/common';
 import { APP_ENV } from '../../config/constants';
 import type { AppEnv } from '../../config/env.schema';
+import { breakdown, originHosts } from './growth-breakdowns';
+import { GrowthGeoService } from './growth-geo.service';
 import { digest } from './growth-privacy';
 import { assertPublicReport } from './growth-privacy';
 import {
@@ -36,12 +39,14 @@ const X_METRICS = [
   'x_follower_delta',
 ] as const;
 const REVENUE_METRICS = ['cost', 'revenue', 'contribution_margin'] as const;
+const BREAKDOWN_LIMIT = 50;
 
 @Injectable()
 export class GrowthReportService {
   constructor(
     private readonly repository: GrowthRepository,
     @Inject(APP_ENV) private readonly env: AppEnv,
+    @Optional() private readonly geo?: GrowthGeoService,
   ) {}
 
   async coverage() {
@@ -157,6 +162,35 @@ export class GrowthReportService {
       ),
       caddyDayVisitorsAreNotLifetime: true,
       days: days.length,
+    };
+    assertPublicReport(report);
+    return report;
+  }
+
+  /** Visits by country and by the referring site that started them. */
+  async breakdowns(from: string, to: string, timezoneValue?: string) {
+    const timezone = assertTimezone(timezoneValue);
+    const metrics = await this.repository.dailyMetrics(from, to, timezone);
+    const ownHosts = originHosts(this.env.CORS_ORIGIN);
+    const report = {
+      timezone,
+      unit: 'visits' as const,
+      note: 'A visit is a session. One that crosses midnight counts on each day.',
+      countries: breakdown(metrics, 'country', {
+        limit: BREAKDOWN_LIMIT,
+        isMissing: (key) => key === '(unknown)',
+      }),
+      referrers: breakdown(metrics, 'referrer', {
+        limit: BREAKDOWN_LIMIT,
+        // Links within the site and bare addresses from older rows count as direct.
+        isMissing: (key) =>
+          key === '(direct)' || ownHosts.has(key) || isIP(key) !== 0,
+      }),
+      geolocation: {
+        provider: 'DB-IP',
+        attributionUrl: 'https://db-ip.com',
+        database: this.geo?.version ?? null,
+      },
     };
     assertPublicReport(report);
     return report;
