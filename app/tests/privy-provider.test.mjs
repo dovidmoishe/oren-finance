@@ -62,6 +62,7 @@ function renderProviders(env) {
     require(id) {
       noBrowserRpc(id);
       if (id === 'next/dynamic') return { default: (load) => { privyLoads++; void load; return () => null; } };
+      if (id === 'next/navigation') return { usePathname: () => '/app' };
       if (id === '@/components/auth/wallet-context') return { WalletContext, ConnectionProvider() { throw new Error('Browser RPC must not be initialized'); } };
       if (id === '@/components/auth/auth-context') return { AuthContext };
       if (id === '@/components/auth/wallet-modal-context') return { WalletModalContext };

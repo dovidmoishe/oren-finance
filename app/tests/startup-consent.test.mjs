@@ -234,7 +234,8 @@ test("a Privy session is detected from its tokens or cookies, and only Privy's",
 });
 
 /** Mounts AppProviders with effects, timers and storage, and records Privy activity. */
-function mountProviders({ local = {}, cookie = "" } = {}) {
+function mountProviders({ local = {}, cookie = "", pathname = "/app", search = "" } = {}) {
+  let currentPath = pathname;
   const slots = [];
   const records = [];
   const pending = [];
@@ -264,19 +265,22 @@ function mountProviders({ local = {}, cookie = "" } = {}) {
     ...eventTarget(),
     localStorage: storage(local),
     sessionStorage: storage(),
-    location: { reload() {} },
+    location: { reload() {}, search },
+    requestAnimationFrame(fn) { fn(); return 0; },
+    cancelAnimationFrame() {},
     setTimeout(fn, ms) { timers.push({ fn, at: now + ms }); return timers.length; },
     clearTimeout(id) { if (timers[id - 1]) timers[id - 1].cleared = true; },
   };
   const document = { cookie };
   const exports = {};
   vm.runInNewContext(transpile("../app/providers.tsx"), {
-    exports, window, document, Date: { now: () => now },
+    exports, window, document, URLSearchParams, Date: { now: () => now },
     process: { env: { NEXT_PUBLIC_PRIVY_APP_ID: "offline-app" } },
     require(id) {
       if (id === "react") return hooks;
       if (id === "react/jsx-runtime") return require("react/jsx-runtime");
       if (id === "react-dom") return { preconnect: (href) => privy.preconnects.push(href) };
+      if (id === "next/navigation") return { usePathname: () => currentPath };
       if (id === "next/dynamic") return { default: (load) => { privy.load = load; return (props) => { privy.mounted += 1; privy.publish = props.onSession; return null; }; } };
       if (id === "@/components/auth/privy-auth") { privy.imports += 1; return { PrivyAuth() { return null; } }; }
       if (id === "@/components/auth/privy-session-hint") {
@@ -326,6 +330,17 @@ function mountProviders({ local = {}, cookie = "" } = {}) {
       for (const timer of timers) if (!timer.cleared && !timer.fired && timer.at <= now) { timer.fired = true; timer.fn(); }
     },
     publish(auth) { privy.publish({ auth, wallet: { connected: Boolean(auth.authenticated) }, modal: { visible: false, setVisible() {} } }); },
+    /** A client-side navigation: the pathname and query change without a reload. */
+    navigate(path, query = "") {
+      currentPath = path;
+      window.location.search = query;
+    },
+    /** Whether the latest render still renders Privy. */
+    privyMounted() {
+      privy.mounted = 0;
+      settle();
+      return privy.mounted > 0;
+    },
   };
 }
 
@@ -394,6 +409,52 @@ test("signing in from another tab restores here too", () => {
   assert.equal(page.privy.mounted, 0);
   page.window.localStorage.setItem("privy:token", "\"t\"");
   page.window.dispatchEvent({ type: "storage", key: "privy:token" });
+  page.settle();
+  assert.equal(page.privy.mounted > 0, true);
+});
+
+test("signing out of a restored session keeps Privy mounted, so Sign in opens again", () => {
+  const page = mountProviders({ local: { "privy:token": "\"t\"", "privy:refresh_token": "\"r\"" } });
+  page.settle();
+  page.publish({ ready: true, authenticated: true, configured: true, address: "wallet", open() {}, openDeposit() {} });
+  page.settle();
+  // Privy's logout removes its tokens in this tab, where no storage event fires.
+  page.window.localStorage.removeItem("privy:token");
+  page.window.localStorage.removeItem("privy:refresh_token");
+  let opened = 0;
+  page.publish({ ready: true, authenticated: false, configured: true, open() { opened += 1; }, openDeposit() {} });
+  assert.equal(page.privyMounted(), true, "the session that published the logout stays mounted");
+  assert.equal(page.auth().authenticated, false);
+  page.auth().open();
+  assert.equal(opened, 1);
+  // Signing out in another tab: Privy stays to report it here.
+  page.window.dispatchEvent({ type: "storage", key: "privy:token" });
+  assert.equal(page.privyMounted(), true);
+});
+
+test("an Add money link loads Privy for a signed-out visitor and leaves the link to Privy", async () => {
+  const page = mountProviders({ search: "?deposit=1" });
+  await tick();
+  assert.equal(page.privy.imports, 1, "the download starts before the first render");
+  assert.deepEqual(page.privy.preconnects, ["https://auth.privy.io"]);
+  page.settle();
+  assert.equal(page.privy.mounted > 0, true);
+  // Sign in stays usable while Privy loads.
+  assert.equal(page.auth().ready, true);
+  assert.equal(page.auth().authenticated, false);
+  let deposits = 0;
+  page.publish({ ready: true, authenticated: false, configured: true, open() {}, openDeposit() { deposits += 1; } });
+  page.settle();
+  // PrivySession opens Add money from the link itself; nothing is replayed on top.
+  assert.equal(deposits, 0);
+  assert.equal(page.privyMounted(), true);
+});
+
+test("an Add money link reached by client-side navigation also loads Privy", () => {
+  const page = mountProviders({ pathname: "/" });
+  page.settle();
+  assert.equal(page.privy.mounted, 0);
+  page.navigate("/app", "?deposit=1");
   page.settle();
   assert.equal(page.privy.mounted > 0, true);
 });

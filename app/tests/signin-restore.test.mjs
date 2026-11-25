@@ -165,12 +165,14 @@ function mountPrivy({ fail }) {
   vm.runInNewContext(transpile("../app/providers.tsx"), {
     exports,
     window,
+    URLSearchParams,
     Date: clock,
     process: { env: { NEXT_PUBLIC_PRIVY_APP_ID: "offline-app" } },
     require(id) {
       if (id === "react") return hooks;
       if (id === "react/jsx-runtime") return require("react/jsx-runtime");
       if (id === "next/dynamic") return { default: (load) => { bridge.load = load; return (props) => { bridge.publish = props.onSession; return null; }; } };
+      if (id === "next/navigation") return { usePathname: () => "/app" };
       if (id === "@/components/auth/wallet-context") return { WalletContext: createContext({}) };
       if (id === "@/components/auth/auth-context") return { AuthContext };
       if (id === "@/components/auth/wallet-modal-context") return { WalletModalContext: createContext({}) };

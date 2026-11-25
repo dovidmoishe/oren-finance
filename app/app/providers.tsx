@@ -6,6 +6,7 @@ import {
 } from "@/components/auth/wallet-context";
 import { LoaderCircle as LoaderCircleIcon } from "lucide-react";
 import dynamic from "next/dynamic";
+import { usePathname } from "next/navigation";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { preconnect } from "react-dom";
 import { AuthContext, type OrenAuth } from "@/components/auth/auth-context";
@@ -70,9 +71,15 @@ function loadPrivyAuth() {
 // sign in; until a saved session restores, auth is "not ready".
 const PrivyAuth = dynamic(loadPrivyAuth, { ssr: false });
 
-// A saved session needs Privy straight away. Start the download while the page
-// hydrates, instead of after it, and open Privy's connection alongside.
-if (appId && typeof document !== "undefined" && browserHasPrivySession()) {
+/** `/deposit` and `/app/deposit` redirect to `?deposit=1`; `PrivySession` opens Add money for it. */
+function hasDepositLink() {
+  return new URLSearchParams(window.location.search).get("deposit") === "1";
+}
+
+// A saved session or an Add money link needs Privy straight away. Start the
+// download while the page hydrates, instead of after it, and open Privy's
+// connection alongside.
+if (appId && typeof document !== "undefined" && (browserHasPrivySession() || hasDepositLink())) {
   preconnect(PRIVY_ORIGIN);
   void loadPrivyAuth();
 }
@@ -137,6 +144,17 @@ function subscribeSessionHint(onChange: () => void) {
   };
   window.addEventListener("storage", onStorage);
   return () => window.removeEventListener("storage", onStorage);
+}
+
+/**
+ * Whether this page has seen a saved Privy session. It stays true: signing out
+ * removes the tokens, and only a mounted Privy can then publish the signed-out
+ * session and open sign-in again.
+ */
+let sessionSeen = false;
+function sessionHint() {
+  sessionSeen ||= browserHasPrivySession();
+  return sessionSeen;
 }
 
 /** The server cannot see web storage, so it and hydration render "not ready". */
@@ -228,10 +246,11 @@ function DeferredPrivy({
   children: React.ReactNode;
 }) {
   const t = useT();
+  const pathname = usePathname();
   const [session, setSession] = useState<PublishedSession>();
   const [restoreStarted] = useState(() => Date.now());
-  // null on the server and while hydrating; then whether Privy has a session to restore.
-  const savedSession = useSyncExternalStore(subscribeSessionHint, browserHasPrivySession, unknownSessionHint);
+  // null on the server and while hydrating; then whether this page has seen a session to restore.
+  const savedSession = useSyncExternalStore(subscribeSessionHint, sessionHint, unknownSessionHint);
   const [requested, setRequested] = useState(false);
   const [signInPending, setSignInPending] = useState(false);
   const [loading] = useState(() => createLoadingSession((request) => {
@@ -243,10 +262,19 @@ function DeferredPrivy({
   const [restoreTimedOut, setRestoreTimedOut] = useState(false);
   const [restoreError, setRestoreError] = useState<string>();
   // A saved session restores at once (its download already started); otherwise
-  // Privy loads when the visitor asks to sign in or add money.
+  // Privy loads when the visitor asks to sign in or add money. Both stay true,
+  // so Privy stays mounted once it starts.
   const startPrivy = requested || savedSession === true;
   // Nothing to restore: this browser is signed out until Privy says otherwise.
   const signedOut = savedSession === false;
+
+  useEffect(() => {
+    // An Add money link needs Privy even when signed out. `PrivySession` then
+    // opens the dialog and removes the link, as it does for a signed-in visitor.
+    if (!hasDepositLink()) return;
+    const frame = window.requestAnimationFrame(() => setRequested(true));
+    return () => window.cancelAnimationFrame(frame);
+  }, [pathname]);
 
   useEffect(() => {
     // Restores only: a sign-in started by a click would also time the visitor's pause.
