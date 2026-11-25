@@ -453,6 +453,24 @@ export class GrowthRepository {
     await this.db.transaction(
       async (tx) => {
         for (const zone of ['UTC', 'Africa/Lagos']) {
+          // Replace each day this pass recomputes instead of only upserting it. A group
+          // can leave a day: an import fills in a country, or a late earlier pageview
+          // changes which site started a visit. Same guard as the insert below, so only
+          // unfrozen days that are about to be rebuilt from their raw rows are cleared.
+          await tx.execute(sql`
+          DELETE FROM growth_daily_metrics m
+          USING (
+            SELECT DISTINCT (occurred_at AT TIME ZONE ${zone})::date AS day, source
+            FROM growth_pageviews
+            WHERE NOT excluded AND occurred_at <= ${now.toISOString()}::timestamptz
+          ) recomputed
+          WHERE m.timezone = ${zone} AND m.day = recomputed.day
+            AND m.source = recomputed.source AND NOT m.frozen
+            AND NOT EXISTS (
+              SELECT 1 FROM growth_daily_metrics f WHERE f.day = m.day AND f.timezone = m.timezone
+                AND f.grain = 'site' AND f.dimension = '' AND f.source = m.source AND f.frozen
+            )
+        `);
           // A visit belongs to the site that started it: the referrer on the session's
           // first pageview that day. Older rows repeat it on every page and may keep
           // "www." or a port, so hosts are normalised here as well as at collection.

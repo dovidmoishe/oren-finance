@@ -318,4 +318,75 @@ databaseSuite('admin sessions and growth events in Postgres', () => {
       await client`delete from executions where wallet_address = ${wallet}`;
     }
   });
+
+  it('replaces a recomputed day so a visit that changes group counts once', async () => {
+    const repo = new GrowthRepository(db);
+    const at = (time: string) => new Date(`2024-02-29T${time}Z`);
+    const caddyKey = `caddy:${randomUUID()}`;
+    const visitorHash = randomUUID();
+    const sessionHash = randomUUID();
+    const view = {
+      path: '/',
+      excluded: false,
+      excludeReason: null,
+      country: null,
+    };
+    await repo.insertPageview({
+      ...view,
+      occurredAt: at('09:00:00'),
+      visitorHash: randomUUID(),
+      sessionHash: randomUUID(),
+      visitorStability: 'day',
+      source: 'caddy',
+      ingestKey: caddyKey,
+      referrerHost: null,
+    });
+    await repo.insertPageview({
+      ...view,
+      occurredAt: at('10:05:00'),
+      visitorHash,
+      sessionHash,
+      visitorStability: 'durable',
+      source: 'beacon',
+      ingestKey: randomUUID(),
+      referrerHost: 't.co',
+    });
+    const rollup = () =>
+      repo.rollupPageviews(
+        new Date('2024-03-02T00:00:00Z'),
+        new Date('2024-01-01T00:00:00Z'),
+        new Date('2024-01-01T00:00:00Z'),
+      );
+    await rollup();
+    // A repeat import fills in the country, and the visit's first page arrives late.
+    await client`update growth_pageviews set country = 'NG' where ingest_key = ${caddyKey}`;
+    await repo.insertPageview({
+      ...view,
+      occurredAt: at('10:00:00'),
+      visitorHash,
+      sessionHash,
+      visitorStability: 'durable',
+      source: 'beacon',
+      ingestKey: randomUUID(),
+      referrerHost: 'news.ycombinator.com',
+    });
+    await rollup();
+    const rows = await client<
+      { grain: string; dimension: string; source: string; sessions: number }[]
+    >`select grain, dimension, source, sessions from growth_daily_metrics
+      where day = '2024-02-29' and timezone = 'UTC' and grain in ('country', 'referrer')`;
+    // Sorted here so the database collation cannot change the order.
+    expect(
+      rows
+        .map((row) =>
+          [row.grain, row.dimension, row.source, row.sessions].join(' '),
+        )
+        .sort(),
+    ).toEqual([
+      'country (unknown) beacon 1',
+      'country NG caddy 1',
+      'referrer (direct) caddy 1',
+      'referrer news.ycombinator.com beacon 1',
+    ]);
+  });
 });
