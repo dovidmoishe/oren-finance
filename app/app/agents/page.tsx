@@ -18,17 +18,13 @@ import { AgentClientLinks, AgentLogo } from './agent-clients';
 import { AGENT_CLIENTS } from './agent-client-data';
 import { AgentSetup } from './agent-setup';
 import { AgentConversationDemo } from './agent-conversation-demo';
+import { JsonLd } from '@/components/seo/json-ld';
+import { faqJsonLd, pageMetadata } from '@/lib/seo';
 
-const title = 'Connect your agent — Oren';
 const description = 'Research stocks, understand your portfolio, and trade from Claude, Cursor, Codex or Grok Bot. Inside limits you set.';
 
-export const metadata: Metadata = {
-  title,
-  description,
-  alternates: { canonical: '/agents' },
-  openGraph: { title, description, url: '/agents', type: 'website' },
-  twitter: { card: 'summary_large_image', title, description },
-};
+// The social image comes from this segment's opengraph-image.png.
+export const metadata: Metadata = pageMetadata({ title: 'Connect your agent', description, path: '/agents', image: 'segment' });
 
 const STEPS = [
   { title: 'Sign in to Oren', body: 'Use your email. Oren creates a Solana wallet for your account.', link: { href: '/app', label: 'Sign in' } },
@@ -88,7 +84,7 @@ export default function AgentsPage() {
       <section className="agents-section" aria-labelledby="use-title"><div className="agents-section-heading"><p className="agents-kicker">A place to start</p><h2 id="use-title">Less switching tabs.<br />More moving forward.</h2><p>A question, a portfolio check, a decision. Start wherever you are.</p></div><div className="agents-use-cases">{USE_CASES.map(item=><article className="agents-use-case" key={item.label}><span className="agents-use-case-label"><InterfaceIcon icon={item.icon} size={18} />{item.label}</span><h3>“{item.prompt}”</h3><p>{item.body}</p><Link className="agents-step-link" href="#setup">Connect to try it <ArrowRightIcon size={14} /></Link></article>)}</div></section>
       <section className="[background:#f3f4ee]" aria-labelledby="safe-title"><div className="agents-section-inner"><div className="agents-section-heading"><p className="agents-kicker">The boundaries are yours</p><h2 id="safe-title">More capability.<br />The same control.</h2><p>You decide what’s allowed. Oren checks before it acts.</p></div><div className="agents-safeguards">{SAFEGUARDS.map((item,index)=><article className="agents-safeguard" key={item.title}><span className="agents-control-icon">{index===2 ? <OrenLogo size={22} /> : <InterfaceIcon icon={[CheckIcon,BriefcaseBusinessIcon,CheckIcon,RefreshCcwIcon][index]} size={22} />}</span><h3>{item.title}</h3><p>{item.body}</p></article>)}</div><Link className="agents-control-link" href="/settings/mcp">Manage agent connections <ArrowRightIcon size={15} /></Link></div></section>
       <section className="agents-section" id="setup" aria-labelledby="setup-title"><div className="agents-section-heading"><p className="agents-kicker">Make it yours</p><h2 id="setup-title">Choose your app.<br />We’ll meet you there.</h2><p>Follow the setup below, then sign in to connect your account.</p></div><AgentSetup /></section>
-      <section className="agents-faq-section" aria-labelledby="faq-title"><div className="agents-section-heading"><p className="agents-kicker">Before you begin</p><h2 id="faq-title">A little more clarity.</h2></div><div className="agents-faq">{FAQ.map(item=><details key={item.q}><summary>{item.q}<ChevronDownIcon size={17} aria-hidden="true" /></summary><p>{item.a}</p></details>)}</div></section>
+      <section className="agents-faq-section" aria-labelledby="faq-title"><div className="agents-section-heading"><p className="agents-kicker">Before you begin</p><h2 id="faq-title">A little more clarity.</h2></div><div className="agents-faq">{FAQ.map(item=><details key={item.q}><summary>{item.q}<ChevronDownIcon size={17} aria-hidden="true" /></summary><p>{item.a}</p></details>)}</div><JsonLd data={faqJsonLd(FAQ.map(item => ({ question: item.q, answer: item.a })))} /></section>
       <section className="agents-cta"><p className="agents-kicker">Your next move</p><h2>A familiar app.<br />A new way to invest.</h2><p>Bring Oren into your next conversation.</p><ButtonLink className="h-11 rounded-full px-5 text-sm font-medium" href="#setup" variant="primary">Connect your agent <ArrowRightIcon size={16} /></ButtonLink></section>
     </main><LandingFooter />
   </div>;

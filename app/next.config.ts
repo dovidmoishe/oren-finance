@@ -74,6 +74,8 @@ const nextConfig: NextConfig = {
   outputFileTracingIncludes: {
     "/changelog": ["./content/changelog/*.json"],
     "/changelog/*": ["./content/changelog/*.json"],
+    // Rebuilt at runtime every six hours, so it reads the entries outside the build.
+    "/sitemap.xml": ["./content/changelog/*.json"],
   },
   async redirects() {
     return [

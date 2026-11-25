@@ -2,14 +2,14 @@ import type { Metadata } from 'next';
 import { ChangelogEntry } from '@/components/changelog/changelog-entry';
 import { getChangelogGroups, previewDrafts } from '@/content/changelog';
 import { formatReleaseDate } from '@/content/changelog/model.mjs';
+import { pageMetadata } from '@/lib/seo';
 
-export const metadata: Metadata = {
-  title: 'Changelog — Oren',
+export const metadata: Metadata = pageMetadata({
+  title: 'Changelog',
   description: 'The latest releases, improvements, and films from Oren.',
-  alternates: { canonical: '/changelog' },
-  openGraph: { title: 'Changelog — Oren', description: 'The latest releases, improvements, and films from Oren.', url: '/changelog', type: 'website' },
+  path: '/changelog',
   ...(previewDrafts ? { robots: { index: false, follow: false } } : {}),
-};
+});
 
 export default function ChangelogPage() {
   const groups = getChangelogGroups();

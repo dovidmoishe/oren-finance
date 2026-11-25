@@ -1,4 +1,7 @@
+import type { Metadata } from "next";
 import { TradingCalendar } from "@/components/calendar";
+
+export const metadata: Metadata = { title: "Calendar" };
 
 export default function CalendarPage() {
   return (
