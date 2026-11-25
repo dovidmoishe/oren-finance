@@ -24,6 +24,12 @@ export interface Traffic {
   distinctDurableVisitorsFirstSeenInRange: Count;
   dailyUniques: { days: { day: string; value: number }[] };
 }
+export interface Activity {
+  volumeUsd: number;
+  trades: number;
+  chats: number;
+  messages: number;
+}
 export interface Slice {
   key: string;
   setupEvents: number;

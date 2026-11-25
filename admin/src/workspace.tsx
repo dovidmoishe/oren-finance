@@ -16,6 +16,7 @@ import {
   ArrowUpRight,
   Layers,
   CalendarDays,
+  ChevronDown,
   LockKeyhole,
 } from "lucide-react";
 import { motion, useReducedMotion } from "motion/react";
@@ -44,9 +45,15 @@ const navigation = [
         icon: TrendingUp,
         permission: "reports.read",
       },
+    ],
+  },
+  {
+    label: "More reports",
+    collapsible: true,
+    items: [
       {
         to: "/funnel",
-        label: "Activation funnel",
+        label: "Agent setup",
         icon: ListFilter,
         permission: "reports.read",
       },
@@ -120,7 +127,7 @@ const navigation = [
 const pageTitles: Record<string, string> = {
   "/": "Overview",
   "/traffic": "Traffic",
-  "/funnel": "Activation funnel",
+  "/funnel": "Agent setup",
   "/retention": "Retention",
   "/campaigns": "Campaigns",
   "/users": "Connected accounts",
@@ -235,29 +242,46 @@ export function Workspace() {
             const items = group.items.filter((item) =>
               permitted(item.permission),
             );
-            return items.length ? (
+            if (items.length === 0) return null;
+            const links = items.map((item) => (
+              <MotionLink
+                initial="rest"
+                animate="rest"
+                whileHover={reducedMotion ? undefined : "hover"}
+                whileFocus={reducedMotion ? undefined : "hover"}
+                key={item.to}
+                to={item.to}
+                onClick={() => setMobileOpen(false)}
+                className={`flex min-h-9 items-center gap-2.5 rounded-lg px-3 text-sm pointer-coarse:min-h-11 ${path === item.to ? "bg-nav-active font-medium text-foreground [&_svg]:text-brand" : "text-muted hover:bg-nav-active hover:text-foreground"}`}
+                aria-current={path === item.to ? "page" : undefined}
+              >
+                <AnimatedSidebarIcon icon={item.icon} size={16} />
+                <span>{item.label}</span>
+              </MotionLink>
+            ));
+            if ("collapsible" in group) {
+              return (
+                <details
+                  className="-mt-4 mb-5"
+                  key={group.label}
+                  open={items.some((item) => item.to === path)}
+                >
+                  <summary className="flex min-h-9 cursor-pointer list-none items-center justify-between rounded-lg px-3 text-sm text-muted hover:bg-nav-active [&::-webkit-details-marker]:hidden">
+                    {group.label}
+                    <Icon icon={ChevronDown} size={14} />
+                  </summary>
+                  <div className="mt-1 grid gap-1 pl-2">{links}</div>
+                </details>
+              );
+            }
+            return (
               <div className="mb-5 grid gap-1" key={group.label}>
                 <span className="mb-1 px-3 text-xs font-medium text-muted">
                   {group.label}
                 </span>
-                {items.map((item) => (
-                  <MotionLink
-                    initial="rest"
-                    animate="rest"
-                    whileHover={reducedMotion ? undefined : "hover"}
-                    whileFocus={reducedMotion ? undefined : "hover"}
-                    key={item.to}
-                    to={item.to}
-                    onClick={() => setMobileOpen(false)}
-                    className={`flex min-h-9 items-center gap-2.5 rounded-lg px-3 text-sm pointer-coarse:min-h-11 ${path === item.to ? "bg-nav-active font-medium text-foreground [&_svg]:text-brand" : "text-muted hover:bg-nav-active hover:text-foreground"}`}
-                    aria-current={path === item.to ? "page" : undefined}
-                  >
-                    <AnimatedSidebarIcon icon={item.icon} size={16} />
-                    <span>{item.label}</span>
-                  </MotionLink>
-                ))}
+                {links}
               </div>
-            ) : null;
+            );
           })}
         </nav>
         <div className="mt-auto pt-4">

@@ -7,6 +7,7 @@ import type { Database } from '../database/database.provider';
 import { AdminAuthRepository } from './auth/admin-auth.repository';
 import { AdminAuthService } from './auth/admin-auth.service';
 import { hashPassword, temporaryPassword } from './auth/admin-password';
+import { DashboardRepository } from './dashboard/dashboard.repository';
 import { validateEnv } from '../config/env.schema';
 import { GrowthRecorder } from './reporting/growth-recorder.service';
 import { GrowthReportService } from './reporting/growth-report.service';
@@ -250,6 +251,36 @@ databaseSuite('admin sessions and growth events in Postgres', () => {
     );
     expect(csv.body).toContain('2025-04-01,exact,11,,caddy');
     expect(csv.body).toContain('2025-04-02,exact,5,,telemetry');
+  });
+
+  it('adds verified stock fills and counts chats with a user message within the range', async () => {
+    const activity = new DashboardRepository(db);
+    const chat = randomUUID();
+    const quietChat = randomUUID();
+    const signature = randomUUID();
+    const wallet = randomUUID();
+    await client`insert into agent_threads (id, wallet_address) values (${chat}, ${wallet}), (${quietChat}, ${wallet})`;
+    try {
+      await client`insert into agent_messages (thread_id, role, content, created_at)
+        values
+          (${chat}, 'user', 'sample', '2025-06-11T01:00Z'),
+          (${chat}, 'user', 'sample', '2025-06-11T02:00Z'),
+          (${quietChat}, 'assistant', 'sample', '2025-06-11T02:00Z'),
+          (${quietChat}, 'user', 'sample', '2025-06-12T00:00Z')`;
+      await client`insert into trade_fills
+        (transaction_signature, fill_index, wallet_address, asset_id, ticker, token_mint, side,
+          stock_amount, usd_notional, execution_price_usd, feature_source, provider, slot, block_time)
+        values
+          (${signature}, 0, ${wallet}, 'fixture', 'TEST', 'fixture', 'buy', 1, 10, 10, 'direct', 'test', 1, '2025-06-11T01:00Z'),
+          (${signature}, 1, ${wallet}, 'fixture', 'TEST', 'fixture', 'sell', 1, 12, 12, 'direct', 'test', 1, '2025-06-11T01:00Z'),
+          (${signature}, 2, ${wallet}, 'fixture', 'TEST', 'fixture', 'sell', 1, 30, 30, 'direct', 'test', 2, '2025-06-12T00:00Z')`;
+      await expect(
+        activity.activity(new Date('2025-06-11'), new Date('2025-06-12')),
+      ).resolves.toEqual({ volumeUsd: 22, trades: 1, chats: 1, messages: 2 });
+    } finally {
+      await client`delete from trade_fills where wallet_address = ${wallet}`;
+      await client`delete from agent_threads where id in (${chat}, ${quietChat})`;
+    }
   });
 
   it('counts a linked browser trade on its intent day across midnight', async () => {

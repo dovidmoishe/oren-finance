@@ -9,7 +9,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Search, ArrowLeft, ArrowRight } from "lucide-react";
 import { api } from "./api";
-import { hasPermission, readable, shortId } from "./model";
+import { missingValue, hasPermission, readable, shortId } from "./model";
 import { useAuth, useReportQuery } from "./state";
 import type {
   AuditRow,
@@ -281,13 +281,13 @@ function cells(view: View, row: Row): ReactNode[] {
       trade.side === "sell"
         ? trade.amountShares != null
           ? `${trade.amountShares} shares`
-          : "Unavailable"
+          : missingValue
         : trade.amountUsd != null
           ? new Intl.NumberFormat("en-US", {
               style: "currency",
               currency: "USD",
             }).format(Number(trade.amountUsd))
-          : "Unavailable",
+          : missingValue,
       <Badge>{trade.mode}</Badge>,
       <>
         <Status value={trade.status} />

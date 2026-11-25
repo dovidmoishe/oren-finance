@@ -56,6 +56,12 @@ describe('admin dashboard HTTP authorization', () => {
     }),
   };
   const dashboard = {
+    activity: jest.fn(() => ({
+      volumeUsd: 10,
+      trades: 1,
+      chats: 2,
+      messages: 3,
+    })),
     users: jest.fn(() => ({ rows: [], hasNext: false, page: 1 })),
     connections: jest.fn(() => ({ rows: [], hasNext: false, page: 1 })),
     trades: jest.fn(() => ({ rows: [], hasNext: false, page: 1 })),
@@ -305,6 +311,45 @@ describe('admin dashboard HTTP authorization', () => {
     expect(dashboard.trades).toHaveBeenCalledWith(2);
     expect(result.headers['cache-control']).toBe('no-store');
   });
+  it('returns aggregate activity only to signed-in report readers', async () => {
+    const path =
+      '/api/admin/dashboard/activity?from=2026-11-24&to=2026-11-25&timezone=Africa%2FLagos';
+    await request(app.getHttpServer())
+      .get(path)
+      .set('X-Oren-Admin', '1')
+      .set('Authorization', 'Bearer synthetic-machine-token')
+      .expect(401);
+    await request(app.getHttpServer())
+      .get(path)
+      .set('X-Oren-Admin', '1')
+      .set('Cookie', cookie)
+      .expect(403);
+    expect(dashboard.activity).not.toHaveBeenCalled();
+    account.permissions = ['reports.read'];
+    const response = await request(app.getHttpServer())
+      .get(path)
+      .set('X-Oren-Admin', '1')
+      .set('Cookie', cookie)
+      .expect(200);
+    expect(response.headers['cache-control']).toBe('no-store');
+    expect(response.body).toEqual({
+      volumeUsd: 10,
+      trades: 1,
+      chats: 2,
+      messages: 3,
+    });
+    expect(dashboard.activity).toHaveBeenCalledWith(
+      new Date('2026-11-23T23:00:00Z'),
+      new Date('2026-11-25T23:00:00Z'),
+    );
+    await request(app.getHttpServer())
+      .get('/api/admin/dashboard/activity?from=2026-02-30&to=2026-03-03')
+      .set('X-Oren-Admin', '1')
+      .set('Cookie', cookie)
+      .expect(400);
+    expect(dashboard.activity).toHaveBeenCalledTimes(1);
+  });
+
   it('restricts audit history to master admins', async () => {
     await request(app.getHttpServer())
       .get('/api/admin/dashboard/audit')
