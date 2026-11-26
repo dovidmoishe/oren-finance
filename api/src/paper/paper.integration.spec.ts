@@ -11,6 +11,7 @@ import { PrivyWalletAuth } from '../auth/privy-wallet-auth';
 import { APP_ENV, DRIZZLE } from '../config/constants';
 import * as schema from '../database/schema';
 import { TokensService } from '../tokens/tokens.service';
+import { StockCatalogRepository } from '../tokens/stock-catalog.repository';
 import { PaperController } from './paper.controller';
 import { PaperService } from './paper.service';
 import { MarketBenchmark } from './market-benchmark';
@@ -153,6 +154,10 @@ const url = process.env.PAPER_TEST_DATABASE_URL;
           { provide: APP_ENV, useValue: { PAPER_TRADING_ENABLED: true } },
           { provide: DRIZZLE, useValue: drizzle(client, { schema }) },
           { provide: TokensService, useValue: tokens },
+          {
+            provide: StockCatalogRepository,
+            useValue: { findByAssetIds: () => Promise.resolve([]) },
+          },
           { provide: PAPER_QUOTES, useValue: { getQuote } },
         ],
       }).compile();
@@ -285,7 +290,8 @@ const url = process.env.PAPER_TEST_DATABASE_URL;
       expect(stale.rounds.at(-1)?.equityRaw).not.toBeNull();
       await advance(4);
       expect(agent.shortlist.mock.calls).toHaveLength(11);
-      await client`update paper_ai_accounts set started_at=started_at-interval '3 days',next_at=now()`;
+      // Past the 240-hour deadline: every account takes its terminal mark.
+      await client`update paper_ai_accounts set started_at=started_at-interval '11 days',next_at=now()`;
       await fixture.poll();
       expect(
         (await fixture.report()).accounts.every(

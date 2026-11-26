@@ -5,7 +5,7 @@ import type {
   MarketRound,
 } from '../../types/paper-market';
 import { USDC_MINT } from '../config/constants';
-import { MarketBenchmark } from './market-benchmark';
+import { benchmarkAssetIds, MarketBenchmark } from './market-benchmark';
 import {
   isNyseTradingDay,
   isStockSessionHour,
@@ -108,6 +108,7 @@ function setup(options: {
     tokens as never,
     paper as never,
     agent as never,
+    {} as never,
   ) as unknown as {
     evaluate(account: unknown, epoch: number): Promise<MarketRound>;
   };
@@ -153,6 +154,32 @@ const only = (round: MarketRound): MarketObservation => {
   expect(round.observations).toHaveLength(1);
   return round.observations[0];
 };
+
+describe('market benchmark report assets', () => {
+  it('lists every held, shortlisted and reviewed asset once', () => {
+    const round = (candidates: string[], reviewed: string[]) =>
+      ({
+        epoch: 1,
+        at: '2026-11-26T10:00:00.000Z',
+        universeSize: 3,
+        candidates,
+        observations: reviewed.map((asset) => ({ asset })),
+        equityRaw: null,
+        cashRaw: '0',
+      }) as MarketRound;
+    // Rounds migrated from the daily study may lack candidate and observation arrays.
+    const legacy = { epoch: 0 } as MarketRound;
+    expect(
+      benchmarkAssetIds([
+        {
+          state: heldBook(),
+          rounds: [legacy, round(['amd', 'nvidia'], ['nvidia', 'micron'])],
+        },
+        { state: { cash: '0', positions: {} }, rounds: [round(['amd'], [])] },
+      ]),
+    ).toEqual(['amd', 'micron', 'nvidia']);
+  });
+});
 
 describe('market benchmark candle sources and exits', () => {
   beforeEach(() =>

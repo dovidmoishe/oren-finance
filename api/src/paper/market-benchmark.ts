@@ -10,7 +10,7 @@ import {
 import { MarketService } from '../market/market.service';
 import { usMarketSession } from '../market/us-market-session';
 import { TokensService } from '../tokens/tokens.service';
-import type { Equity } from '../../types/equity';
+import type { Equity, EquitySummary } from '../../types/equity';
 import type { MarketCandle } from '../../types/market';
 import type { UsMarketSessionState } from '../../types/market-session';
 import {
@@ -39,9 +39,27 @@ import {
 } from './strategy';
 import { PaperService } from './paper.service';
 import { PaperResearchAgent } from './paper-research';
+import { StockCatalogRepository } from '../tokens/stock-catalog.repository';
 
-const FINAL_HOUR = 48;
+// Ten days from funding, extended from 48 hours so the cohort trades through
+// the US sessions that follow the Thanksgiving holiday and weekend.
+const FINAL_HOUR = 240;
 const SCREEN_HOURS = 4;
+
+/** Every asset a report mentions: holdings, shortlisted candidates and reviewed assets. */
+export function benchmarkAssetIds(
+  all: { state: MarketBook; rounds: MarketRound[] }[],
+): string[] {
+  const ids = new Set<string>();
+  for (const account of all) {
+    for (const id of Object.keys(account.state.positions)) ids.add(id);
+    for (const round of account.rounds) {
+      for (const id of round.candidates ?? []) ids.add(id);
+      for (const obs of round.observations ?? []) ids.add(obs.asset);
+    }
+  }
+  return [...ids].sort();
+}
 
 type Account = typeof accounts.$inferSelect;
 type ReviewBars = {
@@ -67,6 +85,7 @@ export class MarketBenchmark {
     private readonly tokens: TokensService,
     private readonly paper: PaperService,
     private readonly agent: PaperResearchAgent,
+    private readonly catalog: StockCatalogRepository,
   ) {}
 
   async poll() {
@@ -477,6 +496,16 @@ export class MarketBenchmark {
       })
       .from(screens)
       .orderBy(screens.epoch);
+    // Names and logos for the report UI. A catalog miss leaves the journal intact.
+    const catalog = await this.catalog
+      .findByAssetIds(benchmarkAssetIds(all))
+      .catch((): EquitySummary[] => []);
+    const assets = Object.fromEntries(
+      catalog.map((s) => [
+        s.id,
+        { ticker: s.ticker, name: s.name, logo: s.logo ?? null },
+      ]),
+    );
     return {
       experiment: 'five-ai-v1',
       archivedMixed: await this.db
@@ -496,6 +525,7 @@ export class MarketBenchmark {
         durationHours: FINAL_HOUR,
       },
       coverage,
+      assets,
       accounts: all.map((a) => {
         const latest = a.rounds.at(-1);
         const equity = latest?.equityRaw;
