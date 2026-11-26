@@ -14,7 +14,8 @@ import { ReportPage } from "./reports";
 import { OperationsPage } from "./operations";
 import { AccountsPage, SecurityPage } from "./accounts";
 import { Empty } from "./ui";
-import "@fontsource-variable/onest/wght.css";
+// Inter with optical sizes, so large figures use its display cut.
+import "@fontsource-variable/inter/opsz.css";
 import "./styles.css";
 
 const root = createRootRoute({

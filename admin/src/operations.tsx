@@ -3,11 +3,24 @@ import {
   metricGrid,
   tableScroll,
   panelNote,
-  field,
 } from "./control-styles";
 import { useEffect, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Search, ArrowLeft, ArrowRight } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
+import {
+  Search,
+  ArrowLeft,
+  ArrowRight,
+  Users,
+  Link2,
+  Activity,
+  ScrollText,
+  Monitor,
+  Bot,
+  CircleCheck,
+  UserCheck,
+  RefreshCw,
+} from "lucide-react";
 import { api } from "./api";
 import { missingValue, hasPermission, readable, shortId } from "./model";
 import { useAuth, useReportQuery } from "./state";
@@ -35,11 +48,11 @@ import {
 
 type View = "users" | "connections" | "trades" | "audit";
 type Row = UserRow | ConnectionRow | TradeRow | AuditRow;
-const titles = {
-  users: "Accounts with MCP connections",
-  connections: "Recorded client connections",
-  trades: "Recent agent trade intents",
-  audit: "Admin audit history",
+const titles: Record<View, { title: string; icon: LucideIcon }> = {
+  users: { title: "Accounts with MCP connections", icon: Users },
+  connections: { title: "Recorded client connections", icon: Link2 },
+  trades: { title: "Recent agent trade intents", icon: Activity },
+  audit: { title: "Admin audit history", icon: ScrollText },
 };
 const columns = {
   users: [
@@ -101,23 +114,25 @@ export function OperationsPage({ view }: { view: View }) {
         session &&
         hasPermission(session, "reports.read") && <TradeSummary />}
       <Panel
-        title={titles[view]}
-        subtitle="Read-only operations · newest records first"
+        title={titles[view].title}
+        subtitle="Read-only · newest records first"
+        icon={titles[view].icon}
         action={
           <button
             className={button}
             disabled={query.isFetching}
             onClick={() => void query.refetch()}
           >
+            <Icon icon={RefreshCw} size={15} />
             {query.isFetching ? "Refreshing…" : "Refresh"}
           </button>
         }
       >
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-5 py-3 text-xs text-muted">
-          <label className="relative flex items-center gap-2 rounded-md border border-border px-2.5 text-muted [&_input]:min-h-9 [&_input]:min-w-0 [&_input]:border-0 [&_input]:px-1">
-            <Icon icon={Search} size={17} />
+        <div className="flex flex-wrap items-center justify-between gap-3 px-5 pb-3.5 text-xs text-muted">
+          <label className="flex h-9 w-full max-w-72 items-center gap-2 rounded-lg border border-border bg-surface px-3 shadow-xs pointer-coarse:h-11">
+            <Icon icon={Search} size={15} />
             <input
-              className={field}
+              className="min-w-0 flex-1 bg-transparent text-[13px] text-foreground placeholder:text-muted"
               aria-label="Search this page"
               placeholder="Search this page…"
               value={search}
@@ -134,9 +149,16 @@ export function OperationsPage({ view }: { view: View }) {
         {query.isPending ? (
           <Loading />
         ) : query.error ? (
-          <ErrorState error={query.error} retry={() => void query.refetch()} />
+          <ErrorState
+            className="mx-5 mb-5"
+            error={query.error}
+            retry={() => void query.refetch()}
+          />
         ) : rows.length === 0 ? (
-          <Empty title={search ? "No matches on this page" : "No records yet"}>
+          <Empty
+            title={search ? "No matches on this page" : "No records yet"}
+            icon={search ? Search : titles[view].icon}
+          >
             {search
               ? "Try another search or move to another page."
               : "Recorded activity will appear here."}
@@ -173,9 +195,9 @@ export function OperationsPage({ view }: { view: View }) {
         )}
         {query.data && (
           <>
-            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border px-5 py-3 text-xs text-muted [&>div]:flex [&>div]:gap-2">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border px-5 py-3 text-xs text-muted">
               <span>Page {page}</span>
-              <div>
+              <div className="flex gap-2">
                 <button
                   className={button}
                   disabled={page === 1 || query.isFetching}
@@ -223,10 +245,20 @@ export function OperationsPage({ view }: { view: View }) {
 function Identifier({ value }: { value: string | null }) {
   return (
     <span
-      className="inline-block max-w-56 truncate align-middle font-mono text-xs text-muted"
+      className="inline-block max-w-56 truncate rounded-md bg-panel px-1.5 py-0.5 align-middle font-mono text-[11px] text-muted"
       title={value ?? undefined}
     >
       {shortId(value)}
+    </span>
+  );
+}
+function Secondary({ children, title }: { children: ReactNode; title?: string }) {
+  return (
+    <span
+      className="mt-1 block max-w-60 truncate text-[11px] text-muted"
+      title={title}
+    >
+      {children}
     </span>
   );
 }
@@ -235,8 +267,8 @@ function cells(view: View, row: Row): ReactNode[] {
     const user = row as UserRow;
     return [
       <Identifier value={user.userId} />,
-      user.connections,
-      user.activeConnections,
+      <span className="tabular-nums">{user.connections}</span>,
+      <span className="tabular-nums">{user.activeConnections}</span>,
       <DateTime value={user.firstConnectedAt} />,
       <DateTime value={user.lastConnectedAt} />,
     ];
@@ -246,21 +278,15 @@ function cells(view: View, row: Row): ReactNode[] {
     return [
       <>
         <Identifier value={connection.clientId} />
-        <span
-          className="mt-1 block max-w-60 truncate text-[11px] text-muted"
-          title={connection.grantId}
-        >
+        <Secondary title={connection.grantId}>
           {shortId(connection.grantId)}
-        </span>
+        </Secondary>
       </>,
       <>
         <Identifier value={connection.userId} />
-        <span
-          className="mt-1 block max-w-60 truncate text-[11px] text-muted"
-          title={connection.wallet}
-        >
+        <Secondary title={connection.wallet}>
           Wallet {shortId(connection.wallet)}
-        </span>
+        </Secondary>
       </>,
       <div className="flex flex-wrap gap-1">
         {connection.scopes
@@ -270,7 +296,7 @@ function cells(view: View, row: Row): ReactNode[] {
             <Badge key={scope}>{scope}</Badge>
           ))}
       </div>,
-      <Badge tone={connection.revokedAt ? "red" : "green"}>
+      <Badge tone={connection.revokedAt ? "red" : "green"} dot>
         {connection.revokedAt ? "Revoked" : "Not revoked"}
       </Badge>,
       <DateTime value={connection.createdAt} />,
@@ -281,33 +307,28 @@ function cells(view: View, row: Row): ReactNode[] {
     return [
       <>
         <span className="font-semibold text-foreground">{trade.ticker}</span>
-        <span
-          className="mt-1 block max-w-60 truncate text-[11px] text-muted"
-          title={trade.id}
-        >
-          {shortId(trade.id)}
-        </span>
+        <Secondary title={trade.id}>{shortId(trade.id)}</Secondary>
       </>,
       <Identifier value={trade.userId} />,
       <span className="capitalize">{trade.side}</span>,
-      trade.side === "sell"
-        ? trade.amountShares != null
-          ? `${trade.amountShares} shares`
-          : missingValue
-        : trade.amountUsd != null
-          ? new Intl.NumberFormat("en-US", {
-              style: "currency",
-              currency: "USD",
-            }).format(Number(trade.amountUsd))
-          : missingValue,
-      <Badge>{trade.mode}</Badge>,
+      <span className="tabular-nums">
+        {trade.side === "sell"
+          ? trade.amountShares != null
+            ? `${trade.amountShares} shares`
+            : missingValue
+          : trade.amountUsd != null
+            ? new Intl.NumberFormat("en-US", {
+                style: "currency",
+                currency: "USD",
+              }).format(Number(trade.amountUsd))
+            : missingValue}
+      </span>,
+      <Badge tone="brand">{trade.mode}</Badge>,
       <>
         <Status value={trade.status} />
         {trade.status === "prepared" &&
           new Date(trade.expiresAt).getTime() < Date.now() && (
-            <span className="mt-1 block max-w-60 truncate text-[11px] text-muted">
-              Quote expired
-            </span>
+            <Secondary>Quote expired</Secondary>
           )}
       </>,
       <DateTime value={trade.createdAt} />,
@@ -315,7 +336,7 @@ function cells(view: View, row: Row): ReactNode[] {
   }
   const audit = row as AuditRow;
   return [
-    <span className="font-semibold capitalize">{readable(audit.action)}</span>,
+    <span className="font-medium capitalize">{readable(audit.action)}</span>,
     <Identifier value={audit.actorId} />,
     <Identifier value={audit.targetId} />,
     <DateTime value={audit.createdAt} />,
@@ -324,39 +345,61 @@ function cells(view: View, row: Row): ReactNode[] {
 
 function TradeSummary() {
   const query = useReportQuery<Funnel>("funnel");
+  const dimmed = query.isPlaceholderData;
   return (
     <>
       <DateFilters utcOnly />
       {query.error ? (
         <ErrorState error={query.error} retry={() => void query.refetch()} />
       ) : (
-        query.data && (
-          <div className={metricGrid}>
-            <Metric
-              label="Browser preparations"
-              value={query.data.trades.preparations.browser.toLocaleString()}
-              note="Agent intents · selected UTC date range"
-            />
-            <Metric
-              label="Delegated preparations"
-              value={query.data.trades.preparations.delegated.toLocaleString()}
-              note="Agent intents · selected UTC date range"
-            />
-            <Metric
-              label="Confirmed intents"
-              value={(
-                query.data.trades.confirmed.browser +
-                query.data.trades.confirmed.delegated
-              ).toLocaleString()}
-            />
-            <Metric
-              label="Activated accounts"
-              value={query.data.trades.uniqueActivatedAccounts.toLocaleString()}
-            />
-          </div>
-        )
+        <div className={metricGrid}>
+          <Metric
+            label="Browser preparations"
+            icon={Monitor}
+            tone="blue"
+            value={query.data?.trades.preparations.browser.toLocaleString("en-US") ?? missingValue}
+            note="Agent intents in these UTC dates"
+            loading={query.isPending}
+            dimmed={dimmed}
+          />
+          <Metric
+            label="Delegated preparations"
+            icon={Bot}
+            tone="violet"
+            value={query.data?.trades.preparations.delegated.toLocaleString("en-US") ?? missingValue}
+            note="Agent intents in these UTC dates"
+            loading={query.isPending}
+            dimmed={dimmed}
+          />
+          <Metric
+            label="Confirmed intents"
+            icon={CircleCheck}
+            tone="green"
+            value={
+              query.data
+                ? (
+                    query.data.trades.confirmed.browser +
+                    query.data.trades.confirmed.delegated
+                  ).toLocaleString("en-US")
+                : missingValue
+            }
+            loading={query.isPending}
+            dimmed={dimmed}
+          />
+          <Metric
+            label="Activated accounts"
+            icon={UserCheck}
+            tone="orange"
+            value={
+              query.data?.trades.uniqueActivatedAccounts.toLocaleString("en-US") ??
+              missingValue
+            }
+            loading={query.isPending}
+            dimmed={dimmed}
+          />
+        </div>
       )}
-      <p className="mb-4 text-xs text-muted">
+      <p className="-mt-1 text-xs text-muted">
         Date filters apply to the summary. The paginated intent list below shows
         all dates.
       </p>

@@ -1,4 +1,11 @@
 import type { UseQueryResult } from "@tanstack/react-query";
+import {
+  createMemoryHistory,
+  createRootRoute,
+  createRoute,
+  createRouter,
+  RouterContextProvider,
+} from "@tanstack/react-router";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { AudiencePanels } from "../src/reports";
@@ -61,6 +68,35 @@ describe("audience panels", () => {
     expect(html).toContain("1 visit has no country");
     expect(html).toContain('href="https://db-ip.com"');
     expect(html).toContain("IP Geolocation by DB-IP");
+    // Flags use the bundled Twemoji font, credited under CC BY 4.0.
+    expect(html).toContain("font-flag");
+    expect(html).toContain("\u{1F1F3}\u{1F1EC}");
+    expect(html).toContain('href="https://github.com/twitter/twemoji"');
+    expect(html).toContain("CC BY 4.0");
+  });
+
+  it("links to the full lists from the overview instead of expanding", () => {
+    const query = {
+      isPending: false,
+      error: null,
+      data: report,
+      refetch: () => undefined,
+    } as unknown as UseQueryResult<Breakdowns>;
+    // "View all" is a router link, so this render needs a router.
+    const root = createRootRoute();
+    const router = createRouter({
+      routeTree: root.addChildren([
+        createRoute({ getParentRoute: () => root, path: "/traffic" }),
+      ]),
+      history: createMemoryHistory({ initialEntries: ["/"] }),
+    });
+    const html = renderToStaticMarkup(
+      <RouterContextProvider router={router}>
+        <AudiencePanels query={query} rows={2} overview />
+      </RouterContextProvider>,
+    );
+    expect(html).toContain('href="/traffic"');
+    expect(html).not.toContain("Show all 3");
   });
 
   it("says when countries are not being recorded", () => {

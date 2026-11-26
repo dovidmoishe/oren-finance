@@ -3,9 +3,14 @@ import { Monitor, Moon, Sun } from "lucide-react";
 import { Icon } from "./ui";
 
 type ThemeChoice = "system" | "light" | "dark";
-const glyphs = { system: Monitor, light: Sun, dark: Moon };
+const choices = [
+  { value: "system", label: "System", glyph: Monitor },
+  { value: "light", label: "Light", glyph: Sun },
+  { value: "dark", label: "Dark", glyph: Moon },
+] as const;
 
-export function ThemeControl() {
+/** Appearance as a segmented control. Follows the system until a choice is saved. */
+export function ThemeControl({ compact = false }: { compact?: boolean }) {
   const [choice, setChoice] = useState<ThemeChoice>(() => {
     const saved = document.documentElement.dataset.themeChoice;
     return saved === "light" || saved === "dark" ? saved : "system";
@@ -33,18 +38,24 @@ export function ThemeControl() {
   }
 
   return (
-    <label className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-surface px-2.5 text-muted">
-      <Icon icon={glyphs[choice]} size={15} />
-      <span className="sr-only">Appearance</span>
-      <select
-        className="min-h-8 cursor-pointer text-xs text-foreground"
-        value={choice}
-        onChange={(event) => change(event.target.value as ThemeChoice)}
-      >
-        <option value="system">System</option>
-        <option value="light">Light</option>
-        <option value="dark">Dark</option>
-      </select>
-    </label>
+    <div
+      className={`grid grid-cols-3 gap-0.5 rounded-xl border border-border bg-panel p-0.5 ${compact ? "w-fit" : ""}`}
+      role="group"
+      aria-label="Appearance"
+    >
+      {choices.map(({ value, label, glyph }) => (
+        <button
+          key={value}
+          type="button"
+          aria-pressed={choice === value}
+          title={label}
+          className={`flex h-7 cursor-pointer items-center justify-center gap-1.5 rounded-[10px] text-xs font-medium transition-colors pointer-coarse:h-9 ${compact ? "w-8" : "px-2"} ${choice === value ? "bg-surface text-foreground shadow-xs" : "text-muted hover:text-foreground"}`}
+          onClick={() => change(value)}
+        >
+          <Icon icon={glyph} size={14} />
+          <span className={compact ? "sr-only" : ""}>{label}</span>
+        </button>
+      ))}
+    </div>
   );
 }

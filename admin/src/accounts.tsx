@@ -5,8 +5,7 @@ import {
   iconButton,
   quietButton,
   tableScroll,
-  panelNote,
-  notice,
+  inlineNotice,
   field,
 } from "./control-styles";
 import {
@@ -17,7 +16,7 @@ import {
   type ReactNode,
 } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, X, Copy } from "lucide-react";
+import { Plus, X, Copy, Users, LockKeyhole } from "lucide-react";
 import { api, post } from "./api";
 import { useAuth } from "./state";
 import type { Account, Permission, TemporaryCredential } from "./types";
@@ -32,6 +31,9 @@ import {
   PermissionDenied,
   Status,
 } from "./ui";
+
+const permissionOption =
+  "flex cursor-pointer items-start gap-3 rounded-xl border border-border p-3.5 text-xs transition-colors hover:bg-panel has-checked:border-brand/60 has-checked:bg-brand/5 [&_input]:mt-0.5 [&_input]:size-4 [&_input]:accent-brand [&_strong]:block [&_strong]:text-[13px] [&_strong]:font-medium [&_small]:mt-1 [&_small]:block [&_small]:text-muted";
 
 function Modal({
   title,
@@ -51,15 +53,17 @@ function Modal({
   return (
     <dialog
       ref={ref}
-      className="m-auto max-h-[90dvh] w-[min(440px,calc(100%-2rem))] overflow-y-auto rounded-lg border border-border bg-surface p-6 text-foreground shadow-2xl backdrop:bg-black/30 [&_form]:grid [&_form]:gap-3 [&_fieldset]:grid [&_fieldset]:gap-2 [&_legend]:mb-2 [&_legend]:text-xs [&_legend]:font-semibold"
+      className="m-auto max-h-[90dvh] w-[min(460px,calc(100%-2rem))] overflow-y-auto rounded-2xl border border-border bg-surface p-6 text-foreground shadow-pop backdrop:bg-black/40 backdrop:backdrop-blur-[2px] [&_form]:grid [&_form]:gap-4 [&_fieldset]:grid [&_fieldset]:gap-2 [&_legend]:mb-2 [&_legend]:text-xs [&_legend]:font-medium"
       onCancel={(event) => {
         event.preventDefault();
         close();
       }}
       aria-labelledby="modal-title"
     >
-      <div className="-mx-6 -mt-6 mb-4 flex items-center justify-between gap-3 border-b border-border bg-panel px-5 py-3 text-foreground [&_h2]:font-semibold">
-        <h2 id="modal-title">{title}</h2>
+      <div className="mb-3 flex items-start justify-between gap-3">
+        <h2 id="modal-title" className="pt-1.5 text-base font-semibold tracking-tight">
+          {title}
+        </h2>
         <button
           className={iconButton}
           aria-label="Close dialog"
@@ -139,6 +143,8 @@ export function AccountsPage() {
     <>
       <Panel
         title="Admin accounts"
+        subtitle="Invite-only access to this workspace"
+        icon={Users}
         action={
           <button
             className={primaryButton}
@@ -155,9 +161,13 @@ export function AccountsPage() {
         {query.isPending ? (
           <Loading />
         ) : query.error ? (
-          <ErrorState error={query.error} retry={() => void query.refetch()} />
+          <ErrorState
+            className="mx-5 mb-5"
+            error={query.error}
+            retry={() => void query.refetch()}
+          />
         ) : query.data.length === 0 ? (
-          <Empty title="No admin accounts returned" />
+          <Empty title="No admin accounts returned" icon={Users} />
         ) : (
           <div className={tableScroll}>
             <table>
@@ -176,17 +186,19 @@ export function AccountsPage() {
                 {query.data.map((account) => (
                   <tr key={account.id}>
                     <td>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-3">
                         <span
-                          className="grid size-7 shrink-0 place-items-center rounded-full bg-panel text-xs font-semibold"
+                          className="grid size-9 shrink-0 place-items-center rounded-full bg-brand/12 text-[13px] font-semibold text-brand"
                           aria-hidden="true"
                         >
                           {account.email.charAt(0).toUpperCase()}
                         </span>
-                        <div>
-                          <span className="font-semibold">{account.email}</span>
+                        <div className="min-w-0">
+                          <span className="block truncate font-medium">
+                            {account.email}
+                          </span>
                           {account.id === session.id && (
-                            <span className="mt-1 block max-w-60 truncate text-[11px] text-muted">
+                            <span className="mt-0.5 block text-[11px] text-muted">
                               You
                             </span>
                           )}
@@ -194,7 +206,7 @@ export function AccountsPage() {
                       </div>
                     </td>
                     <td>
-                      <Badge>
+                      <Badge tone={account.isMaster ? "brand" : ""}>
                         {account.isMaster ? "Master admin" : "Admin"}
                       </Badge>
                     </td>
@@ -250,7 +262,7 @@ export function AccountsPage() {
       {mutation.error && !inviteOpen && !revokeTarget && (
         <ErrorState error={mutation.error} />
       )}
-      <p className={panelNote}>
+      <p className="-mt-1 text-xs leading-relaxed text-muted">
         Share temporary passwords directly with invited admins. Only the master
         admin can invite teammates, reset their passwords or revoke access.
       </p>
@@ -281,7 +293,7 @@ export function AccountsPage() {
             </label>
             <fieldset>
               <legend>Permissions</legend>
-              <label className="flex cursor-pointer items-start gap-3 rounded-md border border-border bg-panel p-3 text-xs [&_input]:mt-0.5 [&_input]:size-4 [&_input]:accent-foreground [&_strong]:block [&_small]:mt-1 [&_small]:block [&_small]:text-muted">
+              <label className={permissionOption}>
                 <input
                   type="checkbox"
                   name="permissions"
@@ -295,7 +307,7 @@ export function AccountsPage() {
                   </small>
                 </span>
               </label>
-              <label className="flex cursor-pointer items-start gap-3 rounded-md border border-border bg-panel p-3 text-xs [&_input]:mt-0.5 [&_input]:size-4 [&_input]:accent-foreground [&_strong]:block [&_small]:mt-1 [&_small]:block [&_small]:text-muted">
+              <label className={permissionOption}>
                 <input
                   type="checkbox"
                   name="permissions"
@@ -311,7 +323,7 @@ export function AccountsPage() {
               </label>
             </fieldset>
             {mutation.error && (
-              <div className={notice} role="alert">
+              <div className={inlineNotice} role="alert">
                 {mutation.error.message}
               </div>
             )}
@@ -345,7 +357,7 @@ export function AccountsPage() {
             sessions will be invalidated.
           </p>
           {mutation.error && (
-            <div className={notice} role="alert">
+            <div className={inlineNotice} role="alert">
               {mutation.error.message}
             </div>
           )}
@@ -381,7 +393,7 @@ export function AccountsPage() {
             This password is shown once. Send it securely to{" "}
             {credential.email || "your teammate"}. No email has been sent.
           </p>
-          <div className="my-4 flex flex-wrap items-center gap-3 rounded-md border border-border bg-panel p-3 [&_code]:min-w-0 [&_code]:flex-1 [&_code]:font-mono [&_code]:break-all">
+          <div className="my-4 flex flex-wrap items-center gap-3 rounded-xl border border-border bg-panel p-3 pl-4 [&_code]:min-w-0 [&_code]:flex-1 [&_code]:font-mono [&_code]:text-[13px] [&_code]:break-all">
             <code>{credential.temporaryPassword}</code>
             <button
               className={button}
@@ -456,9 +468,11 @@ export function SecurityPage() {
     <Panel
       title="Change your password"
       subtitle={`Signed in as ${session?.email}`}
+      icon={LockKeyhole}
+      className="max-w-2xl"
     >
       <form
-        className="grid w-full max-w-[420px] gap-4 px-5 pt-2 pb-6 [&>button]:justify-self-start"
+        className="grid w-full max-w-[440px] gap-4 px-5 pt-1 pb-6 [&>button]:justify-self-start"
         onSubmit={submit}
       >
         <label className="grid gap-1.5 text-xs font-medium">
@@ -502,7 +516,7 @@ export function SecurityPage() {
           of every session. Sign in again with your new password.
         </p>
         {error && (
-          <div className={notice} role="alert">
+          <div className={inlineNotice} role="alert">
             {error}
           </div>
         )}
