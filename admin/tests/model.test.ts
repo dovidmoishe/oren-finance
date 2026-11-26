@@ -77,6 +77,8 @@ describe("report presentation", () => {
   it("draws round axis steps and keeps small axes in whole numbers", () => {
     expect(niceScale(393)).toEqual({ max: 400, step: 100 });
     expect(niceScale(2)).toEqual({ max: 2, step: 1 });
+    expect(niceScale(9)).toEqual({ max: 10, step: 5 });
+    expect(niceScale(0.4)).toEqual({ max: 1, step: 1 });
     expect(niceScale(0)).toEqual({ max: 4, step: 1 });
     expect(niceScale(12_400)).toEqual({ max: 15_000, step: 5_000 });
     expect(axisLabel(5_000, 15_000)).toBe("5K");

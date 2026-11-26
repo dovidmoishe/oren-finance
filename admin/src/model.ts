@@ -70,15 +70,14 @@ export function activePreset(
   });
 }
 
-/** Round axis steps (1, 2, 2.5 or 5 × 10ⁿ) covering `max`, in whole units. */
+/** Round axis steps (1, 2, 2.5 or 5 × 10ⁿ) covering `max`. Counts never get fractional ticks. */
 export function niceScale(max: number, count = 4) {
   if (!(max > 0)) return { max: count, step: 1 };
   const rough = max / count;
   const power = 10 ** Math.floor(Math.log10(rough));
-  const step = Math.max(
-    1,
-    [1, 2, 2.5, 5, 10].map((m) => m * power).find((s) => s >= rough)!,
-  );
+  const step = [1, 2, 2.5, 5, 10]
+    .map((m) => m * power)
+    .find((s) => s >= rough && Number.isInteger(s))!;
   return { max: Math.ceil(max / step) * step, step };
 }
 const compact = new Intl.NumberFormat("en-US", {

@@ -837,6 +837,10 @@ export function TrafficChart({
   const area = (segment: number[]) =>
     `${line(segment)} L${x(segment[segment.length - 1])},${baseline} L${x(segment[0])},${baseline} Z`;
   const last = lastObservation(days);
+  // A day with no observed neighbours draws no line or area, so it keeps a dot.
+  const isolated = new Set(
+    segments.filter((segment) => segment.length === 1).map(([index]) => index),
+  );
   // Evenly spaced date labels, counted back from the latest day.
   const stride = Math.max(
     1,
@@ -979,7 +983,10 @@ export function TrafficChart({
         )}
         {days.map((day, index) =>
           hasObservation(day) &&
-          (day.status === "partial" || index === last || index === active) ? (
+          (day.status === "partial" ||
+            index === last ||
+            index === active ||
+            isolated.has(index)) ? (
             <circle
               key={day.day}
               cx={x(index)}
@@ -992,10 +999,8 @@ export function TrafficChart({
               }
               strokeWidth="2"
             >
-              <title>
-                {day.day}: {day.value.toLocaleString("en-US")} pageviews (
-                {day.status})
-              </title>
+              {/* One string: React 19 renders an empty <title> for mixed children. */}
+              <title>{`${day.day}: ${day.value.toLocaleString("en-US")} pageviews (${day.status})`}</title>
             </circle>
           ) : null,
         )}
