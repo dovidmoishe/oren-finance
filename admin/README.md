@@ -1,6 +1,8 @@
 # Oren Admin
 
-Independent React + TypeScript + Vite admin app, built on PR #87 (`afc015b`). TanStack Router handles routes and TanStack Query handles server state. The admin and consumer app share animated sidebar icons. The admin uses Oren?s light and dark palettes and Onest type. The appearance menu follows your system by default and saves your choice on this browser. The overview shows verified stock trading volume, on-chain transactions, chats with a user message in the selected period, and recorded pageviews. Detailed analytics are under **Reports**. **Operations** and **Settings** expand when you need them.
+Independent React + TypeScript + Vite admin app, built on PR #87 (`afc015b`). TanStack Router handles routes and TanStack Query handles server state. The admin and consumer app share animated sidebar icons. The admin uses Oren’s light and dark palettes and Onest type, with white cards on a soft canvas. The appearance switch at the bottom of the sidebar follows your system by default and saves your choice on this browser. The overview shows verified stock trading volume, on-chain transactions, chats with a user message in the selected period, and recorded pageviews, then daily pageviews, top countries, referrers and, with `dashboard.access`, recent agent trades. Reports share one filter row: 7, 14, 30 and 90 day presets, then a custom range and timezone. A new range keeps the last report on screen, dimmed, until it loads. Detailed analytics are under **Reports** and **Operations**, which expand when you need them; **Settings** has its own section.
+
+Country flags are emoji drawn with the Twemoji Country Flags font from `country-flag-emoji-polyfill`, bundled with the app (Windows has no flag emoji). The flags are Twemoji graphics under CC BY 4.0, credited in the Countries panel.
 
 ## Local development
 

@@ -5,7 +5,12 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { QueryClient, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  keepPreviousData,
+  QueryClient,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { api, ApiError, setCsrfToken } from "./api";
 import { initialRange, validRange } from "./model";
 import type { Session } from "./types";
@@ -119,5 +124,7 @@ export function useReportQuery<T>(endpoint: string, extra = "") {
     queryKey: ["report", endpoint, params.toString(), extra],
     queryFn: () => api<T>(`reports/${endpoint}?${params}${extra}`),
     enabled: valid,
+    // A new date range keeps the last report on screen, dimmed, until it loads.
+    placeholderData: keepPreviousData,
   });
 }

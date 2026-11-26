@@ -41,15 +41,98 @@ export function dateInZone(date: Date, timezone: string) {
     day: "2-digit",
   }).format(date);
 }
-export function initialRange(timezone = "Africa/Lagos", now = new Date()) {
+/** The last `days` report days, including today in the report timezone. */
+export function initialRange(
+  timezone = "Africa/Lagos",
+  now = new Date(),
+  days = 14,
+) {
   const today = dateInZone(now, timezone);
   const end = new Date(`${today}T12:00:00Z`);
   const start = new Date(end);
-  start.setUTCDate(start.getUTCDate() - 13);
+  start.setUTCDate(start.getUTCDate() - (days - 1));
   return {
     from: start.toISOString().slice(0, 10),
     to: end.toISOString().slice(0, 10),
   };
+}
+export const rangePresets = [7, 14, 30, 90] as const;
+/** The preset that matches the selected dates, if any. */
+export function activePreset(
+  from: string,
+  to: string,
+  timezone: string,
+  now = new Date(),
+) {
+  return rangePresets.find((days) => {
+    const range = initialRange(timezone, now, days);
+    return range.from === from && range.to === to;
+  });
+}
+
+/** Round axis steps (1, 2, 2.5 or 5 × 10ⁿ) covering `max`, in whole units. */
+export function niceScale(max: number, count = 4) {
+  if (!(max > 0)) return { max: count, step: 1 };
+  const rough = max / count;
+  const power = 10 ** Math.floor(Math.log10(rough));
+  const step = Math.max(
+    1,
+    [1, 2, 2.5, 5, 10].map((m) => m * power).find((s) => s >= rough)!,
+  );
+  return { max: Math.ceil(max / step) * step, step };
+}
+const compact = new Intl.NumberFormat("en-US", {
+  notation: "compact",
+  maximumFractionDigits: 1,
+});
+/** Axis ticks stay in full below 10,000 and compact on an axis that reaches it. */
+export function axisLabel(value: number, axisMax: number) {
+  return axisMax >= 10_000
+    ? compact.format(value)
+    : value.toLocaleString("en-US");
+}
+/** Stat values in full below 100,000, then compact (128.4K, 1.2M). */
+export function formatMetric(value: number) {
+  return Math.abs(value) >= 100_000
+    ? compact.format(value)
+    : value.toLocaleString("en-US");
+}
+export function formatUsd(value: number) {
+  const size = Math.abs(value);
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    ...(size >= 100_000
+      ? { notation: "compact", maximumFractionDigits: 1 }
+      : { maximumFractionDigits: size >= 10_000 ? 0 : 2 }),
+  }).format(value);
+}
+export const exactUsd = new Intl.NumberFormat("en-US", {
+  style: "currency",
+  currency: "USD",
+});
+/** "Tue, 18 Nov 2026" for a report day. */
+export function dayLabel(day: string) {
+  return new Date(`${day}T12:00:00Z`).toLocaleDateString("en-GB", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+}
+/** "7 Nov, 18:30" in Lagos time, for compact activity rows. */
+export function shortDateTime(value: string) {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime())
+    ? missingValue
+    : new Intl.DateTimeFormat("en-GB", {
+        day: "numeric",
+        month: "short",
+        hour: "2-digit",
+        minute: "2-digit",
+        timeZone: "Africa/Lagos",
+      }).format(date);
 }
 export function validRange(from: string, to: string) {
   const validDay = (value: string) =>
@@ -81,7 +164,7 @@ export function countryName(code: string) {
   }
 }
 
-/** Flag emoji from regional indicators. Some systems, such as Windows, draw the letters instead. */
+/** Flag emoji from regional indicators, drawn with the bundled Twemoji flag font (`font-flag`). */
 export function countryFlag(code: string) {
   return /^[A-Z]{2}$/.test(code)
     ? String.fromCodePoint(
@@ -101,6 +184,10 @@ const referrerNames: Record<string, string> = {
 /** Hosts as recorded, with names for the few that hide where a visit came from. */
 export function referrerLabel(host: string) {
   return referrerNames[host] ?? host;
+}
+/** The letter shown in a referrer's badge: "X" for X (t.co), "G" for google.com. */
+export function referrerInitial(host: string) {
+  return (referrerLabel(host).match(/[a-z0-9]/i)?.[0] ?? "#").toUpperCase();
 }
 
 export function readable(value?: string | null) {

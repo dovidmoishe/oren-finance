@@ -1,8 +1,24 @@
 @import "tailwindcss";
 
+/* Twemoji country flags (CC BY 4.0), bundled from country-flag-emoji-polyfill.
+   Windows has no flag emoji, so without this a flag shows as two letters. */
+@font-face {
+  font-family: "Twemoji Country Flags";
+  unicode-range:
+    U+1F1E6-1F1FF, U+1F3F4, U+E0062-E0063, U+E0065, U+E0067, U+E006C, U+E006E,
+    U+E0073-E0074, U+E0077, U+E007F;
+  src: url("country-flag-emoji-polyfill/dist/TwemojiCountryFlags.woff2")
+    format("woff2");
+  font-display: swap;
+}
+
 @theme static {
   --font-sans: "Onest Variable", system-ui, sans-serif;
+  --font-flag:
+    "Twemoji Country Flags", "Apple Color Emoji", "Segoe UI Emoji",
+    "Noto Color Emoji", sans-serif;
   /* Oren product colors from app/app/styles/theme.css. */
+  --color-canvas: #f5f5f8;
   --color-background: #ffffff;
   --color-surface: #ffffff;
   --color-foreground: #24242b;
@@ -10,8 +26,9 @@
   --color-border: #e6e6ec;
   --color-border-strong: #cdcdd7;
   --color-panel: #f6f6f8;
+  --color-grid: #ececf1;
   --color-brand: #6652b3;
-  --color-nav-active: #eaeaf0;
+  --color-nav-active: #efedf6;
   --color-primary: #171717;
   --color-primary-foreground: #ffffff;
   --color-primary-hover: #393939;
@@ -25,10 +42,18 @@
   --color-danger: #b42318;
   --color-danger-foreground: #ffffff;
   --color-danger-hover: #912018;
+  /* Icon accents for stat tiles. Decoration only: never data or status. */
+  --color-accent-blue: #2563eb;
+  --color-accent-green: #16a34a;
+  --color-accent-orange: #ea580c;
+  --color-accent-pink: #db2777;
+  --shadow-card: 0 1px 2px 0 rgb(24 24 32 / 0.04), 0 1px 3px 0 rgb(24 24 32 / 0.03);
+  --shadow-pop: 0 12px 32px -10px rgb(24 24 32 / 0.22), 0 2px 6px rgb(24 24 32 / 0.06);
 }
 
 :root[data-theme="dark"] {
   color-scheme: dark;
+  --color-canvas: #0f0f0e;
   --color-background: #0f0f0e;
   --color-surface: #171716;
   --color-foreground: #ededea;
@@ -36,8 +61,9 @@
   --color-border: #2a2a27;
   --color-border-strong: #3b3b37;
   --color-panel: #20201e;
+  --color-grid: #262624;
   --color-brand: #b8a5f0;
-  --color-nav-active: #2c263b;
+  --color-nav-active: #27232f;
   --color-primary: #ededea;
   --color-primary-foreground: #0f0f0e;
   --color-primary-hover: #cacac5;
@@ -51,6 +77,10 @@
   --color-danger: #f87171;
   --color-danger-foreground: #220b0b;
   --color-danger-hover: #fca5a5;
+  --color-accent-blue: #60a5fa;
+  --color-accent-green: #4ade80;
+  --color-accent-orange: #fb923c;
+  --color-accent-pink: #f472b6;
 }
 
 @custom-variant mobile (@media (max-width: 700px));

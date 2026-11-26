@@ -1,25 +1,19 @@
 import { iconButton } from "./control-styles";
 import { useEffect, useRef, useState } from "react";
 import { Link, Outlet, useRouterState } from "@tanstack/react-router";
+import type { LucideIcon } from "lucide-react";
 import {
   LayoutDashboard,
   TrendingUp,
-  ListFilter,
   Users,
-  Link2,
-  ChartLine,
-  Shield,
-  Activity,
   LogOut,
   Menu,
   X,
   FolderClosed,
   BriefcaseBusiness,
-  Settings,
-  Layers,
-  CalendarDays,
   ChevronDown,
   LockKeyhole,
+  ScrollText,
 } from "lucide-react";
 import { motion, useReducedMotion } from "motion/react";
 import { AnimatedSidebarIcon } from "@oren/animated-icons";
@@ -28,14 +22,25 @@ import { AuthScreen } from "./auth";
 import { hasPermission } from "./model";
 import { useAuth } from "./state";
 import { ThemeControl } from "./theme-control";
-import { Icon, Loading } from "./ui";
+import { Badge, Icon, Loading } from "./ui";
 
 const MotionLink = motion.create(Link);
 
-const navigation = [
+interface NavItem {
+  to: string;
+  label: string;
+  icon?: LucideIcon;
+  permission: string;
+}
+interface NavGroup {
+  label: string;
+  icon: LucideIcon;
+  items: NavItem[];
+}
+const sections: { label: string; entries: (NavItem | NavGroup)[] }[] = [
   {
-    label: null,
-    items: [
+    label: "Main",
+    entries: [
       {
         to: "/",
         label: "Overview",
@@ -48,76 +53,56 @@ const navigation = [
         icon: TrendingUp,
         permission: "reports.read",
       },
-    ],
-  },
-  {
-    label: "Reports",
-    icon: FolderClosed,
-    items: [
       {
-        to: "/funnel",
-        label: "Agent setup",
-        icon: ListFilter,
-        permission: "reports.read",
+        label: "Reports",
+        icon: FolderClosed,
+        items: [
+          { to: "/funnel", label: "Agent setup", permission: "reports.read" },
+          { to: "/retention", label: "Retention", permission: "reports.read" },
+          { to: "/campaigns", label: "Campaigns", permission: "reports.read" },
+          {
+            to: "/coverage",
+            label: "Data coverage",
+            permission: "reports.read",
+          },
+        ],
       },
       {
-        to: "/retention",
-        label: "Retention",
-        icon: CalendarDays,
-        permission: "reports.read",
-      },
-      {
-        to: "/campaigns",
-        label: "Campaigns",
-        icon: ChartLine,
-        permission: "reports.read",
-      },
-      {
-        to: "/coverage",
-        label: "Data coverage",
-        icon: Layers,
-        permission: "reports.read",
-      },
-    ],
-  },
-  {
-    label: "Operations",
-    icon: BriefcaseBusiness,
-    items: [
-      {
-        to: "/users",
-        label: "Connected accounts",
-        icon: Users,
-        permission: "dashboard.access",
-      },
-      {
-        to: "/connections",
-        label: "Agent connections",
-        icon: Link2,
-        permission: "dashboard.access",
-      },
-      {
-        to: "/trades",
-        label: "Trade activity",
-        icon: Activity,
-        permission: "dashboard.access",
+        label: "Operations",
+        icon: BriefcaseBusiness,
+        items: [
+          {
+            to: "/users",
+            label: "Connected accounts",
+            permission: "dashboard.access",
+          },
+          {
+            to: "/connections",
+            label: "Agent connections",
+            permission: "dashboard.access",
+          },
+          {
+            to: "/trades",
+            label: "Trade activity",
+            permission: "dashboard.access",
+          },
+        ],
       },
     ],
   },
   {
     label: "Settings",
-    icon: Settings,
-    items: [
+    entries: [
       {
         to: "/accounts",
         label: "Team & access",
-        icon: Shield,
+        icon: Users,
         permission: "master",
       },
       {
         to: "/audit",
         label: "Audit log",
-        icon: Activity,
+        icon: ScrollText,
         permission: "master",
       },
       {
@@ -128,7 +113,7 @@ const navigation = [
       },
     ],
   },
-] as const;
+];
 const pageTitles: Record<string, string> = {
   "/": "Overview",
   "/traffic": "Traffic",
@@ -143,6 +128,11 @@ const pageTitles: Record<string, string> = {
   "/audit": "Audit log",
   "/security": "Password & security",
 };
+const navLink =
+  "flex h-9 items-center gap-3 rounded-lg px-3 text-[13.5px] transition-colors pointer-coarse:h-11";
+// Not iconButton: its inline-flex would override `hidden` on wide screens.
+const mobileButton =
+  "hidden size-9 shrink-0 cursor-pointer items-center justify-center rounded-lg text-muted transition-colors hover:bg-panel hover:text-foreground mobile:inline-flex";
 
 export function Workspace() {
   const reducedMotion = useReducedMotion();
@@ -176,7 +166,7 @@ export function Workspace() {
     setMobileOpen(false);
   }, [path]);
   useEffect(() => {
-    document.title = `${title} ? Oren Admin`;
+    document.title = `${title} · Oren Admin`;
   }, [title]);
   useEffect(() => {
     const close = (event: KeyboardEvent) => {
@@ -185,7 +175,7 @@ export function Workspace() {
     window.addEventListener("keydown", close);
     return () => window.removeEventListener("keydown", close);
   }, []);
-  if (loading) return <Loading />;
+  if (loading) return <Loading label="Loading workspace…" />;
   if (!session) return <AuthScreen />;
   if (session.mustChangePassword) return <AuthScreen changing />;
   const permitted = (permission: string) =>
@@ -206,17 +196,36 @@ export function Workspace() {
       setLoggingOut(false);
     }
   }
+  const topLink = (item: NavItem) => {
+    const active = path === item.to;
+    return (
+      <MotionLink
+        initial="rest"
+        animate="rest"
+        whileHover={reducedMotion ? undefined : "hover"}
+        whileFocus={reducedMotion ? undefined : "hover"}
+        key={item.to}
+        to={item.to}
+        onClick={() => setMobileOpen(false)}
+        className={`${navLink} ${active ? "bg-nav-active font-medium text-foreground [&_svg]:text-brand" : "text-muted hover:bg-panel hover:text-foreground"}`}
+        aria-current={active ? "page" : undefined}
+      >
+        {item.icon && <AnimatedSidebarIcon icon={item.icon} size={17} />}
+        <span>{item.label}</span>
+      </MotionLink>
+    );
+  };
   return (
-    <div className="min-h-dvh bg-background">
+    <div className="min-h-dvh bg-canvas">
       <a
-        className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-50 focus:rounded focus:bg-primary focus:px-4 focus:py-2 focus:text-primary-foreground"
+        className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-50 focus:rounded-lg focus:bg-primary focus:px-4 focus:py-2 focus:text-primary-foreground"
         href="#main"
       >
         Skip to content
       </a>
       {mobileOpen && (
         <button
-          className="fixed inset-0 z-20 cursor-pointer bg-black/35 min-[701px]:hidden"
+          className="fixed inset-0 z-20 cursor-pointer bg-black/40 min-[701px]:hidden"
           aria-hidden="true"
           tabIndex={-1}
           onClick={() => setMobileOpen(false)}
@@ -224,79 +233,109 @@ export function Workspace() {
       )}
       <aside
         inert={isMobile && !mobileOpen}
-        className={`fixed inset-y-0 left-0 z-30 flex w-[216px] flex-col overflow-y-auto border-r border-border bg-panel px-3 text-foreground mobile:w-60 motion-safe:transition-transform ${mobileOpen ? "translate-x-0" : "mobile:-translate-x-full"}`}
+        className={`fixed inset-y-0 left-0 z-30 flex w-[248px] flex-col border-r border-border bg-surface text-foreground mobile:w-[272px] motion-safe:transition-transform ${mobileOpen ? "translate-x-0 shadow-pop" : "mobile:-translate-x-full"}`}
       >
-        <div className="mb-3 flex min-h-16 shrink-0 items-center gap-2 px-2">
-          <Link
-            to="/"
-            className="inline-flex items-center gap-2 text-lg font-semibold tracking-tight [&>img]:size-7"
-          >
-            <img src="/oren-mark.svg" alt="" />
-            <span>Oren Admin</span>
+        <div className="flex h-16 shrink-0 items-center gap-2 px-5">
+          <Link to="/" className="flex items-center gap-2.5">
+            <img src="/oren-mark.svg" alt="" className="size-7" />
+            <span className="text-[17px] font-semibold tracking-tight">
+              Oren
+            </span>
+            <span className="rounded-md bg-panel px-1.5 py-0.5 text-[11px] font-medium text-muted ring-1 ring-border ring-inset">
+              Admin
+            </span>
           </Link>
           <button
             ref={closeRef}
-            className="ml-auto hidden size-9 cursor-pointer items-center justify-center rounded hover:bg-nav-active mobile:inline-flex"
+            className={`${mobileButton} ml-auto`}
             aria-label="Close navigation"
             onClick={() => setMobileOpen(false)}
           >
             <Icon icon={X} />
           </button>
         </div>
-        <nav aria-label="Admin navigation" className="grid gap-1">
-          {navigation.map((group) => {
-            const items = group.items.filter((item) =>
-              permitted(item.permission),
-            );
-            if (items.length === 0) return null;
-            const links = items.map((item) => (
-              <MotionLink
-                initial="rest"
-                animate="rest"
-                whileHover={reducedMotion ? undefined : "hover"}
-                whileFocus={reducedMotion ? undefined : "hover"}
-                key={item.to}
-                to={item.to}
-                onClick={() => setMobileOpen(false)}
-                className={`flex min-h-9 items-center gap-2.5 rounded-lg px-3 text-sm pointer-coarse:min-h-11 ${path === item.to ? "bg-nav-active font-medium text-foreground [&_svg]:text-brand" : "text-muted hover:bg-nav-active hover:text-foreground"}`}
-                aria-current={path === item.to ? "page" : undefined}
-              >
-                <AnimatedSidebarIcon icon={item.icon} size={16} />
-                <span>{item.label}</span>
-              </MotionLink>
-            ));
-            if (!group.label)
-              return (
-                <div className="grid gap-1" key="primary">
-                  {links}
-                </div>
+        <nav
+          aria-label="Admin navigation"
+          className="flex-1 overflow-y-auto px-3 pb-4"
+        >
+          {sections.map((section) => {
+            const entries = section.entries.flatMap(
+              (entry): (NavItem | NavGroup)[] => {
+              if (!("items" in entry))
+                return permitted(entry.permission) ? [entry] : [];
+              const items = entry.items.filter((item) =>
+                permitted(item.permission),
               );
-            const active = items.some((item) => item.to === path);
+              return items.length ? [{ ...entry, items }] : [];
+              },
+            );
+            if (entries.length === 0) return null;
             return (
-              <details className="group" key={group.label} open={active}>
-                <summary
-                  className={`flex min-h-9 cursor-pointer list-none items-center gap-2.5 rounded-lg px-3 text-sm hover:bg-nav-active hover:text-foreground pointer-coarse:min-h-11 [&::-webkit-details-marker]:hidden ${active ? "font-medium text-foreground" : "text-muted"}`}
-                >
-                  <Icon icon={group.icon} size={16} />
-                  <span className="flex-1">{group.label}</span>
-                  <span className="group-open:rotate-180">
-                    <Icon icon={ChevronDown} size={14} />
-                  </span>
-                </summary>
-                <div className="mt-1 ml-[19px] grid gap-1 border-l border-border pl-1.5">
-                  {links}
+              <div className="mt-5 first:mt-1" key={section.label}>
+                <p className="mb-1.5 px-3 text-[11px] font-medium tracking-[0.08em] text-muted uppercase">
+                  {section.label}
+                </p>
+                <div className="grid gap-0.5">
+                  {entries.map((entry) => {
+                    if (!("items" in entry)) return topLink(entry);
+                    const active = entry.items.some(
+                      (item) => item.to === path,
+                    );
+                    return (
+                      <details
+                        className="group"
+                        key={entry.label}
+                        open={active || undefined}
+                      >
+                        <summary
+                          className={`${navLink} cursor-pointer list-none hover:bg-panel hover:text-foreground [&::-webkit-details-marker]:hidden ${active ? "font-medium text-foreground" : "text-muted"}`}
+                        >
+                          <Icon icon={entry.icon} size={17} />
+                          <span className="flex-1">{entry.label}</span>
+                          <span className="text-muted transition-transform group-open:rotate-180 motion-reduce:transition-none">
+                            <Icon icon={ChevronDown} size={14} />
+                          </span>
+                        </summary>
+                        <div className="mt-0.5 mb-1 ml-[21px] grid gap-0.5 border-l border-border pl-3">
+                          {entry.items.map((item) => {
+                            const current = path === item.to;
+                            return (
+                              <Link
+                                key={item.to}
+                                to={item.to}
+                                onClick={() => setMobileOpen(false)}
+                                aria-current={current ? "page" : undefined}
+                                className={`relative flex h-8 items-center rounded-lg px-3 text-[13px] transition-colors pointer-coarse:h-10 ${current ? "bg-nav-active font-medium text-foreground before:absolute before:inset-y-1.5 before:-left-[14px] before:w-0.5 before:rounded-full before:bg-brand" : "text-muted hover:bg-panel hover:text-foreground"}`}
+                              >
+                                {item.label}
+                              </Link>
+                            );
+                          })}
+                        </div>
+                      </details>
+                    );
+                  })}
                 </div>
-              </details>
+              </div>
             );
           })}
         </nav>
-        <div className="mt-auto pt-4">
-          <div className="flex min-w-0 items-center gap-2 border-t border-border px-1 py-4 [&>div]:min-w-0 [&>div]:flex-1 [&_strong]:block [&_strong]:truncate [&_strong]:text-xs">
-            <span className="grid size-8 shrink-0 place-items-center rounded-full border border-border bg-nav-active text-xs font-semibold">
+        <div className="grid shrink-0 gap-3 border-t border-border p-3">
+          <ThemeControl />
+          <div className="flex min-w-0 items-center gap-2.5 px-1">
+            <span className="grid size-9 shrink-0 place-items-center rounded-full bg-brand/12 text-[13px] font-semibold text-brand">
               {session.email.slice(0, 1).toUpperCase()}
             </span>
-            <div>
-              <strong title={session.email}>{session.email}</strong>
+            <div className="min-w-0 flex-1">
+              <strong
+                className="block truncate text-[13px] font-medium"
+                title={session.email}
+              >
+                {session.email}
+              </strong>
+              <span className="block text-[11px] text-muted">
+                {session.isMaster ? "Master admin" : "Admin"}
+              </span>
             </div>
             <button
               className={iconButton}
@@ -305,43 +344,46 @@ export function Workspace() {
               disabled={loggingOut}
               onClick={() => void logout()}
             >
-              <Icon icon={LogOut} size={18} />
+              <Icon icon={LogOut} size={17} />
             </button>
           </div>
           {logoutError && (
-            <p className="pb-3 text-xs text-error" role="alert">
+            <p className="px-1 text-xs text-error" role="alert">
               {logoutError}
             </p>
           )}
         </div>
       </aside>
       <div
-        className="min-w-0 ml-[216px] mobile:ml-0"
+        className="min-w-0 pl-[248px] mobile:pl-0"
         inert={isMobile && mobileOpen}
       >
-        <header className="sticky top-0 z-10 flex min-h-16 items-center gap-3 border-b border-border bg-surface px-8 mobile:px-4">
-          <button
-            className="hidden size-9 cursor-pointer items-center justify-center rounded-lg hover:bg-panel mobile:inline-flex"
-            ref={menuRef}
-            aria-label="Open navigation"
-            aria-expanded={mobileOpen}
-            onClick={() => setMobileOpen(true)}
-          >
-            <Icon icon={Menu} />
-          </button>
-          <h1 className="min-w-0 flex-1 text-lg font-semibold tracking-tight">
-            {title}
-          </h1>
-          <ThemeControl />
+        <header className="sticky top-0 z-10 border-b border-border bg-canvas/85 backdrop-blur-md">
+          <div className="mx-auto flex h-16 w-full max-w-[1440px] items-center gap-3 px-8 mobile:px-4">
+            <button
+              className={`${mobileButton} -ml-1`}
+              ref={menuRef}
+              aria-label="Open navigation"
+              aria-expanded={mobileOpen}
+              onClick={() => setMobileOpen(true)}
+            >
+              <Icon icon={Menu} />
+            </button>
+            <h1 className="min-w-0 flex-1 truncate text-xl font-semibold tracking-tight">
+              {title}
+            </h1>
+            {import.meta.env.DEV && session.preview && (
+              <Badge tone="amber" dot>
+                Sample data
+              </Badge>
+            )}
+          </div>
         </header>
         <main
           id="main"
           tabIndex={-1}
-          className="mx-auto w-full max-w-[1440px] scroll-mt-16 px-8 py-7 mobile:px-4 mobile:py-5"
+          className="mx-auto grid w-full max-w-[1440px] scroll-mt-16 gap-5 px-8 py-6 outline-none mobile:gap-4 mobile:px-4 mobile:py-4 [&>*]:min-w-0"
         >
-          {import.meta.env.DEV && session.preview && (
-            <p className="mb-5 text-xs text-muted">Sample data</p>
-          )}
           <Outlet />
         </main>
       </div>

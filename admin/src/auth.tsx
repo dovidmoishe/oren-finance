@@ -1,10 +1,10 @@
-import { primaryButton, notice, field } from "./control-styles";
+import { primaryButton, inlineNotice, field } from "./control-styles";
 import { useState, type FormEvent } from "react";
 import { post, setCsrfToken } from "./api";
 import { useAuth } from "./state";
 import { ThemeControl } from "./theme-control";
-import { Icon } from "./ui";
-import { ArrowRight } from "lucide-react";
+import { Icon, IconChip } from "./ui";
+import { ArrowRight, KeyRound, LockKeyhole } from "lucide-react";
 
 export function AuthScreen({ changing = false }: { changing?: boolean }) {
   const { refresh, clear, error: sessionError } = useAuth();
@@ -45,19 +45,23 @@ export function AuthScreen({ changing = false }: { changing?: boolean }) {
     }
   }
   return (
-    <div className="relative flex min-h-dvh items-center justify-center bg-background px-6 py-24">
-      <div className="absolute top-6 right-6">
-        <ThemeControl />
+    <div className="relative flex min-h-dvh items-center justify-center bg-canvas px-4 py-24">
+      <div className="absolute top-5 right-5">
+        <ThemeControl compact />
       </div>
       <a
         href="https://oren.finance"
-        className="absolute top-6 left-7 flex items-center gap-2 text-lg font-semibold [&_img]:w-6"
+        className="absolute top-5 left-6 flex items-center gap-2.5 text-[17px] font-semibold tracking-tight [&_img]:size-7"
       >
         <img src="/oren-mark.svg" alt="" />
-        Oren Admin
+        Oren
+        <span className="rounded-md bg-surface px-1.5 py-0.5 text-[11px] font-medium text-muted ring-1 ring-border ring-inset">
+          Admin
+        </span>
       </a>
-      <main className="w-full max-w-[330px]">
-        <div className="[&_h2]:text-[25px] [&_h2]:font-semibold [&_h2]:tracking-tight [&>p]:mt-2 [&>p]:text-xs [&>p]:leading-relaxed [&>p]:text-muted [&_form]:mt-6 [&_form]:grid [&_form]:gap-4 [&_button]:w-full">
+      <main className="w-full max-w-[400px] rounded-2xl border border-border bg-surface p-8 shadow-card mobile:p-6">
+        <div className="[&_h2]:mt-5 [&_h2]:text-2xl [&_h2]:font-semibold [&_h2]:tracking-tight [&>p]:mt-2 [&>p]:text-[13px] [&>p]:leading-relaxed [&>p]:text-muted [&_form]:mt-6 [&_form]:grid [&_form]:gap-4 [&_form>button]:w-full">
+          <IconChip icon={changing ? KeyRound : LockKeyhole} />
           <h2>{changing ? "Set your password" : "Sign in"}</h2>
           <p>
             {changing
@@ -123,12 +127,12 @@ export function AuthScreen({ changing = false }: { changing?: boolean }) {
               </>
             )}
             {(error || sessionError) && (
-              <div className={notice} role="alert">
+              <div className={inlineNotice} role="alert">
                 {error || sessionError?.message}
               </div>
             )}
             {statusMessage && (
-              <div className={notice} role="status">
+              <div className={inlineNotice} role="status">
                 {statusMessage}
               </div>
             )}
@@ -137,7 +141,7 @@ export function AuthScreen({ changing = false }: { changing?: boolean }) {
               <Icon icon={ArrowRight} size={18} />
             </button>
           </form>
-          <p className="mt-5! text-pretty">
+          <p className="mt-5! text-xs! text-pretty">
             {changing
               ? "Your temporary password is single-use. If this session expires, ask your master admin for a replacement."
               : "Access is invitation only. Contact your master admin if you need an account or password recovery."}
