@@ -1,6 +1,7 @@
 import {
   button,
   field,
+  headerLink,
   inlineNotice,
   metricGrid,
   notice,
@@ -69,8 +70,11 @@ import {
   niceScale,
   percent,
   readable,
+  isOrenHost,
+  referrerBrand,
   referrerInitial,
   referrerLabel,
+  referrerTone,
   shortDateTime,
   trafficCoverage,
 } from "./model";
@@ -102,7 +106,9 @@ import {
   Panel,
   PermissionDenied,
   Status,
+  toneClasses,
 } from "./ui";
+import { monotonePath } from "./chart-path";
 
 export type ReportView =
   "overview" | "traffic" | "funnel" | "retention" | "campaigns" | "coverage";
@@ -319,7 +325,10 @@ function PageviewsPanel({
       className={`transition-opacity ${query.isPlaceholderData ? "opacity-60" : ""} ${className}`}
       action={
         overview ? (
-          <Link className={button} to="/traffic">
+          <Link
+            className={headerLink}
+            to="/traffic"
+          >
             View traffic <Icon icon={icons.arrow} size={14} />
           </Link>
         ) : (
@@ -536,7 +545,7 @@ interface AudienceProps {
   dimmed?: boolean;
 }
 const viewAll = (
-  <Link className={`${quietButton} -my-1 -mr-2 h-8 px-2.5`} to="/traffic">
+  <Link className={headerLink} to="/traffic">
     View all <Icon icon={icons.arrow} size={14} />
   </Link>
 );
@@ -561,12 +570,7 @@ function ReferrersPanel({ data, rows, overview, dimmed }: AudienceProps) {
       dimmed={dimmed}
       label={(key) => (
         <>
-          <span
-            className="grid size-6 shrink-0 place-items-center rounded-md bg-panel text-[11px] font-semibold text-muted ring-1 ring-border ring-inset"
-            aria-hidden="true"
-          >
-            {referrerInitial(key)}
-          </span>
+          <ReferrerIcon host={key} />
           <span className="truncate" title={key}>
             {referrerLabel(key)}
           </span>
@@ -579,6 +583,43 @@ function ReferrersPanel({ data, rows, overview, dimmed }: AudienceProps) {
           : undefined
       }
     />
+  );
+}
+
+/**
+ * A referrer's logo from the bundled brand set, Oren's mark for its own sites,
+ * or a tinted initial. Nothing is fetched, so no third party learns where
+ * visits come from and the CSP stays closed.
+ */
+export function ReferrerIcon({ host }: { host: string }) {
+  const tile =
+    "grid size-6 shrink-0 place-items-center rounded-md bg-panel ring-1 ring-border ring-inset";
+  if (isOrenHost(host))
+    return (
+      <span className={tile} aria-hidden="true">
+        <img src="/oren-mark.svg" alt="" className="size-4" />
+      </span>
+    );
+  const brand = referrerBrand(host);
+  if (brand)
+    return (
+      <span className={tile} aria-hidden="true" data-brand={brand.title}>
+        <svg
+          viewBox="0 0 24 24"
+          className="size-3.5 fill-foreground"
+          style={brand.color ? { fill: brand.color } : undefined}
+        >
+          <path d={brand.path} />
+        </svg>
+      </span>
+    );
+  return (
+    <span
+      className={`grid size-6 shrink-0 place-items-center rounded-md text-[11px] font-semibold ${toneClasses[referrerTone(host)]}`}
+      aria-hidden="true"
+    >
+      {referrerInitial(host)}
+    </span>
   );
 }
 
@@ -807,8 +848,10 @@ export function TrafficChart({
     bottom = 30;
   const plotRight = width - right;
   const baseline = height - bottom;
+  // Three steps keep the grid quiet; the readout carries exact values.
   const scale = niceScale(
     Math.max(0, ...days.map((day) => (hasObservation(day) ? day.value : 0))),
+    3,
   );
   const ticks = Array.from(
     { length: Math.round(scale.max / scale.step) + 1 },
@@ -830,12 +873,16 @@ export function TrafficChart({
     }
   });
   if (current.length) segments.push(current);
+  // A smooth curve that never overshoots a day, so it invents no peaks.
   const line = (segment: number[]) =>
-    segment
-      .map((index, n) => `${n ? "L" : "M"}${x(index)},${y(days[index].value!)}`)
-      .join(" ");
+    monotonePath(
+      segment.map((index): [number, number] => [
+        x(index),
+        y(days[index].value!),
+      ]),
+    );
   const area = (segment: number[]) =>
-    `${line(segment)} L${x(segment[segment.length - 1])},${baseline} L${x(segment[0])},${baseline} Z`;
+    `${line(segment)}L${x(segment[segment.length - 1])},${baseline}L${x(segment[0])},${baseline}Z`;
   const last = lastObservation(days);
   // A day with no observed neighbours draws no line or area, so it keeps a dot.
   const isolated = new Set(
@@ -844,7 +891,7 @@ export function TrafficChart({
   // Evenly spaced date labels, counted back from the latest day.
   const stride = Math.max(
     1,
-    Math.ceil((days.length - 1) / (width < 600 ? 3 : 6)),
+    Math.ceil((days.length - 1) / (width < 600 ? 3 : 5)),
   );
   const labelIndices: number[] = [];
   for (let index = days.length - 1; index >= 0; index -= stride)
@@ -910,7 +957,7 @@ export function TrafficChart({
           <linearGradient id={gradient} x1="0" y1="0" x2="0" y2="1">
             <stop
               offset="0%"
-              className="[stop-color:var(--color-brand)] [stop-opacity:0.16]"
+              className="[stop-color:var(--color-brand)] [stop-opacity:0.14]"
             />
             <stop
               offset="100%"
@@ -925,7 +972,7 @@ export function TrafficChart({
               y1={y(tick)}
               x2={plotRight}
               y2={y(tick)}
-              className={tick === 0 ? "stroke-border-strong" : "stroke-grid"}
+              className={tick === 0 ? "stroke-border" : "stroke-grid"}
               strokeWidth="1"
               shapeRendering="crispEdges"
             />
@@ -979,6 +1026,15 @@ export function TrafficChart({
             className="stroke-border-strong"
             strokeWidth="1"
             shapeRendering="crispEdges"
+          />
+        )}
+        {active == null && last >= 0 && (
+          <circle
+            cx={x(last)}
+            cy={y(days[last].value!)}
+            r="9"
+            className="fill-brand/15"
+            aria-hidden="true"
           />
         )}
         {days.map((day, index) =>
@@ -1086,7 +1142,7 @@ function RecentTrades({ className = "" }: { className?: string }) {
       icon={ActivityIcon}
       className={className}
       action={
-        <Link className={`${quietButton} -my-1 -mr-2 h-8 px-2.5`} to="/trades">
+        <Link className={headerLink} to="/trades">
           View all <Icon icon={icons.arrow} size={14} />
         </Link>
       }

@@ -1,3 +1,4 @@
+import { brandIcons, type BrandIcon } from "./brand-icons";
 import type { Count, Day, Permission, Session, Slice } from "./types";
 
 export function hasPermission(session: Session, permission: string) {
@@ -187,6 +188,44 @@ export function referrerLabel(host: string) {
 /** The letter shown in a referrer's badge: "X" for X (t.co), "G" for google.com. */
 export function referrerInitial(host: string) {
   return (referrerLabel(host).match(/[a-z0-9]/i)?.[0] ?? "#").toUpperCase();
+}
+const googleCountry = /(^|\.)google\.[a-z]{2,3}(\.[a-z]{2})?$/;
+/** The bundled brand logo for a referrer host or any of its subdomains, if there is one. */
+export function referrerBrand(host: string): BrandIcon | undefined {
+  const name = host.toLowerCase();
+  return (
+    brandIcons.find((brand) =>
+      brand.hosts.some((item) => name === item || name.endsWith(`.${item}`)),
+    ) ??
+    (googleCountry.test(name)
+      ? brandIcons.find((brand) => brand.title === "Google")
+      : undefined)
+  );
+}
+export function isOrenHost(host: string) {
+  return /(^|\.)oren\.finance$/.test(host.toLowerCase());
+}
+export const badgeTones = ["violet", "blue", "green", "orange", "pink"] as const;
+/** A stable tint for a referrer without a logo, so neighbouring sites look different. */
+export function referrerTone(host: string) {
+  let hash = 0;
+  for (const letter of host) hash = (hash * 31 + letter.charCodeAt(0)) >>> 0;
+  return badgeTones[hash % badgeTones.length];
+}
+/** "13 Nov – 26 Nov 2026", with both years when the range crosses one. */
+export function rangeLabel(from: string, to: string) {
+  if (!validRange(from, to)) return "Choose dates";
+  const start = new Date(`${from}T12:00:00Z`);
+  const end = new Date(`${to}T12:00:00Z`);
+  const format = (date: Date, year: boolean) =>
+    date.toLocaleDateString("en-GB", {
+      day: "numeric",
+      month: "short",
+      ...(year ? { year: "numeric" } : {}),
+      timeZone: "UTC",
+    });
+  if (from === to) return format(end, true);
+  return `${format(start, start.getUTCFullYear() !== end.getUTCFullYear())} – ${format(end, true)}`;
 }
 
 export function readable(value?: string | null) {

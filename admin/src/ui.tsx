@@ -1,17 +1,30 @@
 import {
+  alertNotice,
   card,
-  field,
+  dateField,
   iconButton,
   notice,
   button,
+  primaryButton,
+  selectButton,
 } from "./control-styles";
-import type { ReactNode } from "react";
+import {
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type FormEvent,
+  type ReactNode,
+} from "react";
 import type { LucideIcon } from "lucide-react";
 import {
   ArrowRight,
   CalendarDays,
+  Check,
+  ChevronDown,
   CircleAlert,
   Download,
+  Globe,
   Inbox,
   LockKeyhole,
   RefreshCw,
@@ -22,8 +35,10 @@ import {
   activePreset,
   initialRange,
   missingValue,
+  rangeLabel,
   rangePresets,
   readable,
+  validRange,
 } from "./model";
 
 export function Icon({
@@ -42,7 +57,7 @@ export const icons = {
 };
 
 export type Tone = "violet" | "blue" | "green" | "orange" | "pink";
-const chipTones: Record<Tone, string> = {
+export const toneClasses: Record<Tone, string> = {
   violet: "bg-brand/10 text-brand",
   blue: "bg-accent-blue/10 text-accent-blue",
   green: "bg-accent-green/10 text-accent-green",
@@ -61,7 +76,7 @@ export function IconChip({
 }) {
   return (
     <span
-      className={`grid shrink-0 place-items-center ${small ? "size-8 rounded-lg" : "size-10 rounded-xl"} ${chipTones[tone]}`}
+      className={`grid shrink-0 place-items-center ${small ? "size-8 rounded-lg" : "size-10 rounded-xl"} ${toneClasses[tone]}`}
     >
       <Icon icon={icon} size={small ? 16 : 19} />
     </span>
@@ -215,7 +230,7 @@ export function ErrorState({
   className?: string;
 }) {
   return (
-    <div className={`${notice} items-center ${className}`} role="alert">
+    <div className={`${alertNotice} ${className}`} role="alert">
       <Icon icon={CircleAlert} />
       <div className="min-w-0 flex-1">
         <strong className="font-semibold">We couldn’t load this view</strong>
@@ -252,64 +267,210 @@ export function PermissionDenied({ permission }: { permission: string }) {
 }
 
 /** One row of report filters above everything it scopes: presets first, then a custom range. */
+const zones = [
+  { value: "Africa/Lagos", label: "WAT", title: "Lagos days (WAT)" },
+  { value: "UTC", label: "UTC", title: "UTC days" },
+];
+
+/**
+ * The date range as one button. Its panel lists presets as rows, with a check
+ * on the selected one, and keeps the custom range below a hairline.
+ */
+function DateRangePicker({ timezone }: { timezone: string }) {
+  const state = useReport();
+  const [open, setOpen] = useState(false);
+  const [from, setFrom] = useState(state.from);
+  const [to, setTo] = useState(state.to);
+  const [error, setError] = useState("");
+  const root = useRef<HTMLDivElement>(null);
+  const trigger = useRef<HTMLButtonElement>(null);
+  const panel = useId();
+  const preset = activePreset(state.from, state.to, timezone);
+  const close = () => {
+    setOpen(false);
+    trigger.current?.focus();
+  };
+  useEffect(() => {
+    if (!open) return;
+    const outside = (event: PointerEvent) => {
+      if (!root.current?.contains(event.target as Node)) setOpen(false);
+    };
+    const escape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      setOpen(false);
+      trigger.current?.focus();
+    };
+    document.addEventListener("pointerdown", outside);
+    document.addEventListener("keydown", escape);
+    // The selected preset, or the first when the range is custom.
+    const presets = root.current?.querySelectorAll<HTMLButtonElement>(
+      "[data-preset]",
+    );
+    (
+      [...(presets ?? [])].find(
+        (item) => item.getAttribute("aria-pressed") === "true",
+      ) ?? presets?.[0]
+    )?.focus();
+    return () => {
+      document.removeEventListener("pointerdown", outside);
+      document.removeEventListener("keydown", escape);
+    };
+  }, [open]);
+  function toggle() {
+    if (!open) {
+      setFrom(state.from);
+      setTo(state.to);
+      setError("");
+    }
+    setOpen((value) => !value);
+  }
+  function apply(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!validRange(from, to)) {
+      setError("End on or after the start, at most 366 days later.");
+      return;
+    }
+    state.update({ from, to });
+    close();
+  }
+  return (
+    <div className="relative max-w-full" ref={root}>
+      <button
+        ref={trigger}
+        type="button"
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        aria-controls={open ? panel : undefined}
+        className={selectButton}
+        onClick={toggle}
+      >
+        <span className="text-muted">
+          <Icon icon={CalendarDays} size={16} />
+        </span>
+        <span className="truncate">{rangeLabel(state.from, state.to)}</span>
+        {preset && (
+          <span className="font-normal text-muted mobile:hidden">
+            · Last {preset} days
+          </span>
+        )}
+        <span
+          className={`text-muted transition-transform motion-reduce:transition-none ${open ? "rotate-180" : ""}`}
+        >
+          <Icon icon={ChevronDown} size={14} />
+        </span>
+      </button>
+      {open && (
+        <div
+          id={panel}
+          role="dialog"
+          aria-label="Choose dates"
+          className="absolute top-full left-0 z-30 mt-2 w-[19rem] max-w-[calc(100vw-2rem)] rounded-xl border border-border bg-surface p-1.5 shadow-pop"
+        >
+          <div className="grid gap-0.5">
+            {rangePresets.map((days) => {
+              const range = initialRange(timezone, new Date(), days);
+              return (
+                <button
+                  key={days}
+                  type="button"
+                  data-preset
+                  aria-pressed={preset === days}
+                  className="flex h-9 cursor-pointer items-center gap-2.5 rounded-lg px-2.5 text-left text-[13px] transition-colors hover:bg-panel focus-visible:bg-panel pointer-coarse:h-11"
+                  onClick={() => {
+                    state.update(range);
+                    close();
+                  }}
+                >
+                  <span className="grid size-4 shrink-0 place-items-center">
+                    {preset === days && (
+                      <Check size={16} strokeWidth={2.5} aria-hidden="true" />
+                    )}
+                  </span>
+                  <span className="flex-1 font-medium">Last {days} days</span>
+                  <span className="text-xs text-muted">
+                    {rangeLabel(range.from, range.to)}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+          <form
+            className="mt-1.5 grid gap-2.5 border-t border-border px-2.5 pt-3 pb-1.5"
+            onSubmit={apply}
+          >
+            <span className="text-xs font-medium text-muted">Custom range</span>
+            <div className="grid grid-cols-2 gap-2">
+              <label className="grid gap-1 text-[11px] font-medium text-muted">
+                From
+                <input
+                  className={dateField}
+                  type="date"
+                  value={from}
+                  onChange={(event) => setFrom(event.target.value)}
+                />
+              </label>
+              <label className="grid gap-1 text-[11px] font-medium text-muted">
+                To
+                <input
+                  className={dateField}
+                  type="date"
+                  value={to}
+                  onChange={(event) => setTo(event.target.value)}
+                />
+              </label>
+            </div>
+            {error && (
+              <p className="text-xs text-error" role="alert">
+                {error}
+              </p>
+            )}
+            <button className={`${primaryButton} w-full`} type="submit">
+              Apply dates
+            </button>
+          </form>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** One row of report filters above everything it scopes: the date range, then the timezone. */
 export function DateFilters({ utcOnly = false }: { utcOnly?: boolean }) {
   const state = useReport();
   const client = useQueryClient();
   const timezone = utcOnly ? "UTC" : state.timezone;
-  const preset = activePreset(state.from, state.to, timezone);
-  const dateInput =
-    "min-w-0 cursor-pointer bg-transparent text-[13px] text-foreground [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-50 [&::-webkit-calendar-picker-indicator]:hover:opacity-80";
   return (
     <div className="grid gap-3">
       <div className="flex flex-wrap items-center gap-2.5">
-        <div
-          className="inline-flex rounded-xl border border-border bg-surface p-1 shadow-xs"
-          role="group"
-          aria-label="Date range"
-        >
-          {rangePresets.map((days) => (
-            <button
-              key={days}
-              type="button"
-              aria-pressed={preset === days}
-              title={`Last ${days} days`}
-              className={`h-7 min-w-11 cursor-pointer rounded-lg px-2.5 text-xs font-medium transition-colors pointer-coarse:h-9 ${preset === days ? "bg-primary text-primary-foreground shadow-xs" : "text-muted hover:bg-panel hover:text-foreground"}`}
-              onClick={() => state.update(initialRange(timezone, new Date(), days))}
-            >
-              <span aria-hidden="true">{days}D</span>
-              <span className="sr-only">Last {days} days</span>
-            </button>
-          ))}
-        </div>
-        <div className="flex h-9 max-w-full items-center gap-2 rounded-lg border border-border bg-surface px-3 text-muted shadow-xs pointer-coarse:h-11">
-          <Icon icon={CalendarDays} size={15} />
-          <input
-            className={dateInput}
-            aria-label="From"
-            type="date"
-            value={state.from}
-            onChange={(event) => state.update({ from: event.target.value })}
-          />
-          <Icon icon={ArrowRight} size={13} />
-          <input
-            className={dateInput}
-            aria-label="To"
-            type="date"
-            value={state.to}
-            onChange={(event) => state.update({ to: event.target.value })}
-          />
-        </div>
-        <select
-          className={`${field} cursor-pointer`}
-          aria-label="Report timezone"
-          value={timezone}
-          disabled={utcOnly}
-          title={utcOnly ? "This report uses UTC days" : undefined}
-          onChange={(event) => state.update({ timezone: event.target.value })}
-        >
-          <option value="Africa/Lagos">Lagos · WAT</option>
-          <option value="UTC">UTC</option>
-        </select>
+        <DateRangePicker timezone={timezone} />
+        {utcOnly ? (
+          <span
+            className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-border bg-surface px-3 text-xs font-medium text-muted shadow-xs pointer-coarse:h-11"
+            title="This report counts UTC days"
+          >
+            <Icon icon={Globe} size={14} />
+            UTC days
+          </span>
+        ) : (
+          <div
+            className="inline-flex rounded-xl border border-border bg-surface p-1 shadow-xs"
+            role="group"
+            aria-label="Report timezone"
+          >
+            {zones.map((zone) => (
+              <button
+                key={zone.value}
+                type="button"
+                aria-pressed={state.timezone === zone.value}
+                title={zone.title}
+                className={`h-7 min-w-12 cursor-pointer rounded-lg px-2.5 text-xs font-medium transition-colors pointer-coarse:h-9 ${state.timezone === zone.value ? "bg-primary text-primary-foreground shadow-xs" : "text-muted hover:bg-panel hover:text-foreground"}`}
+                onClick={() => state.update({ timezone: zone.value })}
+              >
+                {zone.label}
+              </button>
+            ))}
+          </div>
+        )}
         <button
           className={`${iconButton} ml-auto border border-border bg-surface shadow-xs`}
           aria-label="Refresh reports"

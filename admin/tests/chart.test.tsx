@@ -23,7 +23,8 @@ describe("daily pageviews chart", () => {
       />,
     );
     // 1 and 3 Nov stand alone and 6 Nov is the latest. 5 Nov is on a line.
-    expect(html.match(/<circle/g)).toHaveLength(3);
+    // Data dots carry a title; the halo behind the latest day does not.
+    expect(html.match(/<circle[^>]*><title>/g)).toHaveLength(3);
     expect(html).toContain("2026-11-01: 5 pageviews (exact)");
     expect(html).toContain("2026-11-03: 7 pageviews (exact)");
     expect(html).not.toContain("2026-11-05: 9 pageviews");
