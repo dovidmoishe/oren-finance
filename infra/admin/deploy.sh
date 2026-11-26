@@ -17,7 +17,8 @@ ROOT=${OREN_ADMIN_ROOT:-/opt/oren/admin-release}
 SITES=${OREN_ADMIN_SITES:-/opt/oren/preview/sites}
 HOST=${OREN_ADMIN_HOST:-admin.oren.finance}
 ROUTE="$SITES/production-admin.caddy"
-CONTAINER=oren-admin-dashboard
+PROJECT=oren-admin-release
+CONTAINER=oren-admin-web
 INCOMING=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 REPO="ghcr.io/$OWNER/oren-admin"
 mkdir -p "$ROOT"
@@ -28,6 +29,12 @@ docker inspect oren-caddy-1 >/dev/null
 test -d "$SITES"
 test -f "$INCOMING/compose.yml"
 test -f "$INCOMING/admin.caddy"
+# Never take over a container this release did not create.
+if owner=$(docker container inspect --format '{{index .Config.Labels "com.docker.compose.project"}}/{{index .Config.Labels "com.docker.compose.service"}}' "$CONTAINER" 2>/dev/null) &&
+  [[ "$owner" != "$PROJECT/admin" ]]; then
+  echo "Refusing to replace $CONTAINER, which this release does not manage ($owner)" >&2
+  exit 1
+fi
 
 # The container behind today's route. A hand-run dashboard is stopped only after
 # this release is serving through Caddy, and it is never removed.

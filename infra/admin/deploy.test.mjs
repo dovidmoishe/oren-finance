@@ -11,11 +11,14 @@ const posix = (value) => value.replaceAll('\\', '/').replace(/^([A-Za-z]):/, (_,
 const sha = 'a'.repeat(40), oldSha = 'b'.repeat(40), digest = `sha256:${'c'.repeat(64)}`;
 const source = fs.readFileSync(new URL('./deploy.sh', import.meta.url), 'utf8');
 const route = fs.readFileSync(new URL('./admin.caddy', import.meta.url), 'utf8');
-const handRunRoute = 'admin.oren.finance {\n  reverse_proxy oren-admin:8080\n}\n';
+const composeFile = fs.readFileSync(new URL('../../admin/compose.yml', import.meta.url), 'utf8');
+// Production's hand-run dashboard: Compose project oren-admin, container oren-admin-dashboard.
+const handRunRoute = 'admin.oren.finance {\n  reverse_proxy oren-admin-dashboard:8080\n}\n';
+const ours = 'oren-admin-release/admin';
 const indexBody = '<!doctype html><div id="root"></div>';
 const indexHash = createHash('sha256').update(indexBody).digest('hex');
 
-function run({ failure = '', previous = false, currentRoute = handRunRoute, handRun = 'oren-admin', expected = digest } = {}) {
+function run({ failure = '', previous = false, currentRoute = handRunRoute, handRun = 'oren-admin-dashboard', nameOwner = '', expected = digest } = {}) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'oren-admin-deploy-'));
   const incoming = path.join(root, 'incoming'), bin = path.join(root, 'bin'), sites = path.join(root, 'sites');
   for (const dir of [incoming, bin, sites]) fs.mkdirSync(dir);
@@ -42,7 +45,14 @@ if [[ "$1" == --config ]]; then
   exit 0
 fi
 case "$1 $2" in
-  'container inspect') [[ -n "$MOCK_HAND_RUN" && "$3" == "$MOCK_HAND_RUN" ]]; exit $? ;;
+  'container inspect')
+    name="\${@: -1}"
+    if [[ "$*" == *--format* ]]; then
+      # Compose labels of whatever already holds the release's container name.
+      [[ "$name" == oren-admin-web && -n "$MOCK_NAME_OWNER" ]] || exit 1
+      echo "$MOCK_NAME_OWNER"; exit 0
+    fi
+    [[ -n "$MOCK_HAND_RUN" && "$name" == "$MOCK_HAND_RUN" ]]; exit $? ;;
   'image inspect')
     if [[ "$*" == *Labels* ]]; then
       if [[ "$MOCK_FAIL" == revision ]]; then echo wrong; else echo "$MOCK_SHA"; fi
@@ -52,18 +62,19 @@ case "$1 $2" in
       cat "$OREN_ADMIN_ROOT/release.env" >> "$MOCK_LOG"
       if [[ "$MOCK_FAIL" == container ]] && grep -q "$MOCK_SHA" "$OREN_ADMIN_ROOT/release.env"; then exit 1; fi
     fi ;;
-  'exec oren-admin-dashboard')
+  'exec oren-admin-web')
     if [[ "$3" == sh && "$MOCK_FAIL" == proxy ]]; then exit 1; fi
     if [[ "$3" == sha256sum ]]; then echo "$MOCK_INDEX_HASH  /srv/index.html"; fi ;;
   'exec oren-caddy-1')
-    if [[ "$MOCK_FAIL" == caddy && "$*" == *validate* ]] && grep -q oren-admin-dashboard "$OREN_ADMIN_SITES/production-admin.caddy" 2>/dev/null; then exit 1; fi ;;
+    if [[ "$MOCK_FAIL" == caddy && "$*" == *validate* ]] && grep -q oren-admin-web "$OREN_ADMIN_SITES/production-admin.caddy" 2>/dev/null; then exit 1; fi ;;
 esac
 `, { mode: 0o755 });
   const result = spawnSync(bash, ['--noprofile', '--norc', '-c', 'export PATH="$MOCK_BIN:$PATH"; exec bash "$@"', 'admin-test', posix(path.join(incoming, 'deploy.sh')), 'example', sha, 'tester', expected], {
     encoding: 'utf8', input: 'disposable-registry-token',
     env: { ...process.env, OREN_ADMIN_ROOT: posix(root), OREN_ADMIN_SITES: posix(sites),
       MOCK_BIN: posix(bin), MOCK_LOG: posix(path.join(root, 'commands')), MOCK_SHA: sha, MOCK_DIGEST: digest,
-      MOCK_FAIL: failure, MOCK_HAND_RUN: handRun, MOCK_INDEX_BODY: indexBody, MOCK_INDEX_HASH: indexHash },
+      MOCK_FAIL: failure, MOCK_HAND_RUN: handRun, MOCK_NAME_OWNER: nameOwner,
+      MOCK_INDEX_BODY: indexBody, MOCK_INDEX_HASH: indexHash },
   });
   const read = (name) => fs.existsSync(path.join(root, name)) ? fs.readFileSync(path.join(root, name), 'utf8') : null;
   const output = {
@@ -78,7 +89,17 @@ esac
   return output;
 }
 
-const retired = (commands) => /^(update --restart=no|stop) oren-admin$/m.test(commands);
+const retired = (commands) => /^(update --restart=no|stop) oren-admin-dashboard$/m.test(commands);
+
+test('Compose, the route and the script share names that differ from the hand-run stack', () => {
+  assert.match(composeFile, /^name: oren-admin-release$/m);
+  assert.match(composeFile, /^ {4}container_name: oren-admin-web$/m);
+  assert.match(route, /^ {2}reverse_proxy oren-admin-web:8080$/m);
+  assert.match(source, /^PROJECT=oren-admin-release$/m);
+  assert.match(source, /^CONTAINER=oren-admin-web$/m);
+  assert.doesNotMatch(composeFile, /^name: oren-admin$/m, 'sharing the hand-run project makes it an orphan of this one');
+  assert.doesNotMatch(composeFile, /container_name: oren-admin-dashboard$/m, 'the hand-run container already holds that name');
+});
 
 test('hands over from the hand-run dashboard once the new release serves through Caddy', () => {
   const r = run();
@@ -87,22 +108,34 @@ test('hands over from the hand-run dashboard once the new release serves through
   assert.match(r.release, new RegExp(`ADMIN_IMAGE=ghcr.io/example/oren-admin@${digest}`));
   assert.match(r.release, new RegExp(`ADMIN_RELEASE_SHA=${sha}`));
   assert.match(r.result.stdout, new RegExp(`ADMIN_INDEX_SHA256=${indexHash}`));
-  assert.match(r.result.stdout, /Stopped the previous dashboard container oren-admin/);
+  assert.match(r.result.stdout, /Stopped the previous dashboard container oren-admin-dashboard/);
   const at = (text) => r.commands.indexOf(text);
   assert.ok(at('caddy validate') < at('caddy reload'));
   assert.ok(at('caddy reload') < at('curl '), 'the edge is checked after Caddy follows the new route');
-  assert.ok(at('curl ') < at('update --restart=no oren-admin'), 'the old dashboard keeps serving until the edge check passes');
-  assert.ok(at('update --restart=no oren-admin') < at('stop oren-admin'));
+  assert.ok(at('curl ') < at('update --restart=no oren-admin-dashboard'), 'the old dashboard keeps serving until the edge check passes');
+  assert.ok(at('update --restart=no oren-admin-dashboard') < at('stop oren-admin-dashboard'));
   assert.doesNotMatch(r.commands, /^rm /m, 'the old dashboard is stopped, never removed');
   assert.equal(r.replaced, handRunRoute, 'the hand-run route is kept for manual recovery');
-  assert.equal(r.retiredName, 'oren-admin\n');
+  assert.equal(r.retiredName, 'oren-admin-dashboard\n');
   assert.match(r.commands, /--resolve admin\.oren\.finance:443:127\.0\.0\.1 https:\/\/admin\.oren\.finance\//);
   assert.deepEqual(r.leftovers, []);
   assert.deepEqual(r.stray, []);
 });
 
-test('a later release keeps the route byte-for-byte and records the previous image', () => {
-  const r = run({ previous: true, currentRoute: route, handRun: '' });
+test('a container under the release name that this release did not create is refused before anything changes', () => {
+  const r = run({ nameOwner: 'oren-admin/dashboard' });
+  assert.notEqual(r.result.status, 0);
+  assert.match(r.result.stderr, /Refusing to replace oren-admin-web, which this release does not manage \(oren-admin\/dashboard\)/);
+  assert.doesNotMatch(r.commands, / pull /);
+  assert.doesNotMatch(r.commands, /compose --env-file/);
+  assert.equal(r.route, handRunRoute);
+  assert.equal(r.release, null);
+  assert.equal(retired(r.commands), false);
+  assert.deepEqual(r.leftovers, []);
+});
+
+test('a later release replaces its own container, keeps the route byte-for-byte and records the previous image', () => {
+  const r = run({ previous: true, currentRoute: route, handRun: '', nameOwner: ours });
   assert.equal(r.result.status, 0, r.result.stderr);
   assert.equal(r.route, route);
   assert.match(r.previous, new RegExp(oldSha));
@@ -154,7 +187,7 @@ for (const failure of ['container', 'proxy', 'caddy', 'edge']) {
 
 for (const failure of ['container', 'edge']) {
   test(`${failure} failure in a later release restores the previous release`, () => {
-    const r = run({ failure, previous: true, currentRoute: route, handRun: '' });
+    const r = run({ failure, previous: true, currentRoute: route, handRun: '', nameOwner: ours });
     assert.notEqual(r.result.status, 0);
     assert.equal(r.release, `ADMIN_IMAGE=old-image\nADMIN_RELEASE_SHA=${oldSha}\n`);
     assert.equal(r.compose, 'old-compose\n');
