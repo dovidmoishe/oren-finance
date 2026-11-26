@@ -1,12 +1,13 @@
 # Admin dashboard release on the existing production network. CI deploys it with
 # infra/admin/deploy.sh once the matching production release has succeeded.
-name: oren-admin
+# The hand-run dashboard is Compose project oren-admin, container
+# oren-admin-dashboard. These names differ, so the first automated release
+# starts beside it and takes over its route instead of colliding with it.
+name: oren-admin-release
 services:
   admin:
     image: ${ADMIN_IMAGE:?set ADMIN_IMAGE to the built admin image}
-    # A new name, so the first automated release cannot collide with the
-    # hand-run container it replaces.
-    container_name: oren-admin-dashboard
+    container_name: oren-admin-web
     restart: unless-stopped
     environment:
       ADMIN_API_UPSTREAM: oren-api-1:3000
