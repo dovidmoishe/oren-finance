@@ -5,8 +5,9 @@ import Image from 'next/image';
 import Link from 'next/link';
 import type { ChangelogEntry as Entry } from '@/content/changelog/model.mjs';
 import { formatReleaseDate } from '@/content/changelog/model.mjs';
+import { ChangelogVideo } from './changelog-video';
 
-export function ChangelogEntry({ entry, detail = false }: { entry: Entry; detail?: boolean }) {
+export function ChangelogEntry({ entry, detail = false, deferPoster = false }: { entry: Entry; detail?: boolean; deferPoster?: boolean }) {
   const Heading = detail ? 'h1' : 'h2';
   const ChangeHeading = detail ? 'h2' : 'h3';
   const captionId = `${entry.slug}-caption`;
@@ -19,10 +20,10 @@ export function ChangelogEntry({ entry, detail = false }: { entry: Entry; detail
     <div className={hasMedia ? "changelog-story-with-media" : "changelog-story"}>
       {hasMedia && <div className="changelog-media">
         {entry.video && <figure className="changelog-film">
-          <video controls playsInline preload="none" width={entry.video.width} height={entry.video.height} poster={entry.video.poster} aria-label={entry.video.label} aria-describedby={captionId}>
+          <ChangelogVideo controls playsInline preload="none" width={entry.video.width} height={entry.video.height} poster={entry.video.poster} deferPoster={deferPoster} aria-label={entry.video.label} aria-describedby={captionId}>
             <source src={entry.video.src} type="video/mp4" />
             <a href={entry.video.src}>Watch the film</a>
-          </video>
+          </ChangelogVideo>
           <figcaption id={captionId}>{entry.video.caption}</figcaption>
         </figure>}
         {entry.screenshots?.map(image => <figure className="changelog-screenshot" key={image.src}>

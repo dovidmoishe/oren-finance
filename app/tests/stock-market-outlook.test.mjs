@@ -13,6 +13,7 @@ const code = ts.transpileModule(readFileSync(new URL('../components/stock/stock-
 }).outputText;
 vm.runInNewContext(code, { exports, require(id) {
   if (id === 'lucide-react') return new Proxy({}, { get: () => () => null });
+  if (id === '@/components/ui/states') return { Skeleton: ({ className }) => require('react').createElement('div', { className }) };
   if (id === '@/services/stock-news') return { filterStockNews: items => items };
   if (id === '@/components/stock/technical-brief-panel') return { TechnicalBriefPanel: () => null };
   if (id === '@/components/ui/utils') return {

@@ -26,6 +26,7 @@ function loadOutlook() {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX },
   }).outputText, { exports, require(id) {
     if (id === '@/components/stock/technical-brief-panel') return { TechnicalBriefPanel: () => null };
+    if (id === '@/components/ui/states') return { Skeleton: ({ className }) => createElement('div', { className }) };
     if (id === '@/components/ui/utils') return utils;
     if (id === '@/services/stock-news') return { filterStockNews };
     return require(id);
@@ -48,4 +49,25 @@ test('unavailable analysis has no invented score and unsafe news links are not c
   assert.match(html, /Analysis is currently unavailable/);
   assert.match(html, /TTWO earnings/);
   assert.doesNotMatch(html, /role="meter"|javascript:|NaN/);
+});
+
+test('pending stock news reserves the loaded card padding and desktop columns', () => {
+  const render = props => renderToStaticMarkup(createElement(Outlook, { stock, news: [], ...props }));
+  const loading = render({ newsLoading: true });
+  const loaded = render({ news: [item('TTWO earnings')] });
+  const asideClass = html => html.match(/<aside[^>]+class="([^"]+)"/)[1];
+  const gridClass = html => html.match(/<div class="(grid[^\"]*)"/)[1];
+  assert.equal(asideClass(loading), asideClass(loaded));
+  assert.equal(gridClass(loading), gridClass(loaded));
+  assert.ok(gridClass(loading).includes('@3xl/outlook:grid-cols-'));
+  assert.match(loading, /<aside[^>]+aria-busy="true"/);
+  assert.equal((loading.match(/class="py-3 first:pt-0 last:pb-0"/g) ?? []).length, 3);
+  assert.equal((loading.match(/class="h-12 w-full"/g) ?? []).length, 3);
+  assert.doesNotMatch(loading, /No matching stories/);
+  assert.match(loaded, /TTWO earnings/);
+  assert.doesNotMatch(loaded, /role="status"/);
+  const empty = render({ news: [item('Unrelated story')] });
+  assert.match(empty, /No matching stories available/);
+  assert.match(asideClass(empty), /flex flex-wrap items-center/);
+  assert.doesNotMatch(gridClass(empty), /grid-cols-/);
 });
