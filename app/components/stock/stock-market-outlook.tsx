@@ -3,6 +3,7 @@
 import { ArrowUpRight, ChartNoAxesCombined, ChevronDown, Newspaper, ShieldAlert, TrendingDown, TrendingUp, MoveRight } from "lucide-react";
 
 import { TechnicalBriefPanel } from "@/components/stock/technical-brief-panel";
+import { Skeleton } from "@/components/ui/states";
 import { cn, formatCurrency, formatNumber, formatPercent, formatRelativeTime } from "@/components/ui/utils";
 import { filterStockNews } from "@/services/stock-news";
 import type { NewsItem, StockAnalysis, StockDetail } from "@/types";
@@ -42,6 +43,7 @@ export function StockMarketOutlook({ stock, analysis, news, analysisLoading = fa
   const score = analysis?.opportunityScore;
   const boundedScore = typeof score === "number" && Number.isFinite(score) ? Math.round(Math.min(100, Math.max(0, score))) : undefined;
   const relevantNews = filterStockNews(news, stock).slice(0, 3);
+  const showNewsPanel = newsLoading || relevantNews.length > 0;
   const displayBrief = brief ? { ...brief, newsOverlay: brief.newsOverlay ? filterStockNews(brief.newsOverlay, stock) : undefined } : undefined;
   const TrendIcon = brief?.regime === "uptrend" ? TrendingUp : brief?.regime === "downtrend" ? TrendingDown : MoveRight;
 
@@ -66,7 +68,7 @@ export function StockMarketOutlook({ stock, analysis, news, analysisLoading = fa
         </div>
       </header>
 
-      <div className={cn("grid", relevantNews.length > 0 && "@3xl/outlook:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]")}>
+      <div className={cn("grid", showNewsPanel && "@3xl/outlook:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]")}>
         <div className="min-w-0 p-5 @lg/outlook:p-6">
           {analysis ? (
             <>
@@ -91,7 +93,7 @@ export function StockMarketOutlook({ stock, analysis, news, analysisLoading = fa
           ) : <p aria-busy={analysisLoading} className="mt-3 text-sm text-muted">{t(analysisLoading ? "common.loading" : "stock.analysisUnavailable")}</p>}
         </div>
 
-        <aside aria-labelledby="outlook-news-title" className={cn("min-w-0 border-t border-border/70 bg-panel-subtle/30", relevantNews.length ? "p-5 @lg/outlook:p-6 @3xl/outlook:border-s @3xl/outlook:border-t-0" : "flex flex-wrap items-center gap-x-3 gap-y-1 px-5 py-3 @lg/outlook:px-6")}>
+        <aside aria-labelledby="outlook-news-title" aria-busy={newsLoading} className={cn("min-w-0 border-t border-border/70 bg-panel-subtle/30", showNewsPanel ? "p-5 @lg/outlook:p-6 @3xl/outlook:border-s @3xl/outlook:border-t-0" : "flex flex-wrap items-center gap-x-3 gap-y-1 px-5 py-3 @lg/outlook:px-6")}>
           <div className="flex items-center gap-2 text-muted"><Newspaper aria-hidden="true" size={16} strokeWidth={1.7} /><h3 className="text-xs font-medium text-foreground" id="outlook-news-title">{t("stock.latestNews")}</h3></div>
           {relevantNews.length ? <div className="mt-3 divide-y divide-border">
             {relevantNews.map((item) => (
@@ -100,7 +102,15 @@ export function StockMarketOutlook({ stock, analysis, news, analysisLoading = fa
                 <h4 className="text-sm font-medium leading-6">{item.url && /^https?:\/\//i.test(item.url) ? <a className="group flex items-start gap-2 hover:underline focus-visible:rounded focus-visible:outline-2 focus-visible:outline-focus" href={item.url} rel="noopener noreferrer" target="_blank"><span className="min-w-0 flex-1">{item.headline}</span><ArrowUpRight aria-hidden="true" className="mt-1 shrink-0 text-muted group-hover:text-foreground" size={14} /></a> : item.headline}</h4>
               </article>
             ))}
-          </div> : <p aria-busy={newsLoading} className="text-xs leading-5 text-muted">{t(newsLoading ? "common.loading" : "stock.noNews")}</p>}
+          </div> : newsLoading ? <>
+            <p className="sr-only" role="status">{t("common.loading")}</p>
+            <div aria-hidden="true" className="mt-3 divide-y divide-border">
+              {Array.from({ length: 3 }, (_, index) => <div className="py-3 first:pt-0 last:pb-0" key={index}>
+                <Skeleton className="mb-1.5 h-4 w-28" />
+                <Skeleton className="h-12 w-full" />
+              </div>)}
+            </div>
+          </> : <p className="text-xs leading-5 text-muted">{t("stock.noNews")}</p>}
         </aside>
       </div>
 
