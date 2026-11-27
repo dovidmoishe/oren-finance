@@ -1118,7 +1118,9 @@
       "topMovers": "Deine größten Bewegungen",
       "ask": "Oren zu diesem Tag fragen",
       "askPrompt": "Was ist am {date} am US-Markt passiert, und wie hat es mein Portfolio beeinflusst? Nutze getMarketDayRecap und getTradingCalendarDay für {isoDate}. Nenne Quellen und trenne Fakten von Interpretation.",
-      "askMarketPrompt": "Was ist am {date} am US-Markt passiert? Nutze getMarketDayRecap für {isoDate}. Nenne Quellen und trenne Fakten von Interpretation."
+      "askMarketPrompt": "Was ist am {date} am US-Markt passiert? Nutze getMarketDayRecap für {isoDate}. Nenne Quellen und trenne Fakten von Interpretation.",
+      "yourPnl": "Deine G&V",
+      "you": "Du"
     },
     "market": {
       "title": "US-Markt",
@@ -1166,6 +1168,18 @@
         "ppi": "PPI",
         "retail_sales": "Handel",
         "jobless_claims": "Anträge"
+      },
+      "segment": {
+        "pre": "Vorbörse",
+        "regular": "Regulär",
+        "after": "Nachbörse"
+      },
+      "unit": {
+        "percent_change": "ggü. Vormonat",
+        "percent_saar": "annualisiert, ggü. Vorquartal",
+        "thousands_change": "neue Stellen",
+        "count": "Erstanträge",
+        "percent_range": "Zielspanne"
       }
     },
     "recap": {
@@ -1175,7 +1189,9 @@
       "unavailable": "Marktrückblick nicht verfügbar.",
       "indexes": "Indizes",
       "movers": "Bewegungen",
-      "headlines": "Schlagzeilen"
+      "headlines": "Schlagzeilen",
+      "up": "Gestiegen",
+      "down": "Gefallen"
     },
     "reminder": {
       "set": "15 Minuten vor {name} per E-Mail erinnern",
@@ -1183,6 +1199,17 @@
       "failed": "Die Erinnerung konnte nicht geändert werden. Versuche es erneut.",
       "verifyEmail": "Bestätige deine E-Mail-Adresse, um Erinnerungen zu erhalten.",
       "limit": "Du hast das Limit für Erinnerungen erreicht. Schalte zuerst eine aus."
+    },
+    "key": {
+      "pnl": "Deine tägliche G&V",
+      "hours": "Handelszeiten",
+      "earlyClose": "Früher Schluss",
+      "holiday": "Feiertag",
+      "major": "Wichtige Veröffentlichung",
+      "other": "Weitere Veröffentlichung"
+    },
+    "summary": {
+      "pnl": "Deine G&V {value}"
     }
   },
   "theme": {

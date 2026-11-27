@@ -1118,7 +1118,9 @@
       "topMovers": "Vos plus fortes variations",
       "ask": "Demander à Oren pour ce jour",
       "askPrompt": "Que s’est-il passé sur le marché US le {date}, et quel effet sur mon portefeuille ? Utilise getMarketDayRecap et getTradingCalendarDay pour {isoDate}. Cite tes sources et sépare les faits de l’interprétation.",
-      "askMarketPrompt": "Que s’est-il passé sur le marché US le {date} ? Utilise getMarketDayRecap pour {isoDate}. Cite tes sources et sépare les faits de l’interprétation."
+      "askMarketPrompt": "Que s’est-il passé sur le marché US le {date} ? Utilise getMarketDayRecap pour {isoDate}. Cite tes sources et sépare les faits de l’interprétation.",
+      "yourPnl": "Votre P&L",
+      "you": "Vous"
     },
     "market": {
       "title": "Marché US",
@@ -1166,6 +1168,18 @@
         "ppi": "PPI",
         "retail_sales": "Détail",
         "jobless_claims": "Chômage"
+      },
+      "segment": {
+        "pre": "Pré-marché",
+        "regular": "Séance",
+        "after": "Après-bourse"
+      },
+      "unit": {
+        "percent_change": "vs mois précédent",
+        "percent_saar": "annualisé, vs trimestre précédent",
+        "thousands_change": "emplois créés",
+        "count": "nouvelles inscriptions",
+        "percent_range": "fourchette cible"
       }
     },
     "recap": {
@@ -1175,7 +1189,9 @@
       "unavailable": "Récapitulatif du marché indisponible.",
       "indexes": "Indices",
       "movers": "Plus fortes variations",
-      "headlines": "Titres"
+      "headlines": "Titres",
+      "up": "En hausse",
+      "down": "En baisse"
     },
     "reminder": {
       "set": "M’envoyer un e-mail 15 minutes avant {name}",
@@ -1183,6 +1199,17 @@
       "failed": "Impossible de modifier le rappel. Réessayez.",
       "verifyEmail": "Vérifiez votre e-mail pour recevoir des rappels.",
       "limit": "Vous avez atteint la limite de rappels. Désactivez-en un d’abord."
+    },
+    "key": {
+      "pnl": "Votre P&L quotidien",
+      "hours": "Heures de marché",
+      "earlyClose": "Clôture anticipée",
+      "holiday": "Jour férié",
+      "major": "Publication majeure",
+      "other": "Autre publication"
+    },
+    "summary": {
+      "pnl": "Votre P&L {value}"
     }
   },
   "theme": {

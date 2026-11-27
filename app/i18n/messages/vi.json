@@ -1118,7 +1118,9 @@
       "topMovers": "Biến động lớn nhất của bạn",
       "ask": "Hỏi Oren về ngày này",
       "askPrompt": "Điều gì đã xảy ra trên thị trường Mỹ ngày {date}, và nó ảnh hưởng thế nào đến danh mục của tôi? Dùng getMarketDayRecap và getTradingCalendarDay cho {isoDate}. Trích dẫn nguồn và tách sự kiện khỏi diễn giải.",
-      "askMarketPrompt": "Điều gì đã xảy ra trên thị trường Mỹ ngày {date}? Dùng getMarketDayRecap cho {isoDate}. Trích dẫn nguồn và tách sự kiện khỏi diễn giải."
+      "askMarketPrompt": "Điều gì đã xảy ra trên thị trường Mỹ ngày {date}? Dùng getMarketDayRecap cho {isoDate}. Trích dẫn nguồn và tách sự kiện khỏi diễn giải.",
+      "yourPnl": "Lãi/lỗ của bạn",
+      "you": "Bạn"
     },
     "market": {
       "title": "Thị trường Mỹ",
@@ -1166,6 +1168,18 @@
         "ppi": "PPI",
         "retail_sales": "Bán lẻ",
         "jobless_claims": "Thất nghiệp"
+      },
+      "segment": {
+        "pre": "Trước giờ",
+        "regular": "Phiên chính",
+        "after": "Sau giờ"
+      },
+      "unit": {
+        "percent_change": "so với tháng trước",
+        "percent_saar": "theo năm, so với quý trước",
+        "thousands_change": "việc làm mới",
+        "count": "đơn mới",
+        "percent_range": "biên độ mục tiêu"
       }
     },
     "recap": {
@@ -1175,7 +1189,9 @@
       "unavailable": "Không có tóm tắt thị trường.",
       "indexes": "Chỉ số",
       "movers": "Biến động",
-      "headlines": "Tin chính"
+      "headlines": "Tin chính",
+      "up": "Tăng",
+      "down": "Giảm"
     },
     "reminder": {
       "set": "Gửi email cho tôi 15 phút trước {name}",
@@ -1183,6 +1199,17 @@
       "failed": "Không cập nhật được lời nhắc. Hãy thử lại.",
       "verifyEmail": "Xác minh email để nhận lời nhắc.",
       "limit": "Bạn đã đạt giới hạn lời nhắc. Hãy tắt một lời nhắc trước."
+    },
+    "key": {
+      "pnl": "Lãi/lỗ hằng ngày của bạn",
+      "hours": "Giờ giao dịch",
+      "earlyClose": "Đóng cửa sớm",
+      "holiday": "Ngày nghỉ",
+      "major": "Công bố quan trọng",
+      "other": "Công bố khác"
+    },
+    "summary": {
+      "pnl": "Lãi/lỗ của bạn {value}"
     }
   },
   "theme": {

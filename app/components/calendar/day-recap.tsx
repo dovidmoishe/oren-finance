@@ -72,9 +72,18 @@ export function DayRecap({ date, recap, loading, failed }: { date: string; recap
         {movers.length ? (
           <div className="min-w-0">
             <Label>{t("calendar.recap.movers")}</Label>
-            <ul className="mt-2">
-              {movers.map((move) => <MoveRow key={move.assetId} label={move.ticker} move={move} title={move.name} />)}
-            </ul>
+            {recap.gainers.length ? (
+              <>
+                <p className="mt-2 text-[11px] text-muted">{t("calendar.recap.up")}</p>
+                <ul>{recap.gainers.map((move) => <MoveRow key={move.assetId} label={move.ticker} move={move} title={move.name} />)}</ul>
+              </>
+            ) : null}
+            {recap.losers.length ? (
+              <>
+                <p className={cn("text-[11px] text-muted", recap.gainers.length ? "mt-3" : "mt-2")}>{t("calendar.recap.down")}</p>
+                <ul>{recap.losers.map((move) => <MoveRow key={move.assetId} label={move.ticker} move={move} title={move.name} />)}</ul>
+              </>
+            ) : null}
           </div>
         ) : null}
         {recap.headlines.length ? (

@@ -1118,7 +1118,9 @@
       "topMovers": "Pergerakan terbesar Anda",
       "ask": "Tanya Oren tentang hari ini",
       "askPrompt": "Apa yang terjadi di pasar AS pada {date}, dan bagaimana dampaknya pada portofolio saya? Gunakan getMarketDayRecap dan getTradingCalendarDay untuk {isoDate}. Sebutkan sumber dan pisahkan fakta dari interpretasi.",
-      "askMarketPrompt": "Apa yang terjadi di pasar AS pada {date}? Gunakan getMarketDayRecap untuk {isoDate}. Sebutkan sumber dan pisahkan fakta dari interpretasi."
+      "askMarketPrompt": "Apa yang terjadi di pasar AS pada {date}? Gunakan getMarketDayRecap untuk {isoDate}. Sebutkan sumber dan pisahkan fakta dari interpretasi.",
+      "yourPnl": "P&L Anda",
+      "you": "Anda"
     },
     "market": {
       "title": "Pasar AS",
@@ -1166,6 +1168,18 @@
         "ppi": "PPI",
         "retail_sales": "Ritel",
         "jobless_claims": "Klaim"
+      },
+      "segment": {
+        "pre": "Pra-pasar",
+        "regular": "Reguler",
+        "after": "Setelah jam"
+      },
+      "unit": {
+        "percent_change": "vs bulan sebelumnya",
+        "percent_saar": "disetahunkan, vs kuartal sebelumnya",
+        "thousands_change": "lapangan kerja baru",
+        "count": "klaim baru",
+        "percent_range": "kisaran target"
       }
     },
     "recap": {
@@ -1175,7 +1189,9 @@
       "unavailable": "Ringkasan pasar tidak tersedia.",
       "indexes": "Indeks",
       "movers": "Pergerakan",
-      "headlines": "Berita utama"
+      "headlines": "Berita utama",
+      "up": "Naik",
+      "down": "Turun"
     },
     "reminder": {
       "set": "Kirim email 15 menit sebelum {name}",
@@ -1183,6 +1199,17 @@
       "failed": "Pengingat tidak dapat diperbarui. Coba lagi.",
       "verifyEmail": "Verifikasi email Anda untuk menerima pengingat.",
       "limit": "Anda telah mencapai batas pengingat. Matikan salah satu terlebih dahulu."
+    },
+    "key": {
+      "pnl": "P&L harian Anda",
+      "hours": "Jam pasar",
+      "earlyClose": "Tutup lebih awal",
+      "holiday": "Hari libur",
+      "major": "Rilis utama",
+      "other": "Rilis lain"
+    },
+    "summary": {
+      "pnl": "P&L Anda {value}"
     }
   },
   "theme": {

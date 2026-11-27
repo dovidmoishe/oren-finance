@@ -1118,7 +1118,9 @@
       "topMovers": "你的漲跌最多",
       "ask": "問問 Oren 這一天",
       "askPrompt": "{date} 美股市場發生了什麼，對我的投資組合有什麼影響？請使用 getMarketDayRecap 和 getTradingCalendarDay 查詢 {isoDate}。註明來源，並區分事實與解讀。",
-      "askMarketPrompt": "{date} 美股市場發生了什麼？請使用 getMarketDayRecap 查詢 {isoDate}。註明來源，並區分事實與解讀。"
+      "askMarketPrompt": "{date} 美股市場發生了什麼？請使用 getMarketDayRecap 查詢 {isoDate}。註明來源，並區分事實與解讀。",
+      "yourPnl": "你的損益",
+      "you": "你"
     },
     "market": {
       "title": "美股市場",
@@ -1166,6 +1168,18 @@
         "ppi": "PPI",
         "retail_sales": "零售",
         "jobless_claims": "初領"
+      },
+      "segment": {
+        "pre": "盤前",
+        "regular": "常規",
+        "after": "盤後"
+      },
+      "unit": {
+        "percent_change": "較上月",
+        "percent_saar": "年化，較上季",
+        "thousands_change": "新增就業",
+        "count": "新增申請",
+        "percent_range": "目標區間"
       }
     },
     "recap": {
@@ -1175,7 +1189,9 @@
       "unavailable": "暫無市場回顧。",
       "indexes": "指數",
       "movers": "漲跌榜",
-      "headlines": "頭條"
+      "headlines": "頭條",
+      "up": "上漲",
+      "down": "下跌"
     },
     "reminder": {
       "set": "在 {name} 前 15 分鐘寄信提醒我",
@@ -1183,6 +1199,17 @@
       "failed": "無法更新提醒，請再試一次。",
       "verifyEmail": "驗證電子郵件後即可接收提醒。",
       "limit": "提醒數量已達上限，請先關閉一個。"
+    },
+    "key": {
+      "pnl": "你的每日損益",
+      "hours": "交易時段",
+      "earlyClose": "提前收盤",
+      "holiday": "休市",
+      "major": "重要數據",
+      "other": "其他數據"
+    },
+    "summary": {
+      "pnl": "你的損益 {value}"
     }
   },
   "theme": {

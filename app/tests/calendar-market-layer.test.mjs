@@ -172,13 +172,15 @@ test("the month grid draws session bars, hatches holidays and labels only market
   assert.equal((html.match(/width:100%/g) ?? []).length, 19);
   assert.match(html, /width:53\.8\d*%/);
   assert.match(html, /width:50%/, "today's progress fills half of its bar");
-  assert.equal((html.match(/repeating-linear-gradient/g) ?? []).length, 1, "only Thanksgiving is hatched");
+  assert.equal((html.match(/repeating-linear-gradient\(135deg,var\(--color-border\)_0_1px/g) ?? []).length, 1, "only Thanksgiving is hatched");
   assert.ok(html.includes(">CPI<"));
   assert.ok(!html.includes(">Claims<"), "weekly claims get a dot, not a label");
   assert.ok(html.includes("+$1.2K"));
   assert.ok(html.includes("bg-heat-up-2"));
   assert.ok(!html.includes("heat-up-3"), "the saturated step is never used");
-  assert.ok(html.includes('aria-label="2026-11-26, Closed for Thanksgiving Day"'));
+  assert.ok(html.includes('aria-label="Thu, Nov 26 · Closed for Thanksgiving Day"'));
+  assert.ok(html.includes('title="Tue, Nov 10 · Your P&amp;L +$1,234.00 · Regular hours · CPI inflation"'), "hover says the whole day");
+  for (const text of ["Your daily P&amp;L", "Market hours", "Early close", "Holiday", "Major release", "Other release"]) assert.ok(html.includes(text), text);
   assert.ok(html.includes('aria-pressed="true"'));
 });
 
@@ -205,7 +207,7 @@ test("a day is one timeline of releases and the viewer's trades; the strip carri
   assert.ok(!html.includes("Market opens") && !html.includes("Market closes"));
   assert.ok(order.every((index) => index > 0), order.join(","));
   assert.deepEqual([...order].sort((a, b) => a - b), order);
-  for (const text of ["Tuesday, November 10", "Regular hours", "+$42.50", "+1.25%", "+0.4%", "prev +0.6%", "$200.00", "Your biggest moves", "+$30.00", "8:30 AM"])
+  for (const text of ["Tuesday, November 10", "Regular hours", "Your P&amp;L", "+$42.50", "+1.25%", "+0.4%", "prev +0.6%", "October 2026 · vs prior month", "$200.00", ">You<", "Pre-market", "Regular", "After hours", "Your biggest moves", "+$30.00", "8:30 AM"])
     assert.ok(html.includes(text), text);
   assert.ok(html.includes('title="1:30 PM your time"'));
   assert.ok(html.includes('href="https://www.bls.gov/news.release/cpi.nr0.htm"') && html.includes('rel="noopener noreferrer"'));
@@ -281,7 +283,7 @@ test("the day recap shows index moves, movers and that day's headlines", () => {
     headlinesAvailable: true,
   };
   const html = render(recapModule.DayRecap, { date: "2026-11-25", recap });
-  for (const text of ["The market", "Wed, Nov 25", "Indexes", "S&amp;P 500", "-0.29%", "Movers", "MSTR", "+4.36%", "ORCL", "-4.80%", "Headlines", "Stocks slip before the holiday", "Yahoo Finance · 4:00 PM ET"])
+  for (const text of ["The market", "Wed, Nov 25", "Indexes", "S&amp;P 500", "-0.29%", "Movers", ">Up<", "MSTR", "+4.36%", ">Down<", "ORCL", "-4.80%", "Headlines", "Stocks slip before the holiday", "Yahoo Finance · 4:00 PM ET"])
     assert.ok(html.includes(text), text);
   assert.ok(html.includes('href="https://example.com/a"') && html.includes('rel="noopener noreferrer"'));
   const at = (extra) => render(recapModule.DayRecap, { date: "2026-11-25", recap: { ...recap, ...extra } });

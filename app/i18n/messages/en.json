@@ -1118,7 +1118,9 @@
       "topMovers": "Your biggest moves",
       "ask": "Ask Oren about this day",
       "askPrompt": "What happened in the US market on {date}, and how did it affect my portfolio? Use getMarketDayRecap and getTradingCalendarDay for {isoDate}. Cite sources and keep facts separate from interpretation.",
-      "askMarketPrompt": "What happened in the US market on {date}? Use getMarketDayRecap for {isoDate}. Cite sources and keep facts separate from interpretation."
+      "askMarketPrompt": "What happened in the US market on {date}? Use getMarketDayRecap for {isoDate}. Cite sources and keep facts separate from interpretation.",
+      "yourPnl": "Your P&L",
+      "you": "You"
     },
     "market": {
       "title": "US market",
@@ -1166,6 +1168,18 @@
         "ppi": "PPI",
         "retail_sales": "Retail",
         "jobless_claims": "Claims"
+      },
+      "segment": {
+        "pre": "Pre-market",
+        "regular": "Regular",
+        "after": "After hours"
+      },
+      "unit": {
+        "percent_change": "vs prior month",
+        "percent_saar": "annualized, vs prior quarter",
+        "thousands_change": "jobs added",
+        "count": "new claims",
+        "percent_range": "target range"
       }
     },
     "recap": {
@@ -1175,7 +1189,9 @@
       "unavailable": "Market recap unavailable.",
       "indexes": "Indexes",
       "movers": "Movers",
-      "headlines": "Headlines"
+      "headlines": "Headlines",
+      "up": "Up",
+      "down": "Down"
     },
     "reminder": {
       "set": "Email me 15 minutes before {name}",
@@ -1183,6 +1199,17 @@
       "failed": "Couldn’t update the reminder. Try again.",
       "verifyEmail": "Verify your email to get reminders.",
       "limit": "You’ve reached the reminder limit. Turn one off first."
+    },
+    "key": {
+      "pnl": "Your daily P&L",
+      "hours": "Market hours",
+      "earlyClose": "Early close",
+      "holiday": "Holiday",
+      "major": "Major release",
+      "other": "Other release"
+    },
+    "summary": {
+      "pnl": "Your P&L {value}"
     }
   },
   "theme": {

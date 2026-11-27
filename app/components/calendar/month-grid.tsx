@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, type KeyboardEvent } from "react";
-import { cn, formatDate, weekdayLabels } from "@/components/ui";
+import { cn, weekdayLabels } from "@/components/ui";
 import { useI18n } from "@/i18n/i18n";
 import type { MarketEvent, TradingCalendarDaySummary } from "@/types";
 import { isHighImpact, kindRank, sessionShare, weekdayOf, type MarketDay } from "./market-layer";
@@ -18,7 +18,7 @@ function heatClass(day: TradingCalendarDaySummary, maxMove: number) {
 function releaseMark(events: readonly MarketEvent[] | undefined) {
   const kinds = [...new Set((events ?? []).map((event) => event.kind))].sort((a, b) => kindRank(a) - kindRank(b));
   const major = kinds.filter(isHighImpact);
-  return { label: major[0], more: Math.max(0, major.length - 1), minor: kinds.length > 0 && major.length === 0 };
+  return { kinds, label: major[0], more: Math.max(0, major.length - 1), minor: kinds.length > 0 && major.length === 0 };
 }
 
 export function MonthGrid({
@@ -65,6 +65,19 @@ export function MonthGrid({
     onMove(step);
   };
   const signedCompact = new Intl.NumberFormat(locale, { style: "currency", currency: "USD", notation: "compact", maximumFractionDigits: 1, signDisplay: "exceptZero" });
+  const signedMoney = new Intl.NumberFormat(locale, { style: "currency", currency: "USD", signDisplay: "exceptZero" });
+  const dayName = new Intl.DateTimeFormat(locale, { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" });
+  const marketStatus = (market: MarketDay | undefined) =>
+    !market
+      ? null
+      : market.status === "holiday"
+        ? t("calendar.market.closedFor", { name: market.name ?? "" })
+        : market.status === "early_close"
+          ? t("calendar.market.earlyClose")
+          : market.status === "weekend"
+            ? t("calendar.market.weekend")
+            : t("calendar.market.regularHours");
+  const showPnl = [...portfolioDays.values()].some((day) => day.hasData);
 
   return (
     <div>
@@ -85,14 +98,14 @@ export function MonthGrid({
           const heat = portfolio?.hasData ? heatClass(portfolio, maxMove) : undefined;
           const isToday = date === today;
           const selected = date === activeDate;
+          // Read aloud and shown on hover: the whole day in one line.
           const label = [
-            formatDate(date, locale, "UTC"),
+            dayName.format(new Date(`${date}T00:00:00Z`)),
             isToday ? t("calendar.today") : null,
-            portfolio?.hasData ? signedCompact.format(portfolio.pnlUsd) : null,
-            market?.status === "holiday" ? t("calendar.market.closedFor", { name: market.name ?? "" }) : null,
-            market?.status === "early_close" ? t("calendar.market.earlyClose") : null,
-            dayReleases?.length ? t("calendar.releaseCount", { count: dayReleases.length }) : null,
-          ].filter(Boolean).join(", ");
+            portfolio?.hasData ? t("calendar.summary.pnl", { value: signedMoney.format(portfolio.pnlUsd) }) : null,
+            marketStatus(market),
+            mark.kinds.length ? mark.kinds.map((kind) => t(`calendar.market.kind.${kind}`)).join(", ") : null,
+          ].filter(Boolean).join(" · ");
 
           return (
             <button
@@ -113,7 +126,7 @@ export function MonthGrid({
               key={date}
               onClick={() => onSelect(date)}
               tabIndex={selected || (!activeDate && date === dates[0]) ? 0 : -1}
-              title={market?.status === "holiday" ? market.name ?? undefined : undefined}
+              title={label}
               type="button"
             >
               <span
@@ -161,6 +174,52 @@ export function MonthGrid({
           );
         })}
       </div>
+      <GridKey market={Boolean(marketDays)} pnl={showPnl} />
+    </div>
+  );
+}
+
+function KeyItem({ swatch, label }: { swatch: React.ReactNode; label: string }) {
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      <span aria-hidden className="inline-flex items-center">{swatch}</span>
+      {label}
+    </span>
+  );
+}
+
+/** One quiet line that says what the marks mean. */
+function GridKey({ market, pnl }: { market: boolean; pnl: boolean }) {
+  const { t } = useI18n();
+  if (!market && !pnl) return null;
+  return (
+    <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 px-1 text-[11px] text-muted">
+      {pnl ? (
+        <KeyItem
+          label={t("calendar.key.pnl")}
+          swatch={
+            <>
+              <span className="h-2.5 w-1.5 rounded-l-[3px] bg-heat-up-2" />
+              <span className="h-2.5 w-1.5 rounded-r-[3px] bg-heat-down-2" />
+            </>
+          }
+        />
+      ) : null}
+      {market ? (
+        <>
+          <KeyItem label={t("calendar.key.hours")} swatch={<span className="h-[3px] w-4 rounded-full bg-foreground/30" />} />
+          <KeyItem
+            label={t("calendar.key.earlyClose")}
+            swatch={<span className="h-[3px] w-4 rounded-full bg-foreground/10"><span className="block h-full w-2 rounded-full bg-foreground/30" /></span>}
+          />
+          <KeyItem
+            label={t("calendar.key.holiday")}
+            swatch={<span className="size-2.5 rounded-[3px] bg-[repeating-linear-gradient(135deg,var(--color-border-strong)_0_1px,transparent_1px_3px)]" />}
+          />
+          <KeyItem label={t("calendar.key.major")} swatch={<span className="text-[9px] font-semibold uppercase tracking-wide text-brand">{t("calendar.market.kindShort.cpi")}</span>} />
+          <KeyItem label={t("calendar.key.other")} swatch={<span className="size-1.5 rounded-full bg-muted-2" />} />
+        </>
+      ) : null}
     </div>
   );
 }

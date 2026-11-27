@@ -72,6 +72,11 @@ function SessionStrip({ hours, releases, trades, now }: { hours: UsEquityHours; 
       className="mt-6"
       role="img"
     >
+      <div aria-hidden className="relative mb-1.5 h-3.5 text-[10px] leading-3.5 text-muted">
+        <span className="absolute -translate-x-1/2 truncate" style={{ left: `${open / 2}%` }}>{t("calendar.market.segment.pre")}</span>
+        <span className="absolute -translate-x-1/2 truncate font-medium text-foreground" style={{ left: `${(open + close) / 2}%` }}>{t("calendar.market.segment.regular")}</span>
+        <span className="absolute -translate-x-1/2 truncate" style={{ left: `${(close + 100) / 2}%` }}>{t("calendar.market.segment.after")}</span>
+      </div>
       <div className="relative h-5">
         <div className="absolute inset-x-0 top-1/2 h-1.5 -translate-y-1/2 rounded-full bg-panel-subtle" />
         <div className="absolute top-1/2 h-1.5 -translate-y-1/2 rounded-full bg-foreground" style={{ left: `${open}%`, width: `${close - open}%` }} />
@@ -109,6 +114,7 @@ function TimelineRow({ item, zone, timeZone, reminder }: { item: TimelineItem; z
   let value: string | null = null;
   let note: string | null = null;
   let action: ReactNode = null;
+  const mine = item.kind === "trade" || item.kind === "activity";
 
   if (item.kind === "release") {
     const event = item.event;
@@ -125,7 +131,8 @@ function TimelineRow({ item, zone, timeZone, reminder }: { item: TimelineItem; z
         <ArrowUpRightIcon aria-hidden className="text-muted opacity-0 transition-opacity group-hover/link:opacity-100 group-focus-visible/link:opacity-100" color="currentColor" size={12} strokeWidth={2} />
       </a>
     );
-    detail = event.referenceLabel;
+    // What the number measures, so "+0.4%" or "189,000" reads on its own.
+    detail = [event.referenceLabel, event.unit ? t(`calendar.market.unit.${event.unit}`) : null].filter(Boolean).join(" · ") || null;
     if (event.status === "scheduled") action = reminder?.(event) ?? null;
     if (event.status === "released" && event.actualText) {
       value = event.actualText;
@@ -152,6 +159,7 @@ function TimelineRow({ item, zone, timeZone, reminder }: { item: TimelineItem; z
         <p className="flex items-baseline gap-2 text-sm font-medium leading-5">
           <span aria-hidden className={cn("size-1.5 shrink-0 -translate-y-0.5 rounded-full", dot)} />
           <span className="min-w-0">{title}</span>
+          {mine ? <span className="shrink-0 rounded-full bg-panel-subtle px-1.5 text-[10px] font-medium leading-4 text-muted">{t("calendar.day.you")}</span> : null}
         </p>
         {detail ? <p className="pl-3.5 text-xs leading-4 text-muted">{detail}</p> : null}
       </div>
@@ -247,6 +255,7 @@ export function DayPanel({
         </div>
         {pnl ? (
           <div className="shrink-0 text-right">
+            <p className="text-[11px] text-muted">{t("calendar.day.yourPnl")}</p>
             <p className={cn("font-money text-2xl font-medium tabular-nums tracking-tight", pnl.pnlUsd > 0 ? "text-positive" : pnl.pnlUsd < 0 ? "text-negative" : "")}>
               {money(pnl.pnlUsd, locale, true)}
             </p>

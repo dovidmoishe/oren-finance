@@ -1118,7 +1118,9 @@
       "topMovers": "Suas maiores variações",
       "ask": "Perguntar à Oren sobre este dia",
       "askPrompt": "O que aconteceu no mercado dos EUA em {date}, e como isso afetou meu portfólio? Use getMarketDayRecap e getTradingCalendarDay para {isoDate}. Cite fontes e separe fatos de interpretação.",
-      "askMarketPrompt": "O que aconteceu no mercado dos EUA em {date}? Use getMarketDayRecap para {isoDate}. Cite fontes e separe fatos de interpretação."
+      "askMarketPrompt": "O que aconteceu no mercado dos EUA em {date}? Use getMarketDayRecap para {isoDate}. Cite fontes e separe fatos de interpretação.",
+      "yourPnl": "Seu P&L",
+      "you": "Você"
     },
     "market": {
       "title": "Mercado dos EUA",
@@ -1166,6 +1168,18 @@
         "ppi": "PPI",
         "retail_sales": "Varejo",
         "jobless_claims": "Pedidos"
+      },
+      "segment": {
+        "pre": "Pré-mercado",
+        "regular": "Pregão",
+        "after": "After-hours"
+      },
+      "unit": {
+        "percent_change": "vs mês anterior",
+        "percent_saar": "anualizado, vs trimestre anterior",
+        "thousands_change": "vagas criadas",
+        "count": "novos pedidos",
+        "percent_range": "faixa-alvo"
       }
     },
     "recap": {
@@ -1175,7 +1189,9 @@
       "unavailable": "Resumo do mercado indisponível.",
       "indexes": "Índices",
       "movers": "Destaques",
-      "headlines": "Manchetes"
+      "headlines": "Manchetes",
+      "up": "Em alta",
+      "down": "Em baixa"
     },
     "reminder": {
       "set": "Enviar e-mail 15 minutos antes de {name}",
@@ -1183,6 +1199,17 @@
       "failed": "Não foi possível atualizar o lembrete. Tente novamente.",
       "verifyEmail": "Verifique seu e-mail para receber lembretes.",
       "limit": "Você atingiu o limite de lembretes. Desative um primeiro."
+    },
+    "key": {
+      "pnl": "Seu P&L diário",
+      "hours": "Horário de mercado",
+      "earlyClose": "Fechamento antecipado",
+      "holiday": "Feriado",
+      "major": "Divulgação importante",
+      "other": "Outra divulgação"
+    },
+    "summary": {
+      "pnl": "Seu P&L {value}"
     }
   },
   "theme": {
