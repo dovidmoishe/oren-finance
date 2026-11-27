@@ -3,6 +3,9 @@ import { randomUUID } from 'node:crypto';
 import postgres from 'postgres';
 import { drizzle } from 'drizzle-orm/postgres-js';
 import type { PrivyWalletAuth } from '../auth/privy-wallet-auth';
+import { MarketEventsRepository } from '../market/calendar/market-events.repository';
+import { releaseSpec } from '../market/calendar/macro-catalog';
+import { releaseRow } from '../market/calendar/market-events.sync';
 import { NotificationDelivery, unsubscribeToken } from './delivery';
 import { NotificationJobs } from './jobs';
 import {
@@ -133,6 +136,85 @@ run('release reminder life cycle with disposable Postgres', () => {
   beforeEach(async () => {
     delete process.env.PRICE_ALERTS_PUBLIC;
     await client`truncate release_reminders, notification_jobs, notification_budgets, market_events cascade`;
+  });
+
+  it('preserves a subscribed event through the identity migration and an agency reschedule', async () => {
+    const repository = new MarketEventsRepository(jobs.db);
+    const reference = { period: '2026-11', label: 'November 2026' };
+    const spec = releaseSpec('cpi')!;
+    const oldTime = later(24 * 60);
+    const oldDate = oldTime.toISOString().slice(0, 10);
+    const old = releaseRow(spec, oldDate, reference, oldTime);
+    await repository.upsertSchedule([
+      { ...old, sourceEventId: `cpi:${oldDate}` },
+    ]);
+    const [{ id: eventId }] = await client<
+      { id: string }[]
+    >`select id from market_events`;
+    const reminder = await reminders.create(user, true, { eventId });
+
+    await client.unsafe(
+      await readFile(
+        'lib/db/migrations/0030_market_release_identity.sql',
+        'utf8',
+      ),
+    );
+    const newTime = later(3 * 24 * 60);
+    const moved = releaseRow(
+      spec,
+      newTime.toISOString().slice(0, 10),
+      reference,
+      newTime,
+    );
+    await repository.upsertSchedule([moved]);
+    expect(await client`select id from market_events`).toEqual([
+      { id: eventId },
+    ]);
+    expect((await reminders.list(user, true)).reminders).toEqual([
+      {
+        id: reminder.id,
+        eventId,
+        remindAt: new Date(+newTime - 15 * MINUTE).toISOString(),
+      },
+    ]);
+    await scan.scan(new Date(+oldTime - 15 * MINUTE));
+    expect(await queued()).toHaveLength(0);
+    await scan.scan(new Date(+newTime - 15 * MINUTE));
+    expect(await queued()).toMatchObject([
+      { scheduled: newTime.toISOString() },
+    ]);
+  });
+
+  it('reopens a stored stale GDP revision while retaining a verified release', async () => {
+    await client`insert into market_events
+      (kind, title, scheduled_at, time_precision, date_status, source, source_event_id, source_url, actual, raw)
+      select 'gdp','GDP', published::timestamptz,'datetime','released','bea','gdp:' || published,
+        'https://www.bea.gov/', 4.3, jsonb_build_object('dateEt',published,'estimate',estimate,
+        'referencePeriod','2026-Q3','result',jsonb_build_object('lastRevised','2026-11-25'))
+      from (values ('2026-11-25','second'), ('2026-12-23','third')) dates(published,estimate)`;
+    await client.unsafe(
+      await readFile(
+        'lib/db/migrations/0030_market_release_identity.sql',
+        'utf8',
+      ),
+    );
+    const rows =
+      await client`select source_event_id, date_status, actual, raw ? 'result' as has_result
+      from market_events order by scheduled_at`;
+    expect(rows).toEqual([
+      {
+        source_event_id: 'gdp:period:2026-Q3:second',
+        date_status: 'released',
+        actual: '4.3',
+        has_result: true,
+      },
+      {
+        source_event_id: 'gdp:period:2026-Q3:third',
+        date_status: 'scheduled',
+        actual: null,
+        has_result: false,
+      },
+    ]);
   });
 
   it('validates the release, stays idempotent, caps active reminders and cancels', async () => {

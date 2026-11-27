@@ -168,23 +168,25 @@ const BEA_GDP = {
   },
 };
 
-const BEA_DATES = {
-  'Gross Domestic Product': {
-    release_dates: [
-      '2026-11-25T13:30:00+00:00',
-      '2026-12-23T13:30:00+00:00',
-      '2026-12-23T13:30:00+00:00',
-      'not a date',
-    ],
-  },
-  'Personal Income and Outlays': {
-    release_dates: ['2026-12-23T13:30:00+00:00'],
-  },
-  'U.S. International Trade in Goods and Services': {
-    release_dates: ['2026-12-08T13:30:00+00:00'],
-  },
-  file_last_updated: '2026-11-20',
-};
+const BEA_DATES = `BEGIN:VCALENDAR
+BEGIN:VEVENT
+SUMMARY:GDP (Third Estimate), Industries, Corporate Profits,
+ 3rd Quarter 2026
+DTSTART:20270104T133000Z
+END:VEVENT
+BEGIN:VEVENT
+SUMMARY:GDP (Second Estimate) and Corporate Profits, 3rd Quarter 2026
+DTSTART;VALUE=DATE-TIME:20261125T133000Z
+END:VEVENT
+BEGIN:VEVENT
+SUMMARY:Personal Income and Outlays, November 2026
+DTSTART:20261223T133000Z
+END:VEVENT
+BEGIN:VEVENT
+SUMMARY:U.S. International Trade in Goods and Services, October 2026
+DTSTART:20261208T133000Z
+END:VEVENT
+END:VCALENDAR`;
 
 const CENSUS_ANSWER = [
   [
@@ -345,10 +347,23 @@ describe('official source parsers', () => {
     ).toMatchObject({ source: 'bea', code: 'api_error' });
   });
 
-  it('reads BEA release dates, deduplicated and sorted', () => {
+  it('reads BEA release dates and named reporting periods across a month change', () => {
     expect(parseBeaReleaseDates(BEA_DATES)).toEqual({
-      gdp: ['2026-11-25T13:30:00.000Z', '2026-12-23T13:30:00.000Z'],
-      personalIncomeAndOutlays: ['2026-12-23T13:30:00.000Z'],
+      gdp: [
+        {
+          at: '2026-11-25T13:30:00.000Z',
+          period: '2026-Q3',
+          estimate: 'second',
+        },
+        {
+          at: '2027-01-04T13:30:00.000Z',
+          period: '2026-Q3',
+          estimate: 'third',
+        },
+      ],
+      personalIncomeAndOutlays: [
+        { at: '2026-12-23T13:30:00.000Z', period: '2026-11' },
+      ],
     });
     expect(
       thrown(() => parseBeaReleaseDates({ file_last_updated: 'x' })),
@@ -635,7 +650,7 @@ describe('OfficialDataClient', () => {
     const retry = client(() =>
       answered++ === 0
         ? json({}, 429, { 'retry-after': '3' })
-        : json(BEA_DATES),
+        : new Response(BEA_DATES),
     );
     const dates = await retry.api.beaReleaseDates();
     expect(dates.gdp).toHaveLength(2);
@@ -661,7 +676,7 @@ describe('OfficialDataClient', () => {
           return new Promise<Response>((resolve) =>
             release.push(() => {
               inFlight -= 1;
-              resolve(json(BEA_DATES));
+              resolve(new Response(BEA_DATES));
             }),
           );
         }) as unknown as typeof fetch,

@@ -144,37 +144,9 @@ export function claimsReleases(from: string, to: string): ClaimsRelease[] {
   return releases;
 }
 
-export type GdpEstimate = 'advance' | 'second' | 'third';
-
 export interface ReferencePeriod {
   period: string;
   label: string;
-}
-
-/**
- * GDP for a quarter comes out in the three months after it: the advance
- * estimate in the first, then the second and third estimates. BEA's schedule
- * gives dates only, so the quarter follows from the release month.
- */
-export function gdpReference(date: string): ReferencePeriod & {
-  estimate: GdpEstimate;
-} {
-  const { year, month } = parseCivilDate(date);
-  const releaseQuarter = Math.ceil(month / 3);
-  const quarter = releaseQuarter === 1 ? 4 : releaseQuarter - 1;
-  const quarterYear = releaseQuarter === 1 ? year - 1 : year;
-  const estimate = (['advance', 'second', 'third'] as const)[(month - 1) % 3];
-  return {
-    period: `${quarterYear}-Q${quarter}`,
-    label: `Q${quarter} ${quarterYear}, ${estimate} estimate`,
-    estimate,
-  };
-}
-
-/** Personal Income and Outlays covers the month before the release month. */
-export function personalIncomeReference(date: string): ReferencePeriod {
-  const period = previousMonth(date.slice(0, 7));
-  return { period, label: monthLabel(period) };
 }
 
 const MONTHS = [

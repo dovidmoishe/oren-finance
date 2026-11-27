@@ -19,7 +19,7 @@ export const BLS_API_URL_V2 =
   'https://api.bls.gov/publicAPI/v2/timeseries/data/';
 export const BEA_API_URL = 'https://apps.bea.gov/api/data';
 export const BEA_RELEASE_DATES_URL =
-  'https://apps.bea.gov/API/signup/release_dates.json';
+  'https://www.bea.gov/news/schedule/ics/online-calendar-subscription.ics';
 export const CENSUS_MARTS_URL =
   'https://api.census.gov/data/timeseries/eits/marts';
 export const DOL_CLAIMS_URL =
@@ -40,10 +40,15 @@ export interface BeaTable {
   lastRevised: string | null;
 }
 
+export interface BeaScheduledRelease {
+  at: string;
+  period: string;
+  estimate?: string;
+}
+
 export interface BeaReleaseDates {
-  /** ISO instants, oldest first. */
-  gdp: string[];
-  personalIncomeAndOutlays: string[];
+  gdp: BeaScheduledRelease[];
+  personalIncomeAndOutlays: BeaScheduledRelease[];
 }
 
 export interface ClaimsWeek {
@@ -184,7 +189,7 @@ export class OfficialDataClient implements OfficialDataApi {
 
   async beaReleaseDates(): Promise<BeaReleaseDates> {
     return parseBeaReleaseDates(
-      await this.request('bea', new URL(BEA_RELEASE_DATES_URL), {}),
+      await this.request('bea', new URL(BEA_RELEASE_DATES_URL), { as: 'text' }),
     );
   }
 
@@ -510,24 +515,57 @@ export function parseBeaTable(body: unknown): BeaTable {
   return { rows, lastRevised };
 }
 
-/** BEA's machine-readable release schedule, keyed by release name. */
+/** Use the named period in BEA's iCalendar feed, even when publication is delayed. */
 export function parseBeaReleaseDates(body: unknown): BeaReleaseDates {
-  const record = asRecord(body);
-  const dates = (name: string) => {
-    const list = asRecord(record[name]).release_dates;
-    if (!Array.isArray(list)) return [];
-    const instants = list.flatMap((value) => {
-      if (typeof value !== 'string' || !ISO_INSTANT.test(value)) return [];
-      const at = new Date(value);
-      return Number.isNaN(at.getTime()) ? [] : [at.toISOString()];
-    });
-    return [...new Set(instants)].sort();
-  };
-  const gdp = dates('Gross Domestic Product');
-  const personalIncomeAndOutlays = dates('Personal Income and Outlays');
-  if (!gdp.length && !personalIncomeAndOutlays.length)
+  if (typeof body !== 'string' || !body.trimEnd().endsWith('END:VCALENDAR'))
     throw new OfficialSourceError('bea', 'invalid_response');
-  return { gdp, personalIncomeAndOutlays };
+  const gdp = new Map<string, BeaScheduledRelease>();
+  const pce = new Map<string, BeaScheduledRelease>();
+  const calendar = body.replace(/\r\n?/g, '\n').replace(/\n[ \t]/g, '');
+  for (const [, event] of calendar.matchAll(
+    /^BEGIN:VEVENT\n([\s\S]*?)^END:VEVENT$/gm,
+  )) {
+    if (/^STATUS:CANCELLED$/m.test(event)) continue;
+    const title =
+      /^SUMMARY:(.+)$/m.exec(event)?.[1].replace(/\\,/g, ',').trim() ?? '';
+    const quarterly = /^(?:GDP\s*\(|Gross Domestic Product,)/i.test(title);
+    const monthly = /^Personal Income and Outlays,/i.test(title);
+    if (!quarterly && !monthly) continue;
+    const stamp =
+      /^DTSTART(?:;VALUE=DATE-TIME)?:(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z$/m.exec(
+        event,
+      );
+    if (!stamp) throw new OfficialSourceError('bea', 'invalid_response');
+    const [, y, m, d, h, min, sec] = stamp;
+    const at = new Date(`${y}-${m}-${d}T${h}:${min}:${sec}Z`).toISOString();
+    if (quarterly) {
+      const quarter =
+        /([1-4])(?:st|nd|rd|th) quarter(?: and year)? (\d{4})/i.exec(title);
+      const estimate = /\((advance|second|third|initial|updated) estimate\)/i
+        .exec(title)?.[1]
+        .toLowerCase();
+      if (!quarter || !estimate)
+        throw new OfficialSourceError('bea', 'invalid_response');
+      const period = `${quarter[2]}-Q${quarter[1]}`;
+      gdp.set(`${period}:${estimate}`, { at, period, estimate });
+    } else {
+      const reference = /^Personal Income and Outlays, (.+) (\d{4})$/i.exec(
+        title,
+      );
+      if (!reference) throw new OfficialSourceError('bea', 'invalid_response');
+      for (const name of reference[1].split(/ and /i)) {
+        const month = MONTH_NUMBERS[name.toLowerCase().slice(0, 3)];
+        if (!month) throw new OfficialSourceError('bea', 'invalid_response');
+        const period = `${reference[2]}-${String(month).padStart(2, '0')}`;
+        pce.set(period, { at, period });
+      }
+    }
+  }
+  if (!gdp.size && !pce.size)
+    throw new OfficialSourceError('bea', 'invalid_response');
+  const sorted = (items: Map<string, BeaScheduledRelease>) =>
+    [...items.values()].sort((a, b) => a.at.localeCompare(b.at));
+  return { gdp: sorted(gdp), personalIncomeAndOutlays: sorted(pce) };
 }
 
 /** Census Data API answer: a header row, then string rows. */
@@ -767,9 +805,6 @@ function decodeEntities(text: string): string {
     },
   );
 }
-
-const ISO_INSTANT =
-  /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,3})?)?(?:Z|[+-]\d{2}:\d{2})$/;
 
 const MONTH_NUMBERS: Record<string, number> = {
   jan: 1,

@@ -62,6 +62,10 @@ function SessionStrip({ hours, releases, trades, now }: { hours: UsEquityHours; 
   const start = sessions.preMarket.startUtc;
   const end = sessions.afterHours.endUtc;
   const at = (instant: string | number) => `${progressBetween(instant, start, end) * 100}%`;
+  const onStrip = (instant: string) => {
+    const value = Date.parse(instant);
+    return value >= Date.parse(start) && value <= Date.parse(end);
+  };
   const open = progressBetween(sessions.regular.startUtc, start, end) * 100;
   const close = progressBetween(sessions.regular.endUtc, start, end) * 100;
   const live = now !== undefined && now > Date.parse(start) && now < Date.parse(end);
@@ -81,14 +85,14 @@ function SessionStrip({ hours, releases, trades, now }: { hours: UsEquityHours; 
         <div className="absolute inset-x-0 top-1/2 h-1.5 -translate-y-1/2 rounded-full bg-panel-subtle" />
         <div className="absolute top-1/2 h-1.5 -translate-y-1/2 rounded-full bg-foreground" style={{ left: `${open}%`, width: `${close - open}%` }} />
         {live ? <div className="absolute inset-y-0 w-0.5 -translate-x-1/2 rounded-full bg-brand" style={{ left: at(now) }} /> : null}
-        {releases.filter((event) => event.timePrecision === "datetime").map((event) => (
+        {releases.filter((event) => event.timePrecision === "datetime" && onStrip(event.scheduledAt)).map((event) => (
           <span
             className="absolute top-1/2 size-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-panel bg-brand"
             key={event.id}
             style={{ left: at(event.scheduledAt) }}
           />
         ))}
-        {trades.map((trade) => (
+        {trades.filter((trade) => onStrip(trade.occurredAt)).map((trade) => (
           <span className="absolute -bottom-1 size-1.5 -translate-x-1/2 rounded-full bg-foreground/70" key={trade.id} style={{ left: at(trade.occurredAt) }} />
         ))}
       </div>

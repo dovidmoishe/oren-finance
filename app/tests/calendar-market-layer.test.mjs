@@ -106,6 +106,15 @@ test("month dates and weekdays follow the civil calendar", () => {
   assert.equal(layer.civilDate("America/New_York", new Date("2026-11-28T03:00:00Z")), "2026-11-27");
 });
 
+test("All groups a late Pacific trade with the next New York day's releases; Portfolio uses local dates", () => {
+  const at = new Date("2026-11-09T22:00:00-08:00");
+  const viewer = "America/Los_Angeles";
+  for (const mode of ["all", "market"]) {
+    assert.equal(layer.civilDate(layer.calendarTimeZone(mode, viewer), at), "2026-11-10");
+  }
+  assert.equal(layer.civilDate(layer.calendarTimeZone("portfolio", viewer), at), "2026-11-09");
+});
+
 test("NYSE status marks weekends, full closes and early closes", () => {
   const days = layer.marketDays(layer.monthDates("2026-11"), closures2026);
   assert.equal(days.get("2026-11-25").status, "open");
@@ -199,11 +208,12 @@ test("a day is one timeline of releases and the viewer's trades; the strip carri
       summary: { significantEvents: [] },
       walletActivity: [],
       contributors: [{ assetId: "nvda", ticker: "NVDA", valueChangeUsd: 30, valueChangePct: 2 }],
-      trades: [{ id: "t1", type: "stock_purchase", ticker: "NVDA", amountUsd: 200, status: "confirmed", occurredAt: "2026-11-10T15:42:00.000Z" }],
+      trades: [{ id: "overnight", type: "stock_purchase", ticker: "MSFT", occurredAt: "2026-11-10T06:00:00.000Z" }, { id: "t1", type: "stock_purchase", ticker: "NVDA", amountUsd: 200, status: "confirmed", occurredAt: "2026-11-10T15:42:00.000Z" }],
     },
     now: Date.parse("2026-11-10T16:00:00.000Z"),
   });
-  const order = ["CPI inflation", "Bought NVDA"].map((text) => html.indexOf(text));
+  assert.equal((html.match(/absolute -bottom-1 size-1.5/g) ?? []).length, 1, "only trades within the session strip receive a marker");
+  const order = ["Bought MSFT", "CPI inflation", "Bought NVDA"].map((text) => html.indexOf(text));
   assert.ok(!html.includes("Market opens") && !html.includes("Market closes"));
   assert.ok(order.every((index) => index > 0), order.join(","));
   assert.deepEqual([...order].sort((a, b) => a - b), order);

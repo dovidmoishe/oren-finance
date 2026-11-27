@@ -2,14 +2,17 @@ import type { MacroEventKind, MarketEvent, UsEquityClosure } from "@/types";
 
 /**
  * Pure helpers that merge the US market calendar (NYSE hours and official
- * macro releases) into the trading calendar's month grid. Market days are
- * keyed by New York date; the portfolio layer keys by the browser's date.
+ * macro releases) into the trading calendar's month grid. The combined view groups all activity by New York date.
  */
 
 export type CalendarLayer = "all" | "portfolio" | "market";
 export const CALENDAR_LAYERS: readonly CalendarLayer[] = ["all", "portfolio", "market"];
 
 export const NEW_YORK = "America/New_York";
+
+export function calendarTimeZone(layer: CalendarLayer, viewerTimeZone: string) {
+  return layer === "portfolio" ? viewerTimeZone : NEW_YORK;
+}
 
 export type MarketDayStatus = "open" | "early_close" | "holiday" | "weekend";
 

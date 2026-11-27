@@ -16,9 +16,7 @@ import {
   PINNED_SCHEDULE_COVERED_THROUGH,
   claimsReleases,
   dayLabel,
-  gdpReference,
   monthLabel,
-  personalIncomeReference,
   previousMonth,
   previousQuarter,
   weekLabel,
@@ -33,6 +31,7 @@ import type {
 import {
   OfficialSourceError,
   parseFomcDecision,
+  type BeaScheduledRelease,
   type ClaimsHeadline,
   type ClaimsWeek,
   type OfficialDataApi,
@@ -136,7 +135,7 @@ export class MarketEventsSync {
       await this.seed(report, rows, startOfToday);
     }
 
-    // BEA publishes its schedule as JSON with exact times.
+    // BEA publishes release instants and reporting periods in its calendar.
     try {
       const dates = await this.api.beaReleaseDates();
       for (const spec of RELEASES) {
@@ -144,7 +143,7 @@ export class MarketEventsSync {
         const rows = (
           spec.kind === 'gdp' ? dates.gdp : dates.personalIncomeAndOutlays
         )
-          .map((instant) => beaRow(spec, new Date(instant), this.calendar))
+          .map((release) => beaRow(spec, release, this.calendar))
           .filter((row) => row.raw.dateEt >= lookback);
         // Only an answer that still lists future dates can retire one; an
         // empty or truncated answer never cancels the calendar.
@@ -576,7 +575,9 @@ export function releaseRow(
     scheduledAt,
     timePrecision: 'datetime',
     source: spec.agencyId,
-    sourceEventId: `${spec.kind}:${date}`,
+    sourceEventId: [spec.kind, 'period', reference.period, reference.estimate]
+      .filter(Boolean)
+      .join(':'),
     sourceUrl: spec.scheduleUrl,
     raw: {
       agencyId: spec.agencyId,
@@ -595,12 +596,20 @@ export function releaseRow(
 /** A BEA release from its schedule's exact instant. */
 export function beaRow(
   spec: ReleaseSpec,
-  at: Date,
+  release: BeaScheduledRelease,
   calendar: UsEquityCalendar = usEquityCalendar,
 ): MarketEventScheduleRow & { raw: { dateEt: string } } {
+  const at = new Date(release.at);
   const date = calendar.etDate(at);
-  const reference =
-    spec.kind === 'gdp' ? gdpReference(date) : personalIncomeReference(date);
+  const { period, estimate } = release;
+  const [year, quarter] = period.split('-');
+  const reference = {
+    period,
+    estimate,
+    label: estimate
+      ? `${quarter} ${year}, ${estimate} estimate`
+      : monthLabel(period),
+  };
   return releaseRow(spec, date, reference, at) as MarketEventScheduleRow & {
     raw: { dateEt: string };
   };
@@ -615,7 +624,7 @@ export function fomcRow(meeting: FomcMeeting): MarketEventScheduleRow {
     scheduledAt: etInstant(meeting.end, minutes(FOMC_DECISION.timeEt)),
     timePrecision: 'datetime',
     source: FOMC_DECISION.agencyId,
-    sourceEventId: `${FOMC_DECISION.kind}:${meeting.end}`,
+    sourceEventId: `${FOMC_DECISION.kind}:${meeting.id}`,
     sourceUrl: FOMC_DECISION.sourceUrl,
     raw: {
       agencyId: FOMC_DECISION.agencyId,
@@ -646,9 +655,10 @@ function beaTableCurrent(
   now: Date,
 ): boolean {
   const estimate = event.raw.estimate;
-  if (estimate !== 'second' && estimate !== 'third') return true;
+  if (estimate !== 'second' && estimate !== 'third' && estimate !== 'updated')
+    return true;
   const date = text(event.raw.dateEt);
-  if (lastRevised && date && lastRevised >= date) return true;
+  if (lastRevised) return date !== null && lastRevised >= date;
   return now.getTime() - event.scheduledAt.getTime() >= BEA_REVISION_WAIT_MS;
 }
 

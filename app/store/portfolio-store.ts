@@ -45,6 +45,8 @@ interface PortfolioState {
 let historyRequestId = 0;
 let portfolioRequestId = 0;
 let activityRequestId = 0;
+let calendarRequestId = 0;
+let calendarDayRequestId = 0;
 let portfolioUpdatedAt = 0;
 let portfolioFlight: { wallet: string; promise: Promise<void> } | undefined;
 let activityFlight: { wallet: string; promise: Promise<void> } | undefined;
@@ -117,28 +119,36 @@ export const usePortfolioStore = create<PortfolioState>((set, get) => ({
     return promise;
   },
   async loadCalendar(wallet, input) {
+    const requestId = ++calendarRequestId;
     const update = sessionSetter(set);
     update({ wallet, isCalendarLoading: true, error: undefined });
     try {
       const calendar = await getTradingCalendar(wallet, input);
+      if (requestId !== calendarRequestId) return;
       update({ calendar, isCalendarLoading: false });
     } catch (error) {
+      if (requestId !== calendarRequestId) return;
       update({ error: error instanceof Error ? error.message : "Unable to load trading calendar", isCalendarLoading: false });
     }
   },
   async loadCalendarDay(wallet, date, input) {
+    const requestId = ++calendarDayRequestId;
     const update = sessionSetter(set);
     update({ isCalendarLoading: true, error: undefined });
     try {
       const calendarDay = await getTradingCalendarDay(wallet, date, input);
+      if (requestId !== calendarDayRequestId) return;
       update({ calendarDay, isCalendarLoading: false });
     } catch (error) {
+      if (requestId !== calendarDayRequestId) return;
       update({ error: error instanceof Error ? error.message : "Unable to load calendar day", isCalendarLoading: false });
     }
   },
   reset() {
     portfolioRequestId++;
     activityRequestId++;
+    calendarRequestId++;
+    calendarDayRequestId++;
     portfolioUpdatedAt = 0;
     portfolioFlight = activityFlight = undefined;
     historyFlights.clear();

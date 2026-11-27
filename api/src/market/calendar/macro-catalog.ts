@@ -13,7 +13,7 @@ import type {
  * - BLS (CPI, Employment Situation, PPI): dates from BLS's release schedule,
  *   pinned in macro-schedule.ts because bls.gov blocks automated requests;
  *   values from the BLS Public Data API.
- * - BEA (GDP, PCE prices): dates and times from BEA's release_dates.json;
+ * - BEA (GDP, PCE prices): periods and times from BEA's iCalendar release schedule;
  *   values from the BEA Data API, which needs BEA_API_KEY.
  * - Census Bureau (retail sales): dates from the Census retail release
  *   schedule, pinned; values from the Census Data API, which needs
@@ -207,6 +207,8 @@ export const RELEASES: readonly ReleaseSpec[] = [
 ];
 
 export interface FomcMeeting {
+  /** Original decision date; keep this ID when rescheduling the meeting. */
+  id: string;
   start: string;
   /** Decision day: the statement is released at the end of the meeting. */
   end: string;
@@ -223,44 +225,49 @@ export interface FomcMeeting {
  * https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm
  */
 export const FOMC_MEETINGS: readonly FomcMeeting[] = [
-  { start: '2026-01-27', end: '2026-01-28' },
+  { id: '2026-01-28', start: '2026-01-27', end: '2026-01-28' },
   {
+    id: '2026-03-18',
     start: '2026-03-17',
     end: '2026-03-18',
     summaryOfEconomicProjections: true,
   },
-  { start: '2026-04-28', end: '2026-04-29' },
+  { id: '2026-04-29', start: '2026-04-28', end: '2026-04-29' },
   {
+    id: '2026-06-17',
     start: '2026-06-16',
     end: '2026-06-17',
     summaryOfEconomicProjections: true,
   },
-  { start: '2026-07-28', end: '2026-07-29' },
+  { id: '2026-07-29', start: '2026-07-28', end: '2026-07-29' },
   {
+    id: '2026-09-16',
     start: '2026-09-15',
     end: '2026-09-16',
     summaryOfEconomicProjections: true,
   },
-  { start: '2026-10-27', end: '2026-10-28' },
+  { id: '2026-10-28', start: '2026-10-27', end: '2026-10-28' },
   {
+    id: '2026-12-09',
     start: '2026-12-08',
     end: '2026-12-09',
     summaryOfEconomicProjections: true,
   },
-  { start: '2027-01-26', end: '2027-01-27', tentative: true },
-  { start: '2027-03-16', end: '2027-03-17', tentative: true },
-  { start: '2027-04-27', end: '2027-04-28', tentative: true },
-  { start: '2027-06-08', end: '2027-06-09', tentative: true },
-  { start: '2027-07-27', end: '2027-07-28', tentative: true },
-  { start: '2027-09-14', end: '2027-09-15', tentative: true },
+  { id: '2027-01-27', start: '2027-01-26', end: '2027-01-27', tentative: true },
+  { id: '2027-03-17', start: '2027-03-16', end: '2027-03-17', tentative: true },
+  { id: '2027-04-28', start: '2027-04-27', end: '2027-04-28', tentative: true },
+  { id: '2027-06-09', start: '2027-06-08', end: '2027-06-09', tentative: true },
+  { id: '2027-07-28', start: '2027-07-27', end: '2027-07-28', tentative: true },
+  { id: '2027-09-15', start: '2027-09-14', end: '2027-09-15', tentative: true },
   {
+    id: '2027-10-27',
     start: '2027-10-26',
     end: '2027-10-27',
     tentative: true,
     label: 'Monetary Policy Strategy Meeting',
   },
-  { start: '2027-11-16', end: '2027-11-17', tentative: true },
-  { start: '2028-01-25', end: '2028-01-26', tentative: true },
+  { id: '2027-11-17', start: '2027-11-16', end: '2027-11-17', tentative: true },
+  { id: '2028-01-26', start: '2028-01-25', end: '2028-01-26', tentative: true },
 ];
 
 export const FOMC_DECISION = {

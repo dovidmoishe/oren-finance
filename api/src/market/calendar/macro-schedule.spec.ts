@@ -2,10 +2,8 @@ import {
   PINNED_RELEASES,
   PINNED_SCHEDULE_COVERED_THROUGH,
   claimsReleases,
-  gdpReference,
   isThursdayFederalHoliday,
   monthLabel,
-  personalIncomeReference,
   previousMonth,
   previousQuarter,
   weekLabel,
@@ -76,31 +74,6 @@ describe('weekly claims dates', () => {
 });
 
 describe('reference periods', () => {
-  it('maps GDP releases to the quarter and estimate they carry', () => {
-    expect(gdpReference('2026-10-29')).toEqual({
-      period: '2026-Q3',
-      label: 'Q3 2026, advance estimate',
-      estimate: 'advance',
-    });
-    expect(gdpReference('2026-12-23')).toMatchObject({
-      period: '2026-Q3',
-      estimate: 'third',
-    });
-    expect(gdpReference('2027-01-28')).toMatchObject({
-      period: '2026-Q4',
-      estimate: 'advance',
-    });
-    expect(gdpReference('2027-02-25')).toMatchObject({ estimate: 'second' });
-  });
-
-  it('maps Personal Income and Outlays to the month before release', () => {
-    expect(personalIncomeReference('2026-12-23')).toEqual({
-      period: '2026-11',
-      label: 'November 2026',
-    });
-    expect(personalIncomeReference('2027-01-28').period).toBe('2026-12');
-  });
-
   it('labels and steps periods', () => {
     expect(monthLabel('2026-11')).toBe('November 2026');
     expect(weekLabel('2026-11-21')).toBe('Week ending Nov 21, 2026');

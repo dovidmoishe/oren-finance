@@ -16,6 +16,7 @@ import {
   CALENDAR_LAYERS,
   NEW_YORK,
   addDays,
+  calendarTimeZone,
   civilDate,
   eventsByDate,
   formatShortClock,
@@ -124,9 +125,9 @@ export function TradingCalendar() {
   const loadCalendar = usePortfolioStore((state) => state.loadCalendar);
   const loadCalendarDay = usePortfolioStore((state) => state.loadCalendarDay);
   const reset = usePortfolioStore((state) => state.reset);
-  const timeZone = useMemo(() => browserTimeZone(), []);
+  const viewerTimeZone = useMemo(() => browserTimeZone(), []);
   const [linked] = useState(linkedState);
-  const [month, setMonth] = useState(() => linked.date?.slice(0, 7) ?? civilDate(browserTimeZone()).slice(0, 7));
+  const [chosenMonth, setMonth] = useState(linked.date?.slice(0, 7));
   const [selectedDate, setSelectedDate] = useState<string | undefined>(linked.date);
   const [layerChoice, setLayerChoice] = useState<CalendarLayer>(linked.layer ?? "all");
   const agentBusy = useAgentStore((state) => state.isSending);
@@ -134,9 +135,12 @@ export function TradingCalendar() {
   const newChat = useAgentStore((state) => state.newChat);
   const sendToAgent = useAgentStore((state) => state.sendMessage);
 
-  const today = hydrated ? civilDate(timeZone) : undefined;
   // Signed out, only the public market layer has data to show.
   const layer: CalendarLayer = connected ? layerChoice : "market";
+  const timeZone = calendarTimeZone(layer, viewerTimeZone);
+  const currentDate = civilDate(timeZone);
+  const today = hydrated ? currentDate : undefined;
+  const month = chosenMonth ?? currentDate.slice(0, 7);
   const showPortfolio = layer !== "market";
   const showMarket = layer !== "portfolio";
   const activeDate = selectedDate ?? (today?.startsWith(month) ? today : undefined);
@@ -161,18 +165,21 @@ export function TradingCalendar() {
       reset();
       return;
     }
-    void loadCalendar(wallet, { month, timeZone });
-  }, [connected, loadCalendar, month, reset, timeZone, wallet]);
+    if (showPortfolio) void loadCalendar(wallet, { month, timeZone });
+  }, [connected, loadCalendar, month, reset, showPortfolio, timeZone, wallet]);
 
   useEffect(() => {
-    if (!wallet || !connected || !activeDate) return;
+    if (!wallet || !connected || !showPortfolio || !activeDate) return;
     void loadCalendarDay(wallet, activeDate, { timeZone });
-  }, [activeDate, connected, loadCalendarDay, timeZone, wallet]);
+  }, [activeDate, connected, loadCalendarDay, showPortfolio, timeZone, wallet]);
 
   const dates = useMemo(() => monthDates(month), [month]);
   const portfolioDays = useMemo(
-    () => new Map(showPortfolio ? (calendar?.days ?? []).map((day) => [day.date, day] as const) : []),
-    [calendar, showPortfolio],
+    () => {
+      const matches = showPortfolio && calendar && calendar.walletAddress === wallet && calendar.timeZone === timeZone && calendar.range.month === month;
+      return new Map(matches ? calendar.days.map((day) => [day.date, day] as const) : []);
+    },
+    [calendar, month, showPortfolio, timeZone, wallet],
   );
   const marketByDate = useMemo(
     () => (showMarket ? marketDays(dates, market.closures?.closures, market.closures?.provisional) : undefined),
@@ -193,7 +200,7 @@ export function TradingCalendar() {
 
   const changeMonth = (delta: number) => {
     setSelectedDate(undefined);
-    setMonth((value) => shiftMonth(value, delta));
+    setMonth((value) => shiftMonth(value ?? month, delta));
   };
   const selectDate = (date: string) => {
     setSelectedDate(date);
@@ -216,13 +223,13 @@ export function TradingCalendar() {
         setMonth(now.slice(0, 7));
       } else if (event.key === "[" || event.key === "]") {
         setSelectedDate(undefined);
-        setMonth((value) => shiftMonth(value, event.key === "]" ? 1 : -1));
+        setMonth((value) => shiftMonth(value ?? month, event.key === "]" ? 1 : -1));
       } else return;
       event.preventDefault();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [hydrated, timeZone]);
+  }, [hydrated, month, timeZone]);
 
   const canAsk = connected && auth.authenticated && Boolean(auth.address);
   const askAboutDay = (date: string) => {
@@ -313,7 +320,7 @@ export function TradingCalendar() {
               <DayPanel
                 askBusy={agentBusy}
                 date={activeDate}
-                day={calendarDay?.date === activeDate ? calendarDay : undefined}
+                day={calendarDay?.date === activeDate && calendarDay.walletAddress === wallet && calendarDay.timeZone === timeZone ? calendarDay : undefined}
                 hours={hours}
                 marketDay={marketByDate?.get(activeDate)}
                 now={now}
@@ -324,7 +331,7 @@ export function TradingCalendar() {
                 showMarket={showMarket}
                 showPortfolio={showPortfolio}
                 summary={portfolioDays.get(activeDate)}
-                timeZone={timeZone}
+                timeZone={viewerTimeZone}
               />
             ) : (
               <p className="py-10 text-center text-sm text-muted">{t("calendar.selectDay")}</p>

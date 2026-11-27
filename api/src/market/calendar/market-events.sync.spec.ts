@@ -109,8 +109,11 @@ class MemoryStore implements MarketEventStore {
     return Promise.resolve();
   }
 
-  byId(sourceEventId: string) {
-    return this.rows.find((row) => row.sourceEventId === sourceEventId);
+  byDate(kindAndDate: string) {
+    const [kind, date] = kindAndDate.split(':');
+    return this.rows.find(
+      (row) => row.kind === kind && row.raw.dateEt === date,
+    );
   }
 }
 
@@ -191,13 +194,13 @@ const AFTER_DEC_CPI = new Date('2026-12-10T20:00:00Z');
 
 const BEA_DATES: BeaReleaseDates = {
   gdp: [
-    '2026-11-25T13:30:00.000Z',
-    '2026-12-23T13:30:00.000Z',
-    '2027-01-28T13:30:00.000Z',
+    { at: '2026-11-25T13:30:00.000Z', period: '2026-Q3', estimate: 'second' },
+    { at: '2026-12-23T13:30:00.000Z', period: '2026-Q3', estimate: 'third' },
+    { at: '2027-01-28T13:30:00.000Z', period: '2026-Q4', estimate: 'advance' },
   ],
   personalIncomeAndOutlays: [
-    '2026-11-25T13:30:00.000Z',
-    '2026-12-23T13:30:00.000Z',
+    { at: '2026-11-25T13:30:00.000Z', period: '2026-10' },
+    { at: '2026-12-23T13:30:00.000Z', period: '2026-11' },
   ],
 };
 
@@ -208,7 +211,7 @@ describe('macro calendar refresh', () => {
     const report = await new MarketEventsSync(api, store).run(NOV_27);
     expect(report.failures).toEqual([]);
 
-    const cpi = store.byId('cpi:2026-12-10')!;
+    const cpi = store.byDate('cpi:2026-12-10')!;
     expect(cpi.source).toBe('bls');
     expect(cpi.scheduledAt.toISOString()).toBe('2026-12-10T13:30:00.000Z');
     expect(toMarketEvent(cpi, NOV_27)).toMatchObject({
@@ -228,13 +231,13 @@ describe('macro calendar refresh', () => {
       retrievedAt: null,
     });
     // The pinned table starts at the result lookback (35 days back).
-    expect(store.byId('retail_sales:2026-10-15')).toBeUndefined();
-    expect(store.byId('retail_sales:2026-11-17')!.source).toBe('census');
+    expect(store.byDate('retail_sales:2026-10-15')).toBeUndefined();
+    expect(store.byDate('retail_sales:2026-11-17')!.source).toBe('census');
 
     // Claims: Thanksgiving moves the report to Wednesday.
-    expect(store.byId('jobless_claims:2026-11-26')).toBeUndefined();
+    expect(store.byDate('jobless_claims:2026-11-26')).toBeUndefined();
     expect(
-      toMarketEvent(store.byId('jobless_claims:2026-11-25')!, NOV_27),
+      toMarketEvent(store.byDate('jobless_claims:2026-11-25')!, NOV_27),
     ).toMatchObject({
       agencyId: 'dol',
       agency: 'U.S. Department of Labor',
@@ -243,24 +246,24 @@ describe('macro calendar refresh', () => {
       referencePeriod: '2026-11-21',
       referenceLabel: 'Week ending Nov 21, 2026',
     });
-    expect(store.byId('jobless_claims:2026-12-03')).toBeDefined();
+    expect(store.byDate('jobless_claims:2026-12-03')).toBeDefined();
 
     // BEA: exact instants, with the quarter or month each release covers.
-    expect(store.byId('gdp:2026-12-23')!.raw).toMatchObject({
+    expect(store.byDate('gdp:2026-12-23')!.raw).toMatchObject({
       agencyId: 'bea',
       timeEt: '08:30',
       referencePeriod: '2026-Q3',
       referenceLabel: 'Q3 2026, third estimate',
       estimate: 'third',
     });
-    expect(store.byId('pce:2026-12-23')!.raw).toMatchObject({
+    expect(store.byDate('pce:2026-12-23')!.raw).toMatchObject({
       referencePeriod: '2026-11',
       referenceLabel: 'November 2026',
     });
 
     // FOMC from the Fed calendar, from the lookback on.
-    expect(store.byId('fomc_decision:2026-09-16')).toBeUndefined();
-    const december = store.byId('fomc_decision:2026-12-09')!;
+    expect(store.byDate('fomc_decision:2026-09-16')).toBeUndefined();
+    const december = store.byDate('fomc_decision:2026-12-09')!;
     expect(december.source).toBe('frb');
     expect(toMarketEvent(december, NOV_27)).toMatchObject({
       agency: 'Federal Reserve Board',
@@ -274,7 +277,7 @@ describe('macro calendar refresh', () => {
       meetingStart: '2026-12-08',
       summaryOfEconomicProjections: true,
     });
-    expect(store.byId('fomc_decision:2027-10-27')!.raw).toMatchObject({
+    expect(store.byDate('fomc_decision:2027-10-27')!.raw).toMatchObject({
       tentative: true,
       label: 'Monetary Policy Strategy Meeting',
     });
@@ -315,12 +318,12 @@ describe('macro calendar refresh', () => {
     expect(report.released).toBe(3);
     expect(report.missed).toBe(2);
     for (const id of ['cpi:2026-11-10', 'employment_situation:2026-11-06'])
-      expect(store.byId(id)).toMatchObject({
+      expect(store.byDate(id)).toMatchObject({
         dateStatus: 'scheduled',
         actual: null,
       });
 
-    const cpi = toMarketEvent(store.byId('cpi:2026-12-10')!, AFTER_DEC_CPI);
+    const cpi = toMarketEvent(store.byDate('cpi:2026-12-10')!, AFTER_DEC_CPI);
     expect(cpi).toMatchObject({
       status: 'released',
       // (338.4 / 337.476 - 1) * 100 = 0.2738 -> 0.3; October was 0.3503 -> 0.4.
@@ -334,7 +337,7 @@ describe('macro calendar refresh', () => {
       retrievedAt: AFTER_DEC_CPI.toISOString(),
     });
     expect(
-      toMarketEvent(store.byId('employment_situation:2026-12-04')!),
+      toMarketEvent(store.byDate('employment_situation:2026-12-04')!),
     ).toMatchObject({
       actual: 119,
       previous: 165,
@@ -342,7 +345,7 @@ describe('macro calendar refresh', () => {
       previousText: '+165K',
       unit: 'thousands_change',
     });
-    expect(toMarketEvent(store.byId('ppi:2026-11-13')!)).toMatchObject({
+    expect(toMarketEvent(store.byDate('ppi:2026-11-13')!)).toMatchObject({
       actual: 0.3,
       previous: 1.4,
       referencePeriod: '2026-10',
@@ -351,7 +354,7 @@ describe('macro calendar refresh', () => {
     // A second pass keeps the stored values and does not ask BLS again.
     calls.length = 0;
     await new MarketEventsSync(api, store).run(AFTER_DEC_CPI);
-    expect(store.byId('cpi:2026-12-10')!.actual).toBe('0.3');
+    expect(store.byDate('cpi:2026-12-10')!.actual).toBe('0.3');
     expect(calls.some((call) => call.method === 'blsSeries')).toBe(false);
   });
 
@@ -380,7 +383,7 @@ describe('macro calendar refresh', () => {
     expect(report.failures.filter((code) => code.startsWith('bls'))).toEqual(
       [],
     );
-    expect(store.byId('cpi:2026-12-10')!.actual).toBe('0.3');
+    expect(store.byDate('cpi:2026-12-10')!.actual).toBe('0.3');
   });
 
   it('waits until the agency publishes the month', async () => {
@@ -392,7 +395,7 @@ describe('macro calendar refresh', () => {
     });
     const report = await new MarketEventsSync(api, store).run(AFTER_DEC_CPI);
     expect(report.waiting).toBeGreaterThan(0);
-    const row = store.byId('cpi:2026-12-10')!;
+    const row = store.byDate('cpi:2026-12-10')!;
     expect(row).toMatchObject({ dateStatus: 'scheduled', actual: null });
     // Publicly it has been released; the value is just not loaded yet.
     expect(toMarketEvent(row, AFTER_DEC_CPI)).toMatchObject({
@@ -443,11 +446,11 @@ describe('macro calendar refresh', () => {
       beaTables: tables('2026-10-29'),
     });
     await new MarketEventsSync(stale.api, store).run(releaseDay);
-    expect(store.byId('gdp:2026-11-25')).toMatchObject({
+    expect(store.byDate('gdp:2026-11-25')).toMatchObject({
       dateStatus: 'scheduled',
       actual: null,
     });
-    expect(toMarketEvent(store.byId('pce:2026-11-25')!)).toMatchObject({
+    expect(toMarketEvent(store.byDate('pce:2026-11-25')!)).toMatchObject({
       status: 'released',
       actual: 0.2,
       previous: 0.3,
@@ -459,13 +462,20 @@ describe('macro calendar refresh', () => {
       stale.calls.find((call) => call.method === 'beaTable')?.args[0],
     ).toMatchObject({ frequency: 'Q', years: [2025, 2026] });
 
+    const nextDay = new Date('2026-11-26T15:00:00Z');
+    await new MarketEventsSync(stale.api, store).run(nextDay);
+    expect(store.byDate('gdp:2026-11-25')).toMatchObject({
+      dateStatus: 'scheduled',
+      actual: null,
+    });
+
     const revised = fakeAgencies({
       configured: { bea: true },
       beaDates: BEA_DATES,
       beaTables: tables('2026-11-25'),
     });
-    await new MarketEventsSync(revised.api, store).run(releaseDay);
-    expect(toMarketEvent(store.byId('gdp:2026-11-25')!)).toMatchObject({
+    await new MarketEventsSync(revised.api, store).run(nextDay);
+    expect(toMarketEvent(store.byDate('gdp:2026-11-25')!)).toMatchObject({
       actual: 4.3,
       previous: 3.8,
       unit: 'percent_saar',
@@ -482,11 +492,11 @@ describe('macro calendar refresh', () => {
       beaTables: tables(null),
     });
     await new MarketEventsSync(noNotes.api, undated).run(releaseDay);
-    expect(undated.byId('gdp:2026-11-25')!.actual).toBeNull();
+    expect(undated.byDate('gdp:2026-11-25')!.actual).toBeNull();
     await new MarketEventsSync(noNotes.api, undated).run(
       new Date('2026-11-26T15:00:00Z'),
     );
-    expect(undated.byId('gdp:2026-11-25')!.actual).toBe('4.3');
+    expect(undated.byDate('gdp:2026-11-25')!.actual).toBe('4.3');
   });
 
   it('leaves a release without a value once a later one of its kind is out', async () => {
@@ -496,10 +506,21 @@ describe('macro calendar refresh', () => {
     const { api } = fakeAgencies({
       configured: { bea: true },
       beaDates: {
-        gdp: ['2026-10-29T12:30:00.000Z', '2026-11-25T13:30:00.000Z'],
+        gdp: [
+          {
+            at: '2026-10-29T12:30:00.000Z',
+            period: '2026-Q3',
+            estimate: 'advance',
+          },
+          {
+            at: '2026-11-25T13:30:00.000Z',
+            period: '2026-Q3',
+            estimate: 'second',
+          },
+        ],
         personalIncomeAndOutlays: [
-          '2026-10-29T12:30:00.000Z',
-          '2026-11-25T13:30:00.000Z',
+          { at: '2026-10-29T12:30:00.000Z', period: '2026-09' },
+          { at: '2026-11-25T13:30:00.000Z', period: '2026-10' },
         ],
       },
       beaTables: {
@@ -526,19 +547,19 @@ describe('macro calendar refresh', () => {
     expect(retry.failures).toContain('bea-schedule:error');
     expect(retry.missed).toBe(2);
     for (const id of ['gdp:2026-10-29', 'pce:2026-10-29'])
-      expect(toMarketEvent(store.byId(id)!, NOV_27)).toMatchObject({
+      expect(toMarketEvent(store.byDate(id)!, NOV_27)).toMatchObject({
         status: 'released',
         actual: null,
       });
-    expect(toMarketEvent(store.byId('gdp:2026-10-29')!)).toMatchObject({
+    expect(toMarketEvent(store.byDate('gdp:2026-10-29')!)).toMatchObject({
       referenceLabel: 'Q3 2026, advance estimate',
     });
-    expect(toMarketEvent(store.byId('gdp:2026-11-25')!)).toMatchObject({
+    expect(toMarketEvent(store.byDate('gdp:2026-11-25')!)).toMatchObject({
       actual: 4.3,
       previous: 3.8,
       referenceLabel: 'Q3 2026, second estimate',
     });
-    expect(toMarketEvent(store.byId('pce:2026-11-25')!)).toMatchObject({
+    expect(toMarketEvent(store.byDate('pce:2026-11-25')!)).toMatchObject({
       actual: 0.2,
       previous: 0.3,
       referencePeriod: '2026-10',
@@ -562,22 +583,22 @@ describe('macro calendar refresh', () => {
     // The 15 Oct release (September data) is inside the lookback, but 17 Nov
     // superseded it, so only October is read.
     expect(filled.missed).toBe(1);
-    expect(store.byId('retail_sales:2026-10-15')).toMatchObject({
+    expect(store.byDate('retail_sales:2026-10-15')).toMatchObject({
       dateStatus: 'scheduled',
       actual: null,
     });
     expect(
       calls.find((call) => call.method === 'censusRetail')?.args[0],
     ).toEqual({ category: '44X72', dataType: 'MPCSM', from: '2026-09' });
-    expect(toMarketEvent(store.byId('retail_sales:2026-11-17')!)).toMatchObject(
-      {
-        agencyId: 'census',
-        actual: 0.6,
-        previous: 0.4,
-        actualText: '+0.6%',
-        referencePeriod: '2026-10',
-      },
-    );
+    expect(
+      toMarketEvent(store.byDate('retail_sales:2026-11-17')!),
+    ).toMatchObject({
+      agencyId: 'census',
+      actual: 0.6,
+      previous: 0.4,
+      actualText: '+0.6%',
+      referencePeriod: '2026-10',
+    });
   });
 
   it("takes this week's claims from the release and backfills older weeks", async () => {
@@ -597,7 +618,7 @@ describe('macro calendar refresh', () => {
       ],
     });
     await new MarketEventsSync(api, store).run(NOV_27);
-    const latest = store.byId('jobless_claims:2026-11-25')!;
+    const latest = store.byDate('jobless_claims:2026-11-25')!;
     expect(toMarketEvent(latest)).toMatchObject({
       status: 'released',
       actual: 189000,
@@ -610,7 +631,7 @@ describe('macro calendar refresh', () => {
     });
     expect(latest.raw.result).toMatchObject({ figure: 'advance' });
 
-    const backfilled = store.byId('jobless_claims:2026-11-05')!;
+    const backfilled = store.byDate('jobless_claims:2026-11-05')!;
     expect(toMarketEvent(backfilled)).toMatchObject({
       actual: 191000,
       previous: 195000,
@@ -618,7 +639,7 @@ describe('macro calendar refresh', () => {
     });
     expect(backfilled.raw.result).toMatchObject({ figure: 'revised' });
     // Weeks in neither source wait for the weekly data to catch up.
-    expect(store.byId('jobless_claims:2026-11-19')).toMatchObject({
+    expect(store.byDate('jobless_claims:2026-11-19')).toMatchObject({
       dateStatus: 'scheduled',
       actual: null,
     });
@@ -637,7 +658,7 @@ describe('macro calendar refresh', () => {
       store,
     ).run(NOV_27);
     expect(
-      toMarketEvent(store.byId('fomc_decision:2026-10-28')!),
+      toMarketEvent(store.byDate('fomc_decision:2026-10-28')!),
     ).toMatchObject({
       actual: 4,
       previous: 4,
@@ -650,7 +671,7 @@ describe('macro calendar refresh', () => {
       decisionDay,
     );
     expect(early.waiting).toBeGreaterThan(0);
-    expect(store.byId('fomc_decision:2026-12-09')).toMatchObject({
+    expect(store.byDate('fomc_decision:2026-12-09')).toMatchObject({
       dateStatus: 'scheduled',
       actual: null,
     });
@@ -665,7 +686,7 @@ describe('macro calendar refresh', () => {
       store,
     ).run(decisionDay);
     expect(
-      toMarketEvent(store.byId('fomc_decision:2026-12-09')!),
+      toMarketEvent(store.byDate('fomc_decision:2026-12-09')!),
     ).toMatchObject({
       status: 'released',
       actual: 3.75,
@@ -680,24 +701,32 @@ describe('macro calendar refresh', () => {
     });
   });
 
-  it('cancels a date the source stops listing, but never on an empty BEA answer', async () => {
+  it('keeps the same event UUID when a release moves across months and cancels a withdrawn release', async () => {
     const store = new MemoryStore();
     const run = (beaDates: BeaReleaseDates) =>
       new MarketEventsSync(fakeAgencies({ beaDates }).api, store).run(NOV_27);
     await run(BEA_DATES);
+    const id = store.byDate('gdp:2026-12-23')!.id;
     const report = await run({
       ...BEA_DATES,
-      gdp: ['2026-12-22T13:30:00.000Z', '2027-01-28T13:30:00.000Z'],
+      gdp: [{ ...BEA_DATES.gdp[1], at: '2027-01-04T13:30:00.000Z' }],
     });
     expect(report.cancelled).toBe(1);
-    expect(store.byId('gdp:2026-12-23')!.dateStatus).toBe('cancelled');
-    expect(store.byId('gdp:2026-12-22')!.dateStatus).toBe('scheduled');
+    expect(store.byDate('gdp:2026-12-23')).toBeUndefined();
+    expect(store.byDate('gdp:2027-01-04')).toMatchObject({
+      id,
+      dateStatus: 'scheduled',
+      raw: { referencePeriod: '2026-Q3', estimate: 'third' },
+    });
+    expect(store.byDate('gdp:2027-01-28')!.dateStatus).toBe('cancelled');
 
     await run({ gdp: [], personalIncomeAndOutlays: [] });
-    expect(store.byId('gdp:2027-01-28')!.dateStatus).toBe('scheduled');
-
+    expect(store.byDate('gdp:2027-01-04')!.dateStatus).toBe('scheduled');
     await run(BEA_DATES);
-    expect(store.byId('gdp:2026-12-23')!.dateStatus).toBe('scheduled');
+    expect(store.byDate('gdp:2026-12-23')).toMatchObject({
+      id,
+      dateStatus: 'scheduled',
+    });
   });
 
   it('reports a failing source without stopping the others', async () => {
@@ -707,8 +736,8 @@ describe('macro calendar refresh', () => {
     });
     const report = await new MarketEventsSync(api, store).run(NOV_27);
     expect(report.failures).toEqual(['bea-schedule:rate_limited_429']);
-    expect(store.byId('cpi:2026-12-10')).toBeDefined();
-    expect(store.byId('gdp:2026-12-23')).toBeUndefined();
+    expect(store.byDate('cpi:2026-12-10')).toBeDefined();
+    expect(store.byDate('gdp:2026-12-23')).toBeUndefined();
   });
 
   it('warns before the pinned schedules run out', async () => {
@@ -747,7 +776,7 @@ describe('macro calendar refresh', () => {
     }
     expect(exposed).not.toContain(BLS_NOTICE);
     // The public shape is an explicit field list, never the raw payload.
-    const event = toMarketEvent(store.byId('cpi:2026-12-10')!, AFTER_DEC_CPI);
+    const event = toMarketEvent(store.byDate('cpi:2026-12-10')!, AFTER_DEC_CPI);
     expect(Object.keys(event).sort()).toEqual(
       [
         'id',
