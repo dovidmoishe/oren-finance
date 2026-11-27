@@ -13,6 +13,7 @@ import {
 } from '../config/constants';
 import type { ChartWindow } from '../tokens/chart-range.util';
 import { NewsService } from '../news/news.service';
+import { MarketReadCache } from '../market/market-read-cache';
 import { StockCatalogRepository } from '../tokens/stock-catalog.repository';
 import { TokensService } from '../tokens/tokens.service';
 import { buildHighlights, riskLabelFromVolatility } from './highlights';
@@ -29,6 +30,7 @@ import { buildTechnicalBrief } from './ta/technical-brief';
 @Injectable()
 export class IntelligenceService {
   private readonly logger = new Logger(IntelligenceService.name);
+  private readonly analyses = new MarketReadCache<StockAnalysis>(30_000, 128);
 
   constructor(
     private readonly tokens: TokensService,
@@ -53,25 +55,34 @@ export class IntelligenceService {
     return this.computeAndPersist(assetId);
   }
 
-  async getAnalysis(assetId: string): Promise<StockAnalysis> {
-    const equity = await this.tokens.getStock(assetId);
-    const { signals, dimensions, limitedHistory } =
-      await this.computeSignalsDetailed(equity);
+  getAnalysis(assetId: string): Promise<StockAnalysis> {
+    return this.analyses.get(assetId, () => this.loadAnalysis(assetId));
+  }
 
-    try {
-      await this.repository.upsert(signals);
-    } catch {
-      // Persistence is app memory, not a prerequisite for this live read.
-      this.logger.warn(
-        `Signal persistence failed for ${equity.id}; returning live analysis`,
-      );
+  private async loadAnalysis(assetId: string): Promise<StockAnalysis> {
+    const equity = await this.tokens.getStock(assetId);
+    const cached = await this.repository
+      .getByAssetId(assetId)
+      .catch(() => null);
+    const fresh =
+      cached && Date.now() - cached.calculatedAt.getTime() < SIGNAL_TTL_MS;
+    const computed = fresh
+      ? undefined
+      : await this.computeSignalsDetailed(equity);
+    const signals = computed?.signals ?? cached!;
+
+    if (computed) {
+      try {
+        await this.repository.upsert(signals);
+      } catch {
+        // Persistence is app memory, not a prerequisite for this live read.
+        this.logger.warn(
+          `Signal persistence failed for ${equity.id}; returning live analysis`,
+        );
+      }
     }
 
     const price = equity.price ?? signals.sma20;
-    const highlights = buildHighlights(signals, dimensions, {
-      limitedHistory,
-      price,
-    });
 
     let tokensRisk: string | undefined;
     try {
@@ -93,6 +104,32 @@ export class IntelligenceService {
         items: [],
       })),
     ]);
+
+    // Persisted signals do not store the bar count. Reuse TA daily bars within
+    // the signal's original window; zero momentum alone does not imply thin history.
+    const signalTo = Math.floor(signals.calculatedAt.getTime() / 1000);
+    const signalFrom = signalTo - SIGNAL_DAILY_LOOKBACK_DAYS * 24 * 60 * 60;
+    const limitedHistory =
+      computed?.limitedHistory ??
+      dailyBars.filter((bar) => {
+        const timestamp = bar.timestamp.getTime() / 1000;
+        return (
+          timestamp >= signalFrom &&
+          timestamp <= signalTo &&
+          Number.isFinite(bar.close)
+        );
+      }).length < 30;
+    const dimensions =
+      computed?.dimensions ??
+      computeOpportunityScore({
+        ...signals,
+        price,
+        limitedHistory,
+      }).dimensions;
+    const highlights = buildHighlights(signals, dimensions, {
+      limitedHistory,
+      price,
+    });
 
     const technicalBrief = buildTechnicalBrief({
       price,

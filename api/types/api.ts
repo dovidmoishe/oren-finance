@@ -20,6 +20,7 @@ import type {
   TradeIntent,
 } from './execution';
 import type {
+  ChartInterval,
   ChartRange,
   ChartSeries,
   MarketMover,
@@ -97,9 +98,18 @@ export type GetStockResponse = Equity;
 /** GET /stocks/:assetId/chart?range= */
 export interface GetStockChartQuery {
   range?: ChartRange;
+  interval?: ChartInterval;
 }
 
 export type GetStockChartResponse = ChartSeries;
+
+/** GET /stocks/charts?ids=tesla,nvidia&range=1D (display data only). */
+export interface GetStockChartsQuery extends GetStockChartQuery {
+  ids: string;
+}
+
+/** Failed ids are omitted; successful series remain available in partial responses. */
+export type GetStockChartsResponse = Partial<Record<string, ChartSeries>>;
 
 /** GET /stocks/:assetId/news */
 export type GetStockNewsResponse = NewsFeed;

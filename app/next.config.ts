@@ -69,7 +69,25 @@ const nextConfig: NextConfig = {
       : [];
   },
   async headers() {
-    return [{ source: "/:path*", headers: [{ key: "Content-Security-Policy", value: contentSecurityPolicy }] }];
+    return [
+      { source: "/:path*", headers: [{ key: "Content-Security-Policy", value: contentSecurityPolicy }] },
+      {
+        source: "/videos/:path*",
+        headers: [{ key: "Cache-Control", value: "public, max-age=31536000, immutable" }],
+      },
+      ...[
+        "/icon-192.png", "/icon-512.png",
+        "/oren-mark.svg", "/oren-email-mark.png", "/oren-error-landscape.png", "/usdc.svg",
+        "/file.svg", "/globe.svg", "/next.svg", "/vercel.svg", "/window.svg",
+        "/oren-editorial-landscape-hero.webp", "/oren-market-landscape-hero.webp", "/agents-coastal-garden-hero.webp",
+        "/landing/:path*",
+        // Only screenshot files: /changelog and its HTML entries keep Next's cache policy.
+        "/changelog/:file([^/]+\\.webp)",
+      ].map((source) => ({
+        source,
+        headers: [{ key: "Cache-Control", value: "public, max-age=3600, must-revalidate" }],
+      })),
+    ];
   },
   outputFileTracingIncludes: {
     "/changelog": ["./content/changelog/*.json"],

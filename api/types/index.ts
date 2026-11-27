@@ -166,6 +166,8 @@ export type {
   GetStockAnalysisResponse,
   GetStockChartQuery,
   GetStockChartResponse,
+  GetStockChartsQuery,
+  GetStockChartsResponse,
   GetStockNewsResponse,
   GetStockResponse,
   GetStocksResponse,

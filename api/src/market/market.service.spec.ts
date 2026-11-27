@@ -3,6 +3,45 @@ import type { StockCatalogRepository } from '../tokens/stock-catalog.repository'
 import { MarketService } from './market.service';
 
 describe('MarketService', () => {
+  it('returns finished charts before the client deadline and caches late charts for later reads', async () => {
+    jest.useFakeTimers();
+    try {
+      const getPriceChart = jest.fn((id: string) => {
+        if (id === 'slow') {
+          return new Promise((resolve) =>
+            setTimeout(() => resolve([]), 30_000),
+          );
+        }
+        return Promise.resolve([]);
+      });
+      const service = new MarketService(
+        { getPriceChart } as unknown as TokensService,
+        {
+          findByAssetIds: jest.fn(([id]: string[]) =>
+            Promise.resolve([{ id, ticker: id.toUpperCase() }]),
+          ),
+        } as unknown as StockCatalogRepository,
+      );
+
+      const batch = service.getCharts(['slow', 'fast'], '1D');
+      await jest.advanceTimersByTimeAsync(12_000);
+      const results = await batch;
+      expect(results).toEqual({
+        fast: { assetId: 'fast', ticker: 'FAST', range: '1D', candles: [] },
+      });
+
+      await jest.advanceTimersByTimeAsync(18_000);
+      expect(Object.keys(results)).toEqual(['fast']);
+      await expect(service.getChart('slow', '1D')).resolves.toMatchObject({
+        assetId: 'slow',
+        candles: [],
+      });
+      expect(getPriceChart).toHaveBeenCalledTimes(2);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
   it('distinguishes no interests, a classified catalog without matches, and an unavailable catalog', async () => {
     const findSectorCandidates = jest
       .fn()

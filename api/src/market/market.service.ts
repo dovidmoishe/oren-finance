@@ -4,7 +4,10 @@ import {
   ServiceUnavailableException,
   type OnApplicationBootstrap,
 } from '@nestjs/common';
-import type { GetStocksResponse } from '../../types/api';
+import type {
+  GetStockChartsResponse,
+  GetStocksResponse,
+} from '../../types/api';
 import type {
   Equity,
   EquitySummary,
@@ -23,6 +26,9 @@ import { StockCatalogRepository } from '../tokens/stock-catalog.repository';
 import { TokensService } from '../tokens/tokens.service';
 import { rankSectorMatches } from './sector-ranking';
 import { MarketReadCache } from './market-read-cache';
+
+// Include time in the chart queue and leave room for the browser's 15s deadline.
+const CHART_BATCH_WAIT_MS = 12_000;
 
 @Injectable()
 export class MarketService implements OnApplicationBootstrap {
@@ -146,6 +152,34 @@ export class MarketService implements OnApplicationBootstrap {
     return this.charts.get(JSON.stringify([assetId, range, interval]), () =>
       this.loadChart(assetId, range, interval),
     );
+  }
+
+  async getCharts(
+    assetIds: string[],
+    range: ChartRange,
+    interval?: ChartInterval,
+  ): Promise<GetStockChartsResponse> {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const deadline = new Promise<undefined>((resolve) => {
+      timer = setTimeout(() => resolve(undefined), CHART_BATCH_WAIT_MS);
+    });
+    try {
+      // Bound the response wait while allowing shared cache reads to finish.
+      const results = await Promise.allSettled(
+        assetIds.map((assetId) =>
+          Promise.race([this.getChart(assetId, range, interval), deadline]),
+        ),
+      );
+      return Object.fromEntries(
+        results.flatMap((result, index) =>
+          result.status === 'fulfilled' && result.value !== undefined
+            ? [[assetIds[index], result.value]]
+            : [],
+        ),
+      );
+    } finally {
+      clearTimeout(timer);
+    }
   }
 
   private async loadChart(

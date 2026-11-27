@@ -1,6 +1,6 @@
 import { apiRequest } from "./api-client";
 import type { InterestId, SectorId } from "./preferences-service";
-import type { ChartInterval, ChartRange, MarketCandle, NewsItem, StockAnalysis, StockDetail, StockSummary, StocksPage } from "@/types";
+import type { ChartInterval, ChartRange, MarketCandle, NewsItem, StockAnalysis, StockCharts, StockDetail, StockSummary, StocksPage } from "@/types";
 
 interface ApiStockSummary {
   id?: string;
@@ -98,6 +98,13 @@ export function getStockChart(assetId: string, range: ChartRange, signal?: Abort
     query: { range, interval },
     signal,
   }).then((series) => series.candles);
+}
+
+export function getStockCharts(ids: string[], range: ChartRange, signal?: AbortSignal, interval?: ChartInterval) {
+  return apiRequest<StockCharts>("/stocks/charts", {
+    query: { ids: ids.join(","), range, interval },
+    signal,
+  });
 }
 
 export function getStockAnalysis(assetId: string, signal?: AbortSignal) {

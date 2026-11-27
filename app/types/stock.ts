@@ -52,6 +52,17 @@ export interface MarketCandle {
   volume?: number;
 }
 
+export interface StockChartSeries {
+  assetId: string;
+  ticker: string;
+  range: ChartRange;
+  interval?: ChartInterval;
+  candles: MarketCandle[];
+}
+
+/** Public display series keyed by asset id; failed ids are omitted. */
+export type StockCharts = Partial<Record<string, StockChartSeries>>;
+
 export interface StockSignals {
   assetId: string;
   ticker: string;
