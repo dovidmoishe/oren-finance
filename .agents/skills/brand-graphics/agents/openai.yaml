@@ -1,4 +1,4 @@
 interface:
   display_name: "Oren brand graphics"
-  short_description: "Social graphics in the approved Oren style"
-  default_prompt: "Use $brand-graphics to write a 16:9 Oren social graphic in the approved style: Instrument Sans, sage payoff line, official mascot inside one idea, and the review checklist before handoff."
+  short_description: "Social graphics in the Oren Valley style"
+  default_prompt: "Use $brand-graphics to make a 16:9 Oren social post from templates/post.html in the Valley style: Onest type, ink statement with a muted payoff, one lavender badge, the official mascot, and the review checklist before handoff."
