@@ -30,8 +30,15 @@ import { usePortfolioStore, useWalletStore } from "@/store";
 import type { TradingCalendarDaySummary, TradingCalendarEvent } from "@/types";
 import { useI18n } from "@/i18n/i18n";
 
-function currentMonth() {
-  return new Date().toISOString().slice(0, 7);
+function calendarMonth(timeZone: string, now = new Date()) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+  }).formatToParts(now);
+  const year = parts.find((part) => part.type === "year")?.value;
+  const month = parts.find((part) => part.type === "month")?.value;
+  return year && month ? `${year}-${month}` : now.toISOString().slice(0, 7);
 }
 
 function shiftMonth(month: string, delta: number) {
@@ -118,7 +125,7 @@ export function TradingCalendar() {
   const loadCalendar = usePortfolioStore((state) => state.loadCalendar);
   const loadCalendarDay = usePortfolioStore((state) => state.loadCalendarDay);
   const reset = usePortfolioStore((state) => state.reset);
-  const [month, setMonth] = useState(currentMonth);
+  const [month, setMonth] = useState(() => calendarMonth(browserTimeZone()));
   const [selectedDate, setSelectedDate] = useState<string>();
   const timeZone = useMemo(() => browserTimeZone(), []);
 
