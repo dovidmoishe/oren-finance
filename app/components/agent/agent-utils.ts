@@ -110,6 +110,8 @@ export function toolLabel(toolName: string) {
     getPortfolioActivity: 'Reading portfolio activity',
     getTradingCalendar: 'Reading trading calendar',
     getTradingCalendarDay: 'Opening day drilldown',
+    isMarketOpen: 'Checking US market hours',
+    getMarketCalendar: 'Reading the US market calendar',
     getStock: 'Loading stock data',
     getBitgetMarketContext: 'Checking Bitget live market',
     getStockChart: 'Reading price history',
