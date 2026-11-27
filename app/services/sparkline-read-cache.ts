@@ -2,7 +2,11 @@ import type { MarketCandle } from "@/types";
 import { getStockCharts } from "./market-service";
 import { createSharedReadCache } from "./shared-read-cache";
 
-/** Per-id display cache with frame batching and at most four HTTP requests. */
+const MAX_CHARTS_PER_BATCH = 20;
+// Three full batches submit at most 60 reads to the API's 64-entry chart queue.
+const MAX_ACTIVE_BATCHES = 3;
+
+/** Per-id display cache with frame batching and bounded HTTP concurrency. */
 export function createSparklineReader(
   load = getStockCharts,
   schedule: (flush: () => void) => void = (flush) => { requestAnimationFrame(flush); },
@@ -23,7 +27,7 @@ export function createSparklineReader(
   const abortError = () => new DOMException("Read cancelled", "AbortError");
 
   function pump() {
-    while (active < 4 && batches.length) {
+    while (active < MAX_ACTIVE_BATCHES && batches.length) {
       const entries = batches.shift()!.filter((entry) => !entry.signal.aborted);
       if (!entries.length) continue;
       const controller = new AbortController();
@@ -53,7 +57,9 @@ export function createSparklineReader(
     scheduled = false;
     const entries = [...waiting];
     waiting.clear();
-    for (let index = 0; index < entries.length; index += 20) batches.push(entries.slice(index, index + 20));
+    for (let index = 0; index < entries.length; index += MAX_CHARTS_PER_BATCH) {
+      batches.push(entries.slice(index, index + MAX_CHARTS_PER_BATCH));
+    }
     pump();
   }
 

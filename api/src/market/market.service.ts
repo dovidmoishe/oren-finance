@@ -27,6 +27,9 @@ import { TokensService } from '../tokens/tokens.service';
 import { rankSectorMatches } from './sector-ranking';
 import { MarketReadCache } from './market-read-cache';
 
+// Include time in the chart queue and leave room for the browser's 15s deadline.
+const CHART_BATCH_WAIT_MS = 12_000;
+
 @Injectable()
 export class MarketService implements OnApplicationBootstrap {
   private readonly logger = new Logger(MarketService.name);
@@ -156,14 +159,27 @@ export class MarketService implements OnApplicationBootstrap {
     range: ChartRange,
     interval?: ChartInterval,
   ): Promise<GetStockChartsResponse> {
-    const results = await Promise.allSettled(
-      assetIds.map((assetId) => this.getChart(assetId, range, interval)),
-    );
-    return Object.fromEntries(
-      results.flatMap((result, index) =>
-        result.status === 'fulfilled' ? [[assetIds[index], result.value]] : [],
-      ),
-    );
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const deadline = new Promise<undefined>((resolve) => {
+      timer = setTimeout(() => resolve(undefined), CHART_BATCH_WAIT_MS);
+    });
+    try {
+      // Bound the response wait while allowing shared cache reads to finish.
+      const results = await Promise.allSettled(
+        assetIds.map((assetId) =>
+          Promise.race([this.getChart(assetId, range, interval), deadline]),
+        ),
+      );
+      return Object.fromEntries(
+        results.flatMap((result, index) =>
+          result.status === 'fulfilled' && result.value !== undefined
+            ? [[assetIds[index], result.value]]
+            : [],
+        ),
+      );
+    } finally {
+      clearTimeout(timer);
+    }
   }
 
   private async loadChart(

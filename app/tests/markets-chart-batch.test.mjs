@@ -116,7 +116,7 @@ test("per-id consumers cancel independently and the last visible id aborts the s
   assert.equal(calls[0].signal.aborted, true);
 });
 
-test("abandoned frame entries never fetch, batch size stays at 20, and HTTP concurrency stays at four", async () => {
+test("abandoned frame entries never fetch and concurrent batches fit the API chart queue", async () => {
   const releases = [];
   const { read, calls, frame } = fixture((ids) => new Promise((resolve) => releases.push(() => resolve(Object.fromEntries(ids.map((id) => [id, { candles: [] }]))))));
   const controller = new AbortController();
@@ -127,7 +127,8 @@ test("abandoned frame entries never fetch, batch size stays at 20, and HTTP conc
   assert.equal(calls.length, 0);
   const reads = Array.from({ length: 100 }, (_, index) => read(`stock-${index}`));
   await frame();
-  assert.equal(calls.length, 4);
+  assert.equal(calls.length, 3);
+  assert.equal(calls.reduce((total, call) => total + call.ids.length, 0), 60);
   assert.ok(calls.every((call) => call.ids.length === 20));
   releases.splice(0).forEach((resolve) => resolve());
   await tick();

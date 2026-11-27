@@ -114,6 +114,8 @@ describe('public stock display endpoints', () => {
   });
 
   it('omits failed ids while sharing per-id cached/in-flight work with single-chart reads', async () => {
+    // Keep the listener open until both requests finish.
+    await app.listen(0, '127.0.0.1');
     const server = app.getHttpServer() as Server;
     const [batch, single] = await Promise.all([
       request(server)
