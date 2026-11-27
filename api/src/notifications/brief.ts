@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
 import type { MarketNewsItem } from '../../types/news';
 import { sql } from 'drizzle-orm';
 import { Temporal } from '@js-temporal/polyfill';
@@ -11,6 +11,8 @@ import { PrivyWalletAuth } from '../auth/privy-wallet-auth';
 import { APP_ENV, USDC_MINT } from '../config/constants';
 import type { AppEnv } from '../config/env.schema';
 import { NewsService } from '../news/news.service';
+import { toMarketEvent } from '../market/calendar/market-calendar.service';
+import { MarketEventsRepository } from '../market/calendar/market-events.repository';
 import { PreferencesReader } from '../preferences/preferences-reader';
 import { StockCatalogRepository } from '../tokens/stock-catalog.repository';
 import { TokensService } from '../tokens/tokens.service';
@@ -24,12 +26,15 @@ import {
 } from './brief-math';
 import { NotificationJobs, type Job } from './jobs';
 import { providerQuote } from './quotes';
+import type { BriefMarketEvent } from './brief-email';
 import { BRIEF_GRACE_MS } from './schedule';
 import { notificationSettings } from './settings';
 
 class SnapshotBudgetExhausted extends Error {}
 const ACCOUNT_HISTORY_LIMIT = 80;
 const MAX_TRANSACTIONS = 150;
+const BRIEF_EVENT_HOURS = 48;
+const BRIEF_EVENT_LIMIT = 6;
 
 @Injectable()
 export class MorningBrief {
@@ -43,6 +48,7 @@ export class MorningBrief {
     private readonly news: NewsService,
     @InjectOpenAIClient() private readonly openai: OpenAIClient,
     @Inject(APP_ENV) private readonly env: AppEnv,
+    @Optional() private readonly marketEvents?: MarketEventsRepository,
   ) {}
 
   async build(job: Job) {
@@ -201,6 +207,9 @@ export class MorningBrief {
     if (!hasHoldings && !holdings?.value && !stories.length) {
       return this.jobs.update(job, 'canceled');
     }
+    const events = await this.officialEvents(date, zone).catch(
+      (): BriefMarketEvent[] => [],
+    );
     const facts = {
       value: holdings?.value,
       valueVerified: holdings?.reliable ?? false,
@@ -208,6 +217,7 @@ export class MorningBrief {
       moves,
       stories,
       hasHoldings,
+      events,
     };
     const narrative = await this.narrate(facts);
     return this.jobs.queueBriefEmail(job, {
@@ -261,6 +271,52 @@ export class MorningBrief {
     } catch {
       return null;
     }
+  }
+
+  /**
+   * Official US releases from the start of the reader's day through the next
+   * 48 hours, read from Postgres only. Empty when the calendar has no rows.
+   */
+  private async officialEvents(
+    date: string,
+    zone: string,
+  ): Promise<BriefMarketEvent[]> {
+    if (!this.marketEvents) return [];
+    const now = Date.now();
+    let from = now;
+    try {
+      from = Temporal.PlainDate.from(date).toZonedDateTime({
+        timeZone: zone,
+      }).epochMilliseconds;
+    } catch {
+      // An unreadable zone falls back to "from now".
+    }
+    const to = now + BRIEF_EVENT_HOURS * 3_600_000;
+    if (to <= from) return [];
+    const rows = await this.marketEvents.listRange(
+      new Date(from),
+      new Date(to),
+      undefined,
+      BRIEF_EVENT_LIMIT * 2,
+    );
+    return rows
+      .map((row) => toMarketEvent(row, new Date(now)))
+      .filter((event) => event.status !== 'cancelled')
+      .slice(0, BRIEF_EVENT_LIMIT)
+      .map((event) => ({
+        title: event.title,
+        agencyId: event.agencyId,
+        agency: event.agency,
+        scheduledAt: event.scheduledAt,
+        timePrecision: event.timePrecision,
+        timeBasis: event.timeBasis,
+        dateBasis: event.dateBasis,
+        status: event.status,
+        actualText: event.actualText,
+        previousText: event.previousText,
+        sourceUrl: event.sourceUrl,
+        retrievedAt: event.retrievedAt,
+      }));
   }
 
   private async boundary(userId: string, wallet: string, date: string) {

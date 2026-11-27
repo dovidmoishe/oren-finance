@@ -1,14 +1,29 @@
 import type { Quote } from '../../types/quote';
 import {
+  EARLY_CLOSE_MINUTE,
+  etInstant,
+  usEquityCalendar,
+} from './calendar/us-equity-calendar';
+import {
   NYSE_CALENDAR_COVERED_THROUGH,
-  NYSE_EARLY_CLOSE_DATES,
-  NYSE_FULL_CLOSE_DATES,
   marketSessionForTrade,
   stampQuoteMarketSession,
   usMarketSession,
 } from './us-market-session';
 
 const at = (iso: string) => new Date(iso);
+
+// Published NYSE years, read through the calendar core so the holiday list
+// exists in exactly one place.
+const publishedClosures = [2026, 2027, 2028].flatMap(
+  (year) => usEquityCalendar.listClosures(year).closures,
+);
+const NYSE_FULL_CLOSE_DATES = publishedClosures
+  .filter((closure) => closure.kind === 'full_close')
+  .map((closure) => closure.date);
+const NYSE_EARLY_CLOSE_DATES = publishedClosures
+  .filter((closure) => closure.kind === 'early_close')
+  .map((closure) => closure.date);
 
 describe('us market session', () => {
   it('treats 9:30 ET as regular and 16:00 ET as after-hours', () => {
@@ -46,21 +61,40 @@ describe('us market session', () => {
     expect(usMarketSession(at('2026-11-08T15:00:00Z')).state).toBe('closed');
     expect(usMarketSession(at('2026-11-07T05:00:00Z')).state).toBe('closed');
     expect(usMarketSession(at('2026-11-06T02:00:00Z')).state).toBe('overnight');
+    expect(NYSE_FULL_CLOSE_DATES).toHaveLength(29);
     for (const day of NYSE_FULL_CLOSE_DATES) {
       expect(usMarketSession(at(`${day}T15:00:00Z`)).state).toBe('closed');
       expect(usMarketSession(at(`${day}T22:00:00Z`)).state).toBe('closed');
     }
+    expect(NYSE_FULL_CLOSE_DATES).not.toContain('2028-01-01');
+    expect(NYSE_FULL_CLOSE_DATES).not.toContain('2027-12-31');
     expect(usMarketSession(at('2026-07-03T15:00:00Z')).state).toBe('closed');
     expect(usMarketSession(at('2027-12-24T15:00:00Z')).state).toBe('closed');
     expect(usMarketSession(at('2027-06-18T15:00:00Z')).state).toBe('closed');
   });
 
   it('ends regular hours at 13:00 ET on published early-close dates', () => {
+    expect(NYSE_EARLY_CLOSE_DATES).toEqual([
+      '2026-11-27',
+      '2026-12-24',
+      '2027-11-26',
+      '2028-07-03',
+      '2028-11-24',
+    ]);
     for (const day of NYSE_EARLY_CLOSE_DATES) {
-      expect(usMarketSession(at(`${day}T17:59:00Z`)).state).toBe('regular');
-      expect(usMarketSession(at(`${day}T18:00:00Z`)).state).toBe('early_close');
-      expect(usMarketSession(at(`${day}T23:59:00Z`)).state).toBe('early_close');
+      const close = etInstant(day, EARLY_CLOSE_MINUTE).getTime();
+      expect(usMarketSession(new Date(close - 60_000)).state).toBe('regular');
+      expect(usMarketSession(new Date(close)).state).toBe('early_close');
+      expect(usMarketSession(etInstant(day, 19 * 60 + 59)).state).toBe(
+        'early_close',
+      );
+      expect(usMarketSession(etInstant(day, 20 * 60)).state).toBe('overnight');
     }
+    expect(usMarketSession(at('2026-11-27T17:59:00Z')).state).toBe('regular');
+    expect(usMarketSession(at('2028-07-03T16:59:00Z')).state).toBe('regular');
+    expect(usMarketSession(at('2028-07-03T17:00:00Z')).state).toBe(
+      'early_close',
+    );
     expect(usMarketSession(at('2026-11-28T01:00:00Z')).state).toBe('overnight');
     expect(usMarketSession(at('2026-07-02T18:00:00Z')).state).toBe('regular');
     expect(usMarketSession(at('2027-07-02T18:00:00Z')).state).toBe('regular');

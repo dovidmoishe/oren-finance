@@ -1,323 +1,351 @@
 "use client";
 
-import {
-  ChevronLeft as ChevronLeftIcon,
-  ChevronRight as ChevronRightIcon,
-  RefreshCw as RefreshCwIcon,
-} from "lucide-react";
+import { ChevronLeft as ChevronLeftIcon, ChevronRight as ChevronRightIcon } from "lucide-react";
 
 import { useEffect, useMemo, useState } from "react";
 import { useOrenAuth } from "@/components/auth/auth-context";
 import { RestoreActions, restoreBlocked } from "@/components/auth/restore-actions";
-import {
-  Button,
-  Card,
-  CardContent,
-  CardHeader,
-  EmptyState,
-  ErrorState,
-  Skeleton,
-  cn,
-  formatCurrency,
-  formatDate,
-  formatMonth,
-  formatNumber,
-  formatPercent,
-  formatRelativeTime,
-  weekdayLabels,
-} from "@/components/ui";
-import { usePortfolioStore, useWalletStore } from "@/store";
-import type { TradingCalendarDaySummary, TradingCalendarEvent } from "@/types";
+import { Button, Card, ErrorState, Skeleton, cn, formatMonth } from "@/components/ui";
+import { useAgentStore, usePortfolioStore, useWalletStore } from "@/store";
+import type { UsEquitySessionResponse } from "@/types";
 import { useI18n } from "@/i18n/i18n";
-
-function currentMonth() {
-  return new Date().toISOString().slice(0, 7);
-}
-
-function shiftMonth(month: string, delta: number) {
-  const [year, monthIndex] = month.split("-").map(Number);
-  const date = new Date(Date.UTC(year, monthIndex - 1 + delta, 1));
-  return date.toISOString().slice(0, 7);
-}
+import { DayPanel, MarketSources } from "./day-panel";
+import { DayRecap } from "./day-recap";
+import { ReleaseReminderButton } from "./release-reminder";
+import {
+  CALENDAR_LAYERS,
+  NEW_YORK,
+  addDays,
+  calendarTimeZone,
+  civilDate,
+  eventsByDate,
+  formatShortClock,
+  formatWeekdayClock,
+  marketDays,
+  monthDates,
+  progressBetween,
+  type CalendarLayer,
+} from "./market-layer";
+import { MonthGrid } from "./month-grid";
+import { useHydrated, useMarketCalendar, useMarketDayRecap, useMarketHours } from "./use-market-calendar";
 
 function browserTimeZone() {
   return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 }
 
-function dayNumber(date: string) {
-  return Number(date.slice(-2));
+const DATE_PARAM = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
+
+/**
+ * `?date=YYYY-MM-DD&layer=market` deep links, read once on the client. The
+ * server render never depends on them: everything date-shaped waits for
+ * hydration.
+ */
+function linkedState() {
+  if (typeof window === "undefined" || !window.location?.search) return {};
+  const params = new URLSearchParams(window.location.search);
+  const date = params.get("date") ?? undefined;
+  const layer = params.get("layer");
+  return {
+    date: date && DATE_PARAM.test(date) ? date : undefined,
+    layer: CALENDAR_LAYERS.includes(layer as CalendarLayer) ? (layer as CalendarLayer) : undefined,
+  };
 }
 
-function eventTone(type: TradingCalendarEvent["type"]) {
-  if (type === "movement") return "bg-foreground";
-  if (type === "agent") return "bg-accent-lavender";
-  if (type === "lock" || type === "unlock") return "bg-accent-pink";
-  return "bg-accent-yellow";
+/** Typing in Copilot or any field must never move the calendar. */
+function isTyping(target: EventTarget | null) {
+  return target instanceof HTMLElement && (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName));
 }
 
-function dayClass(day: TradingCalendarDaySummary, maxMove: number) {
-  if (!day.hasData) return "bg-panel-subtle text-muted";
-  const intensity = Math.min(1, Math.abs(day.pnlUsd) / Math.max(maxMove, 1));
-  if (day.pnlUsd > 0) {
-    return intensity > 0.66 ? "bg-heat-up-3 text-heat-foreground" : intensity > 0.33 ? "bg-heat-up-2" : "bg-heat-up-1";
-  }
-  if (day.pnlUsd < 0) {
-    return intensity > 0.66 ? "bg-heat-down-3 text-heat-foreground" : intensity > 0.33 ? "bg-heat-down-2" : "bg-heat-down-1";
-  }
-  return "bg-panel text-foreground";
+function shiftMonth(month: string, delta: number) {
+  const [year, monthIndex] = month.split("-").map(Number);
+  return new Date(Date.UTC(year, monthIndex - 1 + delta, 1)).toISOString().slice(0, 7);
 }
 
-function Metric({ label, value, detail }: { label: string; value: string; detail: string }) {
+function LayerToggle({ value, onChange }: { value: CalendarLayer; onChange: (layer: CalendarLayer) => void }) {
+  const { t } = useI18n();
+  const labels: Record<CalendarLayer, string> = {
+    all: t("calendar.layerAll"),
+    portfolio: t("calendar.layerPortfolio"),
+    market: t("calendar.layerMarket"),
+  };
   return (
-    <section className="rounded-[20px] bg-panel-subtle p-4">
-      <p className="text-xs font-semibold text-muted">{label}</p>
-      <p className="mt-2 font-display text-2xl font-semibold tracking-normal">{value}</p>
-      <p className="mt-1 text-xs text-muted">{detail}</p>
-    </section>
+    <div aria-label={t("calendar.layers")} className="inline-flex rounded-full bg-panel-subtle p-0.5 text-xs" role="group">
+      {CALENDAR_LAYERS.map((layer) => (
+        <button
+          aria-pressed={layer === value}
+          className={cn(
+            "h-7 rounded-full px-3 font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-focus",
+            layer === value ? "bg-panel text-foreground shadow-sm" : "text-muted hover:text-foreground",
+          )}
+          key={layer}
+          onClick={() => onChange(layer)}
+          type="button"
+        >
+          {labels[layer]}
+        </button>
+      ))}
+    </div>
   );
 }
 
-function EventRow({ event }: { event: TradingCalendarEvent }) {
+/** Live US session: a lavender pulse while the regular session is open. */
+function MarketPill({ session }: { session?: UsEquitySessionResponse }) {
   const { locale, t } = useI18n();
+  if (!session) return <span aria-hidden className="h-7 w-36 animate-pulse rounded-full bg-panel-subtle" />;
+  const next = session.isOpen
+    ? t("calendar.market.closesAt", { time: formatShortClock(session.nextRegularClose, locale, NEW_YORK) })
+    : t("calendar.market.opensAt", {
+        time:
+          civilDate(NEW_YORK, new Date(session.nextRegularOpen)) === session.date
+            ? formatShortClock(session.nextRegularOpen, locale, NEW_YORK)
+            : formatWeekdayClock(session.nextRegularOpen, locale, NEW_YORK),
+      });
+  const state = t(`calendar.market.state.${session.state}`);
   return (
-    <div className="flex items-start gap-3 rounded-[16px] border border-border bg-background p-3">
-      <span className={cn("mt-1 h-2.5 w-2.5 shrink-0 rounded-full", eventTone(event.type))} />
-      <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <p className="text-sm font-semibold">{event.title}</p>
-          <p className="text-xs text-muted">{formatRelativeTime(event.occurredAt, locale, { justNow: t("common.justNow"), unknown: t("common.unknown") })}</p>
-        </div>
-        <p className="mt-1 text-xs text-muted">
-          {event.detail ?? event.status ?? t("calendar.observedEvent")}
-          {event.ticker ? ` · ${event.ticker}` : ""}
-          {event.route ? ` · ${event.route}` : ""}
-        </p>
-      </div>
-    </div>
-  );
-}
-
-function CalendarSkeleton() {
-  return (
-    <div className="space-y-5">
-      <Skeleton className="h-24" />
-      <Skeleton className="h-[520px]" />
-    </div>
+    <span aria-label={`${t("calendar.market.title")}: ${state}, ${next}`} className="inline-flex h-7 items-center gap-2 rounded-full bg-panel-subtle px-3 text-xs" role="status">
+      <span aria-hidden className="relative flex size-2">
+        {session.isOpen ? <span className="absolute inline-flex size-full animate-ping rounded-full bg-brand opacity-60 motion-reduce:hidden" /> : null}
+        <span className={cn("relative inline-flex size-2 rounded-full", session.isOpen ? "bg-brand" : "bg-muted-2")} />
+      </span>
+      <span aria-hidden className="font-medium">{state}</span>
+      <span aria-hidden className="text-muted">{next}</span>
+    </span>
   );
 }
 
 export function TradingCalendar() {
   const auth = useOrenAuth();
   const { locale, t } = useI18n();
+  const hydrated = useHydrated();
   const wallet = useWalletStore((state) => state.address);
   const connected = useWalletStore((state) => state.connected);
   const calendar = usePortfolioStore((state) => state.calendar);
   const calendarDay = usePortfolioStore((state) => state.calendarDay);
-  const isLoading = usePortfolioStore((state) => state.isCalendarLoading);
   const error = usePortfolioStore((state) => state.error);
   const loadCalendar = usePortfolioStore((state) => state.loadCalendar);
   const loadCalendarDay = usePortfolioStore((state) => state.loadCalendarDay);
   const reset = usePortfolioStore((state) => state.reset);
-  const [month, setMonth] = useState(currentMonth);
-  const [selectedDate, setSelectedDate] = useState<string>();
-  const timeZone = useMemo(() => browserTimeZone(), []);
+  const viewerTimeZone = useMemo(() => browserTimeZone(), []);
+  const [linked] = useState(linkedState);
+  const [chosenMonth, setMonth] = useState(linked.date?.slice(0, 7));
+  const [selectedDate, setSelectedDate] = useState<string | undefined>(linked.date);
+  const [layerChoice, setLayerChoice] = useState<CalendarLayer>(linked.layer ?? "all");
+  const agentBusy = useAgentStore((state) => state.isSending);
+  const setAgentOpen = useAgentStore((state) => state.setPanelOpen);
+  const newChat = useAgentStore((state) => state.newChat);
+  const sendToAgent = useAgentStore((state) => state.sendMessage);
+
+  // Signed out, only the public market layer has data to show.
+  const layer: CalendarLayer = connected ? layerChoice : "market";
+  const timeZone = calendarTimeZone(layer, viewerTimeZone);
+  const currentDate = civilDate(timeZone);
+  const today = hydrated ? currentDate : undefined;
+  const month = chosenMonth ?? currentDate.slice(0, 7);
+  const showPortfolio = layer !== "market";
+  const showMarket = layer !== "portfolio";
+  const activeDate = selectedDate ?? (today?.startsWith(month) ? today : undefined);
+
+  const market = useMarketCalendar(month, today, hydrated && showMarket);
+  const { hours } = useMarketHours(activeDate, hydrated && showMarket);
+  const dayRecap = useMarketDayRecap(activeDate, hydrated && showMarket);
+
+  // Keep the address bar shareable without adding history entries.
+  useEffect(() => {
+    if (!hydrated) return;
+    const url = new URL(window.location.href);
+    if (selectedDate) url.searchParams.set("date", selectedDate);
+    else url.searchParams.delete("date");
+    if (layerChoice !== "all") url.searchParams.set("layer", layerChoice);
+    else url.searchParams.delete("layer");
+    if (url.href !== window.location.href) window.history.replaceState(window.history.state, "", url);
+  }, [hydrated, layerChoice, selectedDate]);
 
   useEffect(() => {
     if (!wallet || !connected) {
       reset();
       return;
     }
-    void loadCalendar(wallet, { month, timeZone });
-  }, [connected, loadCalendar, month, reset, timeZone, wallet]);
+    if (showPortfolio) void loadCalendar(wallet, { month, timeZone });
+  }, [connected, loadCalendar, month, reset, showPortfolio, timeZone, wallet]);
 
   useEffect(() => {
-    if (!wallet || !connected || !selectedDate) return;
-    void loadCalendarDay(wallet, selectedDate, { timeZone });
-  }, [connected, loadCalendarDay, selectedDate, timeZone, wallet]);
+    if (!wallet || !connected || !showPortfolio || !activeDate) return;
+    void loadCalendarDay(wallet, activeDate, { timeZone });
+  }, [activeDate, connected, loadCalendarDay, showPortfolio, timeZone, wallet]);
 
-  const maxMove = useMemo(
-    () => Math.max(...(calendar?.days ?? []).map((day) => Math.abs(day.pnlUsd)), 1),
-    [calendar],
+  const dates = useMemo(() => monthDates(month), [month]);
+  const portfolioDays = useMemo(
+    () => {
+      const matches = showPortfolio && calendar && calendar.walletAddress === wallet && calendar.timeZone === timeZone && calendar.range.month === month;
+      return new Map(matches ? calendar.days.map((day) => [day.date, day] as const) : []);
+    },
+    [calendar, month, showPortfolio, timeZone, wallet],
   );
-  const selectedSummary = calendar?.days.find((day) => day.date === selectedDate);
-  const monthPnl = useMemo(
-    () => (calendar?.days ?? []).reduce((sum, day) => sum + day.pnlUsd, 0),
-    [calendar],
+  const marketByDate = useMemo(
+    () => (showMarket ? marketDays(dates, market.closures?.closures, market.closures?.provisional) : undefined),
+    [dates, market.closures, showMarket],
   );
-  const activeDays = calendar?.days.filter((day) => day.hasData).length ?? 0;
+  const releases = useMemo(() => eventsByDate(showMarket ? market.events?.events : undefined), [market.events, showMarket]);
+  const maxMove = useMemo(() => Math.max(...[...portfolioDays.values()].map((day) => Math.abs(day.pnlUsd)), 1), [portfolioDays]);
+  const monthPnl = useMemo(() => [...portfolioDays.values()].reduce((sum, day) => sum + day.pnlUsd, 0), [portfolioDays]);
+  const hasMonthPnl = [...portfolioDays.values()].some((day) => day.hasData);
 
-  if (!connected) {
-    return (
-      <div className="mx-auto max-w-6xl">
-        <div className="mb-5">
-          <p className="text-sm text-muted">{t("calendar.eyebrow")}</p>
-          <h1 className="font-display text-4xl font-semibold tracking-normal">{t("calendar.title")}</h1>
-        </div>
-        <EmptyState
-          action={restoreBlocked(auth) ? <RestoreActions signInLabel={t("common.signIn")} /> : undefined}
-          description={restoreBlocked(auth) ? t("auth.restoreSlow") : auth.authenticated ? auth.error || t("calendar.preparingDescription") : t("calendar.signInDescription")}
-          title={restoreBlocked(auth) ? t("auth.restoreSlowTitle") : !auth.ready ? t("calendar.restoring") : auth.authenticated ? t("calendar.preparing") : t("calendar.signInTitle")}
-        />
-      </div>
+  // The session refreshes each minute; its observation time drives the progress marks.
+  const now = market.session ? Date.parse(market.session.observedAt) : undefined;
+  const todayHours = market.session?.hours;
+  const todayProgress =
+    now !== undefined && todayHours?.regularOpenUtc && todayHours.regularCloseUtc && market.session?.date === today
+      ? progressBetween(now, todayHours.regularOpenUtc, todayHours.regularCloseUtc)
+      : undefined;
+
+  const changeMonth = (delta: number) => {
+    setSelectedDate(undefined);
+    setMonth((value) => shiftMonth(value ?? month, delta));
+  };
+  const selectDate = (date: string) => {
+    setSelectedDate(date);
+    setMonth(date.slice(0, 7));
+  };
+  const goToday = () => {
+    if (today) selectDate(today);
+  };
+  /** Arrow keys walk days and weeks, crossing into the next or previous month. */
+  const moveSelection = (days: number) => selectDate(addDays(activeDate ?? `${month}-01`, days));
+
+  // T jumps to today, [ and ] change month.
+  useEffect(() => {
+    if (!hydrated) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey || isTyping(event.target)) return;
+      if (event.key === "t" || event.key === "T") {
+        const now = civilDate(timeZone);
+        setSelectedDate(now);
+        setMonth(now.slice(0, 7));
+      } else if (event.key === "[" || event.key === "]") {
+        setSelectedDate(undefined);
+        setMonth((value) => shiftMonth(value ?? month, event.key === "]" ? 1 : -1));
+      } else return;
+      event.preventDefault();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [hydrated, month, timeZone]);
+
+  const canAsk = connected && auth.authenticated && Boolean(auth.address);
+  const askAboutDay = (date: string) => {
+    if (!auth.address || agentBusy) return;
+    const spoken = new Intl.DateTimeFormat(locale, { weekday: "long", month: "long", day: "numeric", year: "numeric", timeZone: "UTC" }).format(
+      new Date(`${date}T00:00:00Z`),
     );
-  }
+    newChat(auth.address);
+    setAgentOpen(true);
+    void sendToAgent(t(showPortfolio ? "calendar.day.askPrompt" : "calendar.day.askMarketPrompt", { date: spoken, isoDate: date }), auth.address, {
+      page: "calendar",
+    });
+  };
 
-  if (isLoading && !calendar) return <CalendarSkeleton />;
+  const signedCompact = new Intl.NumberFormat(locale, { style: "currency", currency: "USD", notation: "compact", maximumFractionDigits: 1, signDisplay: "exceptZero" });
 
   return (
-    <div className="space-y-5">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <p className="text-sm text-muted">{t("calendar.eyebrow")}</p>
-          <h1 className="font-display text-4xl font-semibold tracking-normal">{t("calendar.title")}</h1>
-          <p className="mt-2 max-w-2xl text-sm text-muted">{t("calendar.intro")}</p>
+    <div className="space-y-6">
+      <h1 className="sr-only">{t("calendar.title")}</h1>
+
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex min-w-0 items-baseline gap-3">
+          <h2 className="font-display text-3xl font-medium tracking-tight">
+            {hydrated ? formatMonth(month, locale) : <span className="inline-block h-8 w-48 animate-pulse rounded-full bg-panel-subtle align-middle" />}
+          </h2>
+          {showPortfolio && hasMonthPnl ? (
+            <span className={cn("font-money text-sm font-medium tabular-nums", monthPnl > 0 ? "text-positive" : monthPnl < 0 ? "text-negative" : "text-muted")}>
+              {t("calendar.thisMonth", { value: signedCompact.format(monthPnl) })}
+            </span>
+          ) : null}
         </div>
-        <Button disabled={isLoading || !wallet} onClick={() => wallet && loadCalendar(wallet, { month, timeZone })} variant="secondary">
-          <RefreshCwIcon className={cn(isLoading && "animate-spin")} color="currentColor" size={16} strokeWidth={1.8} />
-          {t("calendar.refresh")}
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          {showMarket && hydrated ? <MarketPill session={market.session} /> : null}
+          {connected ? <LayerToggle onChange={setLayerChoice} value={layerChoice} /> : null}
+          <div className="flex items-center">
+            <Button aria-keyshortcuts="T" className="rounded-full" disabled={!today || activeDate === today} onClick={goToday} size="sm" title={`${t("calendar.today")} (T)`} variant="ghost">
+              {t("calendar.today")}
+            </Button>
+            <Button aria-keyshortcuts="[" aria-label={t("calendar.previousMonth")} className="rounded-full" onClick={() => changeMonth(-1)} size="icon" title={`${t("calendar.previousMonth")} ([)`} variant="ghost">
+              <ChevronLeftIcon color="currentColor" size={18} strokeWidth={1.8} />
+            </Button>
+            <Button aria-keyshortcuts="]" aria-label={t("calendar.nextMonth")} className="rounded-full" onClick={() => changeMonth(1)} size="icon" title={`${t("calendar.nextMonth")} (])`} variant="ghost">
+              <ChevronRightIcon color="currentColor" size={18} strokeWidth={1.8} />
+            </Button>
+          </div>
+        </div>
       </div>
 
-      {error ? <ErrorState description={error} onRetry={() => wallet && loadCalendar(wallet, { month, timeZone })} /> : null}
+      {!connected ? (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-[20px] bg-panel-subtle py-2 pl-4 pr-2 text-sm">
+          <p className="min-w-0 text-muted">
+            {restoreBlocked(auth) ? t("auth.restoreSlow") : !auth.ready ? t("calendar.restoring") : auth.authenticated ? t("calendar.preparing") : t("calendar.signInPrompt")}
+          </p>
+          {restoreBlocked(auth) ? (
+            <RestoreActions signInLabel={t("common.signIn")} size="sm" />
+          ) : auth.ready && !auth.authenticated ? (
+            <Button onClick={auth.open} size="sm" type="button">
+              {t("common.signIn")}
+            </Button>
+          ) : null}
+        </div>
+      ) : null}
+      {connected && showPortfolio && error ? <ErrorState description={error} onRetry={() => wallet && loadCalendar(wallet, { month, timeZone })} /> : null}
+      {showMarket && market.error ? <ErrorState description={t("calendar.market.loadFailed")} onRetry={market.retry} /> : null}
 
-      <div className="grid gap-4 md:grid-cols-3">
-        <Metric detail={t("calendar.observedDays", { count: activeDays })} label={t("calendar.monthPnl")} value={formatCurrency(monthPnl, locale)} />
-        <Metric detail={t("calendar.lastClose")} label={t("calendar.cumulativeValue")} value={formatCurrency(calendar?.days.findLast((day) => day.hasData)?.cumulativeValueUsd, locale)} />
-        <Metric detail={timeZone} label={t("calendar.timezone")} value={formatMonth(month, locale)} />
-      </div>
-
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_380px]">
-        <Card className="overflow-hidden">
-          <CardHeader className="flex flex-row items-center justify-between gap-4">
-            <div>
-              <h2 className="font-display text-xl font-semibold">{formatMonth(month, locale)}</h2>
-              <p className="mt-1 text-sm text-muted">{t("calendar.intensity")}</p>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button aria-label={t("calendar.previousMonth")} onClick={() => setMonth((value) => shiftMonth(value, -1))} size="icon" variant="ghost">
-                <ChevronLeftIcon color="currentColor" size={18} strokeWidth={1.8} />
-              </Button>
-              <Button aria-label={t("calendar.nextMonth")} onClick={() => setMonth((value) => shiftMonth(value, 1))} size="icon" variant="ghost">
-                <ChevronRightIcon color="currentColor" size={18} strokeWidth={1.8} />
-              </Button>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-7 gap-2 text-center text-xs font-semibold text-muted">
-              {weekdayLabels(locale).map((day, index) => <span key={index}>{day}</span>)}
-            </div>
-            <div className="mt-3 grid grid-cols-7 gap-2">
-              {calendar?.days[0] ? Array.from({ length: new Date(`${calendar.days[0].date}T00:00:00`).getDay() }).map((_, index) => <span key={`pad-${index}`} />) : null}
-              {(calendar?.days ?? []).map((day) => (
-                <button
-                  className={cn(
-                    "min-h-24 rounded-[18px] border p-2 text-left transition hover:border-border-strong focus-visible:outline focus-visible:outline-2 focus-visible:outline-focus",
-                    selectedDate === day.date ? "border-foreground" : "border-border",
-                    dayClass(day, maxMove),
-                  )}
-                  key={day.date}
-                  onClick={() => setSelectedDate(day.date)}
-                  type="button"
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <span className="font-mono text-sm font-semibold">{dayNumber(day.date)}</span>
-                    <span className="text-[11px] font-semibold">{day.hasData ? formatPercent(day.returnPct, locale) : ""}</span>
-                  </div>
-                  {day.hasData ? (
-                    <div className="mt-5">
-                      <p className="font-mono text-sm font-semibold">{formatCurrency(day.pnlUsd, locale)}</p>
-                      <p className="mt-1 truncate text-[11px] opacity-75">{t("calendar.closeValue", { value: formatCurrency(day.cumulativeValueUsd, locale) })}</p>
-                    </div>
-                  ) : null}
-                  <div className="mt-3 flex gap-1">
-                    {day.significantEvents.slice(0, 4).map((event) => (
-                      <span className={cn("h-1.5 w-1.5 rounded-full", eventTone(event.type))} key={event.id} />
-                    ))}
-                  </div>
-                </button>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="overflow-hidden">
-          <CardHeader>
-            <h2 className="font-display text-xl font-semibold">{t("calendar.drilldown")}</h2>
-            <p className="mt-1 text-sm text-muted">{selectedDate ? formatDate(selectedDate, locale, "UTC", t("common.notUpdated")) : t("calendar.selectDay")}</p>
-          </CardHeader>
-          <CardContent>
-            {selectedSummary ? (
-              <div className="space-y-5">
-                <div className="grid grid-cols-2 gap-3">
-                  <Metric detail={t("calendar.closeMinusOpen")} label={t("calendar.pnl")} value={formatCurrency(selectedSummary.pnlUsd, locale)} />
-                  <Metric detail={t("calendar.snapshotReturn")} label={t("calendar.return")} value={formatPercent(selectedSummary.returnPct, locale)} />
-                </div>
-                <div className="rounded-[18px] bg-panel-subtle p-4">
-                  <p className="text-xs font-semibold text-muted">{t("calendar.movementSplit")}</p>
-                  <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
-                    <div>
-                      <p className="text-muted">{t("calendar.realized")}</p>
-                      <p className="font-mono font-semibold">{formatCurrency(selectedSummary.realizedActivityUsd, locale)}</p>
-                    </div>
-                    <div>
-                      <p className="text-muted">{t("calendar.unrealized")}</p>
-                      <p className="font-mono font-semibold">{formatCurrency(selectedSummary.unrealizedMovementUsd, locale)}</p>
-                    </div>
-                  </div>
-                </div>
-                {calendarDay?.contributors.length ? (
-                  <div>
-                    <p className="mb-2 text-sm font-semibold">{t("calendar.contributors")}</p>
-                    <div className="space-y-2">
-                      {calendarDay.contributors.slice(0, 4).map((item) => (
-                        <div className="flex items-center justify-between rounded-[14px] bg-background p-3 text-sm" key={item.assetId}>
-                          <span className="font-semibold">{item.ticker}</span>
-                          <span className={cn("font-mono", item.valueChangeUsd >= 0 ? "text-positive" : "text-negative")}>
-                            {formatCurrency(item.valueChangeUsd, locale)} · {formatNumber(item.valueChangePct, locale, 2)}%
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ) : null}
-                {calendarDay?.trades.length ? (
-                  <div>
-                    <p className="mb-2 text-sm font-semibold">{t("calendar.trades")}</p>
-                    <div className="space-y-2">
-                      {calendarDay.trades.map((trade) => (
-                        <div className="flex items-center justify-between gap-3 rounded-[14px] border border-border bg-background p-3 text-sm" key={trade.id}>
-                          <span className="font-semibold">
-                            {trade.ticker ?? t("calendar.trade")}
-                            {trade.route ? <span className="font-normal text-muted"> · {trade.route}</span> : null}
-                          </span>
-                          <span className="font-mono text-xs text-muted">{trade.amountUsd ? formatCurrency(trade.amountUsd, locale) : trade.status}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ) : null}
-                <div>
-                  <p className="mb-2 text-sm font-semibold">{t("calendar.events")}</p>
-                  <div className="space-y-2">
-                    {[...(calendarDay?.summary.significantEvents ?? selectedSummary.significantEvents), ...(calendarDay?.walletActivity ?? [])].length ? (
-                      [...(calendarDay?.summary.significantEvents ?? selectedSummary.significantEvents), ...(calendarDay?.walletActivity ?? [])]
-                        .slice(0, 8)
-                        .map((event) => <EventRow event={event} key={event.id} />)
-                    ) : (
-                      <p className="rounded-[16px] bg-panel-subtle p-4 text-sm text-muted">{t("calendar.noEvents")}</p>
-                    )}
-                  </div>
-                </div>
-                <p className="rounded-[16px] bg-panel-subtle p-4 text-xs leading-5 text-muted">
-                  {calendarDay?.notes[1] ?? t("calendar.basis")}
-                </p>
-              </div>
+      {!hydrated ? (
+        <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
+          <Skeleton className="h-[540px]" />
+          <Skeleton className="h-[420px]" />
+        </div>
+      ) : (
+        // Phones read grid, day, market; wide screens put the market under the grid.
+        <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
+          <MonthGrid
+            activeDate={activeDate}
+            dates={dates}
+            marketDays={marketByDate}
+            maxMove={maxMove}
+            onMove={moveSelection}
+            onSelect={setSelectedDate}
+            portfolioDays={portfolioDays}
+            releases={releases}
+            today={today}
+            todayProgress={todayProgress}
+          />
+          <Card className="p-5 xl:sticky xl:top-6 xl:col-start-2 xl:row-span-2 xl:row-start-1">
+            {activeDate ? (
+              <DayPanel
+                askBusy={agentBusy}
+                date={activeDate}
+                day={calendarDay?.date === activeDate && calendarDay.walletAddress === wallet && calendarDay.timeZone === timeZone ? calendarDay : undefined}
+                hours={hours}
+                marketDay={marketByDate?.get(activeDate)}
+                now={now}
+                onAsk={canAsk ? () => askAboutDay(activeDate) : undefined}
+                releases={releases.get(activeDate) ?? []}
+                releasesUnavailable={market.events ? !market.events.available : false}
+                reminder={(event) => <ReleaseReminderButton event={event} />}
+                showMarket={showMarket}
+                showPortfolio={showPortfolio}
+                summary={portfolioDays.get(activeDate)}
+                timeZone={viewerTimeZone}
+              />
             ) : (
-              <EmptyState description={t("calendar.noDayDescription")} title={t("calendar.noDayTitle")} />
+              <p className="py-10 text-center text-sm text-muted">{t("calendar.selectDay")}</p>
             )}
-          </CardContent>
-        </Card>
-      </div>
+          </Card>
+          {showMarket && activeDate ? (
+            <div className="min-w-0 xl:col-start-1 xl:row-start-2">
+              <DayRecap date={activeDate} failed={dayRecap.failed} loading={dayRecap.isLoading} recap={dayRecap.recap} />
+            </div>
+          ) : null}
+        </div>
+      )}
+
+      {showMarket ? <MarketSources response={market.events} /> : null}
     </div>
   );
 }

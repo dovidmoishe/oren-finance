@@ -9,6 +9,29 @@ export type { Position, PositionVariant } from './position';
 
 export type { Quote, TradeSide } from './quote';
 export type { MarketSession, UsMarketSessionState } from './market-session';
+export type {
+  MacroEventKind,
+  MarketCalendarDay,
+  MarketCalendarResponse,
+  MarketDayHeadline,
+  MarketDayMove,
+  MarketDayRecap,
+  MarketDayStatus,
+  MarketEvent,
+  MarketEventStatus,
+  MarketEventsResponse,
+  UsEquityClosure,
+  UsEquityClosuresResponse,
+  UsEquityHours,
+  UsEquitySessionMode,
+  UsEquitySessionResponse,
+  UsEquityTradingDayResponse,
+} from './market-calendar';
+export type {
+  CreateReleaseReminderRequest,
+  ReleaseReminder,
+  ReleaseRemindersResponse,
+} from './release-reminder';
 
 export type {
   LimitOrderIntent,

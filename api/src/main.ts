@@ -20,6 +20,7 @@ import {
   mcpApiTradeAuthorizations,
 } from './database/schema';
 import { MarketService } from './market/market.service';
+import { MarketCalendarService } from './market/calendar/market-calendar.service';
 import { ResearchService } from './research/research.service';
 import { PortfolioService } from './portfolio/portfolio.service';
 import { ExecutionService } from './execution/execution.service';
@@ -120,6 +121,7 @@ async function bootstrap() {
       db,
       auth: identity,
       market: app.get(MarketService, { strict: false }),
+      marketCalendar: app.get(MarketCalendarService, { strict: false }),
       portfolio: app.get(PortfolioService, { strict: false }),
       research: app.get(ResearchService, { strict: false }),
       execution: app.get(ExecutionService, { strict: false }),

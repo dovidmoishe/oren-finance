@@ -1,5 +1,32 @@
+import type {
+  MarketEventDateBasis,
+  MarketEventStatus,
+  MarketEventTimeBasis,
+  MarketEventTimePrecision,
+  OfficialAgencyId,
+} from '../../types/market-calendar';
+import { officialAttribution } from '../market/calendar/market-calendar.copy';
+
+/** An official US release, already formatted by the market calendar. */
+export type BriefMarketEvent = {
+  title: string;
+  agencyId: OfficialAgencyId;
+  agency: string;
+  scheduledAt: string;
+  timePrecision: MarketEventTimePrecision;
+  timeBasis: MarketEventTimeBasis;
+  dateBasis?: MarketEventDateBasis;
+  status: MarketEventStatus;
+  actualText: string | null;
+  previousText: string | null;
+  sourceUrl: string;
+  /** When Oren retrieved the published value; BLS asks that it be cited. */
+  retrievedAt?: string | null;
+};
+
 export type BriefEmailFacts = {
   date: string;
+  zone?: string;
   value?: number;
   valueVerified?: boolean;
   pnl?: number | null;
@@ -13,6 +40,7 @@ export type BriefEmailFacts = {
     summary?: string;
     ticker?: string;
   }[];
+  events?: BriefMarketEvent[];
 };
 
 const currency = new Intl.NumberFormat('en-US', {
@@ -40,6 +68,28 @@ function escape(value: string) {
   );
 }
 
+function eventClock(zone: string | undefined) {
+  const options = (timeZone: string) => ({
+    day: new Intl.DateTimeFormat('en-US', {
+      timeZone,
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+    }),
+    time: new Intl.DateTimeFormat('en-US', {
+      timeZone,
+      hour: 'numeric',
+      minute: '2-digit',
+      timeZoneName: 'short',
+    }),
+  });
+  try {
+    return options(zone || 'America/New_York');
+  } catch {
+    return options('America/New_York');
+  }
+}
+
 function storyLink(value: string) {
   try {
     const url = new URL(value);
@@ -64,6 +114,43 @@ export function renderBriefEmail(
     return url ? [{ ...story, url }] : [];
   });
   const leadStory = stories[0];
+  const clock = eventClock(facts.zone);
+  const events = (facts.events ?? []).flatMap((event) => {
+    const url = storyLink(event.sourceUrl);
+    const at = new Date(event.scheduledAt);
+    if (!url || Number.isNaN(at.getTime())) return [];
+    const day = clock.day.format(at);
+    const usually =
+      event.timeBasis === 'customary' || event.dateBasis === 'computed';
+    const when =
+      event.timePrecision === 'date'
+        ? day
+        : `${day}, ${usually ? 'usually ' : ''}${clock.time.format(at)}`;
+    const result = [
+      event.actualText ? `Actual ${event.actualText}` : '',
+      event.previousText ? `Previous ${event.previousText}` : '',
+    ]
+      .filter(Boolean)
+      .join(' · ');
+    return [{ ...event, url, when, result }];
+  });
+  const retrieved = events
+    .flatMap((event) =>
+      event.actualText && event.retrievedAt
+        ? [new Date(event.retrievedAt)]
+        : [],
+    )
+    .filter((at) => !Number.isNaN(at.getTime()))
+    .sort((a, b) => b.getTime() - a.getTime())[0];
+  // Each agency's required notice, plus the retrieval date BLS asks for.
+  const eventCredit = [
+    ...officialAttribution(events.map((event) => event.agencyId)).notices,
+    retrieved
+      ? `Published values retrieved from the agencies on ${clock.day.format(retrieved)}.`
+      : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
   const marketRead = !leadStory
     ? ''
     : leadStory.ticker
@@ -154,6 +241,23 @@ export function renderBriefEmail(
           ),
         ].join('\n\n')
       : '',
+    events.length
+      ? [
+          'Official US data: today and the next 48 hours',
+          ...events.map((event) =>
+            [
+              `${event.when} · ${event.title}`,
+              [event.agency, event.result].filter(Boolean).join(' · '),
+              event.url,
+            ]
+              .filter(Boolean)
+              .join('\n'),
+          ),
+          eventCredit,
+        ]
+          .filter(Boolean)
+          .join('\n\n')
+      : '',
     signoff,
     `Open Oren: ${new URL('/app', settings).href}\nEmail preferences: ${settings}\nUnsubscribe: ${stop}`,
   ]
@@ -179,6 +283,7 @@ ${snapshot.length ? `<table role="presentation" width="100%" cellspacing="0" cel
 ${snapshotDetail ? `<p style="margin:8px 0 0;color:#615865;font-size:12px;line-height:1.45">${snapshotDetail}</p>` : ''}
 ${facts.moves.length ? `<h2 style="margin:26px 0 6px;font:normal 24px Georgia,serif">What moved your portfolio</h2><table role="presentation" width="100%" cellspacing="0" cellpadding="0">${facts.moves.map(({ ticker, usd }) => `<tr><td style="padding:9px 0;border-bottom:1px solid #eee9ef;font-size:14px;font-weight:700">${escape(ticker)}</td><td align="right" style="padding:9px 0;border-bottom:1px solid #eee9ef;font-size:14px;color:${usd < 0 ? '#9f313d' : '#176044'}">${escape(change(usd))}</td></tr>`).join('')}</table>` : ''}
 ${stories.length ? `<h2 style="margin:26px 0 5px;font:normal 24px Georgia,serif">On my radar</h2>${stories.map((story) => `<div style="padding:12px 0;border-bottom:1px solid #eee9ef">${storyContext(story) ? `<p style="margin:0 0 4px;color:#615865;font-size:12px">${escape(storyContext(story))}</p>` : ''}<a href="${escape(story.url)}" style="color:#412b53;font-size:15px;line-height:1.4;font-weight:700;text-decoration:underline;overflow-wrap:anywhere">${escape(story.headline)}</a>${story.summary ? `<p style="margin:5px 0 0;color:#49414c;font-size:14px;line-height:1.5;overflow-wrap:anywhere">${escape(story.summary)}</p>` : ''}</div>`).join('')}` : ''}
+${events.length ? `<h2 style="margin:26px 0 5px;font:normal 24px Georgia,serif">Official US data: today and the next 48 hours</h2>${events.map((event) => `<div style="padding:12px 0;border-bottom:1px solid #eee9ef"><p style="margin:0 0 4px;color:#615865;font-size:12px">${escape(event.when)}</p><a href="${escape(event.url)}" style="color:#412b53;font-size:15px;line-height:1.4;font-weight:700;text-decoration:underline;overflow-wrap:anywhere">${escape(event.title)}</a><p style="margin:5px 0 0;color:#49414c;font-size:14px;line-height:1.5">${escape([event.agency, event.result].filter(Boolean).join(' · '))}</p></div>`).join('')}${eventCredit ? `<p style="margin:10px 0 0;color:#615865;font-size:11px;line-height:1.5">${escape(eventCredit)}</p>` : ''}` : ''}
 <p style="margin:24px 0 18px;font-size:14px;color:#4f4053"><strong>Oren</strong> · Your investment copilot</p>
 <a href="${escape(new URL('/app', settings).href)}" style="display:inline-block;background:#221b2a;color:#ffffff;border-radius:8px;padding:12px 17px;font-size:14px;font-weight:700;text-decoration:none">Open Oren</a>
 </td></tr>

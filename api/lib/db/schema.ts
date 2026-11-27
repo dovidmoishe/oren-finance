@@ -1207,6 +1207,63 @@ export const adminAuditEvents = pgTable('admin_audit_events', {
   metadata: jsonb('metadata').$type<Record<string, string>>().notNull().default({}),
 });
 
+/**
+ * Official market events. Phase 1 holds US macro releases (family 'macro');
+ * company events come later. App memory only: the publishing agencies stay
+ * the record. There is deliberately no consensus column.
+ */
+export const marketEvents = pgTable(
+  'market_events',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    family: text('family')
+      .$type<'macro' | 'company'>()
+      .notNull()
+      .default('macro'),
+    kind: text('kind').notNull(),
+    title: text('title').notNull(),
+    country: text('country').notNull().default('US'),
+    scheduledAt: timestamp('scheduled_at', { withTimezone: true }).notNull(),
+    timePrecision: text('time_precision')
+      .$type<'date' | 'datetime'>()
+      .notNull(),
+    dateStatus: text('date_status')
+      .$type<'scheduled' | 'released' | 'cancelled'>()
+      .notNull()
+      .default('scheduled'),
+    previous: numeric('previous'),
+    actual: numeric('actual'),
+    unit: text('unit'),
+    source: text('source').notNull(),
+    sourceEventId: text('source_event_id').notNull(),
+    sourceUrl: text('source_url').notNull(),
+    fetchedAt: timestamp('fetched_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    raw: jsonb('raw').$type<Record<string, unknown>>().notNull().default({}),
+  },
+  (table) => [
+    uniqueIndex('market_events_source_event_idx').on(
+      table.source,
+      table.sourceEventId,
+    ),
+    index('market_events_scheduled_at_idx').on(table.scheduledAt),
+  ],
+);
+
+/** One row per sync job: a lease so a second API process skips, plus last results. */
+export const marketEventSyncState = pgTable('market_event_sync_state', {
+  job: text('job').primaryKey(),
+  leaseOwner: text('lease_owner'),
+  leaseUntil: timestamp('lease_until', { withTimezone: true }),
+  lastAttemptAt: timestamp('last_attempt_at', { withTimezone: true }),
+  lastSuccessAt: timestamp('last_success_at', { withTimezone: true }),
+  lastErrorCode: text('last_error_code'),
+});
+
 export const agentThreadsRelations = relations(agentThreads, ({ many }) => ({
   messages: many(agentMessages),
 }));

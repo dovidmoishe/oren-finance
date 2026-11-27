@@ -11,6 +11,7 @@ import { PricePolling } from './alerts';
 import { MorningBrief } from './brief';
 import { NotificationDelivery } from './delivery';
 import { NotificationJobs, type Kind } from './jobs';
+import { ReleaseReminderScan } from './reminders';
 import { MINUTE_MS } from './schedule';
 import { notificationSettings } from './settings';
 
@@ -18,11 +19,17 @@ const lanes = {
   brief: 2,
   'brief-email': 2,
   'alert-email': 2,
+  'reminder-email': 2,
   'price-scan': 1,
 } as const;
 
 type Lane = keyof typeof lanes;
-const outboxLanes: Kind[] = ['alert-email', 'brief-email', 'brief'];
+const outboxLanes: Kind[] = [
+  'alert-email',
+  'reminder-email',
+  'brief-email',
+  'brief',
+];
 
 /** Idle when both features are off. Pilot accounts are required only for private price alerts. */
 export function notificationWorkerStartup(
@@ -63,6 +70,7 @@ export class NotificationWorker
     private readonly brief: MorningBrief,
     private readonly delivery: NotificationDelivery,
     private readonly polling: PricePolling,
+    private readonly reminders: ReleaseReminderScan,
   ) {}
 
   onApplicationBootstrap() {
@@ -163,6 +171,13 @@ export class NotificationWorker
     if (minute !== this.lastMinute) {
       const missed = config.briefs ? await this.jobs.schedule(now) : 0;
       const uncertain = await this.jobs.sweep();
+      // Release reminders follow the price-alert switch. A failed scan must
+      // not hold up briefs or alerts; the next minute tries again.
+      if (config.alerts) {
+        await this.reminders
+          .scan(now)
+          .catch(() => this.logger.warn('Release reminder scan will retry'));
+      }
       const [stats] = await this.jobs.db.execute<{
         pending: number;
         lag: number;

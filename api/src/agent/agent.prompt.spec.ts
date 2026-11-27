@@ -19,4 +19,26 @@ describe('Oren agent prompt market hours', () => {
     expect(OREN_AGENT_PROMPT).toMatch(/company report/i);
     expect(OREN_AGENT_PROMPT).toMatch(/do not substitute a price read/i);
   });
+
+  it('routes market-hours questions away from the wallet P&L calendar', () => {
+    expect(OREN_AGENT_PROMPT).toContain(
+      'call isMarketOpen or getMarketCalendar',
+    );
+    expect(OREN_AGENT_PROMPT).toContain(
+      'Never use getTradingCalendar or getTradingCalendarDay for these',
+    );
+    expect(OREN_AGENT_PROMPT).toContain(
+      'tokenized stocks can still trade on-chain',
+    );
+    expect(OREN_AGENT_PROMPT).toContain(
+      'Never invent a consensus, forecast, or expected number.',
+    );
+    expect(OREN_AGENT_PROMPT).toContain(
+      "end it with every sentence in the result's attribution.notices, unchanged",
+    );
+    expect(OREN_AGENT_PROMPT).toContain(
+      'Name the agency behind each official date or number.',
+    );
+    expect(OREN_AGENT_PROMPT).not.toMatch(/tokens\.xyz|FRED/);
+  });
 });

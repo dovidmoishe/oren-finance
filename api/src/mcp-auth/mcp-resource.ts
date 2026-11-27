@@ -17,6 +17,8 @@ import type { MarketService } from '../market/market.service';
 import type { PortfolioService } from '../portfolio/portfolio.service';
 import type { ExecutionService } from '../execution/execution.service';
 import type { ApprovalRpc } from '../execution/approval-rpc.service';
+import type { MarketCalendarService } from '../market/calendar/market-calendar.service';
+import { UsEquityCalendarRangeError } from '../market/calendar/us-equity-calendar';
 import { MAX_MCP_TRADE_USD } from './grant-spend-limits';
 import {
   SOL_RENT_MESSAGE,
@@ -53,6 +55,11 @@ export interface McpResourceDeps {
       options?: { audience?: 'app' | 'mcp' },
     ): Promise<unknown>;
   };
+  /** US cash-session hours and official macro releases. Read-only. */
+  marketCalendar?: Pick<
+    MarketCalendarService,
+    'isMarketOpen' | 'getMarketCalendar'
+  >;
   oauth: McpOAuthRuntime;
   gate?: SignerGateClient;
   signerPolicyId?: string;
@@ -261,6 +268,50 @@ export async function handleMcpRequest(
         }
       },
     );
+  const marketCalendar = deps.marketCalendar;
+  if (connection.tokenScopes.has('oren.read') && marketCalendar) {
+    server.registerTool(
+      'is_market_open',
+      {
+        title: 'Is the US market open',
+        description:
+          'Check the US stock market cash session (NYSE hours, America/New_York) now or at an ISO time with an offset. session is regular (default, 09:30-16:00 ET, 13:00 on early-close days), extended (04:00-20:00 ET), or any (adds overnight). Returns the state, the hours for that day in ET and UTC, the next open and close, and any holiday name. Tokenized stocks can still trade on-chain while the cash session is closed, so this is not a swap-availability check.',
+        inputSchema: z.object({
+          at: z.string().trim().max(40).optional(),
+          session: z.enum(['regular', 'extended', 'any']).optional(),
+        }),
+        annotations: { readOnlyHint: true },
+      },
+      async ({ at, session }) =>
+        marketCalendarResult(() =>
+          marketCalendar.isMarketOpen({ at, session }),
+        ),
+    );
+    server.registerTool(
+      'get_market_calendar',
+      {
+        title: 'Get the US market calendar',
+        description:
+          'Get US trading days, holidays, 1:00 p.m. ET early closes, and official US macro releases (FOMC, CPI, jobs report, GDP, PCE prices, PPI, retail sales, jobless claims) for today, the next 7 days (default), or a from/to range of up to 31 days (YYYY-MM-DD). Releases carry official times, status, published values, and source links from the publishing agency (BLS, BEA, Census Bureau, Labor Department, Federal Reserve Board). No forecasts or consensus. Keep the attribution notices in the result with the data.',
+        inputSchema: z.object({
+          window: z.enum(['today', 'week']).optional(),
+          from: z
+            .string()
+            .regex(/^\d{4}-\d{2}-\d{2}$/)
+            .optional(),
+          to: z
+            .string()
+            .regex(/^\d{4}-\d{2}-\d{2}$/)
+            .optional(),
+        }),
+        annotations: { readOnlyHint: true },
+      },
+      async ({ window, from, to }) =>
+        marketCalendarResult(() =>
+          marketCalendar.getMarketCalendar({ window, from, to }),
+        ),
+    );
+  }
   if (connection.tokenScopes.has('oren.trade.prepare')) {
     server.registerTool(
       'prepare_trade',
@@ -983,4 +1034,27 @@ function statusFailure(code: string | null, slippageBps: number) {
     signingGrant: body.signingGrant,
     broadcast: body.broadcast,
   };
+}
+
+/** Same payloads as the copilot tools. Bad input is reported, not thrown. */
+async function marketCalendarResult(work: () => unknown) {
+  try {
+    const result = await work();
+    return {
+      content: [{ type: 'text' as const, text: JSON.stringify(result) }],
+    };
+  } catch (error) {
+    return {
+      content: [
+        {
+          type: 'text' as const,
+          text:
+            error instanceof UsEquityCalendarRangeError
+              ? error.message
+              : 'The market calendar is unavailable.',
+        },
+      ],
+      isError: true,
+    };
+  }
 }

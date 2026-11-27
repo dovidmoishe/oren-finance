@@ -3,48 +3,17 @@ import type {
   UsMarketSessionState,
 } from '../../types/market-session';
 import type { Quote } from '../../types/quote';
+import { usEquityCalendar } from './calendar/us-equity-calendar';
 
 /**
- * NYSE cash-session clock in America/New_York.
- *
- * Full closes and 1:00 p.m. ET early closes are the dates NYSE Group
- * published for 2026 and 2027 (announcement, 23 Dec 2025). Early-close
- * days stay in the regular session until 13:00 ET. Weekends and full
- * holidays are closed for the whole local calendar day.
+ * Quote and order stamping for the NYSE cash session. The holiday table,
+ * early closes, and session clock live in calendar/us-equity-calendar.ts;
+ * this file only turns a state into the approved trade copy.
  *
  * https://www.nyse.com/trade/hours-calendars
  */
-export const NYSE_CALENDAR_COVERED_THROUGH = '2027-12-31';
-
-export const NYSE_FULL_CLOSE_DATES = [
-  '2026-01-01',
-  '2026-01-19',
-  '2026-02-16',
-  '2026-04-03',
-  '2026-05-25',
-  '2026-06-19',
-  '2026-07-03',
-  '2026-09-07',
-  '2026-11-26',
-  '2026-12-25',
-  '2027-01-01',
-  '2027-01-18',
-  '2027-02-15',
-  '2027-03-26',
-  '2027-05-31',
-  '2027-06-18',
-  '2027-07-05',
-  '2027-09-06',
-  '2027-11-25',
-  '2027-12-24',
-] as const;
-
-/** 1:00 p.m. ET early closes. July 2 2026 and July 2 2027 are full sessions. */
-export const NYSE_EARLY_CLOSE_DATES = [
-  '2026-11-27',
-  '2026-12-24',
-  '2027-11-26',
-] as const;
+export const NYSE_CALENDAR_COVERED_THROUGH =
+  usEquityCalendar.officialCoverage().through;
 
 export const THIN_BOOK_IMPACT_PERCENT = 1;
 export const THIN_BOOK_LIQUIDITY_USD = 100_000;
@@ -63,15 +32,6 @@ const LIMIT_SUMMARY =
 const THIN_BOOK_SENTENCE =
   'This size also moves the on-chain price more than a typical fill. A smaller amount usually lands closer.';
 
-const FULL_CLOSES = new Set<string>(NYSE_FULL_CLOSE_DATES);
-const EARLY_CLOSES = new Set<string>(NYSE_EARLY_CLOSE_DATES);
-
-const OPEN_MINUTE = 9 * 60 + 30;
-const FULL_CLOSE_MINUTE = 16 * 60;
-const EARLY_CLOSE_MINUTE = 13 * 60;
-const PRE_MARKET_MINUTE = 4 * 60;
-const AFTER_HOURS_END_MINUTE = 20 * 60;
-
 export interface MarketSessionInput {
   at?: Date;
   kind?: 'market' | 'limit';
@@ -87,7 +47,7 @@ export function marketSessionForTrade(
   input: MarketSessionInput = {},
 ): MarketSession {
   const at = input.at ?? new Date();
-  const state = classify(at);
+  const state = usEquityCalendar.sessionStateAt(at);
   const regular = state === 'regular';
   const kind = input.kind ?? 'market';
   const impact = input.priceImpactPercent ?? 0;
@@ -95,7 +55,7 @@ export function marketSessionForTrade(
     input.liquidityUsd !== undefined &&
     input.liquidityUsd < THIN_BOOK_LIQUIDITY_USD;
   const thinBook = !regular && (impact >= THIN_BOOK_IMPACT_PERCENT || illiquid);
-  const base = summaryFor(state, kind);
+  const base = sessionSummary(state, kind);
   const summary =
     kind === 'market' && thinBook ? `${base} ${THIN_BOOK_SENTENCE}` : base;
   return {
@@ -119,9 +79,10 @@ export function stampQuoteMarketSession(quote: Quote, at = new Date()): Quote {
   return quote;
 }
 
-function summaryFor(
+/** The approved one-line copy for a session state. */
+export function sessionSummary(
   state: UsMarketSessionState,
-  kind: 'market' | 'limit',
+  kind: 'market' | 'limit' = 'market',
 ): string {
   if (state === 'regular') return REGULAR_SUMMARY;
   if (kind === 'limit') return LIMIT_SUMMARY;
@@ -137,44 +98,3 @@ function summaryFor(
       return CLOSED_SUMMARY;
   }
 }
-
-function classify(at: Date): UsMarketSessionState {
-  const { ymd, minutes, weekday } = nyParts(at);
-  if (weekday === 'Sat' || weekday === 'Sun' || FULL_CLOSES.has(ymd)) {
-    return 'closed';
-  }
-  const early = EARLY_CLOSES.has(ymd);
-  const regularEnd = early ? EARLY_CLOSE_MINUTE : FULL_CLOSE_MINUTE;
-  if (minutes >= OPEN_MINUTE && minutes < regularEnd) return 'regular';
-  if (minutes >= PRE_MARKET_MINUTE && minutes < OPEN_MINUTE)
-    return 'pre_market';
-  if (minutes >= regularEnd && minutes < AFTER_HOURS_END_MINUTE) {
-    return early ? 'early_close' : 'after_hours';
-  }
-  return 'overnight';
-}
-
-function nyParts(at: Date): { ymd: string; minutes: number; weekday: string } {
-  const bag: Record<string, string> = {};
-  for (const part of nyFormatter.formatToParts(at)) {
-    if (part.type !== 'literal') bag[part.type] = part.value;
-  }
-  let hour = Number(bag.hour);
-  if (hour === 24) hour = 0;
-  return {
-    ymd: `${bag.year}-${bag.month}-${bag.day}`,
-    minutes: hour * 60 + Number(bag.minute),
-    weekday: bag.weekday ?? '',
-  };
-}
-
-const nyFormatter = new Intl.DateTimeFormat('en-US', {
-  timeZone: 'America/New_York',
-  year: 'numeric',
-  month: '2-digit',
-  day: '2-digit',
-  hour: '2-digit',
-  minute: '2-digit',
-  weekday: 'short',
-  hourCycle: 'h23',
-});

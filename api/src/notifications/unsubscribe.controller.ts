@@ -49,8 +49,9 @@ export class NotificationUnsubscribeController {
   }
 }
 
-function emailLabel(kind: 'brief-email' | 'alert-email') {
-  return kind === 'brief-email' ? 'Morning Brief' : 'price alert';
+function emailLabel(kind: 'brief-email' | 'alert-email' | 'reminder-email') {
+  if (kind === 'brief-email') return 'Morning Brief';
+  return kind === 'reminder-email' ? 'release reminder' : 'price alert';
 }
 
 function unsubscribePage(title: string, body: string) {

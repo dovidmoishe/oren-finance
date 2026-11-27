@@ -7,6 +7,10 @@ import { BitgetService } from '../../bitget/bitget.service';
 import { ExecutionService } from '../../execution/execution.service';
 import { IntelligenceService } from '../../intelligence/intelligence.service';
 import { MarketService } from '../../market/market.service';
+import { MarketCalendarService } from '../../market/calendar/market-calendar.service';
+import { MarketDayRecapService } from '../../market/calendar/market-day-recap.service';
+import { UsEquityCalendarRangeError } from '../../market/calendar/us-equity-calendar';
+import type { UsEquitySessionMode } from '../../../types/market-calendar';
 import { NewsService } from '../../news/news.service';
 import { PortfolioCalendarService } from '../../portfolio/portfolio-calendar.service';
 import { PortfolioService } from '../../portfolio/portfolio.service';
@@ -73,12 +77,16 @@ export class AgentToolRegistry {
     @Optional() private readonly research?: ResearchService,
     @Optional() private readonly paidTools?: PaidProviderToolBudget,
     @Optional() private readonly companyBrief?: CompanyBriefService,
+    @Optional() private readonly marketCalendar?: MarketCalendarService,
+    @Optional() private readonly marketDayRecap?: MarketDayRecapService,
   ) {}
 
   getSchemas(caller: DripCaller = {}): ToolDefinition[] {
     return [
       ...TOOL_SCHEMAS,
       ...(this.companyBrief ? [COMPANY_BRIEF_TOOL] : []),
+      ...(this.marketCalendar ? MARKET_CALENDAR_TOOL_SCHEMAS : []),
+      ...(this.marketDayRecap ? [MARKET_DAY_RECAP_TOOL] : []),
       ...(caller.userId && caller.walletAddress && this.research
         ? RESEARCH_TOOL_SCHEMAS
         : []),
@@ -88,6 +96,12 @@ export class AgentToolRegistry {
 
   dripEnabledFor(caller: DripCaller = {}): boolean {
     return this.drip?.enabledFor(caller) ?? false;
+  }
+
+  private marketCalendarFor(name: string): MarketCalendarService {
+    if (!this.marketCalendar)
+      throw new BadRequestException(`Unknown agent tool: ${name}`);
+    return this.marketCalendar;
   }
 
   private dripFor(caller: DripCaller, name: string): DripService {
@@ -146,6 +160,43 @@ export class AgentToolRegistry {
         return {
           output: day,
           artifact: { type: 'trading_calendar_day', data: day },
+        };
+      }
+
+      case 'isMarketOpen': {
+        const calendar = this.marketCalendarFor(name);
+        return {
+          output: calendarAnswer(() =>
+            calendar.isMarketOpen({
+              at: optionalString(input, 'at'),
+              session: sessionMode(input),
+            }),
+          ),
+        };
+      }
+
+      case 'getMarketCalendar': {
+        const calendar = this.marketCalendarFor(name);
+        const window = optionalString(input, 'window');
+        return {
+          output: await calendarAnswer(() =>
+            calendar.getMarketCalendar({
+              window: window === 'today' || window === 'week' ? window : null,
+              from: optionalString(input, 'from'),
+              to: optionalString(input, 'to'),
+            }),
+          ),
+        };
+      }
+
+      case 'getMarketDayRecap': {
+        if (!this.marketDayRecap)
+          throw new BadRequestException(`Unknown agent tool: ${name}`);
+        const recaps = this.marketDayRecap;
+        return {
+          output: await calendarAnswer(() =>
+            recaps.getRecap(required(input, 'date')),
+          ),
         };
       }
 
@@ -602,7 +653,7 @@ const TOOL_SCHEMAS: ToolDefinition[] = [
   ),
   tool(
     'getTradingCalendar',
-    'Get observed daily portfolio P&L, event markers, and calendar summaries for a wallet.',
+    "Get observed daily portfolio P&L, event markers, and calendar summaries for the connected wallet. This is the user's own P&L journal, not US market hours, holidays, or economic releases.",
     {
       month: nullableStringSchema,
       start: nullableStringSchema,
@@ -612,7 +663,7 @@ const TOOL_SCHEMAS: ToolDefinition[] = [
   ),
   tool(
     'getTradingCalendarDay',
-    'Get a day drilldown with observed P&L, contributors, trades, vault events, agent events, and wallet activity.',
+    "Get a day drilldown of the connected wallet's own observed P&L, contributors, trades, vault events, agent events, and wallet activity. Not market hours.",
     {
       date: stringSchema,
       timeZone: nullableStringSchema,
@@ -781,6 +832,35 @@ const RESEARCH_TOOL_SCHEMAS: ToolDefinition[] = [
   ),
 ];
 
+const MARKET_CALENDAR_TOOL_SCHEMAS: ToolDefinition[] = [
+  tool(
+    'isMarketOpen',
+    "Check the US stock market's cash session (NYSE hours, America/New_York) now or at an ISO time with an offset. session: regular (09:30-16:00 ET, 13:00 on early-close days; default), extended (04:00-20:00 ET), or any (adds overnight). Returns the state, the day's hours in ET and UTC, the next open and close, and any holiday or early-close name. Use for: is the market open, when does it open or close, is a day a holiday or half day. Tokenized stocks can still trade on-chain while this session is closed, with prices that can drift from the stock and thinner liquidity. Issuer windows differ and are not in this answer: xStocks trade 24/7 but mint and redeem only on US business days; Ondo generally runs Sunday 8:05 p.m. to Friday 7:59 p.m. ET and halts on NYSE holidays except Off-Hours assets, with 24/7 mint and redeem only for SPYon, QQQon, CRCLon, NVDAon, TSLAon, and GOOGLon; Backpack on-chain holiday behaviour is unverified. This is not a swap-availability check and not the wallet P&L calendar.",
+    {
+      at: nullableStringSchema,
+      session: {
+        type: ['string', 'null'],
+        enum: ['regular', 'extended', 'any', null],
+      },
+    },
+  ),
+  tool(
+    'getMarketCalendar',
+    "Get the US market calendar for today, the next 7 days (window week, default), or a from/to range of up to 31 days in YYYY-MM-DD: trading days, holidays, 1:00 p.m. ET early closes, and official US macro releases (FOMC decisions, CPI, the jobs report, GDP, PCE prices, PPI, retail sales, initial jobless claims) with official times, status, published actual and previous values, and source links. Use for: what's moving this week, when is CPI or the Fed, when is the next holiday or half day. There are no forecasts or consensus numbers; never invent one. Not the wallet P&L calendar (that is getTradingCalendar).",
+    {
+      window: { type: ['string', 'null'], enum: ['today', 'week', null] },
+      from: nullableStringSchema,
+      to: nullableStringSchema,
+    },
+  ),
+];
+
+const MARKET_DAY_RECAP_TOOL = tool(
+  'getMarketDayRecap',
+  "Get what happened in US markets on one New York date (YYYY-MM-DD): the day's US session hours, moves in the S&P 500, Nasdaq 100 and Russell 2000 tracking ETFs, the three biggest up and down moves among about twenty large US names, official macro releases with published values, and headlines published that day in Oren's ticker feeds (recent days only; headlinesAvailable says whether the feeds still reach that date). Prices are the tokenized-stock prices Oren trades; on closed days they reflect on-chain trading. Use for: what happened in the market on a day, why the market moved, a recap of a past or current day. Explain only from these numbers and headlines, cite each headline's link, and never invent a figure or a cause. Not the wallet P&L calendar (that is getTradingCalendarDay).",
+  { date: stringSchema },
+);
+
 const COMPANY_BRIEF_TOOL = tool(
   'getCompanyBrief',
   'Research a public company using current cited sources. Use for general company research, earnings, business drivers, products, fundamentals, and follow-up questions about the business. Returns evidence about the company and source links.',
@@ -863,6 +943,37 @@ function clampLimit(
   const floored = Math.floor(value);
   if (floored < 1) return fallback;
   return Math.min(max, floored);
+}
+
+function sessionMode(
+  input: Record<string, unknown>,
+): UsEquitySessionMode | null {
+  const value = optionalString(input, 'session');
+  return value === 'regular' || value === 'extended' || value === 'any'
+    ? value
+    : null;
+}
+
+/** Bad dates or ranges are the model's input; report them as such. */
+function calendarAnswer<T>(work: () => T): T {
+  try {
+    const result = work();
+    return (
+      result instanceof Promise
+        ? result.catch((error: unknown) => {
+            throw calendarError(error);
+          })
+        : result
+    ) as T;
+  } catch (error) {
+    throw calendarError(error);
+  }
+}
+
+function calendarError(error: unknown): unknown {
+  return error instanceof UsEquityCalendarRangeError
+    ? new BadRequestException(error.message)
+    : error;
 }
 
 function opinionFilter(

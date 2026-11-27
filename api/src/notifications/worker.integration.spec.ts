@@ -12,6 +12,7 @@ import { PriceAlerts, PricePolling } from './alerts';
 import type { MorningBrief } from './brief';
 import { NotificationDelivery, unsubscribeToken } from './delivery';
 import { insertJob, NotificationJobs } from './jobs';
+import type { ReleaseReminderScan } from './reminders';
 import { briefAdmitPerMinute } from './schedule';
 import { notificationSettings } from './settings';
 import { NotificationWorker } from './worker';
@@ -24,6 +25,9 @@ const run = pgUrl && redisUrl ? describe : describe.skip;
 const mint = 'NVDAVuiB7hwd3m5Wa1JuHNovPaPG6BH1QNztbKFxNjv';
 const user = 'did:privy:fixture';
 const secret = 'test-only'.repeat(4);
+const reminderScan = {
+  scan: () => Promise.resolve(),
+} as unknown as ReleaseReminderScan;
 const options = {
   DEPLOYMENT_ENV: 'preview',
   NOTIFICATION_FIXTURE_MODE: 'true',
@@ -134,6 +138,7 @@ run('notification jobs with disposable Postgres and Redis', () => {
       {} as MorningBrief,
       delivery,
       {} as PricePolling,
+      reminderScan,
     );
     worker.onApplicationBootstrap();
     await waitFor(async () => {
@@ -276,6 +281,7 @@ run('notification jobs with disposable Postgres and Redis', () => {
         {} as MorningBrief,
         {} as NotificationDelivery,
         polling,
+        reminderScan,
       );
     try {
       process.env.MORNING_BRIEF_ENABLED = 'false';

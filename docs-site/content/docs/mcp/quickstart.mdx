@@ -27,7 +27,7 @@ For your first connection, use read access where your client allows scope select
 Show my Oren portfolio, then find Nvidia and show its stock details.
 ```
 
-The agent can call `get_portfolio`, `search_stocks`, `get_stock` and `get_stock_research`. It should use the asset ID returned by search rather than inventing one from a ticker.
+The agent can call `get_portfolio`, `search_stocks`, `get_stock`, `get_stock_research`, `is_market_open` and `get_market_calendar`. It should use the asset ID returned by search rather than inventing one from a ticker.
 
 An empty portfolio can mean the selected wallet has no supported holdings. Check the approved wallet before assuming a connection problem.
 

@@ -151,6 +151,15 @@ export interface AppEnv {
    * company-facts fetches. Do not invent an address.
    */
   SEC_CONTACT_EMAIL?: string;
+  /**
+   * Server-only keys for published values on the official US macro calendar.
+   * Release dates need none. BLS works without a key at a lower daily limit;
+   * without BEA_API_KEY or CENSUS_API_KEY, GDP, PCE, and retail sales show
+   * dates without values.
+   */
+  BLS_API_KEY?: string;
+  BEA_API_KEY?: string;
+  CENSUS_API_KEY?: string;
   GROWTH_COLLECT_ENABLED: boolean;
   GROWTH_RAW_RETENTION_DAYS: number;
   GROWTH_IDEMPOTENCY_RETENTION_DAYS: number;
@@ -571,6 +580,9 @@ export function validateEnv(env: EnvSource = process.env): AppEnv {
       readEnv(env, 'VAULT_PROGRAM_ID') || DEFAULT_VAULT_PROGRAM_ID,
     VAULT_PROGRAM_LIVE: readBool(env, 'VAULT_PROGRAM_LIVE', false),
     SEC_CONTACT_EMAIL: secContactEmail(readEnv(env, 'SEC_CONTACT_EMAIL')),
+    BLS_API_KEY: readEnv(env, 'BLS_API_KEY'),
+    BEA_API_KEY: readEnv(env, 'BEA_API_KEY'),
+    CENSUS_API_KEY: readEnv(env, 'CENSUS_API_KEY'),
     ...growthEnv(env),
   };
 }

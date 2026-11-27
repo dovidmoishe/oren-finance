@@ -7,6 +7,7 @@ import { renderBriefEmail, type BriefEmailFacts } from './brief-email';
 import { NotificationJobs, type Job } from './jobs';
 import { senviokSendFailure } from './senviok-error';
 import { formatAlertPrice } from './quotes';
+import { reminderEmail, type ReminderEmailFacts } from './reminder-email';
 import { BRIEF_GRACE_MS, briefEmailSlots } from './schedule';
 import {
   alertMintAllowed,
@@ -49,6 +50,8 @@ function render(job: Job, app: string, api: string, secret: string) {
       stop,
     );
   }
+  if (job.kind === 'reminder-email')
+    return reminderEmail(job.payload as ReminderEmailFacts, app, stop);
   return alertEmail(job.payload as AlertEmailFacts, app, stop);
 }
 
@@ -100,7 +103,8 @@ export class NotificationDelivery {
     if (
       !(brief ? config.briefs : config.alerts) ||
       !allowed ||
-      (!brief && !alertMintAllowed(job.payload.mint as string, config)) ||
+      (job.kind === 'alert-email' &&
+        !alertMintAllowed(job.payload.mint as string, config)) ||
       !config.origin ||
       !config.apiOrigin ||
       !config.secret ||
@@ -111,10 +115,14 @@ export class NotificationDelivery {
       return this.jobs.update(job, 'canceled');
     }
     // Leave at least one alert slot when there is more than one total slot.
+    // Release reminders share the alert slots.
     const total = config.emailPerMinute;
     const briefSlots = briefEmailSlots(total, config.alerts);
     if (total === 1 && brief && config.alerts) {
-      const pending = await this.jobs.pending('alert-email');
+      const pending = [
+        ...(await this.jobs.pending('alert-email')),
+        ...(await this.jobs.pending('reminder-email')),
+      ];
       if (pending.length) return this.jobs.defer(job);
     }
     if (
@@ -193,15 +201,21 @@ export class NotificationDelivery {
     return this.jobs.db.transaction(async (tx) => {
       const [source] = await tx.execute<{
         user_id: string;
-        kind: 'brief-email' | 'alert-email';
+        kind: 'brief-email' | 'alert-email' | 'reminder-email';
       }>(sql`
-        select user_id, kind from notification_jobs where id = ${id} and kind in ('brief-email','alert-email')`);
+        select user_id, kind from notification_jobs where id = ${id} and kind in ('brief-email','alert-email','reminder-email')`);
       if (!source || !apply) return source?.kind ?? null;
       const { user_id: userId, kind } = source;
       if (kind === 'brief-email') {
         await tx.execute(
           sql`update user_preferences set morning_brief = false, brief_due_at = null where user_id = ${userId}`,
         );
+      } else if (kind === 'reminder-email') {
+        await tx.execute(
+          sql`select pg_advisory_xact_lock(hashtext(${`reminders-${userId}`}))`,
+        );
+        await tx.execute(sql`update release_reminders set state = 'canceled'
+          where user_id = ${userId} and state in ('active','sent','failed')`);
       } else {
         await tx.execute(
           sql`select pg_advisory_xact_lock(hashtext(${`alerts-${userId}`}))`,

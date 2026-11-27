@@ -1,6 +1,7 @@
 import { PriceMovedError } from '../../common/errors/provider.errors';
 import { BadRequestException, HttpException } from '@nestjs/common';
 import { PROVIDER_REQUESTS_PER_MINUTE } from '../../common/rate-limit';
+import { UsEquityCalendarRangeError } from '../../market/calendar/us-equity-calendar';
 import { AgentToolRegistry } from './agent-tool.registry';
 
 describe('AgentToolRegistry', () => {
@@ -764,5 +765,117 @@ describe('AgentToolRegistry research identity', () => {
       artifact: { type: 'research', data: { assetId: 'nvda' } },
     });
     expect(research.getStock).toHaveBeenCalledWith('nvda', caller);
+  });
+});
+
+describe('AgentToolRegistry US market calendar tools', () => {
+  const marketCalendar = {
+    isMarketOpen: jest.fn(),
+    getMarketCalendar: jest.fn(),
+  };
+  const build = (calendar?: unknown) =>
+    new AgentToolRegistry(
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      { getCalendar: jest.fn(), getDay: jest.fn() } as never,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      calendar as never,
+    );
+
+  beforeEach(() => jest.clearAllMocks());
+
+  it('offers market-hours tools apart from the wallet P&L calendar', () => {
+    const schemas = build(marketCalendar).getSchemas();
+    const names = schemas.map((schema) => schema.name);
+    expect(names).toEqual(
+      expect.arrayContaining([
+        'isMarketOpen',
+        'getMarketCalendar',
+        'getTradingCalendar',
+        'getTradingCalendarDay',
+      ]),
+    );
+    const describe = (name: string) =>
+      schemas.find((schema) => schema.name === name)?.description ?? '';
+    expect(describe('isMarketOpen')).toMatch(/can still trade on-chain/);
+    expect(describe('isMarketOpen')).toMatch(/not the wallet P&L calendar/);
+    expect(describe('isMarketOpen')).toMatch(/xStocks/);
+    expect(describe('isMarketOpen')).toMatch(/Ondo/);
+    expect(describe('isMarketOpen')).toMatch(/Backpack[^.]*unverified/);
+    expect(describe('getMarketCalendar')).toMatch(/never invent one/);
+    expect(describe('getTradingCalendar')).toMatch(
+      /not US market hours, holidays, or economic releases/,
+    );
+    expect(
+      build()
+        .getSchemas()
+        .map((schema) => schema.name),
+    ).not.toContain('isMarketOpen');
+  });
+
+  it('passes the model arguments through and returns the shared payloads', async () => {
+    const registry = build(marketCalendar);
+    marketCalendar.isMarketOpen.mockReturnValue({ state: 'closed' });
+    await expect(
+      registry.dispatch('isMarketOpen', {
+        at: '2026-11-26T15:00:00Z',
+        session: 'extended',
+      }),
+    ).resolves.toEqual({ output: { state: 'closed' } });
+    expect(marketCalendar.isMarketOpen).toHaveBeenCalledWith({
+      at: '2026-11-26T15:00:00Z',
+      session: 'extended',
+    });
+    await registry.dispatch('isMarketOpen', { at: null, session: 'bogus' });
+    expect(marketCalendar.isMarketOpen).toHaveBeenLastCalledWith({
+      at: undefined,
+      session: null,
+    });
+
+    marketCalendar.getMarketCalendar.mockResolvedValue({ days: [] });
+    await expect(
+      registry.dispatch('getMarketCalendar', {
+        window: 'today',
+        from: null,
+        to: null,
+      }),
+    ).resolves.toEqual({ output: { days: [] } });
+    expect(marketCalendar.getMarketCalendar).toHaveBeenCalledWith({
+      window: 'today',
+      from: undefined,
+      to: undefined,
+    });
+  });
+
+  it('reports bad dates as bad input, and is unknown without the service', async () => {
+    const registry = build(marketCalendar);
+    marketCalendar.isMarketOpen.mockImplementation(() => {
+      throw new UsEquityCalendarRangeError('Use an ISO 8601 time');
+    });
+    await expect(
+      registry.dispatch('isMarketOpen', { at: 'soon', session: null }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    marketCalendar.getMarketCalendar.mockRejectedValue(
+      new UsEquityCalendarRangeError('A range can cover at most 31 days'),
+    );
+    await expect(
+      registry.dispatch('getMarketCalendar', {
+        window: null,
+        from: '2026-01-01',
+        to: '2026-12-31',
+      }),
+    ).rejects.toThrow('A range can cover at most 31 days');
+    await expect(
+      build().dispatch('getMarketCalendar', { window: 'week' }),
+    ).rejects.toThrow('Unknown agent tool: getMarketCalendar');
   });
 });
