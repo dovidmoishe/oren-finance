@@ -2,7 +2,12 @@
   color-scheme: light;
 
   --background: #ffffff;
-  --brand: #6652b3;
+  /* Brand accent: Lavender. Links, badges, focus rings, selected states and the agent's notes. Never main buttons or prices. */
+  --brand: #6e5c9c;
+  --brand-text: #5d4b89;
+  --brand-soft: #f4f1fd;
+  --brand-tint: #e9e4fb;
+  --brand-line: #d3cbef;
   --nav-active: #eaeaf0;
   --foreground: #171717;
   --panel: #ffffff;
@@ -15,21 +20,21 @@
   --accent-pink: #f6c2f1;
   --accent-pink-soft: #fff1fc;
   --accent-yellow: #ffe500;
-  --accent-lavender: #e0d7fb;
+  --accent-lavender: var(--brand-tint);
   --positive: #197744;
   --negative: #c42f35;
   --warning: #854d0e;
-  --focus: #2563eb;
-  --link: #0369a1;
+  --focus: var(--brand);
+  --link: var(--brand-text);
   --shimmer-base: #7c7c7c;
   --shimmer-highlight: #0d0d0d;
   --tone-yellow: #fff9c9;
-  --tone-lavender: #f1edff;
+  --tone-lavender: var(--brand-soft);
   --heat-up-1: #e0f8eb;
   --heat-up-2: #b9f3d4;
   --heat-down-1: #ffe4e6;
   --heat-down-2: #ffc3c7;
-  --bar-lavender: #c9bde0;
+  --bar-lavender: var(--valley-lavender);
   --primary: #171717;
   --primary-foreground: #ffffff;
   --primary-hover: #393939;
@@ -41,13 +46,13 @@
   --error-border: #fecaca;
   --warning-surface: #fffbeb;
   --warning-border: #fde68a;
-  --info-action: #0369a1;
+  --info-action: var(--brand);
   --info-action-foreground: #ffffff;
-  --info-action-hover: #075985;
+  --info-action-hover: var(--brand-text);
   --danger: #b42318;
   --danger-foreground: #ffffff;
   --danger-hover: #912018;
-  --avatar: #5b53d9;
+  --avatar: var(--brand);
   --avatar-foreground: #ffffff;
   --control-track: #787873;
   --control-thumb: #ffffff;
@@ -66,6 +71,21 @@
   --chart-area: #5c596c;
   --chart-up: #21c978;
   --chart-down: #ff4d4d;
+
+  /* Valley: the brand world. Measured from the paintings in app/public, and the same in light and dark.
+     Use them for art, graphics and marketing surfaces. In the product UI, green still only means a price went up. */
+  --valley-mist: #fefbf5;
+  --valley-sky: #fdcda2;
+  --valley-sun: #fdd793;
+  --valley-bloom: #f4bfae;
+  --valley-lavender: #afa7ca;
+  --valley-meadow: #8e8a3c;
+  --valley-pine: #585d35;
+  /* Warm neutrals for marketing pages and graphics. */
+  --valley-ground: #f7f4ef;
+  --valley-line: #e5dfd6;
+  --valley-muted: #6f685e;
+  --valley-ink: #120f0b;
 }
 
 /* Put the palette on the document for product routes so body-mounted overlays inherit it. */
@@ -80,7 +100,11 @@
 :root[data-theme="dark"]:has([data-oren-product]) {
   color-scheme: dark;
   --background: #0f0f0e;
-  --brand: #b8a5f0;
+  --brand: #b5a8dc;
+  --brand-text: #c7bde7;
+  --brand-soft: #282238;
+  --brand-tint: #352d49;
+  --brand-line: #453c5f;
   --nav-active: #2c263b;
   --foreground: #ededea;
   --panel: #171716;
@@ -93,21 +117,21 @@
   --accent-pink: #4a2c46;
   --accent-pink-soft: #261a25;
   --accent-yellow: #4d4512;
-  --accent-lavender: #554171;
+  --accent-lavender: var(--brand-line);
   --positive: #3ecf7e;
   --negative: #f87171;
   --warning: #fde68a;
-  --focus: #82aaff;
-  --link: #7dd3fc;
+  --focus: var(--brand);
+  --link: var(--brand-text);
   --shimmer-base: #8a8a85;
   --shimmer-highlight: #f5f5f2;
   --tone-yellow: #2c2913;
-  --tone-lavender: #221f33;
+  --tone-lavender: var(--brand-soft);
   --heat-up-1: #12301f;
   --heat-up-2: #1c5233;
   --heat-down-1: #351719;
   --heat-down-2: #5c2428;
-  --bar-lavender: #6d5f8a;
+  --bar-lavender: #76689b;
   --primary: #ededea;
   --primary-foreground: #0f0f0e;
   --primary-hover: #cacac5;
@@ -119,14 +143,14 @@
   --error-border: #773c3c;
   --warning-surface: #2a200d;
   --warning-border: #77571c;
-  --info-action: #7dd3fc;
-  --info-action-foreground: #082f49;
-  --info-action-hover: #bae6fd;
+  --info-action: var(--brand);
+  --info-action-foreground: #130f1d;
+  --info-action-hover: var(--brand-text);
   --danger: #f87171;
   --danger-foreground: #220b0b;
   --danger-hover: #fca5a5;
-  --avatar: #8f87ff;
-  --avatar-foreground: #130e35;
+  --avatar: var(--brand);
+  --avatar-foreground: #130f1d;
   --control-track: #686864;
   --control-thumb: #f2f2ef;
   --heat-up-3: #22643a;
@@ -145,6 +169,21 @@
 
 @theme inline {
   --color-brand: var(--brand);
+  --color-brand-text: var(--brand-text);
+  --color-brand-soft: var(--brand-soft);
+  --color-brand-tint: var(--brand-tint);
+  --color-brand-line: var(--brand-line);
+  --color-valley-mist: var(--valley-mist);
+  --color-valley-sky: var(--valley-sky);
+  --color-valley-sun: var(--valley-sun);
+  --color-valley-bloom: var(--valley-bloom);
+  --color-valley-lavender: var(--valley-lavender);
+  --color-valley-meadow: var(--valley-meadow);
+  --color-valley-pine: var(--valley-pine);
+  --color-valley-ground: var(--valley-ground);
+  --color-valley-line: var(--valley-line);
+  --color-valley-muted: var(--valley-muted);
+  --color-valley-ink: var(--valley-ink);
   --color-nav-active: var(--nav-active);
   --color-background: var(--background);
   --color-foreground: var(--foreground);

@@ -1,163 +1,170 @@
 # Oren brand
 
-Social graphics and the words on them. Repo agents and anyone prompting an image generator for Oren follow this file. It records the style Dave approved in the price-alerts graphic, using colors and type that already exist in the app wherever those values exist.
+The one guide for Oren's look: the paintings, the colors, the type, the two post templates, and the words on them. Repo agents, designers and anyone prompting an image generator for Oren follow this file.
 
-This file lives at `.agents/skills/brand-graphics/brand.md`. Root `docs/` is gitignored local build-board material, so the guide sits with the other agent skills. The image prompt and the review checklist are in [SKILL.md](SKILL.md).
+This file lives at `.agents/skills/brand-graphics/brand.md`, because root `docs/` is local build-board material. How to fill and render a post is in [SKILL.md](SKILL.md).
 
-Approved example: [references/price-alerts-v2.jpg](references/price-alerts-v2.jpg) (JPEG, 1200×675, 16:9). That file is the reference to attach. It is not a second layout to collage.
+## The idea
+
+Oren lives in a painted valley at golden hour: a warm sky, grass-green hills, lavender mountains, wildflowers, calm water and a few pines. The paintings carry the color. Everything around them stays calm: warm white, near-black ink, black buttons, and one lavender accent.
+
+This replaces the November 14 style, which used flat ivory, a sage second line and a layout copied from another brand's posts. `references/price-alerts-v2.jpg` shows that older style. Don't match it.
+
+## The world
+
+These paintings in `app/public` are the brand world. They are one place, painted the same way.
+
+| Scene | File | Used on |
+| --- | --- | --- |
+| Valley | `oren-editorial-landscape-hero.webp` | Landing hero and closing band, token page, roadmap |
+| Garden | `agents-coastal-garden-hero.webp` | Agents page |
+| Lake | `oren-error-landscape.png` | Error page |
+| Glass city | `oren-market-landscape-hero.webp` | Not used yet |
+
+Rules for every scene:
+
+- Golden hour. Peach and gold sky, lavender in the distance, green in the land, soft mist.
+- Leave a quiet area of mist or sky for the headline. Text never sits on busy painting.
+- Put a pine or cypress in every new scene. Oren is Hebrew for pine, and the valley and lake already have them.
+- No people, no text, no logos in the painting. The mascot is added on top from the official SVG, never painted in.
+
+Recipe for a new scene. Copy it as written, then add the one thing that scene needs:
+
+```
+Soft painted landscape at golden hour. Peach and gold sky with a few pink clouds. Lavender mountains in the distance, rolling grass-green hills, a few pine trees, wildflowers in the foreground, calm water reflecting the sky. The lower third fades into warm white mist. Gouache texture, gentle light. No people, no text, no logos.
+```
+
+Don't name an animation studio or another artist in the prompt. Describe the look instead.
+
+## Color
+
+All values below are tokens in `app/app/styles/theme.css`, with Tailwind utilities such as `bg-valley-mist`, `text-brand-text` and `border-brand-line`.
+
+### From the paintings
+
+Measured from the four paintings: the typical color of each hue family across all their pixels. Use these for art, graphics and marketing surfaces. They are the same in light and dark.
+
+| Name | Token | Hex | Where it shows up |
+| --- | --- | --- | --- |
+| Mist | `--valley-mist` | `#fefbf5` | Fades, post grounds. Most of every painting. |
+| Sky | `--valley-sky` | `#fdcda2` | Sunset sky |
+| Sun | `--valley-sun` | `#fdd793` | Light and glow |
+| Bloom | `--valley-bloom` | `#f4bfae` | Clouds and flowers |
+| Lavender | `--valley-lavender` | `#afa7ca` | Mountains and lavender fields |
+| Meadow | `--valley-meadow` | `#8e8a3c` | Grass and hills |
+| Pine | `--valley-pine` | `#585d35` | Trees and shade |
+
+### Warm neutrals
+
+For marketing pages and graphics. The landing already uses grounds close to these.
+
+| Name | Token | Hex | Use |
+| --- | --- | --- | --- |
+| Ground | `--valley-ground` | `#f7f4ef` | Page ground |
+| Line | `--valley-line` | `#e5dfd6` | Borders and dividers |
+| Muted | `--valley-muted` | `#6f685e` | Second headline lines, labels |
+| Ink | `--valley-ink` | `#120f0b` | Text and buttons |
+
+### The accent: Lavender
+
+One accent, from the mountains in the paintings and the violet edge of the mascot.
+
+| Name | Token | Light | Dark | Use |
+| --- | --- | --- | --- | --- |
+| Brand | `--brand` | `#6e5c9c` | `#b5a8dc` | Focus rings, icons, avatars, small solid marks |
+| Brand text | `--brand-text` | `#5d4b89` | `#c7bde7` | Links and accent labels |
+| Brand soft | `--brand-soft` | `#f4f1fd` | `#282238` | Badge and agent-note grounds |
+| Brand tint | `--brand-tint` | `#e9e4fb` | `#352d49` | Hover, selected rows, glows |
+| Brand line | `--brand-line` | `#d3cbef` | `#453c5f` | Badge borders |
+
+`--link`, `--focus`, `--avatar`, `--info-action`, `--accent-lavender` and `--tone-lavender` all point at this scale.
+
+### Color rules
+
+- The paintings carry the color. UI surfaces are white or warm white, with ink text.
+- Buttons are black. The accent never fills a large area or a main button.
+- The accent marks small things: links, badges, focus rings, selected states, and the agent's notes.
+- Green and red in the UI only mean a price went up or down. The grass green lives in the paintings, not on links or buttons.
+- Warnings are amber-brown with an icon.
+- No sky blue. Other brands in our space use it, and the old Tailwind sky links are gone.
+
+## Type
+
+- Words: **Onest Variable** (`@fontsource-variable/onest`). Tokens `--font-oren-sans`, `--font-sans` and `--font-display` in `app/app/globals.css`.
+- Numbers: **Geist Variable** (`--font-money`), with tabular figures for prices and amounts.
+- Headlines are medium (500) with tight tracking, about `-0.05em`. The wordmark is semibold with `0.16em` tracking.
+- In graphics, the headline's first line is ink and the second line is muted. The body line is regular, in `#474139`.
+
+## Graphics: two post templates
+
+Both are 16:9 at 1600×900. The template is [templates/post.html](templates/post.html), and these renders are the approved look:
+
+- **Scene**, [references/scene-post.jpg](references/scene-post.jpg). For launches and big news. A painting fills the frame, a soft mist on the left holds the text, and the mascot stands on the ground or shore on the right, looking toward the headline.
+- **Plain**, [references/plain-post.jpg](references/plain-post.jpg). For everyday updates and tips. Mist ground, a soft lavender glow, and the mascot peeking in from the bottom right.
+
+Every post has the same parts, in the same places:
+
+1. OREN lockup, top left.
+2. One accent badge naming the feature, such as "Price alerts".
+3. A two-line headline: the statement in ink, the payoff in muted grey.
+4. One body line.
+5. The mascot.
 
 ## Voice and copy
 
-Each graphic has three pieces of text, and no more:
+Each graphic has a badge, a two-line headline, and one body line. No more.
 
-1. A statement, near-black, one line.
-2. A payoff, sage, one line, directly under the statement.
-3. One small grey body line under the payoff.
+- Plain words. Say what the person can do.
+- The statement and the payoff are each one short sentence, usually under six words.
+- The body is one sentence or two short ones. It names the feature and where to turn it on when that is true.
+- Write the words first. Every word in the image must match them exactly.
 
-The approved lines are:
+The approved example:
 
+- Badge: Price alerts
 - Statement: Your stock moved.
 - Payoff: You'll know.
 - Body: Price alerts are open to everyone. Turn them on in Preferences at oren.finance.
-
-Rules for every new line:
-
-- Plain words. Say what the person can do.
-- Short enough to read at a glance. The statement and the payoff are each one sentence, usually under six words.
-- The body is one sentence or two short sentences. It names the feature and where to turn it on when that is true.
-- Write the words first, then generate. The image must render those words exactly.
-- Use a normal apostrophe when the copy has one. Do not invent punctuation.
 
 Keep out:
 
 - Em dashes. Use a period or a new line.
 - Hype. No "revolutionary", "seamless", "unlock", "supercharge", "the future of", or empty praise.
-- Real-time or instant claims. Do not say alerts, prices, or trades are instant, live, or real-time.
-- Fake prices, tickers, percentages, times, counts, or other numbers.
-- Performance or trading promises. No returns, no "you will profit", no "best price", no safety claims about money.
-- A fake full app screen, a fake chart with data, or interface copy that is not on the approved chip list for that graphic.
+- Real-time or instant claims about alerts, prices or trades.
+- Made-up prices, tickers, percentages, times, counts or other numbers.
+- Performance or trading promises: no returns, no "you will profit", no "best price", no claims about the safety of funds.
+- A fake app screen, a fake chart, or interface copy that isn't in the brief.
 
-## One idea per graphic
+## Mascot
 
-One graphic, one idea. The mascot is inside that idea. In the approved example, the mascot looks toward a small alert, and a single hairline runs from a toggle to that alert. The line is the idea, not decoration beside a logo.
-
-The small OREN lockup at the bottom left is the only extra mark. It does not count as a second idea. Do not add a second feature, a second headline, or a row of benefits.
-
-## Visual system
-
-Light mode only. Editorial layout: large type on the left, the idea on the right, a lot of empty ivory around both. The approved example is the composition to match in quality. Change the props when the feature changes. Keep the same type, color, whitespace, and mascot.
-
-### Type
-
-The app's sans is **Instrument Sans Variable**.
-
-- Package: `@fontsource-variable/instrument-sans` 5.3.0 in `app/package.json`.
-- Loaded in `app/app/layout.tsx` and in `docs-site/app/global.css`.
-- Tokens in `app/app/globals.css`: `--font-oren-sans`, `--font-sans`, and `--font-display` all point at `"Instrument Sans Variable"`.
-- Product headlines use `font-medium` (weight 500) and tight tracking. The homepage headline in `app/app/styles/landing.css` is `tracking-[-.055em]`. The agents hero in `app/app/styles/agents.css` uses the same tracking. The wordmark is `font-semibold` with `tracking-[0.16em]` in `app/app/page.tsx`.
-
-Social headlines use the same family, set large, lighter than the app's medium headlines. The codebase does not define a 300 weight or a second display family. Ask for Instrument Sans, large, at a light setting, with tight tracking around `-0.05em`. If the tool only has regular, use regular. Do not use medium, semibold, or bold for the two headline lines. Do not name a different family as the brand font.
-
-The body line is the same family at a normal regular weight, much smaller than the headline.
-
-The lockup is the official mascot icon plus `OREN` in small tracked caps: semibold, tracking about `0.16em`, color `#111110`.
-
-### Color
-
-Use the exact hex when this table says the value is in code. Values from the generation prompt that never appear in the theme are marked approximate. Do not mix in the market green (`--positive: #1f9d5a` in `app/app/globals.css`). That green is for up and down in the product, not for this sage.
-
-| Role | Hex | In code? | Where |
-| --- | --- | --- | --- |
-| Canvas | `#f9f9f7` | Yes | Homepage root in `app/app/page.tsx`. Also `app/app/styles/changelog.css`, `token.css`, `roadmap.css`, and the footer in `app/components/landing/landing-footer.tsx`. |
-| Warmer ivory, agents page only | `#fdfcf9` | Yes | `.agents-page` in `app/app/styles/agents.css`. Not the social canvas. |
-| Statement ink | `#111110` | Yes | Homepage text in `app/app/page.tsx`. Also changelog and token page text. |
-| Theme accent, not the social ink | `#111111` | Yes | `--accent` in `app/app/globals.css`. One step off `#111110`. Social type uses `#111110`. |
-| Payoff sage | `#748368` | Yes | `.agents-hero h1 span` in `app/app/styles/agents.css`. This is the sage accent for the second headline line. |
-| Body grey | `#76786d` | Yes | `.agents-editorial-copy` in `app/app/styles/agents.css`. |
-| Soft lavender | `#e0d7fb` | Yes | `--accent-lavender` in `app/app/globals.css`. The one glow, and the lavender in chips. |
-| Chip and pill fill | `#ffffff` | Yes | `--panel` and `--background` in `app/app/globals.css`. |
-| Hairline | `#111110` | Yes | Same ink as the statement, drawn as one thin line. There is no separate sparkline token. |
-| Mascot face | `#07070c` | Yes | `app/public/oren-mark.svg` and `app/components/brand/oren-logo.tsx`. |
-| Rim, cyan end | `#38bdf8` | Yes | Same files. Gradient stop at 0%. |
-| Rim, light middle | `#f8fbff` | Yes | Same files. Gradient stop at 48%. |
-| Rim, violet end | `#a855f7` | Yes | Same files. Gradient stop at 100%. |
-| Eye glow | `#dbeafe` | Yes | Same files. |
-| Eye | `#eef6ff` | Yes | Same files. |
-
-Not in the codebase. The prompt that produced the approved graphic asked for these. Treat them as approximate and do not prefer them over the table above:
-
-| Prompt asked for | Nearest exact token | Note |
-| --- | --- | --- |
-| Canvas `#FAF9F7` | `#f9f9f7` | Prompt value is not in the CSS. |
-| Sage `#6C7C60` | `#748368` | Prompt value is not in the CSS. The approved jpeg is a little darker than `#748368`. Match `#748368` for new work so social type and the agents page stay on one sage. |
-| Body `#767674` | `#76786d` | Prompt value is not in the CSS. The two are nearly the same. Use `#76786d`. |
-| Glow `#D8C4F8` | `#e0d7fb` | Prompt value is not in the CSS. Use `--accent-lavender`. |
-
-The homepage hero's second line is warm grey `#69665f` (`.landing-headline > span` in `app/app/styles/landing.css`). Social payoff lines use the agents sage `#748368`, which is the accent in the approved graphic. Do not recolor the payoff to that grey.
-
-There is no token for the toggle knob's exact saturation. Keep the knob and the bell in the `#e0d7fb` lavender family, soft, and match the approved example. Do not invent a new hex. Do not use the mascot violet `#a855f7` as a chip fill. That color belongs to the rim.
-
-### Ground, glow, and line
-
-- Flat ivory `#f9f9f7`. No paper texture, no gradient wash across the whole frame, no dark mode.
-- One soft lavender glow, `#e0d7fb`, low and behind the mascot, easy to miss. A hint of the rim cyan `#38bdf8` may sit inside that same glow. One glow only.
-- One hairline in `#111110`. It has to connect the idea (in the example, it runs from the toggle area into the alert pill and ends in a small dot). It is not a chart and it carries no numbers.
-
-### Chips
-
-Small white pills with a soft shadow. Two is enough. In the approved example:
-
-- An alert pill: white, fully rounded, a small lavender bell, the words "Your stock moved".
-- A toggle chip: white, a hairline lavender outline, the words "Alert on", and a small switch turned on in soft lavender.
-
-New graphics may change the chip words. Keep them to a few words, with no prices and no tickers. Icons stay simple and single-color. In the product UI, icons are Hugeicons. In a generated graphic, draw a plain bell or a plain switch. Do not invent a second icon family.
-
-### Mascot
-
-The official artwork is the black blob with two pale oval eyes and a cyan-to-violet rim. Use it as drawn.
+The official artwork is the black blob with two pale pill eyes and a cyan-to-violet rim. Use it as drawn.
 
 - Vector, source of truth: `app/public/oren-mark.svg`
 - Same drawing: `app/app/icon.svg` and `docs-site/public/oren-logo.svg`
-- React component, same paths and colors: `app/components/brand/oren-logo.tsx`
+- React component with states and eye movement: `app/components/brand/oren-logo.tsx`
 - Raster for tools that need a bitmap: `app/public/oren-email-mark.png` (120×120)
 
-`app/public/oren-logo.png` is named by `app/scripts/validate-oren-logo.mjs` and is not in the repo. Do not ask a tool to attach it.
+Face `#07070c`. Rim `#38bdf8` to `#f8fbff` to `#a855f7`. Eyes `#eef6ff` with glow `#dbeafe`. These belong to the mascot only. Don't use them as UI colors.
 
-The mascot belongs in the concept. It looks at, holds, or is connected to the one idea. It is not a sticker parked next to the headline, and it is not a second copy filling the corner (the lockup is the small one). Do not add a mouth, limbs, teeth, blush, or 3D shading. Do not redraw the silhouette. Do not change the rim colors.
-
-### Lockup
-
-Bottom left. Small mascot icon, then `OREN` in tracked caps, ink `#111110`. Nothing else in the footer. No URL in the lockup. A URL belongs in the body line only when the copy needs it, as in the approved example.
-
-## Sizes
-
-Landscape 16:9 for X.
-
-- 1600×900
-- 1672×941
-
-Both are 16:9. Deliver one of those. The approved reference file itself is 1200×675, which is the same ratio, and is for attachment, not the export size.
+The mascot can look toward the idea by moving its eyes, as the template's `oren-look` does. Don't add a mouth, limbs, teeth, blush or 3D shading. Don't redraw the silhouette or recolor the rim.
 
 ## Do
 
-- One idea, with the mascot inside it.
-- Two headline lines: `#111110` statement, `#748368` payoff. One grey body line in `#76786d`.
-- Instrument Sans Variable, large and light for the headline, regular for the body.
-- Ivory `#f9f9f7`, one lavender glow, one hairline, generous whitespace.
-- One or two small white chips.
-- Official mascot colors and silhouette.
-- Small OREN lockup, bottom left only.
-- Proofread the rendered words against the copy you supplied.
+- One idea per graphic, with the mascot looking at it.
+- A painting from the world, or warm mist, as the ground.
+- Ink statement, muted payoff, one body line, one lavender badge.
+- Onest for words, Geist for numbers.
+- The official mascot, added on top.
+- The OREN lockup, top left.
+- Proofread the rendered words against the copy.
 
 ## Don't
 
-- Don't put more than one idea in the frame.
-- Don't paste the mascot beside the text as a logo with a caption.
-- Don't add a mouth, limbs, or 3D shading, and don't recolor the rim.
-- Don't use dark mode, scenery, a cinematic look, grain, or a full-frame gradient.
-- Don't show a fake app, a dense card, a ticker, a price, a percentage, a time, or any other made-up number.
-- Don't promise performance, safety of funds, or instant or real-time behavior.
-- Don't hype, and don't use an em dash.
-- Don't add text that was not in the copy.
-- Don't borrow another company's name, palette, or layout.
-- Don't set the headline in bold.
+- Don't put text on a busy part of a painting.
+- Don't use sky blue, a full-frame gradient, or dark mode in a post.
+- Don't use green or red outside of price moves.
+- Don't paint the mascot into a scene or change its colors.
+- Don't add a second idea, a second headline, or a row of benefits.
+- Don't show made-up numbers, prices or tickers.
+- Don't hype, promise performance, or use an em dash.
+- Don't borrow another company's name, palette or layout.
