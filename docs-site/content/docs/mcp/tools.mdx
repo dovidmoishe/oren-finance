@@ -3,20 +3,20 @@ title: Tool reference
 description: Inputs, permissions and behavior for the Oren MCP tools.
 ---
 
-The MCP implementation registers **10 distinct tool names**. A client discovers only those allowed by its approved scopes and the server's enabled features. Successful results are returned as text containing JSON; failures can contain plain text and set MCP's `isError` flag.
+The MCP implementation registers **12 distinct tool names**. A client discovers only those allowed by its approved scopes and the server's enabled features. Successful results are returned as text containing JSON; failures can contain plain text and set MCP's `isError` flag.
 
 ## At a glance
 
-- **Read:** `get_portfolio`, `search_stocks`, `get_stock`, `get_stock_research`.
+- **Read:** `get_portfolio`, `search_stocks`, `get_stock`, `get_stock_research`, `is_market_open`, `get_market_calendar`.
 - **Prepare and review:** `prepare_trade`, `review_trade`, `trade_status`.
 - **Compatibility:** `prepare_buy`, `execute_buy`.
 - **Restricted execution:** `execute_trade`.
 
-A read-only connection exposes four tools. Read plus prepare, without execute scope, exposes nine. With read, prepare and execute scopes, `prepare_buy` and `execute_buy` are omitted; `execute_trade` appears only when the signing gate is configured. A missing tool is not necessarily a connection error.
+A read-only connection exposes six tools. Read plus prepare, without execute scope, exposes eleven. With read, prepare and execute scopes, `prepare_buy` and `execute_buy` are omitted; `execute_trade` appears only when the signing gate is configured. A missing tool is not necessarily a connection error.
 
 ## Read tools
 
-All three require `oren.read` and do not sign or broadcast transactions.
+All six require `oren.read` and do not sign or broadcast transactions.
 
 ### `get_portfolio`
 
@@ -63,6 +63,32 @@ Portfolio context is the wallet approved on this connection. The tool does not a
 ```
 
 **Returns:** the research report as JSON text. A company section can be unavailable while technical research, news, and portfolio context are still present.
+
+### `is_market_open`
+
+Checks the US stock market's cash session, on NYSE hours in `America/New_York`.
+
+- `at`: optional ISO 8601 time with an offset, for example `2026-11-27T14:30:00Z`. Defaults to now.
+- `session`: optional. `regular` is the default (09:30–16:00 ET, or 13:00 on early-close days). `extended` covers 04:00–20:00 ET, and `any` adds overnight.
+
+```json
+{ "session": "regular" }
+```
+
+**Returns:** whether that session is open, whether the day is a trading day or an early close, any holiday name, the day's hours in ET and UTC, and the next regular open and close. Days beyond the schedule NYSE has published are computed from its holiday rules and marked `provisional`. Tokenized stocks can still trade on-chain while the cash session is closed, so this is not a swap-availability check. A time without an offset returns an error message with `isError: true`.
+
+### `get_market_calendar`
+
+Lists US trading days, holidays and 1:00 p.m. ET early closes, with the official US macro releases: FOMC decisions, CPI, the jobs report, GDP, PCE prices, PPI, retail sales and weekly jobless claims.
+
+- `window`: optional. `today` returns one day; `week` returns seven days and is the default.
+- `from` and `to`: optional `YYYY-MM-DD` dates covering at most 31 days. `from` defaults to today in New York.
+
+```json
+{ "from": "2026-12-01", "to": "2026-12-31" }
+```
+
+**Returns:** one entry per day, plus each release's agency, date and time in ET, status, published value with the previous one, reference period and source links. Dates, times and values come from the agency that publishes them: BLS, BEA, the Census Bureau, the Labor Department or the Federal Reserve Board. There are no forecasts or consensus figures. A released event without a value was not read on release day; use its source link. Keep the notices in `attribution.notices` with any data you show. A date that doesn't exist, a `from` after `to`, or a range over 31 days returns an error message with `isError: true`.
 
 ## Trade preparation tools
 
