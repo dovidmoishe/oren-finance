@@ -11,6 +11,7 @@ import { TokensModule } from '../tokens/tokens.module';
 import { PricePolling } from './alerts';
 import { MorningBrief } from './brief';
 import { NotificationsModule } from './notifications.module';
+import { ReleaseReminderScan } from './reminders';
 import { NotificationWorker } from './worker';
 
 @Module({
@@ -30,6 +31,7 @@ import { NotificationWorker } from './worker';
     MarketEventsRepository,
     MorningBrief,
     PricePolling,
+    ReleaseReminderScan,
     NotificationWorker,
   ],
 })

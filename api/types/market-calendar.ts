@@ -240,3 +240,55 @@ export interface MarketCalendarResponse {
   notes: string[];
   attribution: OfficialAttribution;
 }
+
+/**
+ * One asset's move on a New York date: that day's close against the previous
+ * trading day's close (or the previous on-chain close when the US session was
+ * shut). Prices are the tokenized-stock prices Oren trades, from Tokens.
+ */
+export interface MarketDayMove {
+  assetId: string;
+  ticker: string;
+  name: string;
+  close: number;
+  previousClose: number;
+  previousDate: string;
+  /** Percent, e.g. 1.25 for +1.25%. */
+  changePct: number;
+}
+
+export interface MarketDayHeadline {
+  headline: string;
+  source: string | null;
+  url: string;
+  publishedAt: string;
+  /** The ticker whose feed carried the story. */
+  ticker: string | null;
+}
+
+/**
+ * upcoming = a future date; in_progress = today before the regular close;
+ * complete = a finished trading day; closed = a weekend or full holiday.
+ */
+export type MarketDayStatus =
+  'upcoming' | 'in_progress' | 'complete' | 'closed';
+
+/** What happened in US markets on one New York date. Deterministic: no model wrote any of it. */
+export interface MarketDayRecap {
+  date: string;
+  timeZone: UsEquityTimeZone;
+  status: MarketDayStatus;
+  hours: UsEquityHours;
+  /** S&P 500, Nasdaq 100 and Russell 2000 tracking ETFs. */
+  indexes: MarketDayMove[];
+  /** Biggest up and down moves among large US names, three each. */
+  gainers: MarketDayMove[];
+  losers: MarketDayMove[];
+  releases: MarketEvent[];
+  headlines: MarketDayHeadline[];
+  /** False when the date is outside what the news feeds still carry. */
+  headlinesAvailable: boolean;
+  notes: string[];
+  attribution: OfficialAttribution;
+  generatedAt: string;
+}

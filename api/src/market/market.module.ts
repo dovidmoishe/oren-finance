@@ -12,6 +12,8 @@ import {
   MarketHoursController,
 } from './calendar/market-calendar.controller';
 import { MarketCalendarService } from './calendar/market-calendar.service';
+import { MarketDayRecapService } from './calendar/market-day-recap.service';
+import { EquityNewsService } from '../news/equity-news.service';
 import { MarketEventsRepository } from './calendar/market-events.repository';
 import { MarketEventsWorker } from './calendar/market-events.worker';
 import { UsEquityCalendarService } from './calendar/us-equity-calendar.service';
@@ -30,6 +32,9 @@ import { UsEquityCalendarService } from './calendar/us-equity-calendar.service';
     UsEquityCalendarService,
     MarketEventsRepository,
     MarketCalendarService,
+    MarketDayRecapService,
+    // Stateless Yahoo ticker feed; a local instance avoids importing NewsModule.
+    EquityNewsService,
     MarketEventsWorker,
   ],
   exports: [
@@ -37,6 +42,7 @@ import { UsEquityCalendarService } from './calendar/us-equity-calendar.service';
     UsEquityCalendarService,
     MarketEventsRepository,
     MarketCalendarService,
+    MarketDayRecapService,
   ],
 })
 export class MarketModule {}

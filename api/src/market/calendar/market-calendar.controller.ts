@@ -3,6 +3,7 @@ import {
   Controller,
   Get,
   Header,
+  Param,
   Query,
   Res,
 } from '@nestjs/common';
@@ -18,6 +19,7 @@ import {
 } from 'class-validator';
 import type { Response } from 'express';
 import type {
+  MarketDayRecap,
   MarketEventsResponse,
   UsEquityClosuresResponse,
   UsEquityHours,
@@ -33,8 +35,10 @@ import {
   FIRST_SUPPORTED_YEAR,
   LAST_SUPPORTED_YEAR,
   UsEquityCalendarRangeError,
+  usEquityCalendar,
 } from './us-equity-calendar';
 import { UsEquityCalendarService } from './us-equity-calendar.service';
+import { MarketDayRecapService } from './market-day-recap.service';
 
 const LIVE_CACHE = 'public, max-age=30';
 const STABLE_CACHE = 'public, max-age=3600, stale-while-revalidate=86400';
@@ -143,7 +147,34 @@ export class MarketHoursController {
 /** Public, read-only official US macro releases, read from Postgres only. */
 @Controller('calendar')
 export class MarketCalendarController {
-  constructor(private readonly calendar: MarketCalendarService) {}
+  constructor(
+    private readonly calendar: MarketCalendarService,
+    private readonly recaps: MarketDayRecapService,
+  ) {}
+
+  /**
+   * What happened in US markets on one New York date. Finished days are
+   * stable; today and future days change as prices and releases land.
+   */
+  @Get('days/:date')
+  async day(
+    @Param('date') date: string,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<MarketDayRecap> {
+    if (!DATE.test(date)) throw new BadRequestException(`date ${DATE_MESSAGE}`);
+    try {
+      const recap = await this.recaps.getRecap(date);
+      // Settled once the New York day is over; until then prices and headlines move.
+      const settled =
+        recap.date < usEquityCalendar.etDate(new Date(recap.generatedAt));
+      res.setHeader('Cache-Control', settled ? STABLE_CACHE : LIVE_CACHE);
+      return recap;
+    } catch (error) {
+      if (error instanceof UsEquityCalendarRangeError)
+        throw new BadRequestException(error.message);
+      throw error;
+    }
+  }
 
   @Get('events')
   @Header('Cache-Control', STABLE_CACHE)

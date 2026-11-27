@@ -20,6 +20,11 @@ import { releaseRow } from './market-events.sync';
 import { RELEASES } from './macro-catalog';
 import { previousMonth } from './macro-schedule';
 import { UsEquityCalendarService } from './us-equity-calendar.service';
+import { MarketDayRecapService } from './market-day-recap.service';
+import {
+  UsEquityCalendarRangeError,
+  usEquityCalendar,
+} from './us-equity-calendar';
 
 const cpi = RELEASES.find((release) => release.kind === 'cpi')!;
 
@@ -101,12 +106,26 @@ async function start(
       ),
     ),
   };
+  const recaps = {
+    getRecap: jest.fn((date: string) => {
+      if (date === '2099-12-31')
+        throw new UsEquityCalendarRangeError(
+          'Pick a date within the next year',
+        );
+      return {
+        date,
+        status: 'complete',
+        generatedAt: new Date().toISOString(),
+      };
+    }),
+  };
   const module = await Test.createTestingModule({
     controllers: [MarketHoursController, MarketCalendarController],
     providers: [
       UsEquityCalendarService,
       MarketCalendarService,
       { provide: MarketEventsRepository, useValue: repository },
+      { provide: MarketDayRecapService, useValue: recaps },
     ],
   }).compile();
   const app = module.createNestApplication();
@@ -121,6 +140,7 @@ async function start(
   return {
     app,
     repository,
+    recaps,
     http: () => request(app.getHttpServer() as Server),
   };
 }
@@ -437,6 +457,41 @@ describe('official macro events HTTP API', () => {
         .expect(200);
       expect(response.body).toEqual({ date: '2026-12-01', mocked: true });
       expect(hours.getHours).toHaveBeenCalledWith('2026-12-01');
+    } finally {
+      await app.close();
+    }
+  });
+});
+
+describe('market day recap HTTP API', () => {
+  it('caches a finished day for an hour and today for 30 seconds', async () => {
+    const { app, http, recaps } = await start();
+    try {
+      const past = await http().get('/calendar/days/2026-11-10').expect(200);
+      expect(past.body).toMatchObject({
+        date: '2026-11-10',
+        status: 'complete',
+      });
+      expect(past.headers['cache-control']).toBe(
+        'public, max-age=3600, stale-while-revalidate=86400',
+      );
+      const today = usEquityCalendar.etDate(new Date());
+      const live = await http().get(`/calendar/days/${today}`).expect(200);
+      expect(live.headers['cache-control']).toBe('public, max-age=30');
+      expect(recaps.getRecap).toHaveBeenCalledWith('2026-11-10');
+    } finally {
+      await app.close();
+    }
+  });
+
+  it("rejects malformed and out-of-range dates as the caller's input", async () => {
+    const { app, http } = await start();
+    try {
+      await http().get('/calendar/days/2026-11-1').expect(400);
+      const far = await http().get('/calendar/days/2099-12-31').expect(400);
+      expect((far.body as { message: string }).message).toMatch(
+        /within the next year/,
+      );
     } finally {
       await app.close();
     }

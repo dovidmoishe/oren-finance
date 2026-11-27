@@ -354,6 +354,7 @@ describe('senviok config summary', () => {
       {} as never,
       {} as never,
       {} as never,
+      {} as never,
     );
     try {
       worker.onApplicationBootstrap();

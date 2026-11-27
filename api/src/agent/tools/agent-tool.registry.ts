@@ -8,6 +8,7 @@ import { ExecutionService } from '../../execution/execution.service';
 import { IntelligenceService } from '../../intelligence/intelligence.service';
 import { MarketService } from '../../market/market.service';
 import { MarketCalendarService } from '../../market/calendar/market-calendar.service';
+import { MarketDayRecapService } from '../../market/calendar/market-day-recap.service';
 import { UsEquityCalendarRangeError } from '../../market/calendar/us-equity-calendar';
 import type { UsEquitySessionMode } from '../../../types/market-calendar';
 import { NewsService } from '../../news/news.service';
@@ -77,6 +78,7 @@ export class AgentToolRegistry {
     @Optional() private readonly paidTools?: PaidProviderToolBudget,
     @Optional() private readonly companyBrief?: CompanyBriefService,
     @Optional() private readonly marketCalendar?: MarketCalendarService,
+    @Optional() private readonly marketDayRecap?: MarketDayRecapService,
   ) {}
 
   getSchemas(caller: DripCaller = {}): ToolDefinition[] {
@@ -84,6 +86,7 @@ export class AgentToolRegistry {
       ...TOOL_SCHEMAS,
       ...(this.companyBrief ? [COMPANY_BRIEF_TOOL] : []),
       ...(this.marketCalendar ? MARKET_CALENDAR_TOOL_SCHEMAS : []),
+      ...(this.marketDayRecap ? [MARKET_DAY_RECAP_TOOL] : []),
       ...(caller.userId && caller.walletAddress && this.research
         ? RESEARCH_TOOL_SCHEMAS
         : []),
@@ -182,6 +185,17 @@ export class AgentToolRegistry {
               from: optionalString(input, 'from'),
               to: optionalString(input, 'to'),
             }),
+          ),
+        };
+      }
+
+      case 'getMarketDayRecap': {
+        if (!this.marketDayRecap)
+          throw new BadRequestException(`Unknown agent tool: ${name}`);
+        const recaps = this.marketDayRecap;
+        return {
+          output: await calendarAnswer(() =>
+            recaps.getRecap(required(input, 'date')),
           ),
         };
       }
@@ -840,6 +854,12 @@ const MARKET_CALENDAR_TOOL_SCHEMAS: ToolDefinition[] = [
     },
   ),
 ];
+
+const MARKET_DAY_RECAP_TOOL = tool(
+  'getMarketDayRecap',
+  "Get what happened in US markets on one New York date (YYYY-MM-DD): the day's US session hours, moves in the S&P 500, Nasdaq 100 and Russell 2000 tracking ETFs, the three biggest up and down moves among about twenty large US names, official macro releases with published values, and headlines published that day in Oren's ticker feeds (recent days only; headlinesAvailable says whether the feeds still reach that date). Prices are the tokenized-stock prices Oren trades; on closed days they reflect on-chain trading. Use for: what happened in the market on a day, why the market moved, a recap of a past or current day. Explain only from these numbers and headlines, cite each headline's link, and never invent a figure or a cause. Not the wallet P&L calendar (that is getTradingCalendarDay).",
+  { date: stringSchema },
+);
 
 const COMPANY_BRIEF_TOOL = tool(
   'getCompanyBrief',

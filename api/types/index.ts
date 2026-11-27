@@ -13,6 +13,10 @@ export type {
   MacroEventKind,
   MarketCalendarDay,
   MarketCalendarResponse,
+  MarketDayHeadline,
+  MarketDayMove,
+  MarketDayRecap,
+  MarketDayStatus,
   MarketEvent,
   MarketEventStatus,
   MarketEventsResponse,
@@ -23,6 +27,11 @@ export type {
   UsEquitySessionResponse,
   UsEquityTradingDayResponse,
 } from './market-calendar';
+export type {
+  CreateReleaseReminderRequest,
+  ReleaseReminder,
+  ReleaseRemindersResponse,
+} from './release-reminder';
 
 export type {
   LimitOrderIntent,

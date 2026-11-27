@@ -13,7 +13,7 @@ import {
   nextBrief,
 } from './schedule';
 
-export type Kind = 'brief' | 'brief-email' | 'alert-email';
+export type Kind = 'brief' | 'brief-email' | 'alert-email' | 'reminder-email';
 export type Job = {
   id: string;
   user_id: string;
@@ -211,12 +211,20 @@ export class NotificationJobs {
   }
 
   async handoff(job: Job) {
+    // A reminder goes out only while its release is still upcoming at the
+    // time it was queued for; a moved release is queued again by the scan.
     const allowed =
       job.kind === 'brief-email'
         ? sql`exists (select 1 from user_preferences where user_id = ${job.user_id}
           and morning_brief and brief_time = ${job.payload.time as string}
           and time_zone = ${job.payload.zone as string})`
-        : sql`exists (select 1 from price_alerts where id = ${job.payload.alertId as string}
+        : job.kind === 'reminder-email'
+          ? sql`exists (select 1 from release_reminders r join market_events e on e.id = r.event_id
+          where r.id = ${(job.payload.reminderId as string) ?? null}::uuid and r.user_id = ${job.user_id}
+            and r.state = 'sent' and e.date_status = 'scheduled'
+            and date_trunc('milliseconds', e.scheduled_at) = ${(job.payload.scheduledAt as string) ?? null}::timestamptz
+            and e.scheduled_at > now())`
+          : sql`exists (select 1 from price_alerts where id = ${job.payload.alertId as string}
           and user_id = ${job.user_id} and state = 'triggered')`;
     const rows = await this.db.execute(sql`
       update notification_jobs set state = 'sending', lease_until = now() + interval '5 minutes', updated_at = now()
