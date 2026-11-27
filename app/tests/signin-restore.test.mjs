@@ -416,6 +416,7 @@ function dashboardRequire(auth) {
       useWalletStore: (select) => select(storeState),
       usePortfolioStore: (select) => select(storeState),
       useVaultStore: (select) => select(storeState),
+      useAgentStore: (select) => select({ isSending: false, setPanelOpen() {}, newChat() {}, sendMessage() {} }),
     };
     if (id === "@/hooks/use-portfolio-refresh") return { usePortfolioRefresh: () => async () => {} };
     if (id === "./portfolio-skeleton") return { PortfolioSkeleton: () => null };
@@ -428,6 +429,18 @@ function dashboardRequire(auth) {
     if (id === "next/dynamic") return { default: () => () => null };
     if (id === "lucide-react") return new Proxy({}, { get: () => () => null });
     if (id === "@/components/ui/interface-icon") return { InterfaceIcon: () => null };
+    if (id === "./market-layer") return loadModule("../components/calendar/market-layer.ts", sandboxRequire);
+    // Server render: the calendar body waits for hydration, the sign-in gate does not.
+    if (id === "./use-market-calendar") return {
+      useHydrated: () => false,
+      useMarketCalendar: () => ({ isLoading: true, retry() {} }),
+      useMarketHours: () => ({ isLoading: false, failed: false }),
+      useMarketDayRecap: () => ({ isLoading: false, failed: false }),
+    };
+    if (id === "./day-panel") return { DayPanel: () => null, MarketSources: () => null };
+    if (id === "./month-grid") return { MonthGrid: () => null };
+    if (id === "./day-recap") return { DayRecap: () => null };
+    if (id === "./release-reminder") return { ReleaseReminderButton: () => null };
     throw new Error(`unexpected import ${id}`);
   }
   return sandboxRequire;

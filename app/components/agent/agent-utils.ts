@@ -112,6 +112,7 @@ export function toolLabel(toolName: string) {
     getTradingCalendarDay: 'Opening day drilldown',
     isMarketOpen: 'Checking US market hours',
     getMarketCalendar: 'Reading the US market calendar',
+    getMarketDayRecap: 'Reading the market recap for that day',
     getStock: 'Loading stock data',
     getBitgetMarketContext: 'Checking Bitget live market',
     getStockChart: 'Reading price history',

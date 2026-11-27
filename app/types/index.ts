@@ -4,6 +4,7 @@ export * from "./calendar";
 export * from "./execution";
 export * from "./feedback";
 export * from "./limit-order";
+export * from "./market-calendar";
 export * from "./market-session";
 export * from "./portfolio";
 export * from "./research";
