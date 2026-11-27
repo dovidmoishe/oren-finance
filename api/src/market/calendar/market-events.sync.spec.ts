@@ -87,12 +87,12 @@ class MemoryStore implements MarketEventStore {
     return Promise.resolve(count);
   }
 
-  pendingResults(input: { kinds: readonly string[]; from: Date; to: Date }) {
+  releaseHistory(input: { kinds: readonly string[]; from: Date; to: Date }) {
     return Promise.resolve(
       this.rows.filter(
         (row) =>
           input.kinds.includes(row.kind) &&
-          row.dateStatus === 'scheduled' &&
+          (row.dateStatus === 'scheduled' || row.dateStatus === 'released') &&
           row.scheduledAt >= input.from &&
           row.scheduledAt <= input.to,
       ),
@@ -521,6 +521,10 @@ describe('macro calendar refresh', () => {
     });
     const report = await new MarketEventsSync(api, store).run(NOV_27);
     expect(report.missed).toBe(2);
+    jest.spyOn(api, 'beaReleaseDates').mockRejectedValue(new Error('offline'));
+    const retry = await new MarketEventsSync(api, store).run(NOV_27);
+    expect(retry.failures).toContain('bea-schedule:error');
+    expect(retry.missed).toBe(2);
     for (const id of ['gdp:2026-10-29', 'pce:2026-10-29'])
       expect(toMarketEvent(store.byId(id)!, NOV_27)).toMatchObject({
         status: 'released',

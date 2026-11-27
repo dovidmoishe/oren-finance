@@ -106,18 +106,6 @@ export class MarketEventsSync {
     const today = this.calendar.etDate(now);
     const startOfToday = etInstant(today, 0);
     const lookback = addDays(today, -RESULT_LOOKBACK_DAYS);
-    // Release times per kind, to tell when a later release has superseded one.
-    const releaseTimes = new Map<string, number[]>();
-    const noteReleases = (
-      rows: readonly { kind: string; scheduledAt: Date }[],
-    ) => {
-      for (const row of rows)
-        releaseTimes.set(row.kind, [
-          ...(releaseTimes.get(row.kind) ?? []),
-          row.scheduledAt.getTime(),
-        ]);
-    };
-
     // Pinned and computed schedules are authoritative: a future row they no
     // longer list is cancelled.
     await this.seed(
@@ -145,7 +133,6 @@ export class MarketEventsSync {
                 label: monthLabel(release.referencePeriod),
               }),
             );
-      noteReleases(rows);
       await this.seed(report, rows, startOfToday);
     }
 
@@ -159,7 +146,6 @@ export class MarketEventsSync {
         )
           .map((instant) => beaRow(spec, new Date(instant), this.calendar))
           .filter((row) => row.raw.dateEt >= lookback);
-        noteReleases(rows);
         // Only an answer that still lists future dates can retire one; an
         // empty or truncated answer never cancels the calendar.
         await this.seed(
@@ -173,18 +159,24 @@ export class MarketEventsSync {
       report.failures.push(`bea-schedule:${failureCode(error)}`);
     }
 
-    const pending = await this.store.pendingResults({
+    const history = await this.store.releaseHistory({
       kinds: MACRO_EVENT_KINDS,
       from: etInstant(lookback, 0),
       to: now,
     });
-    noteReleases(pending);
-    const superseded = (event: StoredMarketEvent) =>
-      (releaseTimes.get(event.kind) ?? []).some(
-        (time) => time > event.scheduledAt.getTime() && time <= now.getTime(),
+    const latest = new Map<string, number>();
+    for (const event of history) {
+      latest.set(
+        event.kind,
+        Math.max(
+          latest.get(event.kind) ?? -Infinity,
+          event.scheduledAt.getTime(),
+        ),
       );
+    }
     const byAgency = new Map<OfficialAgencyId, StoredMarketEvent[]>();
-    for (const event of pending) {
+    for (const event of history) {
+      if (event.dateStatus !== 'scheduled') continue;
       const agency =
         event.kind === FOMC_DECISION.kind
           ? 'frb'
@@ -195,7 +187,11 @@ export class MarketEventsSync {
       // its own (a second GDP estimate as the advance one), so it keeps no
       // value. FOMC statements stay as issued, and older claims weeks are
       // backfilled with revised levels, labeled by week.
-      if (agency !== 'frb' && agency !== 'dol' && superseded(event)) {
+      if (
+        agency !== 'frb' &&
+        agency !== 'dol' &&
+        (latest.get(event.kind) ?? -Infinity) > event.scheduledAt.getTime()
+      ) {
         report.missed += 1;
         continue;
       }

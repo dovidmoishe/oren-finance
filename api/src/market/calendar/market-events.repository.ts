@@ -54,7 +54,7 @@ export interface MarketEventStore {
     keep: string[];
     from: Date;
   }): Promise<number>;
-  pendingResults(input: {
+  releaseHistory(input: {
     kinds: readonly string[];
     from: Date;
     to: Date;
@@ -121,7 +121,7 @@ export class MarketEventsRepository implements MarketEventStore {
     return rows.length;
   }
 
-  async pendingResults(input: {
+  async releaseHistory(input: {
     kinds: readonly string[];
     from: Date;
     to: Date;
@@ -133,7 +133,7 @@ export class MarketEventsRepository implements MarketEventStore {
       .where(
         and(
           inArray(marketEvents.kind, [...input.kinds]),
-          eq(marketEvents.dateStatus, 'scheduled'),
+          inArray(marketEvents.dateStatus, ['scheduled', 'released']),
           gte(marketEvents.scheduledAt, input.from),
           lte(marketEvents.scheduledAt, input.to),
         ),
