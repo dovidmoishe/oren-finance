@@ -6,16 +6,15 @@ import Link from "next/link";
 import dynamic from "next/dynamic";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { Button, Skeleton, cn, formatCompactCurrency, formatCurrency, formatPercent } from "@/components/ui";
-import { getStockChart } from "@/services/market-service";
 import { useMarketStore } from "@/store/market-store";
 import { useElementVisible } from "@/hooks/use-element-visible";
-import { createSharedReadCache } from "@/services/shared-read-cache";
+import { createSparklineReader } from "@/services/sparkline-read-cache";
 import type { MarketCandle, StockSummary } from "@/types";
 import { useI18n, useT } from "@/i18n/i18n";
 import { MarketForYou } from "./market-for-you";
 import { MarketStockLogo } from "./market-stock-logo";
 
-const readSparkline = createSharedReadCache<MarketCandle[]>();
+const readSparkline = createSparklineReader();
 
 const marketColumns = "grid grid-cols-[minmax(0,1fr)_4.75rem_4.25rem] items-center gap-2.5 px-3 @lg:grid-cols-[minmax(0,1fr)_minmax(5.5rem,0.55fr)_minmax(4rem,0.5fr)_minmax(5rem,0.55fr)] @3xl:grid-cols-[minmax(0,1fr)_minmax(5.5rem,0.55fr)_minmax(4rem,0.5fr)_minmax(6rem,0.65fr)_minmax(5rem,0.55fr)] @lg:gap-4 @lg:px-4";
 
@@ -67,7 +66,7 @@ function Sparkline({ stock }: { stock: StockSummary }) {
   useEffect(() => {
     if (!visible) return;
     const controller = new AbortController();
-    void readSparkline(cacheKey, (signal) => getStockChart(stock.assetId, "1D", signal), controller.signal)
+    void readSparkline(stock.assetId, controller.signal)
       .then((chart) => {
         if (!controller.signal.aborted) setResult({ key: cacheKey, candles: chart });
       })

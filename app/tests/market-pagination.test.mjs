@@ -9,7 +9,7 @@ const require = createRequire(import.meta.url);
 function compile(file, mocks, extra = {}) {
  const exports = {};
  const code = ts.transpileModule(readFileSync(new URL(file, import.meta.url), 'utf8'), {compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,jsx:ts.JsxEmit.ReactJSX}}).outputText;
- vm.runInNewContext(code, {exports,Error,...extra,require:id=>{ if (id === '@/services/market-service') id = '@/services'; if (id === '@/store/market-store') id = '@/store'; if (id === '@/hooks/use-element-visible') return { useElementVisible: () => false }; if (id === '@/services/shared-read-cache') return { createSharedReadCache: () => () => Promise.resolve([]) }; return id in mocks ? mocks[id] : require(id); }});
+ vm.runInNewContext(code, {exports,Error,...extra,require:id=>{ if (id === '@/services/market-service') id = '@/services'; if (id === '@/store/market-store') id = '@/store'; if (id === '@/hooks/use-element-visible') return { useElementVisible: () => false }; if (id === '@/services/sparkline-read-cache') return { createSparklineReader: () => () => Promise.resolve([]) }; return id in mocks ? mocks[id] : require(id); }});
  return exports;
 }
 function store(getStocks, searchStocks = async () => []) {

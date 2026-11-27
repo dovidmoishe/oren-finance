@@ -3,6 +3,7 @@ import {
   Get,
   Param,
   Query,
+  Res,
   BadRequestException,
 } from '@nestjs/common';
 import { Type } from 'class-transformer';
@@ -15,9 +16,11 @@ import {
   Min,
   MinLength,
 } from 'class-validator';
+import type { Response } from 'express';
 import type {
   GetStockAnalysisResponse,
   GetStockChartResponse,
+  GetStockChartsResponse,
   GetStockResponse,
   GetStocksResponse,
   SearchStocksResponse,
@@ -57,6 +60,12 @@ export class ChartQueryDto {
   interval?: ChartInterval;
 }
 
+export class ChartsQueryDto extends ChartQueryDto {
+  @IsString()
+  @MinLength(1)
+  ids!: string;
+}
+
 @Controller('stocks')
 export class StocksController {
   constructor(
@@ -78,6 +87,21 @@ export class StocksController {
     return this.market.searchStocks(q);
   }
 
+  @Get('charts')
+  charts(@Query() query: ChartsQueryDto): Promise<GetStockChartsResponse> {
+    const ids = query.ids.split(',').map((id) => id.trim());
+    if (ids.length > 20 || ids.some((id) => !id)) {
+      throw new BadRequestException(
+        'Provide between 1 and 20 non-empty asset ids',
+      );
+    }
+    return this.market.getCharts(
+      [...new Set(ids)],
+      query.range ?? '1M',
+      query.interval,
+    );
+  }
+
   @Get(':assetId/chart')
   chart(
     @Param('assetId') assetId: string,
@@ -88,10 +112,16 @@ export class StocksController {
   }
 
   @Get(':assetId/analysis')
-  analysis(
+  async analysis(
     @Param('assetId') assetId: string,
+    @Res({ passthrough: true }) response: Response,
   ): Promise<GetStockAnalysisResponse> {
-    return this.intelligence.getAnalysis(assetId);
+    const analysis = await this.intelligence.getAnalysis(assetId);
+    response.setHeader(
+      'Cache-Control',
+      'public, max-age=30, stale-while-revalidate=120',
+    );
+    return analysis;
   }
 
   @Get(':assetId')

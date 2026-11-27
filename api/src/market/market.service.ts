@@ -4,7 +4,10 @@ import {
   ServiceUnavailableException,
   type OnApplicationBootstrap,
 } from '@nestjs/common';
-import type { GetStocksResponse } from '../../types/api';
+import type {
+  GetStockChartsResponse,
+  GetStocksResponse,
+} from '../../types/api';
 import type {
   Equity,
   EquitySummary,
@@ -145,6 +148,21 @@ export class MarketService implements OnApplicationBootstrap {
   ): Promise<ChartSeries> {
     return this.charts.get(JSON.stringify([assetId, range, interval]), () =>
       this.loadChart(assetId, range, interval),
+    );
+  }
+
+  async getCharts(
+    assetIds: string[],
+    range: ChartRange,
+    interval?: ChartInterval,
+  ): Promise<GetStockChartsResponse> {
+    const results = await Promise.allSettled(
+      assetIds.map((assetId) => this.getChart(assetId, range, interval)),
+    );
+    return Object.fromEntries(
+      results.flatMap((result, index) =>
+        result.status === 'fulfilled' ? [[assetIds[index], result.value]] : [],
+      ),
     );
   }
 
