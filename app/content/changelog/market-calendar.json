@@ -1,0 +1,37 @@
+{
+  "slug": "market-calendar",
+  "date": "2026-11-27",
+  "status": "published",
+  "title": "Your trades and the US market in one calendar",
+  "summary": "See your daily P&L alongside market hours and economic releases. Pick a day to see what you traded and how the market moved.",
+  "sections": [
+    {
+      "heading": "Added",
+      "items": [
+        {
+          "title": "Market hours at a glance",
+          "description": "The month view marks holidays, early closes and upcoming releases. Switch between your portfolio, the US market or both."
+        },
+        {
+          "title": "A recap for each day",
+          "description": "Open a date to see your trades alongside releases such as CPI inflation and Fed rate decisions. The recap shows moves in the tokenized funds that track major indexes, plus gainers and decliners among the stocks Oren follows."
+        },
+        {
+          "title": "Release reminders",
+          "description": "If reminders are enabled for your account, use the bell beside an upcoming release to get an email 15 minutes before its scheduled time. A verified email address is required."
+        }
+      ]
+    }
+  ],
+  "links": [
+    { "label": "Open Calendar", "href": "/app/calendar" }
+  ],
+  "video": {
+    "src": "/videos/oren-calendar-v1.mp4",
+    "poster": "/videos/oren-calendar-v1-poster.png",
+    "label": "Oren Calendar feature walkthrough",
+    "caption": "Follow a November CPI release into the day’s market recap, then set a reminder for the December Fed decision.",
+    "width": 1920,
+    "height": 1080
+  }
+}
