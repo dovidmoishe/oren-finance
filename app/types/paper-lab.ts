@@ -64,6 +64,8 @@ export interface PaperLabPosition {
 
 export interface PaperLabAccount {
   accountId: string;
+  /** v2 cohort: an AI-reviewed trader or the rules-only baseline on the same scan. */
+  policy?: "ai" | "rules";
   startedAt: string;
   endsAt: string;
   nextCheckAt: string | null;

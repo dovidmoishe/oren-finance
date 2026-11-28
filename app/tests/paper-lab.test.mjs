@@ -164,12 +164,30 @@ test('summaries total the latest marks and list fills newest first', () => {
   assert.equal(lib.combinedValue(unpriced).unknownAccounts, 1);
 });
 
+test('v2 accounts are named, and the rules baseline is counted apart from the AI agents', () => {
+  const v2 = {
+    ...report,
+    experiment: 'five-ai-v2',
+    accounts: [
+      { ...report.accounts[0], accountId: 'v2-rules', policy: 'rules' },
+      { ...report.accounts[1], accountId: 'v2-trader-2', policy: 'ai' },
+    ],
+  };
+  const html = render({ report: v2, selectedId: 'v2-rules' });
+  assert.ok(html.includes('1 AI agent and 1 rules baseline trading test USDC'));
+  assert.ok(html.includes('Rules baseline journal'));
+  assert.ok(html.includes('Trader 2'));
+});
+
 test('each review outcome gets a plain label', () => {
   const { observationOutcome, isQuietRound } = loadLib();
   assert.equal(observationOutcome({ asset: 'a', marketClosed: true }).label, 'US market closed');
   assert.equal(observationOutcome({ asset: 'a', error: 'insufficient_recent_hourly_bars' }).label, 'Missing recent hourly candles');
   assert.equal(observationOutcome({ asset: 'a', filled: true, signal: 'sell', guardExit: 'stop' }).label, 'Sold · stop hit');
   assert.equal(observationOutcome({ asset: 'a', research: { selected: 'cash' } }).label, 'Chose cash');
+  assert.equal(observationOutcome({ asset: 'a', research: { selected: 'cash', error: 'rule_not_signalling' } }).label, 'Chose cash');
+  assert.equal(observationOutcome({ asset: 'a', research: { selected: 'cash', error: 'research_unavailable' } }).label, 'Research unavailable');
+  assert.equal(observationOutcome({ asset: 'a', error: 'spread_too_wide' }).label, 'Spread too wide to enter');
   assert.equal(isQuietRound(report.accounts[0].rounds[0]), true);
   assert.equal(isQuietRound(report.accounts[0].rounds[1]), false);
 });
@@ -215,7 +233,7 @@ test('another agent can be selected and quiet reviews can be hidden', () => {
   const second = render({ selectedId: 'trader-2' });
   assert.ok(second.includes('Trader 2 journal'));
   assert.ok(second.includes('Sold · stop hit'));
-  assert.ok(second.includes('Received at least 950.00 USDC'));
+  assert.ok(second.includes('Sale quoted at 950.00 USDC'));
   const filtered = render({ hideQuiet: true });
   assert.ok(filtered.includes('Showing 2 of 2 reviews (1 quiet reviews hidden)'));
 });

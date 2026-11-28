@@ -62,7 +62,8 @@ export function paperFills(accounts: PaperLabAccount[]): PaperFill[] {
           asset: obs.asset,
           side: obs.signal,
           at: obs.terms?.receivedAt ? new Date(obs.terms.receivedAt).toISOString() : round.at,
-          usdc: obs.signal === "buy" ? usdc(obs.terms?.input) : usdc(obs.terms?.minimumOutput),
+          // long-only-v2 fills at the route's expected output, less 1 bp and the 0.01 USDC fee.
+          usdc: obs.signal === "buy" ? usdc(obs.terms?.input) : usdc(obs.terms?.quotedOutput),
           ...(obs.guardExit ? { guardExit: obs.guardExit } : {}),
         });
       }
@@ -82,6 +83,10 @@ const ERROR_LABELS: Record<string, string> = {
   no_tradable_variant: "No tradable token",
   stale_quote: "Quote too old to fill",
   observation_unavailable: "Review unavailable",
+  spread_too_wide: "Spread too wide to enter",
+  insufficient_paper_cash: "Not enough cash",
+  invalid_route_terms: "No valid route",
+  invalid_route_output: "No valid route",
 };
 
 export function errorLabel(code: string) {
@@ -105,7 +110,7 @@ export function observationOutcome(obs: PaperLabObservation): { label: string; t
   if (obs.error) return { label: errorLabel(obs.error), tone: "warning" };
   if (obs.marketClosed) return { label: "US market closed", tone: "muted" };
   if (obs.repeatedBar) return { label: "No new candle", tone: "muted" };
-  if (obs.research?.error) return { label: "Research unavailable", tone: "warning" };
+  if (obs.research?.error === "research_unavailable") return { label: "Research unavailable", tone: "warning" };
   const rule = obs.research?.selected;
   if (rule) return { label: rule === "cash" ? "Chose cash" : `Chose ${RULE_LABELS[rule] ?? rule} · held`, tone: "neutral" };
   return { label: "Held", tone: "neutral" };

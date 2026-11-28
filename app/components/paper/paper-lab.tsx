@@ -79,8 +79,16 @@ export function AssetLogo({ id, asset, size = 24 }: { id: string; asset?: PaperL
 }
 
 function agentName(accountId: string) {
-  const match = /^trader-(\d+)$/.exec(accountId);
+  if (/(^|-)rules$/.test(accountId)) return "Rules baseline";
+  const match = /(?:^|-)trader-(\d+)$/.exec(accountId);
   return match ? `Trader ${match[1]}` : accountId;
+}
+
+function traderSummary(accounts: PaperLabAccount[]) {
+  const baselines = accounts.filter((a) => a.policy === "rules").length;
+  const agents = accounts.length - baselines;
+  const label = `${agents} AI agent${agents === 1 ? "" : "s"}`;
+  return baselines ? `${label} and ${baselines} rules baseline${baselines === 1 ? "" : "s"}` : label;
 }
 
 function signedUsdc(value: number | null, locale: string) {
@@ -192,7 +200,7 @@ function AgentCard({
 
 function fillAmount(obs: PaperLabObservation, locale: string) {
   if (obs.filled && obs.signal === "buy") return `Spent ${formatUsdc(usdc(obs.terms?.input), locale)}`;
-  if (obs.filled && obs.signal === "sell") return `Received at least ${formatUsdc(usdc(obs.terms?.minimumOutput), locale)}`;
+  if (obs.filled && obs.signal === "sell") return `Sale quoted at ${formatUsdc(usdc(obs.terms?.quotedOutput), locale)}`;
   const mark = usdc(obs.mark);
   return mark ? `Marked ${formatUsdc(mark, locale)}` : null;
 }
@@ -325,7 +333,7 @@ export function PaperLabView({
         <div>
           <h1 className="font-display text-2xl font-semibold">Paper traders</h1>
           <p className="mt-1 text-sm text-muted">
-            {report.accounts.length} AI agents trading test USDC · experiment {report.experiment} · {report.status}
+            {traderSummary(report.accounts)} trading test USDC · experiment {report.experiment} · {report.status}
           </p>
         </div>
         <div className="flex items-center gap-2 text-xs text-muted">
