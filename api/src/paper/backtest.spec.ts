@@ -6,6 +6,7 @@ import {
   metrics,
   modeledTerms,
   momentumTargets,
+  sessionCandles,
   setupOutcome,
   simulate,
   simulateWeights,
@@ -91,7 +92,12 @@ describe('backtest replay', () => {
 
   it('never looks ahead: changing later candles leaves earlier decisions unchanged', () => {
     const cut = Date.parse('2026-10-08T00:00:00Z');
-    const base = simulate(universe(), { from, to, arm: 'rules' });
+    const base = simulate(universe(), {
+      from,
+      to,
+      arm: 'rules',
+      policy: DAILY_BREAKOUT_POLICY,
+    });
     const shocked = universe().map((a) => ({
       ...a,
       hourly: a.hourly.map((c) =>
@@ -117,7 +123,12 @@ describe('backtest replay', () => {
           : c,
       ),
     }));
-    const changed = simulate(shocked, { from, to, arm: 'rules' });
+    const changed = simulate(shocked, {
+      from,
+      to,
+      arm: 'rules',
+      policy: DAILY_BREAKOUT_POLICY,
+    });
     const before = (run: typeof base) => run.equity.filter((p) => p.at < cut);
     expect(before(changed)).toEqual(before(base));
     expect(changed.equity).not.toEqual(base.equity);
@@ -143,6 +154,7 @@ describe('backtest replay', () => {
       from,
       to,
       arm: 'ai',
+      policy: DAILY_BREAKOUT_POLICY,
       index,
       lookup: () => undefined,
     });
@@ -154,6 +166,7 @@ describe('backtest replay', () => {
       from,
       to,
       arm: 'ai',
+      policy: DAILY_BREAKOUT_POLICY,
       lookup: () => undefined,
     });
     expect(without.pending[0].evidence.market!.index).toBeNull();
@@ -162,11 +175,17 @@ describe('backtest replay', () => {
 
   it('treats an unreviewed AI setup as a skip and replays the rules when the AI agrees', () => {
     const assets = universe();
-    const rules = simulate(assets, { from, to, arm: 'rules' });
+    const rules = simulate(assets, {
+      from,
+      to,
+      arm: 'rules',
+      policy: DAILY_BREAKOUT_POLICY,
+    });
     const unreviewed = simulate(assets, {
       from,
       to,
       arm: 'ai',
+      policy: DAILY_BREAKOUT_POLICY,
       lookup: () => undefined,
     });
     expect(unreviewed.trades).toEqual([]);
@@ -178,6 +197,7 @@ describe('backtest replay', () => {
       from,
       to,
       arm: 'ai',
+      policy: DAILY_BREAKOUT_POLICY,
       lookup: (p) => ({
         version: 'test',
         model: 'test',
@@ -193,12 +213,17 @@ describe('backtest replay', () => {
 
   it('scores a single setup exactly as the portfolio replay trades it', () => {
     const one = [asset('trend', trend)];
-    const run = simulate(one, { from, to, arm: 'rules' });
+    const run = simulate(one, {
+      from,
+      to,
+      arm: 'rules',
+      policy: DAILY_BREAKOUT_POLICY,
+    });
     const first = run.trades[0];
     const outcome = setupOutcome(
       one[0],
       Date.parse(first.entryAt),
-      undefined,
+      DAILY_BREAKOUT_POLICY,
       to,
     )!;
     expect(outcome).toMatchObject({
@@ -216,7 +241,12 @@ describe('backtest replay', () => {
   });
 
   it('summarizes returns, drawdown, win rate and exits', () => {
-    const run = simulate(universe(), { from, to, arm: 'rules' });
+    const run = simulate(universe(), {
+      from,
+      to,
+      arm: 'rules',
+      policy: DAILY_BREAKOUT_POLICY,
+    });
     const m = metrics(run.equity, run.trades);
     expect(m.trades).toBe(run.trades.length);
     expect(m.finalUsdc).toBe(run.equity.at(-1)!.equityUsdc);
@@ -331,5 +361,57 @@ describe('market switch and portfolio benchmarks', () => {
     expect(switchedTargets(MARKET_SWITCH, inner)(ctx(up, 60)).size).toBe(1);
     expect(switchedTargets(MARKET_SWITCH, inner)(ctx(up, 40)).size).toBe(0);
     expect(switchedTargets(MARKET_SWITCH, inner)(ctx(up, null)).size).toBe(0);
+  });
+});
+
+describe('daily-candle replay', () => {
+  it("decides on each daily close and fills at the next day's open", () => {
+    const days: {
+      date: string;
+      open: number;
+      high: number;
+      low: number;
+      close: number;
+    }[] = [];
+    for (
+      let t = Date.parse('2015-03-02T00:00:00Z'), i = 0;
+      days.length < 40;
+      t += 86_400_000
+    ) {
+      const d = new Date(t);
+      if (d.getUTCDay() === 0 || d.getUTCDay() === 6) continue;
+      const close = i < 25 ? 100 : 105 + (i - 25);
+      days.push({
+        date: d.toISOString().slice(0, 10),
+        open: close + 0.5,
+        high: close + 1,
+        low: close - 1,
+        close,
+      });
+      i++;
+    }
+    const candles = sessionCandles(days);
+    expect(candles.hourly[0].timestamp.toISOString()).toBe(
+      '2015-03-02T18:00:00.000Z',
+    );
+    // The daily twin completes when the session candle ends, so the decision sees that day's close.
+    expect(+candles.daily[0].timestamp + 86_400_000).toBe(
+      +candles.hourly[0].timestamp + HOUR,
+    );
+    const run = simulate(
+      [{ asset: 'x', ticker: 'X', roundTripBps: 0, ...candles }],
+      {
+        from: Date.parse('2015-03-01T00:00:00Z'),
+        to: Date.parse('2015-05-01T00:00:00Z'),
+        arm: 'rules',
+        policy: DAILY_BREAKOUT_POLICY,
+      },
+    );
+    const first = run.trades[0] ?? null;
+    // Day 25 closes at 105, above the prior 20 highs (101); the fill is day 26's open.
+    expect(first).toMatchObject({
+      entryAt: days[26].date + 'T18:00:00.000Z',
+      entryPrice: days[26].open,
+    });
   });
 });

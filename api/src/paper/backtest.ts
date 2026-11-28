@@ -186,25 +186,68 @@ class Series {
   }
 }
 
+/**
+ * Completed daily and hourly windows at `at`. A daily policy reads only
+ * daily candles, so its hourly window is optional: an empty list when the
+ * hourly history is incomplete, as in a daily-candle replay.
+ */
 function windows(
   hourly: Series,
   daily: Series,
   at: number,
+  needHourly = true,
 ): { daily: PaperBar[]; hourly: PaperBar[] } | null {
-  try {
-    return {
-      daily: history(daily.recent(), at),
-      hourly: history(hourly.recent(), at, 'hourly'),
+  const read = (fn: () => PaperBar[]) => {
+    try {
+      return fn();
+    } catch (err) {
+      if (err instanceof IncompleteHistory) return null;
+      if (
+        err instanceof Error &&
+        /^invalid_(hourly|daily)_bars$/.test(err.message)
+      )
+        return null;
+      throw err;
+    }
+  };
+  const dailyRows = read(() => history(daily.recent(), at));
+  if (!dailyRows) return null;
+  const hourlyRows = read(() => history(hourly.recent(), at, 'hourly'));
+  if (!hourlyRows && needHourly) return null;
+  return { daily: dailyRows, hourly: hourlyRows ?? [] };
+}
+
+/**
+ * Daily bars as one session candle per trading day, so the same replay
+ * decides on each daily close and fills at the next day's open. The candle
+ * sits in the regular session (18:00 to 19:00 UTC); its daily twin completes
+ * at the candle's end, so the decision sees that day's close.
+ */
+export function sessionCandles(
+  days: {
+    date: string;
+    open: number;
+    high: number;
+    low: number;
+    close: number;
+    volume?: number;
+  }[],
+): { hourly: MarketCandle[]; daily: MarketCandle[] } {
+  const hourly: MarketCandle[] = [];
+  const daily: MarketCandle[] = [];
+  for (const d of [...days].sort((a, b) => a.date.localeCompare(b.date))) {
+    const start = Date.parse(d.date.slice(0, 10) + 'T18:00:00Z');
+    const bar = {
+      open: d.open,
+      high: d.high,
+      low: d.low,
+      close: d.close,
+      volume: d.volume,
     };
-  } catch (err) {
-    if (err instanceof IncompleteHistory) return null;
-    if (
-      err instanceof Error &&
-      /^invalid_(hourly|daily)_bars$/.test(err.message)
-    )
-      return null;
-    throw err;
+    hourly.push({ timestamp: new Date(start), ...bar });
+    daily.push({ timestamp: new Date(start + HOUR - DAY), ...bar });
   }
+  return { hourly, daily };
 }
 
 type Exit = { at: number; price: number; reason: ExitReason };
@@ -228,7 +271,10 @@ function holdingStep(
   const next = s.hourly.next();
   if (!latest || !next) return null;
   const fresh = +latest.timestamp + HOUR === at;
-  const bars = regular && fresh ? windows(s.hourly, s.daily, at) : null;
+  const bars =
+    regular && fresh
+      ? windows(s.hourly, s.daily, at, policy.timeframe === 'hourly')
+      : null;
   const dailyBar = bars?.daily.at(-1)!.time;
   if (bars && (policy.timeframe === 'hourly' || dailyBar !== h.decidedDaily)) {
     const signal = signalBars(policy, bars);
@@ -371,7 +417,12 @@ export function simulate(
         const latest = s.hourly.latest();
         if (!latest || +latest.timestamp + HOUR !== at || !s.hourly.next())
           continue;
-        const bars = windows(s.hourly, s.daily, at);
+        const bars = windows(
+          s.hourly,
+          s.daily,
+          at,
+          policy.timeframe === 'hourly',
+        );
         if (!bars) continue;
         const held = holdings.get(asset);
         const analysis = analyze(
@@ -535,7 +586,7 @@ export function setupOutcome(
   };
   s.hourly.advance(at);
   s.daily.advance(at);
-  const bars = windows(s.hourly, s.daily, at);
+  const bars = windows(s.hourly, s.daily, at, policy.timeframe === 'hourly');
   const next = s.hourly.next();
   if (!bars || !next) return null;
   const signal = signalBars(policy, bars);
@@ -647,7 +698,7 @@ export function buyAndHold(
 
 export interface RebalanceContext {
   at: number;
-  /** Completed daily closes per asset, oldest first, up to 150 sessions. */
+  /** Completed daily closes per asset, oldest first, up to 300 sessions. */
   closes: Map<string, number[]>;
   /** Completed daily closes of the market index (QQQ), oldest first. */
   indexCloses: number[];
@@ -717,7 +768,7 @@ export function simulateWeights(
       const closes = new Map(
         series.map((s) => [
           s.meta.asset,
-          s.daily.recent(150).map((c) => c.close),
+          s.daily.recent(300).map((c) => c.close),
         ]),
       );
       const trends = [...closes.values()]
@@ -726,7 +777,7 @@ export function simulateWeights(
       const targets = options.targets({
         at,
         closes,
-        indexCloses: index.recent(150).map((c) => c.close),
+        indexCloses: index.recent(300).map((c) => c.close),
         breadthPct: trends.length
           ? (100 * trends.filter(Boolean).length) / trends.length
           : null,
@@ -819,6 +870,14 @@ export function momentumTargets(top = 5, lookbackDays = 60) {
   };
 }
 
+/** Every asset that has prices, equally weighted. New listings join as they appear. */
+export function equalWeightTargets() {
+  return (ctx: RebalanceContext) => {
+    const assets = [...ctx.closes].filter(([, c]) => c.length > 0);
+    return new Map(assets.map(([asset]) => [asset, 1 / assets.length]));
+  };
+}
+
 /** Every asset equally while the index is above its `days`-day average, otherwise cash. */
 export function trendHoldTargets(days = 50) {
   return (ctx: RebalanceContext) => {
@@ -843,6 +902,8 @@ export function switchedTargets(
 export interface BacktestMetrics {
   finalUsdc: number;
   returnPct: number;
+  /** Annualized return over the curve's span. */
+  cagrPct: number;
   maxDrawdownPct: number;
   trades: number;
   winRatePct: number | null;
@@ -899,6 +960,13 @@ export function metrics(
   return {
     finalUsdc: final,
     returnPct: 100 * (final / start - 1),
+    cagrPct:
+      curve.length > 1
+        ? 100 *
+          ((final / start) **
+            ((365.25 * DAY) / Math.max(DAY, curve.at(-1)!.at - curve[0].at)) -
+            1)
+        : 0,
     maxDrawdownPct: 100 * drawdown,
     trades: trades.length,
     winRatePct: trades.length ? (100 * wins.length) / trades.length : null,

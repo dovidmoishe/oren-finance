@@ -28,13 +28,16 @@ import {
   metrics,
   simulate,
   type BacktestAsset,
+  equalWeightTargets,
   momentumTargets,
+  sessionCandles,
   setupOutcome,
   simulateWeights,
   switchedTargets,
   trendHoldTargets,
   type WeightsOptions,
   type BacktestRun,
+  type BacktestTrade,
   type SetupOutcome,
   type EquityPoint,
   type PendingReview,
@@ -45,6 +48,7 @@ import {
 } from '../src/paper/paper-research';
 import {
   DAILY_BREAKOUT_POLICY,
+  DAILY_BREAKOUT_SWITCH_POLICY,
   HOURLY_POLICY,
   MARKET_SWITCH,
   MARKET_INDEX_ASSET,
@@ -101,11 +105,7 @@ const VARIANTS: Record<string, SwingPolicy> = {
     timeframe: 'daily',
   },
   'daily-breakout': DAILY_BREAKOUT_POLICY,
-  'breakout + switch': {
-    ...DAILY_BREAKOUT_POLICY,
-    version: 'daily-breakout-switch',
-    regime: MARKET_SWITCH,
-  },
+  'breakout + switch': DAILY_BREAKOUT_SWITCH_POLICY,
 };
 
 /** Simple portfolio benchmarks on the same clock and costs, parameters fixed before testing. */
@@ -510,6 +510,333 @@ function scoreReviews(assets: BacktestAsset[]) {
   console.log(`\nscores: ${out}`);
 }
 
+interface DailyBar {
+  date: string;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume?: number;
+}
+
+/**
+ * Tiingo split- and dividend-adjusted daily prices. The token is read from a
+ * file and sent only as a request header; it is never logged or cached.
+ */
+function tiingo(token: string, start: string, end: string) {
+  return (ticker: string) =>
+    cached(`tiingo-${ticker}-${start}-${end}.json`, 7 * DAY, async () => {
+      const url = new URL(
+        `https://api.tiingo.com/tiingo/daily/${encodeURIComponent(ticker)}/prices`,
+      );
+      url.searchParams.set('startDate', start);
+      url.searchParams.set('endDate', end);
+      const rows = (await getJson(url.toString(), {
+        Accept: 'application/json',
+        Authorization: `Token ${token}`,
+      })) as {
+        date: string;
+        adjOpen: number;
+        adjHigh: number;
+        adjLow: number;
+        adjClose: number;
+        adjVolume: number;
+      }[];
+      return rows.map((r): DailyBar => ({
+        date: r.date,
+        open: r.adjOpen,
+        high: r.adjHigh,
+        low: r.adjLow,
+        close: r.adjClose,
+        volume: r.adjVolume,
+      }));
+    });
+}
+
+/**
+ * Daily-candle replay over long history: each trading day is one session
+ * candle, so strategies decide on the close and fill at the next open, with
+ * each asset's measured Jupiter round trip. Settings are the ones fixed
+ * before the eight-month test; nothing here is tuned.
+ */
+async function longHistory(
+  universe: UniverseRow[],
+  spreads: Record<string, number | null>,
+) {
+  const keyFile = option(
+    'tiingo-key-file',
+    process.env.TIINGO_TOKEN_FILE ?? '',
+  );
+  if (!keyFile || !existsSync(keyFile))
+    throw new Error(
+      'Pass --tiingo-key-file <path> (or TIINGO_TOKEN_FILE) holding a Tiingo API token',
+    );
+  const token = readFileSync(keyFile, 'utf8').trim();
+  const start = option('history-from', '2008-01-01');
+  const end = new Date(to).toISOString().slice(0, 10);
+  const fetchDaily = tiingo(token, start, end);
+  const assets: BacktestAsset[] = [];
+  const missing: { asset: string; reason: string }[] = [];
+  // --tickers swaps the hindsight-picked token list for a fixed list, such as the S&P sector funds.
+  const custom = option('tickers', '')
+    .split(',')
+    .map((t) => t.trim().toUpperCase())
+    .filter(Boolean);
+  const indexTicker = option('index-ticker', 'QQQ').toUpperCase();
+  const rows: (UniverseRow & { spread: number | null })[] = custom.length
+    ? custom.map((t) => ({
+        asset: t.toLowerCase(),
+        ticker: t,
+        mint: '',
+        liquidity: 0,
+        spread: 10,
+      }))
+    : universe.map((r) => ({ ...r, spread: spreads[r.asset] ?? null }));
+  for (const row of rows) {
+    const spread = row.spread;
+    if (spread == null || spread > SWING_POLICY.maxRoundTripBps) continue;
+    const ticker = row.ticker.replace(/\./g, '-');
+    try {
+      const bars = await fetchDaily(ticker);
+      if (bars.length < 60) {
+        missing.push({ asset: row.asset, reason: 'too_little_history' });
+        continue;
+      }
+      assets.push({
+        asset: row.asset,
+        ticker: row.ticker,
+        roundTripBps: spread,
+        ...sessionCandles(bars),
+      });
+    } catch (err) {
+      missing.push({
+        asset: row.asset,
+        reason: err instanceof Error ? err.message.split(' ')[0] : 'error',
+      });
+    }
+  }
+  const qqqBars = await fetchDaily(indexTicker);
+  const qqq = sessionCandles(qqqBars);
+  const qqqAsset: BacktestAsset = {
+    asset: indexTicker.toLowerCase(),
+    ticker: indexTicker,
+    roundTripBps: 10,
+    ...qqq,
+  };
+  const index = qqq.daily;
+  log(
+    `long history ${start} → ${end}, index ${indexTicker}: ${assets.length} assets${missing.length ? `, skipped ${missing.map((m) => `${m.asset} (${m.reason})`).join(', ')}` : ''}`,
+  );
+  for (const a of assets)
+    log(
+      `  ${a.ticker.padEnd(6)} from ${a.hourly[0].timestamp.toISOString().slice(0, 10)}`,
+    );
+
+  type Run = {
+    equity: EquityPoint[];
+    trades?: BacktestTrade[];
+    fills?: number;
+  };
+  const strategies: [string, (a: number, b: number) => Run][] = [
+    [
+      `${indexTicker} hold`,
+      (a, b) => ({ equity: buyAndHold([qqqAsset], a, b) }),
+    ],
+    [
+      'Equal weight, weekly',
+      (a, b) =>
+        simulateWeights(assets, {
+          from: a,
+          to: b,
+          index,
+          schedule: 'weekly',
+          targets: equalWeightTargets(),
+        }),
+    ],
+    [
+      'Daily breakout',
+      (a, b) =>
+        simulate(assets, {
+          from: a,
+          to: b,
+          arm: 'rules',
+          policy: DAILY_BREAKOUT_POLICY,
+          index,
+        }),
+    ],
+    [
+      'Breakout + switch',
+      (a, b) =>
+        simulate(assets, {
+          from: a,
+          to: b,
+          arm: 'rules',
+          policy: DAILY_BREAKOUT_SWITCH_POLICY,
+          index,
+        }),
+    ],
+    [
+      'Momentum top 5',
+      (a, b) =>
+        simulateWeights(assets, {
+          from: a,
+          to: b,
+          index,
+          schedule: 'weekly',
+          targets: momentumTargets(5, 60),
+        }),
+    ],
+    [
+      'Momentum + switch',
+      (a, b) =>
+        simulateWeights(assets, {
+          from: a,
+          to: b,
+          index,
+          schedule: 'weekly',
+          targets: switchedTargets(MARKET_SWITCH, momentumTargets(5, 60)),
+        }),
+    ],
+    [
+      'Trend-filtered hold',
+      (a, b) =>
+        simulateWeights(assets, {
+          from: a,
+          to: b,
+          index,
+          schedule: 'daily',
+          targets: trendHoldTargets(50),
+        }),
+    ],
+  ];
+  const periods: [string, string, string][] = [
+    ['2008–2012', start, '2013-01-01'],
+    ['2013–2017', '2013-01-01', '2018-01-01'],
+    ['2018–2022', '2018-01-01', '2023-01-01'],
+    ['2023–2026', '2023-01-01', end],
+    ['full', start, end],
+  ];
+  const at = (d: string) => Date.parse(d + 'T00:00:00Z');
+  const results: Record<
+    string,
+    Record<string, ReturnType<typeof metrics> & { fills?: number }>
+  > = {};
+  const yearly: Record<string, Record<string, number>> = {};
+  const curves: Record<string, [number, number][]> = {};
+  for (const [name, run] of strategies) {
+    results[name] = {};
+    for (const [label, a, b] of periods) {
+      const r = run(at(a), at(b) + DAY - 1);
+      results[name][label] = {
+        ...metrics(r.equity, r.trades ?? []),
+        ...(r.fills !== undefined ? { fills: r.fills } : {}),
+      };
+      if (label === 'full') {
+        const ends = new Map<string, number>();
+        for (const p of r.equity)
+          ends.set(new Date(p.at).toISOString().slice(0, 4), p.equityUsdc);
+        let previous = 10000;
+        yearly[name] = {};
+        for (const [year, value] of ends) {
+          yearly[name][year] = 100 * (value / previous - 1);
+          previous = value;
+        }
+        const weekly = new Map<number, number>();
+        for (const p of r.equity)
+          weekly.set(Math.floor(p.at / (7 * DAY)), p.equityUsdc);
+        curves[name] = [...weekly].map(([w, v]) => [
+          w * 7 * DAY,
+          Math.round(v),
+        ]);
+      }
+    }
+  }
+  console.log(
+    `\nlong history · CAGR / worst drop · ${assets.length} assets + ${indexTicker}`,
+  );
+  console.log('strategy'.padEnd(22), ...periods.map(([l]) => l.padStart(18)));
+  for (const [name] of strategies)
+    console.log(
+      name.padEnd(22),
+      ...periods.map(([l]) => {
+        const m = results[name][l];
+        return `${m.cagrPct.toFixed(1).padStart(6)}% ${m.maxDrawdownPct.toFixed(0).padStart(3)}%`.padStart(
+          18,
+        );
+      }),
+    );
+  const years = Object.keys(yearly[`${indexTicker} hold`]);
+  console.log(
+    '\nyear     ' +
+      strategies.map(([n]) => n.slice(0, 11).padStart(12)).join(''),
+  );
+  for (const y of years)
+    console.log(
+      y.padEnd(9) +
+        strategies
+          .map(([n]) => ((yearly[n][y] ?? 0).toFixed(1) + '%').padStart(12))
+          .join(''),
+    );
+  const grid: {
+    top: number;
+    lookback: number;
+    cagrPct: number;
+    maxDrawdownPct: number;
+  }[] = [];
+  for (const top of [3, 5, 8, 12])
+    for (const lookback of [20, 60, 120, 250]) {
+      const m = metrics(
+        simulateWeights(assets, {
+          from: at(start),
+          to: at(end) + DAY - 1,
+          index,
+          schedule: 'weekly',
+          targets: momentumTargets(top, lookback),
+        }).equity,
+      );
+      grid.push({
+        top,
+        lookback,
+        cagrPct: m.cagrPct,
+        maxDrawdownPct: m.maxDrawdownPct,
+      });
+    }
+  console.log('\nmomentum settings, full period CAGR / worst drop');
+  for (const g of grid)
+    console.log(
+      `  top ${String(g.top).padStart(2)} · ${String(g.lookback).padStart(3)} days  ${g.cagrPct.toFixed(1).padStart(6)}%  ${g.maxDrawdownPct.toFixed(0)}%`,
+    );
+  const out = join(
+    CACHE,
+    custom.length
+      ? `long-history-${indexTicker.toLowerCase()}-custom.json`
+      : 'long-history.json',
+  );
+  writeFileSync(
+    out,
+    JSON.stringify(
+      {
+        start,
+        end,
+        stocks: assets.map((a) => ({
+          asset: a.asset,
+          ticker: a.ticker,
+          from: a.hourly[0].timestamp.toISOString().slice(0, 10),
+          roundTripBps: a.roundTripBps,
+        })),
+        missing,
+        results,
+        yearly,
+        grid,
+        curves,
+      },
+      null,
+      1,
+    ),
+  );
+  console.log(`\nreport: ${out}`);
+}
+
 async function main() {
   const universe = await loadUniverse();
   log(
@@ -525,6 +852,11 @@ async function main() {
       return out;
     },
   );
+
+  if (flag('long-history')) {
+    await longHistory(universe, spreads);
+    return;
+  }
 
   const loaded = await pool(universe, 4, async (row) => ({
     row,

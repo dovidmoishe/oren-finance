@@ -22,7 +22,7 @@ import {
 import {
   accountPolicy,
   aiAccountIds,
-  legacyAiAccountIds,
+  archivedCohorts,
   type AiAccountId,
   type MarketBook,
   type MarketObservation,
@@ -50,6 +50,7 @@ import {
   SWING_POLICY,
   analyze,
   marketContext,
+  regimeOn,
   entryBudget,
   entrySignal,
   rankSetups,
@@ -67,7 +68,7 @@ import { StockCatalogRepository } from '../tokens/stock-catalog.repository';
 
 // Ten days from funding.
 const FINAL_HOUR = 240;
-const EXPERIMENT = 'five-ai-v2';
+const EXPERIMENT = 'five-ai-v3';
 const FEE = BigInt(PAPER_MODEL.fixedCostUsdcRaw);
 const MIN_ENTRY = 1_000_000n;
 /**
@@ -76,7 +77,6 @@ const MIN_ENTRY = 1_000_000n;
  */
 const SCAN_HOUR_FLOOR = Math.floor(Date.parse('2026-01-01T00:00:00Z') / HOUR);
 const cohort: readonly AiAccountId[] = aiAccountIds;
-const legacy: readonly AiAccountId[] = legacyAiAccountIds;
 
 /** Every asset a report mentions: holdings, scanned candidates and reviewed assets. */
 export function benchmarkAssetIds(
@@ -310,12 +310,15 @@ export class MarketBenchmark {
       }
     }
     const setups = rows.filter((r) => r.setup);
-    const market = marketContext(
-      await this.indexDaily(asOf),
-      analyses,
-      setups.length,
-    );
-    for (const row of setups) row.setup!.market = market;
+    const index = await this.indexDaily(asOf);
+    const market = marketContext(index.bars, analyses, setups.length);
+    const switchOn = SWING_POLICY.regime
+      ? regimeOn(index.closes, market.breadthPct, SWING_POLICY.regime)
+      : undefined;
+    for (const row of setups) {
+      row.setup!.market = market;
+      if (switchOn !== undefined) row.setup!.switchOn = switchOn;
+    }
     await this.db
       .insert(screens)
       .values({ epoch: hour, universe: rows })
@@ -323,23 +326,36 @@ export class MarketBenchmark {
     return (await read())[0].universe;
   }
 
-  /** QQQ's completed daily candles on NYSE trading days, or null when unavailable. */
-  private async indexDaily(asOf: Date): Promise<PaperBar[] | null> {
+  /**
+   * QQQ on NYSE trading days: the last 21 completed daily candles for the AI
+   * backdrop, and every completed close in the last 100 days for the market
+   * switch's 50-day average. Empty when unavailable, which keeps the switch off.
+   */
+  private async indexDaily(
+    asOf: Date,
+  ): Promise<{ bars: PaperBar[] | null; closes: number[] }> {
     try {
-      const candles = await this.tokens.getCanonicalCandles(
-        MARKET_INDEX_ASSET,
-        {
+      const candles = (
+        await this.tokens.getCanonicalCandles(MARKET_INDEX_ASSET, {
           interval: '1D',
-          from: Math.floor((+asOf - 65 * DAY) / 1000),
+          from: Math.floor((+asOf - 100 * DAY) / 1000),
           to: Math.floor(+asOf / 1000),
-        },
-      );
-      return history(
-        candles.filter((c) => isNyseTradingDay(+c.timestamp)),
-        +asOf,
-      );
+        })
+      )
+        .filter((c) => isNyseTradingDay(+c.timestamp))
+        .sort((a, b) => +a.timestamp - +b.timestamp);
+      const closes = candles
+        .filter((c) => +c.timestamp + DAY <= +asOf)
+        .map((c) => c.close);
+      let bars: PaperBar[] | null = null;
+      try {
+        bars = history(candles, +asOf);
+      } catch {
+        bars = null;
+      }
+      return { bars, closes };
     } catch {
-      return null;
+      return { bars: null, closes: [] };
     }
   }
 
@@ -698,7 +714,14 @@ export class MarketBenchmark {
       round.candidates = ranked.map((s) => s.asset);
       const held = new Set(Object.keys(book.positions));
       const equity = complete ? BigInt(book.cash) + marked : BigInt(book.cash);
-      for (const pick of reviewable(ranked, held, held.size, SWING_POLICY)) {
+      // The market switch is a property of the scan; every setup carries the same value.
+      const switchOff = ranked.some((s) => s.setup.switchOn === false);
+      if (ranked.length && SWING_POLICY.regime)
+        round.marketSwitch = switchOff ? 'off' : 'on';
+      const picks = switchOff
+        ? []
+        : reviewable(ranked, held, held.size, SWING_POLICY);
+      for (const pick of picks) {
         const obs: MarketObservation = {
           asset: pick.asset,
           mint: pick.setup.mint,
@@ -765,7 +788,7 @@ export class MarketBenchmark {
       .from(accounts)
       .orderBy(accounts.accountId);
     const current = all.filter((a) => cohort.includes(a.accountId));
-    const archived = all.filter((a) => legacy.includes(a.accountId));
+
     const coverage = await this.db
       .select({
         epoch: screens.epoch,
@@ -789,10 +812,14 @@ export class MarketBenchmark {
       experiment: EXPERIMENT,
       policy: SWING_POLICY,
       costModel: PAPER_MODEL,
-      archivedFiveAiV1: archived.map((a) => ({
-        ...this.summarize(a),
-        book: a.state,
-      })),
+      archivedCohorts: Object.entries(archivedCohorts).map(
+        ([experiment, ids]) => ({
+          experiment,
+          accounts: all
+            .filter((a) => (ids as readonly string[]).includes(a.accountId))
+            .map((a) => ({ ...this.summarize(a), book: a.state })),
+        }),
+      ),
       archivedMixed: await this.db
         .select({
           policy: previousAccounts.policy,

@@ -29,26 +29,35 @@ export interface PaperExitGuard {
   setAt: string;
 }
 /** The first cohort (`five-ai-v1`, hourly-swing-v1/v2). Kept in the table and reported as an archive. */
-export const legacyAiAccountIds = [
-  'trader-1',
-  'trader-2',
-  'trader-3',
-  'trader-4',
-  'trader-5',
-] as const;
-/** The `five-ai-v2` cohort: five AI-reviewed traders and one rules-only baseline on the same scan. */
+/** Earlier cohorts. They stay in the table and the report archives them; they are never reviewed again. */
+export const archivedCohorts = {
+  /** hourly-swing-v1/v2, first cost model. */
+  'five-ai-v1': ['trader-1', 'trader-2', 'trader-3', 'trader-4', 'trader-5'],
+  /** daily-breakout-v1 without the market switch. */
+  'five-ai-v2': [
+    'v2-trader-1',
+    'v2-trader-2',
+    'v2-trader-3',
+    'v2-trader-4',
+    'v2-trader-5',
+    'v2-rules',
+  ],
+} as const;
+export const legacyAiAccountIds = Object.values(archivedCohorts).flat();
+/** The `five-ai-v3` cohort: five AI-reviewed traders and one rules-only baseline on the same scan, behind the market switch. */
 export const aiAccountIds = [
-  'v2-trader-1',
-  'v2-trader-2',
-  'v2-trader-3',
-  'v2-trader-4',
-  'v2-trader-5',
-  'v2-rules',
+  'v3-trader-1',
+  'v3-trader-2',
+  'v3-trader-3',
+  'v3-trader-4',
+  'v3-trader-5',
+  'v3-rules',
 ] as const;
 export type AiAccountId =
-  (typeof aiAccountIds)[number] | (typeof legacyAiAccountIds)[number];
+  | (typeof aiAccountIds)[number]
+  | (typeof archivedCohorts)[keyof typeof archivedCohorts][number];
 export const accountPolicy = (id: AiAccountId): 'ai' | 'rules' =>
-  id === 'v2-rules' ? 'rules' : 'ai';
+  id.endsWith('-rules') ? 'rules' : 'ai';
 
 /** The deterministic signals behind a review, as the journal records them. */
 export interface ObservedAnalysis {
@@ -71,6 +80,8 @@ export interface ScanSetup {
   analysis: ObservedAnalysis;
   rows: PaperBar[];
   hourlyRows: PaperBar[];
+  /** Whether the policy's market switch allowed entries at scan time. Absent when the policy has none. */
+  switchOn?: boolean;
   /** The scan's market backdrop (QQQ trend, breadth, setup count) for the AI review. */
   market?: {
     index: {
@@ -139,8 +150,10 @@ export interface MarketObservation {
 }
 export interface MarketRound {
   epoch: number;
-  /** The policy version: daily-v1, hourly-swing-v1/v2, then the v2 cohort's swing policy. */
+  /** The policy version: daily-v1, hourly-swing-v1/v2, then the swing policy of the cohort. */
   method?: string;
+  /** Market switch state when the round looked for entries. Off means no new entries. */
+  marketSwitch?: 'on' | 'off';
   screenEpoch?: number;
   at: string;
   universeSize: number;

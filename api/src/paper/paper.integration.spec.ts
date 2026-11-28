@@ -253,15 +253,15 @@ const url = process.env.PAPER_TEST_DATABASE_URL;
       );
       await Promise.all([fixture.poll(), fixture.poll()]);
       const report = await fixture.report();
-      expect(report.experiment).toBe('five-ai-v2');
+      expect(report.experiment).toBe('five-ai-v3');
       expect(report.totalStartingUsdc).toBe(60000);
       expect(report.accounts.map((a) => a.accountId)).toEqual([
-        'v2-rules',
-        'v2-trader-1',
-        'v2-trader-2',
-        'v2-trader-3',
-        'v2-trader-4',
-        'v2-trader-5',
+        'v3-rules',
+        'v3-trader-1',
+        'v3-trader-2',
+        'v3-trader-3',
+        'v3-trader-4',
+        'v3-trader-5',
       ]);
       expect(report.accounts.map((a) => a.policy)).toEqual([
         'rules',
@@ -271,9 +271,19 @@ const url = process.env.PAPER_TEST_DATABASE_URL;
         'ai',
         'ai',
       ]);
-      expect(report.archivedFiveAiV1).toMatchObject([
-        { accountId: 'trader-2', netPnlUsdc: -22.41218, fills: 1 },
+      expect(report.archivedCohorts).toMatchObject([
+        {
+          experiment: 'five-ai-v1',
+          accounts: [
+            { accountId: 'trader-2', netPnlUsdc: -22.41218, fills: 1 },
+          ],
+        },
+        { experiment: 'five-ai-v2', accounts: [] },
       ]);
+      // QQQ is above its 50-day average and both assets trend up, so the switch is on.
+      expect(
+        report.accounts.every((a) => a.rounds[0].marketSwitch === 'on'),
+      ).toBe(true);
       expect(
         (
           await client`select epoch, jsonb_array_length(rounds) as n from paper_ai_accounts where account_id='trader-2'`
@@ -328,7 +338,7 @@ const url = process.env.PAPER_TEST_DATABASE_URL;
       await new PreviewBenchmark(env, service, markets).poll();
       expect((await fixture.report()).accounts).toEqual(report.accounts);
       const advance = async (hour: number) => {
-        await client`update paper_ai_accounts set started_at=now()-make_interval(hours => ${hour}::int), next_at=now() where account_id like 'v2-%'`;
+        await client`update paper_ai_accounts set started_at=now()-make_interval(hours => ${hour}::int), next_at=now() where account_id like 'v3-%'`;
         await fixture.poll();
       };
       await advance(1);
@@ -353,7 +363,7 @@ const url = process.env.PAPER_TEST_DATABASE_URL;
         again.rounds.at(-1)?.observations.find((o) => !o.filled && !o.mark),
       ).toMatchObject({ repeatedBar: true, signal: 'hold' });
       // Past the 240-hour deadline: every account takes its terminal mark.
-      await client`update paper_ai_accounts set started_at=started_at-interval '11 days',next_at=now() where account_id like 'v2-%'`;
+      await client`update paper_ai_accounts set started_at=started_at-interval '11 days',next_at=now() where account_id like 'v3-%'`;
       await fixture.poll();
       expect(
         (await fixture.report()).accounts.every(

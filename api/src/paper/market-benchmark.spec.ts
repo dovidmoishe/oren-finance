@@ -477,6 +477,27 @@ describe('market benchmark entries', () => {
     });
   });
 
+  it('makes no entries and no model calls while the market switch is off', async () => {
+    const off = scan().map((r) =>
+      r.setup ? { ...r, setup: { ...r.setup, switchOn: false } } : r,
+    );
+    const { agent, evaluate } = setup({ scan: off });
+    const acct = account(cashBook());
+    const round = await evaluate(acct, 5);
+    expect(round.marketSwitch).toBe('off');
+    expect(round.candidates).toEqual(['alpha', 'beta']);
+    expect(round.observations).toEqual([]);
+    expect(agent.review).not.toHaveBeenCalled();
+    expect(acct.state).toEqual(cashBook());
+    const on = scan().map((r) =>
+      r.setup ? { ...r, setup: { ...r.setup, switchOn: true } } : r,
+    );
+    const open = setup({ scan: on });
+    const entered = await open.evaluate(account(cashBook()), 5);
+    expect(entered.marketSwitch).toBe('on');
+    expect(entered.observations.every((o) => o.filled)).toBe(true);
+  });
+
   it('does not scan once the book holds the maximum number of positions', async () => {
     const book = heldBook(Number.MAX_SAFE_INTEGER);
     for (let i = 1; i < SWING_POLICY.maxPositions; i++)

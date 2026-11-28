@@ -5,6 +5,7 @@ import {
   regimeOn,
   MARKET_SWITCH,
   DAILY_BREAKOUT_POLICY,
+  DAILY_BREAKOUT_SWITCH_POLICY,
   ENTRY_RULES,
   HOURLY_POLICY,
   SWING_POLICY,
@@ -36,11 +37,13 @@ const breakout = (step = HOUR) =>
   bars([...Array<number>(20).fill(100), 102], step);
 
 describe('swing analysis', () => {
-  it('runs the live cohort on the daily breakout policy', () => {
-    expect(SWING_POLICY).toBe(DAILY_BREAKOUT_POLICY);
+  it('runs the live cohort on daily breakout behind the market switch', () => {
+    expect(SWING_POLICY).toBe(DAILY_BREAKOUT_SWITCH_POLICY);
     expect(SWING_POLICY).toMatchObject({
+      version: 'daily-breakout-switch-v1',
       timeframe: 'daily',
       rules: ['breakout-v1'],
+      regime: MARKET_SWITCH,
     });
     const daily = flat();
     const hourly = breakout();
