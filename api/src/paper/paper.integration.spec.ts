@@ -21,6 +21,12 @@ import { PreviewBenchmark } from './preview-benchmark';
 import type { AppEnv } from '../config/env.schema';
 import { PAPER_QUOTES } from './quotes';
 import { DAY, HOUR, decide, settle } from './strategy';
+import type { MarketCandle } from '../../types/market';
+import {
+  STOCK_FEED_SOURCE,
+  isNyseTradingDay,
+  isStockSessionHour,
+} from './market-data';
 
 // HTTP tests inject two test identities. Keep the external identity SDK out of Jest.
 jest.mock('@privy-io/node', () => ({ PrivyClient: jest.fn() }));
@@ -45,12 +51,43 @@ const url = process.env.PAPER_TEST_DATABASE_URL;
     };
     const today = Math.floor(Date.now() / DAY) * DAY;
     let closes = [...Array<number>(20).fill(100), 110];
-    let hourlyEnd = Math.floor(Date.now() / HOUR) * HOUR - HOUR;
+    const hourlyEnd = Math.floor(Date.now() / HOUR) * HOUR - HOUR;
+    // The cohort reviews at a pinned regular-session time; epochs follow the real clock.
+    const sessionTime = new Date('2026-11-25T15:30:00Z'); // Wednesday 10:30 ET
+    const breakoutDay = Date.parse('2026-11-24T00:00:00Z');
     const tokens = {
       getStock: (id: string) => ({
         id,
+        canonicalMarketSource: STOCK_FEED_SOURCE,
         variants: [{ mint: 'stock', tradable: true }],
       }),
+      // Session-shaped stock candles up to the requested time. The latest
+      // completed daily close (110) clears the prior 20 daily highs (100).
+      getCanonicalCandles: (
+        _asset: string,
+        window: { interval: string; from: number; to: number },
+      ) => {
+        const step = window.interval === '1H' ? HOUR : DAY;
+        const rows: MarketCandle[] = [];
+        for (
+          let t = Math.floor((window.from * 1000) / step) * step;
+          t <= window.to * 1000;
+          t += step
+        ) {
+          if (step === HOUR ? !isStockSessionHour(t) : !isNyseTradingDay(t))
+            continue;
+          const close = step === HOUR || t >= breakoutDay ? 110 : 100;
+          rows.push({
+            timestamp: new Date(t),
+            open: close,
+            high: close,
+            low: close,
+            close,
+            volume: 1,
+          });
+        }
+        return rows;
+      },
       getOHLCV: (_asset: string, params?: { timeframe?: string }) =>
         closes.map((close, i) => ({
           timestamp: new Date(
@@ -131,7 +168,7 @@ const url = process.env.PAPER_TEST_DATABASE_URL;
                   {
                     id: 'asset-' + page,
                     ticker: 'A' + page,
-                    liquidity: 3 - page,
+                    liquidity: 1_000_000 - page,
                     volume24h: page,
                     priceChange24h: page,
                   },
@@ -143,10 +180,11 @@ const url = process.env.PAPER_TEST_DATABASE_URL;
           {
             provide: PaperResearchAgent,
             useValue: {
-              shortlist: jest.fn(() => ['asset-1', 'asset-2']),
-              investigate: jest.fn(() => ({
-                signal: 'buy',
-                research: { tools: ['inspectSignals'] },
+              review: jest.fn(() => ({
+                version: 'setup-review-v1',
+                model: 'test',
+                rationale: 'Daily close above the prior highs.',
+                selected: 'breakout-v1',
               })),
             },
           },
@@ -166,8 +204,9 @@ const url = process.env.PAPER_TEST_DATABASE_URL;
       await app.init();
       service = app.get(PaperService);
     });
-    it('runs independent AI calls for all five funded accounts and preserves earlier studies', async () => {
+    it('runs the v2 cohort on one shared scan, archives the first cohort and preserves earlier studies', async () => {
       const markets = app.get(MarketBenchmark);
+      markets.clock = () => sessionTime;
       const env = {
         DEPLOYMENT_ENV: 'preview',
         PREVIEW_PR_NUMBER: 142,
@@ -187,10 +226,16 @@ const url = process.env.PAPER_TEST_DATABASE_URL;
       );
       await client`insert into paper_market_accounts(policy,state) values ('breakout', '{"cash":"777","positions":{}}'::jsonb)`;
       await client`insert into paper_market_screens(epoch,universe) values (0,'[]'::jsonb)`;
+      // A first-cohort account mid-run: it must be archived, never reviewed again.
+      await client`insert into paper_ai_accounts (account_id,state,epoch,next_at,rounds) values ('trader-2','{"cash":"9977587820","positions":{}}',72,now()-interval '1 minute','[{"epoch":72,"equityRaw":"9977587820","observations":[{"asset":"take-two-interactive","filled":true}]}]')`;
+      await client`insert into paper_ai_screens(epoch,universe) values (72,'[{"id":"old"}]'::jsonb)`;
       const agent = jest.mocked(app.get(PaperResearchAgent));
-      agent.shortlist
-        .mockRejectedValueOnce(new Error('provider timeout'))
-        .mockResolvedValueOnce([]);
+      agent.review.mockResolvedValueOnce({
+        version: 'setup-review-v1',
+        model: 'test',
+        rationale: 'Extended after a gap.',
+        selected: 'cash',
+      });
       getQuote.mockImplementation(
         (p: {
           inputMint: string;
@@ -208,90 +253,107 @@ const url = process.env.PAPER_TEST_DATABASE_URL;
       );
       await Promise.all([fixture.poll(), fixture.poll()]);
       const report = await fixture.report();
-      expect(report.totalStartingUsdc).toBe(50000);
-      expect(report.accounts).toHaveLength(5);
+      expect(report.experiment).toBe('five-ai-v2');
+      expect(report.totalStartingUsdc).toBe(60000);
+      expect(report.accounts.map((a) => a.accountId)).toEqual([
+        'v2-rules',
+        'v2-trader-1',
+        'v2-trader-2',
+        'v2-trader-3',
+        'v2-trader-4',
+        'v2-trader-5',
+      ]);
+      expect(report.accounts.map((a) => a.policy)).toEqual([
+        'rules',
+        'ai',
+        'ai',
+        'ai',
+        'ai',
+        'ai',
+      ]);
+      expect(report.archivedFiveAiV1).toMatchObject([
+        { accountId: 'trader-2', netPnlUsdc: -22.41218, fills: 1 },
+      ]);
+      expect(
+        (
+          await client`select epoch, jsonb_array_length(rounds) as n from paper_ai_accounts where account_id='trader-2'`
+        )[0],
+      ).toMatchObject({ epoch: 72, n: 1 });
+      // One scan for the hour, shared by all six accounts; the first cohort's screen blocks are not coverage.
+      expect(report.coverage).toHaveLength(1);
       expect(report.coverage[0].count).toBe(2);
       expect(
         (await service.activity('fixture:paper:pr-142', original.id)).run
           .active,
       ).toBe(false);
-      expect(report.experiment).toBe('five-ai-v1');
-      expect(report.accounts.map((a) => a.accountId)).toEqual([
-        'trader-1',
-        'trader-2',
-        'trader-3',
-        'trader-4',
-        'trader-5',
-      ]);
       expect(report.archivedMixed).toMatchObject([
         { policy: 'breakout', book: { cash: '777' } },
       ]);
-      expect(agent.shortlist.mock.calls).toHaveLength(5);
-      expect(agent.investigate.mock.calls).toHaveLength(6);
-      for (const [universe, book] of agent.shortlist.mock.calls) {
-        expect(universe.map((r) => r.id)).toEqual(['asset-1', 'asset-2']);
-        expect(book).toHaveProperty('positions');
+      // Five AI accounts review both setups; the rules baseline makes no model call.
+      expect(agent.review.mock.calls).toHaveLength(10);
+      for (const [evidence] of agent.review.mock.calls) {
+        expect(evidence).toMatchObject({
+          timeframe: 'daily',
+          entryRules: ['breakout-v1'],
+          hourly: [],
+        });
+        expect(JSON.stringify(evidence)).not.toContain('asset-');
+        // Both scanned assets are above trend; QQQ is read through the same candle mock.
+        expect(evidence.market).toMatchObject({
+          index: { aboveTrend: true },
+          breadthPct: 100,
+          setups: 2,
+        });
       }
-      expect(
-        report.accounts.every(
-          (a) => a.policy === 'guided' && a.rounds.length === 1,
-        ),
-      ).toBe(true);
-      const invested = report.accounts.filter(
+      expect(report.accounts.every((a) => a.rounds.length === 1)).toBe(true);
+      const full = report.accounts.filter(
         (a) => Object.keys(a.book.positions).length === 2,
       );
-      expect(invested).toHaveLength(3);
-      for (const a of invested) {
-        expect(a.book.cash).toBe('8099981000');
+      expect(full).toHaveLength(5);
+      for (const a of full) {
+        // Two entries of a tenth of 10,000 USDC equity, plus 0.01 USDC each.
+        expect(a.book.cash).toBe('7999980000');
         expect(
-          a.rounds[0].observations.every((o) =>
-            o.research?.tools.includes('inspectSignals'),
+          a.rounds[0].observations.every(
+            (o) =>
+              o.filled && o.roundTripBps === 1 && o.analysis?.entryRules.length,
           ),
         ).toBe(true);
       }
-      const flat = report.accounts.filter(
-        (a) => Object.keys(a.book.positions).length === 0,
-      );
-      expect(flat).toHaveLength(2);
-      expect(flat.every((a) => a.book.cash === '10000000000')).toBe(true);
-      expect(
-        flat.filter((a) => a.rounds[0].screenError === 'shortlist_unavailable'),
-      ).toHaveLength(1);
+      const skipped = report.accounts.find(
+        (a) => Object.keys(a.book.positions).length === 1,
+      )!;
+      expect(skipped.policy).toBe('ai');
+      expect(skipped.book.cash).toBe('8999990000');
       await new PreviewBenchmark(env, service, markets).poll();
       expect((await fixture.report()).accounts).toEqual(report.accounts);
       const advance = async (hour: number) => {
-        await client`update paper_ai_accounts set started_at=now()-make_interval(hours => ${hour}::int), next_at=now()`;
+        await client`update paper_ai_accounts set started_at=now()-make_interval(hours => ${hour}::int), next_at=now() where account_id like 'v2-%'`;
         await fixture.poll();
       };
       await advance(1);
-      expect(agent.shortlist.mock.calls).toHaveLength(6); // Only the failed shortlist retries.
-      expect(agent.investigate.mock.calls).toHaveLength(8); // Only that account has new evidence.
+      // Same daily candle: holdings take guard checks only, and the earlier skip is reused.
+      expect(agent.review.mock.calls).toHaveLength(10);
       const repeated = (await fixture.report()).accounts.find(
-        (a) => a.accountId === invested[0].accountId,
+        (a) => a.accountId === full[0].accountId,
       )!;
-      expect(repeated.book).toEqual(invested[0].book);
+      expect(repeated.book.cash).toBe(full[0].book.cash);
+      expect(Object.keys(repeated.book.positions)).toEqual(
+        Object.keys(full[0].book.positions),
+      );
       expect(
         repeated.rounds
           .at(-1)
           ?.observations.every((o) => o.repeatedBar && !o.filled),
       ).toBe(true);
-      hourlyEnd -= 4 * HOUR;
-      await advance(2);
-      const stale = (await fixture.report()).accounts.find(
-        (a) => a.accountId === invested[0].accountId,
+      const again = (await fixture.report()).accounts.find(
+        (a) => a.accountId === skipped.accountId,
       )!;
       expect(
-        stale.rounds
-          .at(-1)
-          ?.observations.every(
-            (o) => o.error === 'insufficient_recent_hourly_bars' && !o.filled,
-          ),
-      ).toBe(true);
-      expect(stale.rounds.at(-1)?.equityRaw).not.toBeNull();
-      await advance(4);
-      expect(agent.shortlist.mock.calls).toHaveLength(11);
+        again.rounds.at(-1)?.observations.find((o) => !o.filled && !o.mark),
+      ).toMatchObject({ repeatedBar: true, signal: 'hold' });
       // Past the 240-hour deadline: every account takes its terminal mark.
-      await client`update paper_ai_accounts set started_at=started_at-interval '11 days',next_at=now()`;
+      await client`update paper_ai_accounts set started_at=started_at-interval '11 days',next_at=now() where account_id like 'v2-%'`;
       await fixture.poll();
       expect(
         (await fixture.report()).accounts.every(
@@ -300,8 +362,7 @@ const url = process.env.PAPER_TEST_DATABASE_URL;
             a.rounds.at(-1)?.observations.every((o) => !o.filled),
         ),
       ).toBe(true);
-      expect(agent.shortlist.mock.calls).toHaveLength(11);
-      expect(agent.investigate.mock.calls).toHaveLength(8);
+      expect(agent.review.mock.calls).toHaveLength(10);
     });
     afterAll(async () => {
       await app?.close();
@@ -369,7 +430,8 @@ const url = process.env.PAPER_TEST_DATABASE_URL;
       expect(bought.events).toHaveLength(1);
       expect(bought.run.book).toEqual({
         cash: '8999990000',
-        position: '993010',
+        // The quoted 1,000,000 units less the 1 bp allowance.
+        position: '999900',
       });
       const evidence = bought.events[0].evidence;
       expect(decide(evidence.strategy, evidence.rows, evidence.before)).toBe(
@@ -425,8 +487,9 @@ const url = process.env.PAPER_TEST_DATABASE_URL;
         'sell',
         'buy',
       ]);
-      expect(sold.run.book).toEqual({ cash: '10092291000', position: '0' });
-      expect(sold.performance.netPnlUsdcRaw).toBe('92291000');
+      // 1,100 USDC quoted, less 1 bp and the 0.01 USDC fee.
+      expect(sold.run.book).toEqual({ cash: '10099870000', position: '0' });
+      expect(sold.performance.netPnlUsdcRaw).toBe('99870000');
       await makeDue(id);
       await service.tick();
       expect((await read()).events).toHaveLength(2);

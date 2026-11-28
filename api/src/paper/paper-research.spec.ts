@@ -1,126 +1,109 @@
-import type { AppEnv } from '../config/env.schema';
 import type { OpenAIClient } from '../agent/openai.provider';
-import { PaperResearchAgent } from './paper-research';
-import { DAY, INITIAL } from './strategy';
+import { PaperResearchAgent, SETUP_REVIEW_PROMPT } from './paper-research';
+import type { SetupEvidence } from './swing';
 
-describe('guided paper strategy', () => {
-  const rows = Array.from({ length: 21 }, (_, i) => ({
-    time: i * DAY,
-    high: i === 20 ? 115 : 100,
-    low: 99,
-    close: i === 20 ? 110 : 100,
-  }));
-  const env = { OPENAI_MODEL: 'test' } as AppEnv;
-  it('consumes a selected evidence tool and maps the chosen rule to the computed signal', async () => {
+const evidence: SetupEvidence = {
+  version: 'daily-breakout-v1',
+  timeframe: 'daily',
+  hourly: [],
+  daily: Array.from({ length: 21 }, (_, i) => [
+    100.5,
+    99.5,
+    i === 20 ? 100 : 98,
+  ]),
+  trendMean: 98,
+  trendAllowsEntry: true,
+  signals: { 'breakout-v1': 'buy', 'pullback-v1': 'hold' },
+  entryRules: ['breakout-v1'],
+  momentumPct: 2.04,
+  assetDeclineFromHighPct: 0,
+  features: {
+    volumeRatio: 1.8,
+    avgRangePct: 1.2,
+    extensionPct: 0.4,
+    relativeMomentumPct: 3.1,
+  },
+  market: {
+    index: { aboveTrend: true, change20dPct: -1.06, change5dPct: 0.8 },
+    breadthPct: 55,
+    setups: 2,
+  },
+};
+const answer = (content: unknown) => ({
+  choices: [{ message: { content: JSON.stringify(content) } }],
+});
+
+describe('AI setup review', () => {
+  const env = { PAPER_AI_MODEL: 'test-model' };
+
+  it('sends the evidence in one structured request and records the chosen rule', async () => {
     const create = jest
       .fn()
-      .mockResolvedValueOnce({
-        choices: [
-          {
-            message: {
-              role: 'assistant',
-              tool_calls: [
-                {
-                  id: 'signal',
-                  type: 'function',
-                  function: { name: 'inspectSignals', arguments: '{}' },
-                },
-              ],
-            },
-          },
-        ],
-      })
-      .mockResolvedValueOnce({
-        choices: [
-          {
-            message: {
-              content: JSON.stringify({
-                rule: 'breakout-v1',
-                rationale: 'Close exceeded the prior highs.',
-              }),
-            },
-          },
-        ],
-      });
+      .mockResolvedValue(
+        answer({ rule: 'breakout-v1', rationale: 'Close above prior highs.' }),
+      );
     const agent = new PaperResearchAgent(
       { chat: { completions: { create } } } as unknown as OpenAIClient,
       env,
     );
-    // Flat daily trend permits entry. Only the hourly close breaks the 20-bar high.
-    const daily = rows.map((r) => ({ ...r, close: 100, high: 100 }));
-    const result = await agent.investigate(
-      'asset',
-      'mint',
-      daily,
-      rows,
-      INITIAL,
-    );
-    expect(result).toMatchObject({
-      signal: 'buy',
-      research: {
-        version: 'swing-research-v1',
-        tools: ['inspectSignals'],
-        selected: 'breakout-v1',
-      },
+    await expect(agent.review(evidence)).resolves.toEqual({
+      version: 'setup-review-v2',
+      model: 'test-model',
+      rationale: 'Close above prior highs.',
+      selected: 'breakout-v1',
     });
-    const weakDaily = [...daily.slice(0, -1), { ...daily[20], close: 99 }];
-    const calls = create.mock.calls as [{ messages: unknown[] }, unknown][];
-    expect(calls[1][0].messages).toContainEqual({
-      role: 'tool',
-      tool_call_id: 'signal',
-      content: JSON.stringify({ 'breakout-v1': 'buy', 'pullback-v1': 'hold' }),
-    });
-    create
-      .mockResolvedValueOnce({
-        choices: [
-          {
-            message: {
-              role: 'assistant',
-              tool_calls: [
-                {
-                  id: 'signal',
-                  type: 'function',
-                  function: { name: 'inspectSignals', arguments: '{}' },
-                },
-              ],
-            },
-          },
-        ],
-      })
-      .mockResolvedValueOnce({
-        choices: [
-          {
-            message: {
-              content: JSON.stringify({
-                rule: 'breakout-v1',
-                rationale: 'Hourly breakout.',
-              }),
-            },
-          },
-        ],
-      });
-    expect(
-      (await agent.investigate('asset', 'mint', weakDaily, rows, INITIAL))
-        .signal,
-    ).toBe('hold');
-  });
-  it('abstains on a model outage and still enforces a mandatory exit', async () => {
-    const agent = new PaperResearchAgent(null, env);
-    expect(
-      await agent.investigate('asset', 'mint', rows, rows, INITIAL),
-    ).toMatchObject({
-      signal: 'hold',
-      research: { error: 'research_unavailable' },
-    });
-    const dropping = [
-      ...rows.slice(0, -1),
-      { time: 20 * DAY, high: 90, low: 85, close: 86 },
+    expect(create).toHaveBeenCalledTimes(1);
+    const [request] = create.mock.calls[0] as [
+      { messages: { role: string; content: string }[] },
     ];
-    expect(
-      await agent.investigate('asset', 'mint', rows, dropping, {
-        cash: '9000000000',
-        position: '1',
-      }),
-    ).toMatchObject({ signal: 'sell' });
+    expect(request.messages).toEqual([
+      { role: 'system', content: SETUP_REVIEW_PROMPT },
+      { role: 'user', content: JSON.stringify(evidence) },
+    ]);
+    // The prompt separates the asset's decline from the account, defaults to skipping and explains every measure.
+    expect(SETUP_REVIEW_PROMPT).toContain('not the account');
+    expect(SETUP_REVIEW_PROMPT).toContain('Skipping is the default');
+    for (const field of [
+      'volumeRatio',
+      'extensionPct',
+      'avgRangePct',
+      'relativeMomentumPct',
+      'breadthPct',
+    ])
+      expect(SETUP_REVIEW_PROMPT).toContain(field);
+    const [, options] = create.mock.calls[0] as [unknown, { timeout: number }];
+    expect(options.timeout).toBeGreaterThanOrEqual(90000);
+  });
+
+  it('turns a rule that is not signalling into a recorded skip', async () => {
+    const create = jest
+      .fn()
+      .mockResolvedValue(answer({ rule: 'pullback-v1', rationale: 'Dip.' }));
+    const agent = new PaperResearchAgent(
+      { chat: { completions: { create } } } as unknown as OpenAIClient,
+      env,
+    );
+    await expect(agent.review(evidence)).resolves.toMatchObject({
+      selected: 'cash',
+      error: 'rule_not_signalling',
+    });
+  });
+
+  it('abstains when the model is unavailable or answers out of schema', async () => {
+    await expect(
+      new PaperResearchAgent(null, env).review(evidence),
+    ).resolves.toMatchObject({
+      selected: 'cash',
+      error: 'research_unavailable',
+    });
+    const create = jest.fn().mockResolvedValue(answer({ rule: 'all-in' }));
+    const agent = new PaperResearchAgent(
+      { chat: { completions: { create } } } as unknown as OpenAIClient,
+      env,
+    );
+    await expect(agent.review(evidence)).resolves.toMatchObject({
+      selected: 'cash',
+      error: 'research_unavailable',
+    });
   });
 });

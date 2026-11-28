@@ -29,7 +29,8 @@ describe('daily paper strategies', () => {
     const { decisions, finalBook } = backtest('breakout-v1', candles);
     expect(decisions.map((d) => d.signal)).toEqual(['buy', 'hold', 'sell']);
     expect(finalBook.position).toBe('0');
-    expect(Number(finalBook.cash) / 1e6).toBeCloseTo(9460.13, 0);
+    // 1,000 USDC in at 150, out at 70: half of a 30 bps round trip and 1 bp per fill, 0.01 USDC fees.
+    expect(Number(finalBook.cash) / 1e6).toBeCloseTo(9465.15, 1);
     expect(history(candles, 21 * DAY).at(-1)?.close).toBe(110);
   });
   it('distinguishes a two-day pullback above trend from a breakout', () => {

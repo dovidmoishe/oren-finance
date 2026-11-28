@@ -1,0 +1,201 @@
+import type { MarketCandle } from '../../types/market';
+import { PAPER_MODEL } from '../../types/paper';
+import {
+  buyAndHold,
+  decisionTimes,
+  metrics,
+  modeledTerms,
+  simulate,
+  type BacktestAsset,
+} from './backtest';
+import { isStockSessionHour } from './market-data';
+import { usMarketSession } from '../market/us-market-session';
+import { HOUR } from './strategy';
+import { DAILY_BREAKOUT_POLICY, HOURLY_POLICY } from './swing';
+
+const START = Date.parse('2026-08-03T00:00:00Z');
+const END = Date.parse('2026-10-31T00:00:00Z');
+
+/** Session-hour stock candles from a price path, plus daily candles aggregated per UTC date. */
+function asset(
+  id: string,
+  price: (i: number) => number,
+  roundTripBps = 20,
+): BacktestAsset {
+  const hourly: MarketCandle[] = [];
+  for (let t = START, i = 0; t < END; t += HOUR) {
+    if (!isStockSessionHour(t)) continue;
+    const open = price(i);
+    const close = price(i + 1);
+    hourly.push({
+      timestamp: new Date(t),
+      open,
+      close,
+      high: Math.max(open, close) + 0.05,
+      low: Math.min(open, close) - 0.05,
+      volume: 1,
+    });
+    i++;
+  }
+  const days = new Map<string, MarketCandle[]>();
+  for (const c of hourly) {
+    const key = c.timestamp.toISOString().slice(0, 10);
+    days.set(key, [...(days.get(key) ?? []), c]);
+  }
+  const daily = [...days].map(([day, rows]) => ({
+    timestamp: new Date(day + 'T00:00:00Z'),
+    open: rows[0].open,
+    close: rows.at(-1)!.close,
+    high: Math.max(...rows.map((r) => r.high)),
+    low: Math.min(...rows.map((r) => r.low)),
+    volume: 1,
+  }));
+  return { asset: id, ticker: id.toUpperCase(), roundTripBps, hourly, daily };
+}
+
+// Rises for about six weeks, then falls: breakouts first, then forced exits.
+const trend = (i: number) =>
+  i < 480 ? 100 + i * 0.05 : 124 - (i - 480) * 0.06;
+const wave = (i: number) => 100 + 3 * Math.sin(i / 25);
+const universe = () => [asset('trend', trend), asset('wave', wave, 40)];
+const from = Date.parse('2026-09-08T00:00:00Z');
+const to = Date.parse('2026-10-30T00:00:00Z');
+
+describe('backtest replay', () => {
+  for (const policy of [DAILY_BREAKOUT_POLICY, HOURLY_POLICY]) {
+    it(`fills ${policy.version} decisions at the next candle's open, in the regular session`, () => {
+      const assets = universe();
+      const run = simulate(assets, { from, to, arm: 'rules', policy });
+      expect(run.trades.length).toBeGreaterThan(0);
+      for (const trade of run.trades) {
+        const bars = assets.find((a) => a.asset === trade.asset)!.hourly;
+        const entry = bars.find(
+          (b) => b.timestamp.toISOString() === trade.entryAt,
+        );
+        expect(entry?.open).toBe(trade.entryPrice);
+        // The decision is the end of the previous candle, which is in the regular session.
+        expect(
+          usMarketSession(new Date(Date.parse(trade.entryAt))).regular,
+        ).toBe(true);
+        expect(Date.parse(trade.exitAt)).toBeGreaterThan(
+          Date.parse(trade.entryAt),
+        );
+      }
+    });
+  }
+
+  it('never looks ahead: changing later candles leaves earlier decisions unchanged', () => {
+    const cut = Date.parse('2026-10-08T00:00:00Z');
+    const base = simulate(universe(), { from, to, arm: 'rules' });
+    const shocked = universe().map((a) => ({
+      ...a,
+      hourly: a.hourly.map((c) =>
+        +c.timestamp >= cut
+          ? {
+              ...c,
+              open: c.open * 3,
+              close: c.close * 3,
+              high: c.high * 3,
+              low: c.low * 3,
+            }
+          : c,
+      ),
+      daily: a.daily.map((c) =>
+        +c.timestamp >= cut
+          ? {
+              ...c,
+              open: c.open * 3,
+              close: c.close * 3,
+              high: c.high * 3,
+              low: c.low * 3,
+            }
+          : c,
+      ),
+    }));
+    const changed = simulate(shocked, { from, to, arm: 'rules' });
+    const before = (run: typeof base) => run.equity.filter((p) => p.at < cut);
+    expect(before(changed)).toEqual(before(base));
+    expect(changed.equity).not.toEqual(base.equity);
+  });
+
+  it('charges half the measured round trip on each fill plus the shared allowance and fee', () => {
+    const terms = modeledTerms('sell', 1_000_000n, 100, 40);
+    expect(terms.quotedOutput).toBe(String(Math.floor(100_000_000 * 0.998)));
+    const flatPrice = asset('flat', () => 100, 0);
+    const curve = buyAndHold([flatPrice], from, to);
+    const allowance = 1 - PAPER_MODEL.costAllowanceBps / 10000;
+    const fees = (2 * Number(PAPER_MODEL.fixedCostUsdcRaw)) / 1e6;
+    // Equity stays within a cent of the frictionless value less the allowance on both legs and two fees.
+    expect(curve.at(-1)!.equityUsdc).toBeCloseTo(
+      (10000 - fees / 2) * allowance * allowance - fees / 2,
+      1,
+    );
+  });
+
+  it('gives the AI the market backdrop from index candles completed by the decision', () => {
+    const index = asset('qqq', trend).daily;
+    const withIndex = simulate(universe(), {
+      from,
+      to,
+      arm: 'ai',
+      index,
+      lookup: () => undefined,
+    });
+    const first = withIndex.pending[0].evidence.market!;
+    expect(first.index).not.toBeNull();
+    expect(first.breadthPct).toBeGreaterThanOrEqual(0);
+    expect(first.setups).toBeGreaterThan(0);
+    const without = simulate(universe(), {
+      from,
+      to,
+      arm: 'ai',
+      lookup: () => undefined,
+    });
+    expect(without.pending[0].evidence.market!.index).toBeNull();
+    expect(without.pending[0].evidence.features.relativeMomentumPct).toBeNull();
+  });
+
+  it('treats an unreviewed AI setup as a skip and replays the rules when the AI agrees', () => {
+    const assets = universe();
+    const rules = simulate(assets, { from, to, arm: 'rules' });
+    const unreviewed = simulate(assets, {
+      from,
+      to,
+      arm: 'ai',
+      lookup: () => undefined,
+    });
+    expect(unreviewed.trades).toEqual([]);
+    expect(unreviewed.pending.length).toBeGreaterThan(0);
+    expect(new Set(unreviewed.pending.map((p) => p.key)).size).toBe(
+      unreviewed.pending.length,
+    );
+    const agrees = simulate(assets, {
+      from,
+      to,
+      arm: 'ai',
+      lookup: (p) => ({
+        version: 'test',
+        model: 'test',
+        rationale: 'agree',
+        selected: p.evidence.entryRules[0],
+      }),
+    });
+    expect(agrees.trades.map((t) => ({ ...t, rationale: undefined }))).toEqual(
+      rules.trades,
+    );
+    expect(agrees.pending).toEqual([]);
+  });
+
+  it('summarizes returns, drawdown, win rate and exits', () => {
+    const run = simulate(universe(), { from, to, arm: 'rules' });
+    const m = metrics(run.equity, run.trades);
+    expect(m.trades).toBe(run.trades.length);
+    expect(m.finalUsdc).toBe(run.equity.at(-1)!.equityUsdc);
+    expect(m.maxDrawdownPct).toBeGreaterThanOrEqual(0);
+    expect(Object.values(m.byExit).reduce((a, b) => a + b, 0)).toBe(m.trades);
+    expect(m.frictionUsdc).toBeGreaterThan(0);
+    expect(
+      decisionTimes(universe(), from, to).every((t) => t >= from && t <= to),
+    ).toBe(true);
+  });
+});

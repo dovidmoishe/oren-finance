@@ -1,0 +1,606 @@
+import { createHash } from 'node:crypto';
+import type { MarketCandle } from '../../types/market';
+import {
+  PAPER_MODEL,
+  type PaperBar,
+  type PaperResearch,
+  type PaperQuoteTerms,
+} from '../../types/paper';
+import { usMarketSession } from '../market/us-market-session';
+import {
+  DAY,
+  HOUR,
+  IncompleteHistory,
+  exitLevels,
+  history,
+  settle,
+} from './strategy';
+import {
+  SWING_POLICY,
+  analyze,
+  entryBudget,
+  entrySignal,
+  marketContext,
+  rankSetups,
+  reviewable,
+  rulesChoice,
+  setupEvidence,
+  signalBars,
+  type EntryRule,
+  type SetupEvidence,
+  type SwingAnalysis,
+  type SwingPolicy,
+} from './swing';
+
+/**
+ * Historical replay of the hourly swing trader over stock-market candles.
+ *
+ * Each step is the end of an hourly candle. The trader sees only candles that
+ * completed by then, decides, and fills at the open of the next candle, with
+ * the same `settle` cost model as the live cohort. The token spread is the
+ * round trip measured from live Jupiter quotes for each asset, half on each
+ * side. Stops and targets are checked on each completed hourly close, like the
+ * live hourly guard. Entries happen only in the NYSE regular session.
+ */
+
+export interface BacktestAsset {
+  asset: string;
+  ticker: string;
+  /** Measured round-trip cost of a $1,000 swap, in basis points. Half is charged on each side. */
+  roundTripBps: number;
+  /** NYSE-session hourly stock candles, oldest first. */
+  hourly: MarketCandle[];
+  /** NYSE trading-day daily stock candles, oldest first. */
+  daily: MarketCandle[];
+}
+
+export type BacktestArm = 'rules' | 'ai';
+
+export interface PendingReview {
+  key: string;
+  asset: string;
+  at: number;
+  evidence: SetupEvidence;
+}
+
+export interface BacktestOptions {
+  from: number;
+  to: number;
+  arm: BacktestArm;
+  policy?: SwingPolicy;
+  /** Daily candles of the market index (QQQ) on NYSE trading days, for the AI's market backdrop. */
+  index?: MarketCandle[];
+  /** AI arm: a cached review for this setup, or undefined when it has not been requested yet. */
+  lookup?: (review: PendingReview) => PaperResearch | undefined;
+}
+
+export type ExitReason = 'riskExit' | 'stop' | 'target' | 'end';
+
+export interface BacktestTrade {
+  asset: string;
+  ticker: string;
+  rule: EntryRule;
+  entryAt: string;
+  entryPrice: number;
+  costUsdc: number;
+  exitAt: string;
+  exitPrice: number;
+  proceedsUsdc: number;
+  reason: ExitReason;
+  pnlUsdc: number;
+  returnPct: number;
+  /** Spread, allowance and fees paid on both fills, against frictionless fills at the same prices. */
+  frictionUsdc: number;
+  holdHours: number;
+  rationale?: string;
+}
+
+export interface EquityPoint {
+  at: number;
+  equityUsdc: number;
+  positions: number;
+}
+
+export interface BacktestRun {
+  arm: BacktestArm;
+  equity: EquityPoint[];
+  trades: BacktestTrade[];
+  reviews: {
+    considered: number;
+    entered: number;
+    skipped: number;
+    failed: number;
+  };
+  /** AI arm: setups whose review is not cached yet. The run treated them as skips. */
+  pending: PendingReview[];
+}
+
+interface Holding {
+  asset: string;
+  quantity: bigint;
+  rule: EntryRule;
+  costRaw: bigint;
+  entryAt: number;
+  entryPrice: number;
+  stop: number;
+  target?: number;
+  /** Daily candle behind the last fresh decision (daily timeframe). */
+  decidedDaily?: number;
+  rationale?: string;
+}
+
+const START = BigInt(PAPER_MODEL.startingUsdcRaw);
+const FEE = BigInt(PAPER_MODEL.fixedCostUsdcRaw);
+const usdc = (raw: bigint) => Number(raw) / 1e6;
+
+/** A modeled route: price-based output less half the measured round trip. Units: micro-USDC and microshares. */
+export function modeledTerms(
+  side: 'buy' | 'sell',
+  input: bigint,
+  price: number,
+  roundTripBps: number,
+): PaperQuoteTerms {
+  const half = roundTripBps / 2 / 10000;
+  const gross = Number(input) * (side === 'buy' ? 1 / price : price);
+  const output = Math.floor(gross * (1 - half));
+  if (!Number.isSafeInteger(output) || output <= 0)
+    throw new Error('unrepresentable_output');
+  return {
+    inputMint: side === 'buy' ? 'USDC' : 'share',
+    outputMint: side === 'buy' ? 'share' : 'USDC',
+    input: input.toString(),
+    quotedOutput: String(output),
+    minimumOutput: String(output),
+    slot: null,
+  };
+}
+
+/** Index cursor over a sorted candle series: candles completed by `at`, and the next one to open. */
+class Series {
+  private done = 0;
+  constructor(
+    readonly bars: MarketCandle[],
+    private readonly span: number,
+  ) {}
+  advance(at: number) {
+    while (
+      this.done < this.bars.length &&
+      +this.bars[this.done].timestamp + this.span <= at
+    )
+      this.done++;
+  }
+  /** The last `n` completed candles, enough for `history` to pick its window. */
+  recent(n = 40) {
+    return this.bars.slice(Math.max(0, this.done - n), this.done);
+  }
+  latest() {
+    return this.done ? this.bars[this.done - 1] : undefined;
+  }
+  next() {
+    return this.bars[this.done];
+  }
+}
+
+function windows(
+  hourly: Series,
+  daily: Series,
+  at: number,
+): { daily: PaperBar[]; hourly: PaperBar[] } | null {
+  try {
+    return {
+      daily: history(daily.recent(), at),
+      hourly: history(hourly.recent(), at, 'hourly'),
+    };
+  } catch (err) {
+    if (err instanceof IncompleteHistory) return null;
+    if (
+      err instanceof Error &&
+      /^invalid_(hourly|daily)_bars$/.test(err.message)
+    )
+      return null;
+    throw err;
+  }
+}
+
+/** Cache key for one AI review: the model and the exact evidence it saw. */
+export function reviewKey(model: string, evidence: SetupEvidence) {
+  return createHash('sha256')
+    .update(model + '\n' + JSON.stringify(evidence))
+    .digest('hex');
+}
+
+/** Decision times: the end of every hourly candle in the window, across all assets. */
+export function decisionTimes(
+  assets: BacktestAsset[],
+  from: number,
+  to: number,
+) {
+  const times = new Set<number>();
+  for (const a of assets)
+    for (const bar of a.hourly) {
+      const end = +bar.timestamp + HOUR;
+      if (end >= from && end <= to) times.add(end);
+    }
+  return [...times].sort((a, b) => a - b);
+}
+
+export function simulate(
+  assets: BacktestAsset[],
+  options: BacktestOptions,
+  model = 'rules',
+): BacktestRun {
+  const policy = options.policy ?? SWING_POLICY;
+  const series = new Map(
+    assets.map((a) => [
+      a.asset,
+      {
+        meta: a,
+        hourly: new Series(a.hourly, HOUR),
+        daily: new Series(a.daily, DAY),
+      },
+    ]),
+  );
+  const indexSeries = new Series(options.index ?? [], DAY);
+  let cash = START;
+  const holdings = new Map<string, Holding>();
+  const run: BacktestRun = {
+    arm: options.arm,
+    equity: [],
+    trades: [],
+    reviews: { considered: 0, entered: 0, skipped: 0, failed: 0 },
+    pending: [],
+  };
+  const pendingKeys = new Set<string>();
+
+  const close = (h: Holding, at: number, price: number, reason: ExitReason) => {
+    const meta = series.get(h.asset)!.meta;
+    const terms = modeledTerms('sell', h.quantity, price, meta.roundTripBps);
+    const fill = settle(
+      { cash: cash.toString(), position: h.quantity.toString() },
+      'sell',
+      terms,
+    );
+    const proceeds = BigInt(fill.book.cash) - cash;
+    cash = BigInt(fill.book.cash);
+    holdings.delete(h.asset);
+    run.trades.push({
+      asset: h.asset,
+      ticker: meta.ticker,
+      rule: h.rule,
+      entryAt: new Date(h.entryAt).toISOString(),
+      entryPrice: h.entryPrice,
+      costUsdc: usdc(h.costRaw),
+      exitAt: new Date(at).toISOString(),
+      exitPrice: price,
+      proceedsUsdc: usdc(proceeds),
+      reason,
+      pnlUsdc: usdc(proceeds - h.costRaw),
+      returnPct: 100 * (Number(proceeds) / Number(h.costRaw) - 1),
+      // Frictionless fills: the same cost at the entry price, sold at the exit price.
+      frictionUsdc:
+        ((Number(h.costRaw) / h.entryPrice) * price - Number(proceeds)) / 1e6,
+      holdHours: (at - h.entryAt) / HOUR,
+      ...(h.rationale ? { rationale: h.rationale } : {}),
+    });
+  };
+
+  const markRaw = (h: Holding) => {
+    const s = series.get(h.asset)!;
+    const price = s.hourly.latest()?.close ?? h.entryPrice;
+    const fill = settle(
+      { cash: '0', position: h.quantity.toString() },
+      'hold',
+      modeledTerms('sell', h.quantity, price, s.meta.roundTripBps),
+    );
+    return BigInt(fill.liquidationEquityUsdcRaw!);
+  };
+
+  const times = decisionTimes(assets, options.from, options.to);
+  for (const at of times) {
+    for (const s of series.values()) {
+      s.hourly.advance(at);
+      s.daily.advance(at);
+    }
+    const regular = usMarketSession(new Date(at)).regular;
+
+    // Holdings first: deterministic exits, then the hourly stop and target guard.
+    for (const h of [...holdings.values()]) {
+      const s = series.get(h.asset)!;
+      const latest = s.hourly.latest();
+      const next = s.hourly.next();
+      if (!latest || !next) continue;
+      const fresh = +latest.timestamp + HOUR === at;
+      const bars = regular && fresh ? windows(s.hourly, s.daily, at) : null;
+      const dailyBar = bars?.daily.at(-1)!.time;
+      if (
+        bars &&
+        (policy.timeframe === 'hourly' || dailyBar !== h.decidedDaily)
+      ) {
+        const signal = signalBars(policy, bars);
+        const analysis = analyze(bars.daily, signal, { entryRule: h.rule });
+        if (analysis.riskExit) {
+          close(h, +next.timestamp, next.open, 'riskExit');
+          continue;
+        }
+        const levels = exitLevels(bars.daily, signal, h.rule);
+        h.stop = levels.stop;
+        h.target = levels.target;
+        h.decidedDaily = dailyBar;
+      } else if (fresh) {
+        if (latest.close < h.stop) close(h, +next.timestamp, next.open, 'stop');
+        else if (h.target !== undefined && latest.close >= h.target)
+          close(h, +next.timestamp, next.open, 'target');
+      }
+    }
+
+    let equity = cash;
+    for (const h of holdings.values()) equity += markRaw(h);
+
+    if (regular && holdings.size < policy.maxPositions) {
+      const setups: {
+        asset: string;
+        analysis: SwingAnalysis;
+        bars: { daily: PaperBar[]; hourly: PaperBar[] };
+      }[] = [];
+      // Every asset with complete history counts toward breadth; only unheld ones can be setups.
+      const scanned: SwingAnalysis[] = [];
+      for (const [asset, s] of series) {
+        const latest = s.hourly.latest();
+        if (!latest || +latest.timestamp + HOUR !== at || !s.hourly.next())
+          continue;
+        const bars = windows(s.hourly, s.daily, at);
+        if (!bars) continue;
+        const held = holdings.get(asset);
+        const analysis = analyze(
+          bars.daily,
+          signalBars(policy, bars),
+          held ? { entryRule: held.rule } : undefined,
+          policy.rules,
+        );
+        scanned.push(analysis);
+        if (!held) setups.push({ asset, analysis, bars });
+      }
+      const ranked = rankSetups(setups);
+      indexSeries.advance(at);
+      let indexDaily: PaperBar[] | null = null;
+      try {
+        indexDaily = history(indexSeries.recent(), at);
+      } catch {
+        indexDaily = null;
+      }
+      const market = marketContext(indexDaily, scanned, ranked.length);
+      const candidates = reviewable(
+        ranked,
+        new Set(holdings.keys()),
+        holdings.size,
+        policy,
+      );
+      for (const setup of candidates) {
+        run.reviews.considered++;
+        let choice: EntryRule | 'cash' = rulesChoice(setup.analysis);
+        let rationale: string | undefined;
+        if (options.arm === 'ai') {
+          const evidence = setupEvidence(
+            setup.bars.daily,
+            setup.bars.hourly,
+            setup.analysis,
+            policy,
+            market,
+          );
+          const pending: PendingReview = {
+            key: reviewKey(model, evidence),
+            asset: setup.asset,
+            at,
+            evidence,
+          };
+          const research = options.lookup?.(pending);
+          if (!research) {
+            if (!pendingKeys.has(pending.key)) {
+              pendingKeys.add(pending.key);
+              run.pending.push(pending);
+            }
+            choice = 'cash';
+          } else {
+            if (research.error === 'research_unavailable') run.reviews.failed++;
+            choice = research.selected ?? 'cash';
+            rationale = research.rationale;
+          }
+        }
+        if (
+          entrySignal(setup.analysis, choice) !== 'buy' ||
+          choice === 'cash'
+        ) {
+          run.reviews.skipped++;
+          continue;
+        }
+        const s = series.get(setup.asset)!;
+        const next = s.hourly.next();
+        const budget = entryBudget(cash, equity, FEE, policy);
+        if (budget < 1_000_000n) {
+          run.reviews.skipped++;
+          continue;
+        }
+        const terms = modeledTerms(
+          'buy',
+          budget,
+          next.open,
+          s.meta.roundTripBps,
+        );
+        const fill = settle(
+          { cash: cash.toString(), position: '0' },
+          'buy',
+          terms,
+          budget,
+        );
+        const levels = exitLevels(
+          setup.bars.daily,
+          signalBars(policy, setup.bars),
+          choice,
+        );
+        holdings.set(setup.asset, {
+          asset: setup.asset,
+          quantity: BigInt(fill.book.position),
+          rule: choice,
+          costRaw: cash - BigInt(fill.book.cash),
+          entryAt: +next.timestamp,
+          entryPrice: next.open,
+          stop: levels.stop,
+          target: levels.target,
+          decidedDaily: setup.bars.daily.at(-1)!.time,
+          ...(rationale ? { rationale } : {}),
+        });
+        cash = BigInt(fill.book.cash);
+        run.reviews.entered++;
+      }
+    }
+
+    let marked = cash;
+    for (const h of holdings.values()) marked += markRaw(h);
+    run.equity.push({ at, equityUsdc: usdc(marked), positions: holdings.size });
+  }
+
+  const end = times.at(-1) ?? options.to;
+  for (const h of [...holdings.values()]) {
+    const price = series.get(h.asset)!.hourly.latest()?.close ?? h.entryPrice;
+    close(h, end, price, 'end');
+  }
+  if (run.equity.length)
+    run.equity[run.equity.length - 1] = {
+      at: end,
+      equityUsdc: usdc(cash),
+      positions: 0,
+    };
+  return run;
+}
+
+/** Equal-weight buy and hold of every asset at the first regular-session decision, marked with the same costs. */
+export function buyAndHold(
+  assets: BacktestAsset[],
+  from: number,
+  to: number,
+): EquityPoint[] {
+  const times = decisionTimes(assets, from, to);
+  const start = times.find((t) => usMarketSession(new Date(t)).regular);
+  if (start === undefined) return [];
+  const series = assets.map((a) => ({
+    meta: a,
+    hourly: new Series(a.hourly, HOUR),
+  }));
+  for (const s of series) s.hourly.advance(start);
+  const tradable = series.filter((s) => s.hourly.next() && s.hourly.latest());
+  if (!tradable.length) return [];
+  const slice =
+    (START - FEE * BigInt(tradable.length)) / BigInt(tradable.length);
+  let cash = START;
+  const held = tradable.map((s) => {
+    const terms = modeledTerms(
+      'buy',
+      slice,
+      s.hourly.next().open,
+      s.meta.roundTripBps,
+    );
+    const fill = settle(
+      { cash: cash.toString(), position: '0' },
+      'buy',
+      terms,
+      slice,
+    );
+    cash = BigInt(fill.book.cash);
+    return { s, quantity: BigInt(fill.book.position) };
+  });
+  const curve: EquityPoint[] = [];
+  for (const at of times.filter((t) => t >= start)) {
+    let equity = cash;
+    for (const h of held) {
+      h.s.hourly.advance(at);
+      const price = h.s.hourly.latest()!.close;
+      equity += BigInt(
+        settle(
+          { cash: '0', position: h.quantity.toString() },
+          'hold',
+          modeledTerms('sell', h.quantity, price, h.s.meta.roundTripBps),
+        ).liquidationEquityUsdcRaw!,
+      );
+    }
+    curve.push({ at, equityUsdc: usdc(equity), positions: held.length });
+  }
+  return curve;
+}
+
+export interface BacktestMetrics {
+  finalUsdc: number;
+  returnPct: number;
+  maxDrawdownPct: number;
+  trades: number;
+  winRatePct: number | null;
+  avgWinPct: number | null;
+  avgLossPct: number | null;
+  profitFactor: number | null;
+  avgHoldHours: number | null;
+  /** Spread, allowance and fees paid across all trades. */
+  frictionUsdc: number;
+  /** Share of decision hours with at least one open position. */
+  exposurePct: number;
+  byRule: Record<EntryRule, { trades: number; pnlUsdc: number }>;
+  byExit: Partial<Record<ExitReason, number>>;
+  monthly: { month: string; returnPct: number }[];
+}
+
+export function metrics(
+  curve: EquityPoint[],
+  trades: BacktestTrade[] = [],
+): BacktestMetrics {
+  const start = Number(START) / 1e6;
+  let peak = start;
+  let drawdown = 0;
+  for (const p of curve) {
+    peak = Math.max(peak, p.equityUsdc);
+    drawdown = Math.max(drawdown, 1 - p.equityUsdc / peak);
+  }
+  const final = curve.at(-1)?.equityUsdc ?? start;
+  const wins = trades.filter((t) => t.pnlUsdc > 0);
+  const losses = trades.filter((t) => t.pnlUsdc <= 0);
+  const mean = (xs: number[]) =>
+    xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null;
+  const grossWin = wins.reduce((a, t) => a + t.pnlUsdc, 0);
+  const grossLoss = -losses.reduce((a, t) => a + t.pnlUsdc, 0);
+  const monthEnds = new Map<string, number>();
+  for (const p of curve)
+    monthEnds.set(new Date(p.at).toISOString().slice(0, 7), p.equityUsdc);
+  let previous = start;
+  const monthly = [...monthEnds].map(([month, value]) => {
+    const returnPct = 100 * (value / previous - 1);
+    previous = value;
+    return { month, returnPct };
+  });
+  const byRule = {
+    'breakout-v1': { trades: 0, pnlUsdc: 0 },
+    'pullback-v1': { trades: 0, pnlUsdc: 0 },
+  };
+  const byExit: Partial<Record<ExitReason, number>> = {};
+  for (const t of trades) {
+    byRule[t.rule].trades++;
+    byRule[t.rule].pnlUsdc += t.pnlUsdc;
+    byExit[t.reason] = (byExit[t.reason] ?? 0) + 1;
+  }
+  return {
+    finalUsdc: final,
+    returnPct: 100 * (final / start - 1),
+    maxDrawdownPct: 100 * drawdown,
+    trades: trades.length,
+    winRatePct: trades.length ? (100 * wins.length) / trades.length : null,
+    avgWinPct: mean(wins.map((t) => t.returnPct)),
+    avgLossPct: mean(losses.map((t) => t.returnPct)),
+    profitFactor: grossLoss > 0 ? grossWin / grossLoss : null,
+    avgHoldHours: mean(trades.map((t) => t.holdHours)),
+    frictionUsdc: trades.reduce((a, t) => a + t.frictionUsdc, 0),
+    exposurePct: curve.length
+      ? (100 * curve.filter((p) => p.positions > 0).length) / curve.length
+      : 0,
+    byRule,
+    byExit,
+    monthly,
+  };
+}
+
+export const BACKTEST_VERSION = 'backtest-v1';

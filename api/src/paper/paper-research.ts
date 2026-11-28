@@ -1,29 +1,16 @@
 import { Inject, Injectable } from '@nestjs/common';
-import type {
-  ChatCompletionMessageParam,
-  ChatCompletionTool,
-} from 'openai/resources/chat/completions';
 import { z } from 'zod';
 import {
   InjectOpenAIClient,
   type OpenAIClient,
 } from '../agent/openai.provider';
-import { tradingSkills, tradingSkillVersion } from '../agent/trading-skills';
+import { tradingSkills } from '../agent/trading-skills';
 import { APP_ENV } from '../config/constants';
 import type { AppEnv } from '../config/env.schema';
-import {
-  PAPER_MODEL,
-  type PaperBar,
-  type PaperBook,
-  type PaperResearch,
-  type PaperSignal,
-} from '../../types/paper';
-import { decide } from './strategy';
-import type {
-  MarketBook,
-  PaperBarSource,
-  ScreenRow,
-} from '../../types/paper-market';
+import type { PaperResearch } from '../../types/paper';
+import type { SetupEvidence } from './swing';
+
+export const SETUP_REVIEW_VERSION = 'setup-review-v2';
 
 const selection = z
   .object({
@@ -31,214 +18,69 @@ const selection = z
     rationale: z.string().trim().min(1).max(500),
   })
   .strict();
-const descriptions = {
-  inspectSignals:
-    'Read deterministic breakout and pullback signals for this position.',
-  inspectBars:
-    'Inspect the last 21 completed hourly and daily candles behind these signals. barsSource "stock" means stock-market session candles for the company; "token" means on-chain candles for this exact mint.',
-  inspectRisk:
-    'Read virtual cash and holdings, entry allocation and decline from the recent closing peak.',
-};
-const tools: ChatCompletionTool[] = Object.entries(descriptions).map(
-  ([name, description]) => ({
-    type: 'function',
-    function: {
-      name,
-      description,
-      strict: true,
-      parameters: {
-        type: 'object',
-        properties: {},
-        required: [],
-        additionalProperties: false,
-      },
-    },
-  }),
-);
-const instructions = Object.entries(tradingSkills)
-  .map(
-    ([name, s]) =>
-      name + ' — ' + s.guidance + ' Tools: ' + s.paperTools.join(', '),
-  )
-  .join('\n');
 
+const guidance = [
+  tradingSkills['factor-research'].guidance,
+  tradingSkills['data-validation'].guidance,
+].join(' ');
+
+export const SETUP_REVIEW_PROMPT = [
+  'You review long-only swing-trade entries for an Oren paper account.',
+  guidance,
+  'The engine has already found this setup: at least one entry rule in entryRules signals a buy on completed candles of the stated timeframe, and the daily trend filter allows entries. Every setup reaches you, so most breakouts you see will fail; your job is to keep the ones the evidence favours and skip the rest. Skipping is the default.',
+  'Position size, position limits, stops and exits are deterministic and are not your decision. Decide only whether this setup deserves an entry.',
+  'Bars are oldest first as [high, low, close]. Prices are rebased so the latest close on the timeframe is 100. momentumPct is the 20-session daily change. assetDeclineFromHighPct is how far the latest daily close sits below the highest daily close shown; it describes the asset, not the account.',
+  "features: volumeRatio is the breakout session volume over its 20-session average (null when unknown); extensionPct is how far the close sits above the prior 20-session high; avgRangePct is the typical daily range, so compare extension with it; relativeMomentumPct is the asset's 20-session change minus the Nasdaq 100 tracker's.",
+  "market: index is the Nasdaq 100 tracker's trend; breadthPct is the share of scanned stocks above their own 20-day mean; setups is how many entries the scan found at once.",
+  'Weigh volume confirmation, extension against the typical range, relative strength and the market backdrop together. Choose one rule from entryRules to enter, or cash to skip. Give a rationale under 500 characters that cites only the supplied figures.',
+].join('\n');
+
+export interface SetupReviewer {
+  review(evidence: SetupEvidence): Promise<PaperResearch>;
+}
+
+/** The AI step of the paper trader: one structured call per entry setup. */
 @Injectable()
-export class PaperResearchAgent {
+export class PaperResearchAgent implements SetupReviewer {
   constructor(
     @InjectOpenAIClient() private readonly client: OpenAIClient,
-    @Inject(APP_ENV) private readonly env: AppEnv,
+    @Inject(APP_ENV) private readonly env: Pick<AppEnv, 'PAPER_AI_MODEL'>,
   ) {}
-  async shortlist(universe: ScreenRow[], book: MarketBook): Promise<string[]> {
-    if (!this.client) throw new Error('model_unavailable');
-    const response = await this.client.chat.completions.create(
-      {
-        model: this.env.OPENAI_MODEL,
-        max_completion_tokens: 2400,
-        messages: [
-          {
-            role: 'system',
-            content:
-              instructions +
-              '\nScreen the supplied full Oren market for swing setups. Each row has canonical id, ticker, price, 24h change, volume and liquidity. Choose up to three distinct ids to investigate in depth; an empty list is valid. Missing figures are unknown.',
-          },
-          {
-            role: 'user',
-            content: JSON.stringify({
-              book,
-              market: universe.map((r) => [
-                r.id,
-                r.ticker,
-                r.price,
-                r.change,
-                r.volume,
-                r.liquidity,
-              ]),
-            }),
-          },
-        ],
-        response_format: {
-          type: 'json_schema',
-          json_schema: {
-            name: 'paper_candidates',
-            strict: true,
-            schema: {
-              type: 'object',
-              properties: { ids: { type: 'array', items: { type: 'string' } } },
-              required: ['ids'],
-              additionalProperties: false,
-            },
-          },
-        },
-      },
-      { timeout: 60000, maxRetries: 0 },
-    );
-    const { ids } = z
-      .object({ ids: z.array(z.string()).max(3) })
-      .strict()
-      .parse(JSON.parse(response.choices[0]?.message.content ?? 'null'));
-    if (
-      !ids.every((id) => universe.some((r) => r.id === id)) ||
-      new Set(ids).size !== ids.length
-    )
-      throw new Error('invalid_market_selection');
-    return ids;
+
+  get model() {
+    return this.env.PAPER_AI_MODEL;
   }
-  async investigate(
-    asset: string,
-    mint: string,
-    daily: PaperBar[],
-    hourly: PaperBar[],
-    book: PaperBook,
-    account?: MarketBook,
-    barsSource: PaperBarSource = 'token',
-  ): Promise<{ signal: PaperSignal; research: PaperResearch }> {
-    const trendMean =
-      daily.slice(0, -1).reduce((sum, bar) => sum + bar.close, 0) /
-      (daily.length - 1);
-    const trendAllowsEntry = daily.at(-1)!.close >= trendMean;
-    const eligible = (rule: 'breakout-v1' | 'pullback-v1') => {
-      const signal = decide(rule, hourly, book);
-      return signal === 'buy' && !trendAllowsEntry ? 'hold' : signal;
-    };
-    const signals = {
-      'breakout-v1': eligible('breakout-v1'),
-      'pullback-v1': eligible('pullback-v1'),
-    };
-    const entryRule = account?.positions[asset]?.entryRule;
-    const riskExit =
-      book.position !== '0' &&
-      (signals['breakout-v1'] === 'sell' ||
-        decide('breakout-v1', daily, book) === 'sell' ||
-        (entryRule === 'pullback-v1' && signals['pullback-v1'] === 'sell'));
+
+  /** A failed or invalid review abstains (cash) and records the error. */
+  async review(evidence: SetupEvidence): Promise<PaperResearch> {
     const research: PaperResearch = {
-      version: tradingSkillVersion,
-      model: this.env.OPENAI_MODEL,
-      tools: [],
-      selected: null,
+      version: SETUP_REVIEW_VERSION,
+      model: this.env.PAPER_AI_MODEL,
       rationale: '',
+      selected: null,
     };
-    const evidence = {
-      inspectSignals: signals,
-      inspectBars: { daily, hourly },
-      inspectRisk: {
-        book,
-        trendMean,
-        trendAllowsEntry,
-        riskExit,
-        entryRule,
-        portfolio: account,
-        entryCashBps: PAPER_MODEL.entryCashBps,
-        declineFromPeakPct:
-          100 *
-          (1 - daily.at(-1)!.close / Math.max(...daily.map((r) => r.close))),
-      },
-    };
-    const messages: ChatCompletionMessageParam[] = [
-      {
-        role: 'system',
-        content:
-          instructions +
-          '\nInvestigate this multi-day long-only paper account. Entries use hourly breakout or pullback timing with the daily trend filter. Select relevant distinct evidence tools in one batch. Then choose breakout-v1, pullback-v1, or cash and give an evidence-based rationale under 500 characters. Cash abstains from new entries. The engine enforces mandatory exits.',
-      },
-      {
-        role: 'user',
-        content: JSON.stringify({
-          asset,
-          mint,
-          barsSource,
-          hourlyBarTime: hourly.at(-1)!.time,
-          dailyBarTime: daily.at(-1)!.time,
-          trendAllowsEntry,
-          riskExit,
-          holding: book.position !== '0',
-          signals,
-        }),
-      },
-    ];
     try {
       if (!this.client) throw new Error('model_unavailable');
-      const options = { timeout: 45000, maxRetries: 0 };
-      const request = {
-        model: this.env.OPENAI_MODEL,
-        max_completion_tokens: 2200,
-      };
-      const response = await this.client.chat.completions.create(
-        { ...request, messages, tools, tool_choice: 'required' },
-        options,
-      );
-      const message = response.choices[0]?.message;
-      if (!message?.tool_calls?.length || message.tool_calls.length > 3)
-        throw new Error('invalid_tool_calls');
-      messages.push(message);
-      for (const call of message.tool_calls) {
-        if (
-          call.type !== 'function' ||
-          !Object.hasOwn(evidence, call.function.name) ||
-          !z.object({}).strict().safeParse(JSON.parse(call.function.arguments))
-            .success
-        )
-          throw new Error('invalid_tool_calls');
-        const name = call.function.name as keyof typeof evidence;
-        research.tools.push(name);
-        messages.push({
-          role: 'tool',
-          tool_call_id: call.id,
-          content: JSON.stringify(evidence[name]),
-        });
-      }
       const completion = await this.client.chat.completions.create(
         {
-          ...request,
-          messages,
+          model: this.env.PAPER_AI_MODEL,
+          max_completion_tokens: 4000,
+          messages: [
+            { role: 'system', content: SETUP_REVIEW_PROMPT },
+            { role: 'user', content: JSON.stringify(evidence) },
+          ],
           response_format: {
             type: 'json_schema',
             json_schema: {
-              name: 'paper_rule',
+              name: 'paper_entry_review',
               strict: true,
               schema: {
                 type: 'object',
                 properties: {
-                  rule: { type: 'string', enum: selection.shape.rule.options },
+                  rule: {
+                    type: 'string',
+                    enum: selection.shape.rule.options,
+                  },
                   rationale: { type: 'string' },
                 },
                 required: ['rule', 'rationale'],
@@ -247,24 +89,23 @@ export class PaperResearchAgent {
             },
           },
         },
-        options,
+        { timeout: 90000, maxRetries: 1 },
       );
       const choice = selection.parse(
         JSON.parse(completion.choices[0]?.message.content ?? 'null'),
       );
-      research.selected = choice.rule;
       research.rationale = choice.rationale;
-      return {
-        signal: riskExit
-          ? 'sell'
-          : choice.rule === 'cash'
-            ? 'hold'
-            : signals[choice.rule],
-        research,
-      };
+      // A rule that is not signalling a buy cannot enter; record it as a skip.
+      research.selected =
+        choice.rule === 'cash' || evidence.entryRules.includes(choice.rule)
+          ? choice.rule
+          : 'cash';
+      if (research.selected !== choice.rule)
+        research.error = 'rule_not_signalling';
     } catch {
       research.error = 'research_unavailable';
-      return { signal: riskExit ? 'sell' : 'hold', research };
+      research.selected = 'cash';
     }
+    return research;
   }
 }

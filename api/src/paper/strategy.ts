@@ -45,6 +45,7 @@ export function history(
       high: b.high,
       low: b.low,
       close: b.close,
+      ...(Number.isFinite(b.volume) ? { volume: b.volume } : {}),
     }))
     .filter((b) => b.time + duration <= now)
     .sort((a, b) => a.time - b.time)
@@ -218,22 +219,29 @@ export function quoteTerms(
 }
 export type Terms = PaperQuoteTerms;
 
-// Use the route floor plus a fixed 20 bps cost allowance and 0.01 USDC per fill.
+/** A fill's net output: the route's expected output less the cost allowance. */
+export function netOutput(terms: Pick<Terms, 'quotedOutput'>): bigint {
+  return (
+    (BigInt(terms.quotedOutput) *
+      BigInt(10000 - PAPER_MODEL.costAllowanceBps)) /
+    10000n
+  );
+}
+
+// Fill at the route's expected output less a 1 bp allowance and 0.01 USDC per fill.
 export function settle(
   book: Book,
   signal: Signal,
   terms: Terms | null,
+  input: bigint = orderInput(signal, book),
 ): PaperValuation {
   let cash = BigInt(book.cash);
   let position = BigInt(book.position);
   let equity = cash;
   if (signal !== 'hold' || position > 0n) {
-    if (!terms || BigInt(terms.input) !== orderInput(signal, book))
+    if (!terms || BigInt(terms.input) !== input)
       throw new Error('missing_matching_quote');
-    const net =
-      (BigInt(terms.minimumOutput) *
-        BigInt(10000 - PAPER_MODEL.costAllowanceBps)) /
-      10000n;
+    const net = netOutput(terms);
     if (net <= 0n) throw new Error('output_below_precision');
     if (signal === 'buy') {
       cash -= BigInt(terms.input) + BigInt(PAPER_MODEL.fixedCostUsdcRaw);

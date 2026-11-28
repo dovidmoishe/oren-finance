@@ -18,34 +18,23 @@ import {
   settle,
   START_CASH,
   STRATEGIES,
-  type Terms,
 } from '../src/paper/strategy';
+import { modeledTerms } from '../src/paper/backtest';
 
-function modeledQuote(
-  input: bigint,
-  side: 'buy' | 'sell',
-  price: number,
-): Terms {
-  const output = Math.floor(
-    Number(input) * (side === 'buy' ? 1 / price : price),
-  );
-  if (!Number.isSafeInteger(output) || output <= 0)
-    throw new Error('Unrepresentable simulated output');
-  return {
-    input: input.toString(),
-    quotedOutput: String(output),
-    minimumOutput: String(
-      (BigInt(output) * BigInt(10000 - PAPER_MODEL.slippageBps)) / 10000n,
-    ),
-    inputMint: side === 'buy' ? 'USD' : 'share',
-    outputMint: side === 'buy' ? 'share' : 'USD',
-    slot: null,
-  };
-}
+/**
+ * Round trip charged on fills, half per side. 30 bps is about the median $1,000
+ * Jupiter round trip measured for liquid stock tokens in November 2026; the
+ * market backtest measures each asset instead.
+ */
+export const DEFAULT_ROUND_TRIP_BPS = 30;
 
 function fill(book: PaperBook, side: 'buy' | 'sell', price: number) {
-  return settle(book, side, modeledQuote(orderInput(side, book), side, price))
-    .book;
+  const input = orderInput(side, book);
+  return settle(
+    book,
+    side,
+    modeledTerms(side, input, price, DEFAULT_ROUND_TRIP_BPS),
+  ).book;
 }
 
 function liquidationUsd(book: PaperBook, close: number) {
@@ -117,8 +106,7 @@ export function backtest(strategy: PaperStrategy, bars: MarketCandle[]) {
   return {
     strategy,
     model: PAPER_MODEL,
-    executionModel:
-      'next open with modeled costs; daily liquidation at close with modeled exit costs',
+    executionModel: `next open with a ${DEFAULT_ROUND_TRIP_BPS} bps round trip and the paper cost model; daily liquidation at close with modeled exit costs`,
     benchmark:
       'buy and hold the same stock using the same entry budget at the first eligible open',
     finalBook: book,
