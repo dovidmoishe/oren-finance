@@ -64,6 +64,18 @@ describe('AgentToolRegistry', () => {
     );
   });
 
+  it('returns reviewed swing guidance pointing to available tools', async () => {
+    const skill = await registry.dispatch('getTradingSkill', {
+      skill: 'factor-research',
+    });
+    expect(skill.output).toMatchObject({
+      version: 'swing-research-v1',
+      tools: ['getStockChart', 'analyzeStock', 'getSignals'],
+    });
+    await expect(
+      registry.dispatch('getTradingSkill', { skill: 'unknown' }),
+    ).rejects.toThrow();
+  });
   it('publishes OpenAI-compatible strict function schemas', () => {
     for (const schema of registry.getSchemas()) {
       const parameters = schema.parameters as {

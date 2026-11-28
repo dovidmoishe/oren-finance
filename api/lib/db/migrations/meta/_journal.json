@@ -195,6 +195,34 @@
       "idx": 27,
       "version": "7",
       "when": 1795478400002,
+      "tag": "0027_paper_trading",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1795478400003,
+      "tag": "0028_paper_market_benchmark",
+      "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1795478400004,
+      "tag": "0029_paper_ai_accounts",
+      "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1795478400005,
+      "tag": "0030_paper_hourly_reviews",
+      "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1795478400006,
       "tag": "0027_growth_countries_referrers",
       "breakpoints": true
     },

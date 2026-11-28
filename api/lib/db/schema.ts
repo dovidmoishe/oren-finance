@@ -5,6 +5,8 @@ import {
   integer,
   jsonb,
   boolean,
+  bigint,
+  primaryKey,
   date,
   numeric,
   pgEnum,
@@ -15,6 +17,100 @@ import {
   uuid,
   uniqueIndex,
 } from 'drizzle-orm/pg-core';
+
+import type {
+  PaperBook,
+  PaperJournalEntry,
+  PaperStrategy,
+} from '../../types/paper';
+
+import type {
+  MarketBook,
+  AiAccountId,
+  MarketRound,
+  ScreenRow,
+} from '../../types/paper-market';
+
+const marketScreenColumns = () => ({
+  epoch: integer('epoch').primaryKey(),
+  capturedAt: timestamp('captured_at', { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+  universe: jsonb('universe').$type<ScreenRow[]>().notNull(),
+});
+const marketAccountColumns = () => ({
+  startedAt: timestamp('started_at', { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+  epoch: integer('epoch').default(-1).notNull(),
+  revision: integer('revision').default(0).notNull(),
+  lastError: text('last_error'),
+  nextAt: timestamp('next_at', { withTimezone: true }).defaultNow().notNull(),
+  state: jsonb('state').$type<MarketBook>().notNull(),
+  rounds: jsonb('rounds').$type<MarketRound[]>().default([]).notNull(),
+});
+
+export const paperMarketScreens = pgTable(
+  'paper_market_screens',
+  marketScreenColumns(),
+);
+export const paperMarketAccounts = pgTable('paper_market_accounts', {
+  policy: text('policy').primaryKey(),
+  ...marketAccountColumns(),
+});
+export const paperAiScreens = pgTable(
+  'paper_ai_screens',
+  marketScreenColumns(),
+);
+export const paperAiAccounts = pgTable('paper_ai_accounts', {
+  accountId: text('account_id').$type<AiAccountId>().primaryKey(),
+  ...marketAccountColumns(),
+});
+
+export const paperRuns = pgTable(
+  'paper_runs',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    ownerId: text('owner_id').notNull(),
+    assetId: text('asset_id').notNull(),
+    strategy: text('strategy').$type<PaperStrategy>().notNull(),
+    mint: text('mint').notNull(),
+    active: boolean('active').notNull().default(true),
+    book: jsonb('book').$type<PaperBook>().notNull(),
+    liquidationEquityUsdcRaw: text('liquidation_equity_usdc_raw'),
+    valuedAt: timestamp('valued_at', { withTimezone: true }).defaultNow(),
+    lastBar: bigint('last_bar', { mode: 'number' }),
+    revision: integer('revision').notNull().default(0),
+    nextAt: timestamp('next_at', { withTimezone: true }).defaultNow().notNull(),
+    lastError: text('last_error'),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (t) => [
+    uniqueIndex('paper_runs_owner_asset_strategy').on(
+      t.ownerId,
+      t.assetId,
+      t.strategy,
+    ),
+    index('paper_runs_due')
+      .on(t.nextAt)
+      .where(sql`${t.active}`),
+  ],
+);
+
+export const paperEvents = pgTable(
+  'paper_events',
+  {
+    runId: uuid('run_id')
+      .references(() => paperRuns.id)
+      .notNull(),
+    barTime: bigint('bar_time', { mode: 'number' }).notNull(),
+    observedAt: timestamp('observed_at', { withTimezone: true }).notNull(),
+    evidence: jsonb('evidence').$type<PaperJournalEntry>().notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.runId, t.barTime] })],
+);
 
 /** Retired manual ATA subsidy audit history. Preserve existing rows; no runtime writes. */
 export const ataRentSponsorships = pgTable(

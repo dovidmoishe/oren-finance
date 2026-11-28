@@ -33,6 +33,12 @@ export interface TokensService {
     window: ChartWindow,
   ): Promise<MarketCandle[]>;
 
+  getCanonicalCandles(
+    assetId: string,
+    window: ChartWindow,
+    mint?: string,
+  ): Promise<MarketCandle[]>;
+
   getOHLCV(
     assetId: string,
     params?: { start?: Date; end?: Date; timeframe?: string; mint?: string },

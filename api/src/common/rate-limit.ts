@@ -97,6 +97,7 @@ export function defaultRateRules(): RateRule[] {
       matches: (method, path) =>
         post([
           '/api/execution/quote',
+          '/api/me/paper-runs',
           '/api/execution/basket',
           '/api/execution/limit-order',
           '/api/social/copy-portfolio/prepare',

@@ -37,6 +37,7 @@ const DEFAULT_DRIP_API_BASE_URL = 'https://dripstack.com';
 const DEFAULT_DRIP_REQUEST_TIMEOUT_MS = 12_000;
 
 export interface AppEnv {
+  PAPER_TRADING_ENABLED?: boolean;
   DEPLOYMENT_ENV?: 'production' | 'development' | 'preview';
   PREVIEW_PR_NUMBER?: number | null;
   COMMIT_SHA?: string | null;
@@ -103,6 +104,8 @@ export interface AppEnv {
   DUNE_UPLOAD_NAMESPACE?: string;
   OPENAI_API_KEY?: string;
   OPENAI_MODEL: string;
+  /** Model for the paper trader's entry reviews. Defaults to a larger model than chat. */
+  PAPER_AI_MODEL: string;
   ANTHROPIC_API_KEY?: string;
   BITGET_API_BASE_URL: string;
   BITGET_REQUEST_TIMEOUT_MS: number;
@@ -517,6 +520,7 @@ export function validateEnv(env: EnvSource = process.env): AppEnv {
     DUNE_UPLOAD_NAMESPACE: readEnv(env, 'DUNE_UPLOAD_NAMESPACE'),
     OPENAI_API_KEY: readEnv(env, 'OPENAI_API_KEY'),
     OPENAI_MODEL: readEnv(env, 'OPENAI_MODEL') || 'gpt-5-mini',
+    PAPER_AI_MODEL: readEnv(env, 'PAPER_AI_MODEL') || 'gpt-5.5',
     ANTHROPIC_API_KEY: readEnv(env, 'ANTHROPIC_API_KEY'),
     BITGET_API_BASE_URL: (
       readEnv(env, 'BITGET_API_BASE_URL') ?? 'https://api.bitget.com'
@@ -527,6 +531,7 @@ export function validateEnv(env: EnvSource = process.env): AppEnv {
       8000,
     ),
     DRIP_ENABLED: readBool(env, 'DRIP_ENABLED', false),
+    PAPER_TRADING_ENABLED: readBool(env, 'PAPER_TRADING_ENABLED', false),
     DRIP_PUBLIC_RESEARCH_ENABLED: readBool(
       env,
       'DRIP_PUBLIC_RESEARCH_ENABLED',

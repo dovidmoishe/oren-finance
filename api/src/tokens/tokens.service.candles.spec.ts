@@ -51,4 +51,37 @@ describe('TokensService candle fetching', () => {
       }),
     );
   });
+
+  it('reads the canonical chart for a pinned mint without falling back and sorts it', async () => {
+    const client = {
+      get: jest.fn().mockResolvedValueOnce({
+        candles: [
+          { time: 1_700_003_600, open: 2, high: 2, low: 2, close: 2 },
+          { time: 1_700_000_000, open: 1, high: 1, low: 1, close: 1 },
+        ],
+      }),
+    };
+    const service = new TokensService(client as never);
+    const window = {
+      interval: '1H' as const,
+      from: 1_699_990_000,
+      to: 1_700_010_000,
+    };
+    const candles = await service.getCanonicalCandles(
+      'nvidia',
+      window,
+      'mint-nvda',
+    );
+    expect(candles.map((c) => c.close)).toEqual([1, 2]);
+    expect(client.get).toHaveBeenCalledTimes(1);
+    expect(client.get).toHaveBeenCalledWith('/assets/nvidia/price-chart', {
+      ...window,
+      mint: 'mint-nvda',
+    });
+    client.get.mockResolvedValueOnce({ candles: [] });
+    await expect(
+      service.getCanonicalCandles('nvidia', window),
+    ).resolves.toEqual([]);
+    expect(client.get).toHaveBeenCalledTimes(2);
+  });
 });

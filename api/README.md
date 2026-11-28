@@ -25,6 +25,10 @@
 
 [Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
 
+## Paper trading
+
+See [Paper trading](src/paper/README.md) for the strategy rules, historical replay command, forward-trial API and verification steps.
+
 ## Project setup
 
 ```bash

@@ -20,6 +20,12 @@ export interface Equity {
   liquidity?: number;
   sector?: string;
   marketData?: { source: string; retrievedAt: string };
+  /**
+   * Tokens.xyz `canonicalMarket.source`. `clickhouse_stock` marks a stock or
+   * ETF mapped to a one-share-per-token stock-market feed; absent when no
+   * off-chain reference applies.
+   */
+  canonicalMarketSource?: string;
   variants: TokenizedEquity[];
 }
 

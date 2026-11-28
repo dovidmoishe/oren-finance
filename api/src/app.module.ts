@@ -2,6 +2,7 @@ import { APP_GUARD } from '@nestjs/core';
 import { PreviewGuard } from './common/preview.guard';
 import { RateLimitGuard } from './common/rate-limit';
 import { Module } from '@nestjs/common';
+import { PaperModule } from './paper/paper.module';
 import { AlchemyModule } from './alchemy/alchemy.module';
 import { AnalyticsModule } from './analytics/analytics.module';
 import { AgentModule } from './agent/agent.module';
@@ -40,6 +41,7 @@ import { VaultModule } from './vault/vault.module';
     AnalyticsModule,
     HealthModule,
     PortfolioModule,
+    PaperModule,
     ResearchModule,
     PreferencesModule,
     NotificationsModule,
