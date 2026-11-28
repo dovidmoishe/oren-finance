@@ -26,6 +26,46 @@ export interface SwingPolicy {
   maxPositions: number;
   /** Each entry spends this share of marked equity, capped by available cash. */
   entryEquityBps: number;
+  /** When set, new entries are allowed only while the market switch is on. Exits are unaffected. */
+  regime?: RegimeSwitch;
+}
+
+/**
+ * The market switch. On while the index's latest daily close is at or above
+ * the mean of the `indexAverageDays` closes before it and at least
+ * `minBreadthPct` of scanned stocks are above their own 20-day mean. Off when
+ * either is unknown. The values were fixed before testing: a 50-day average
+ * and half the market.
+ */
+export interface RegimeSwitch {
+  indexAverageDays: number;
+  minBreadthPct: number;
+}
+export const MARKET_SWITCH: RegimeSwitch = {
+  indexAverageDays: 50,
+  minBreadthPct: 50,
+};
+
+/** Whether the latest close is at or above the mean of the `days` closes before it. Null with too little history. */
+export function aboveAverage(closes: number[], days: number): boolean | null {
+  if (closes.length < days + 1) return null;
+  const prior = closes.slice(-days - 1, -1);
+  return (
+    closes[closes.length - 1] >=
+    prior.reduce((sum, c) => sum + c, 0) / prior.length
+  );
+}
+
+export function regimeOn(
+  indexCloses: number[],
+  breadthPct: number | null,
+  regime: RegimeSwitch,
+): boolean {
+  return (
+    aboveAverage(indexCloses, regime.indexAverageDays) === true &&
+    breadthPct !== null &&
+    breadthPct >= regime.minBreadthPct
+  );
 }
 
 export const HOURLY_POLICY: SwingPolicy = {

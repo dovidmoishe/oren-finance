@@ -21,6 +21,8 @@ import {
   entryBudget,
   entrySignal,
   marketContext,
+  regimeOn,
+  aboveAverage,
   rankSetups,
   reviewable,
   rulesChoice,
@@ -28,6 +30,7 @@ import {
   signalBars,
   type EntryRule,
   type SetupEvidence,
+  type RegimeSwitch,
   type SwingAnalysis,
   type SwingPolicy,
 } from './swing';
@@ -111,6 +114,8 @@ export interface BacktestRun {
     skipped: number;
     failed: number;
   };
+  /** Regular-session hours in which the market switch blocked entries. */
+  switchedOff: number;
   /** AI arm: setups whose review is not cached yet. The run treated them as skips. */
   pending: PendingReview[];
 }
@@ -289,6 +294,7 @@ export function simulate(
     equity: [],
     trades: [],
     reviews: { considered: 0, entered: 0, skipped: 0, failed: 0 },
+    switchedOff: 0,
     pending: [],
   };
   const pendingKeys = new Set<string>();
@@ -386,12 +392,17 @@ export function simulate(
         indexDaily = null;
       }
       const market = marketContext(indexDaily, scanned, ranked.length);
-      const candidates = reviewable(
-        ranked,
-        new Set(holdings.keys()),
-        holdings.size,
-        policy,
-      );
+      const blocked =
+        policy.regime &&
+        !regimeOn(
+          indexSeries.recent(120).map((c) => c.close),
+          market.breadthPct,
+          policy.regime,
+        );
+      if (blocked) run.switchedOff++;
+      const candidates = blocked
+        ? []
+        : reviewable(ranked, new Set(holdings.keys()), holdings.size, policy);
       for (const setup of candidates) {
         run.reviews.considered++;
         let choice: EntryRule | 'cash' = rulesChoice(setup.analysis);
@@ -632,6 +643,201 @@ export function buyAndHold(
     curve.push({ at, equityUsdc: usdc(equity), positions: held.length });
   }
   return curve;
+}
+
+export interface RebalanceContext {
+  at: number;
+  /** Completed daily closes per asset, oldest first, up to 150 sessions. */
+  closes: Map<string, number[]>;
+  /** Completed daily closes of the market index (QQQ), oldest first. */
+  indexCloses: number[];
+  /** Share of assets whose latest daily close is at or above their prior 20-day mean. */
+  breadthPct: number | null;
+}
+
+export interface WeightsOptions {
+  from: number;
+  to: number;
+  index?: MarketCandle[];
+  /** Rebalance at the first regular-session decision of each day or each week. */
+  schedule: 'daily' | 'weekly';
+  /** Target weights by asset (summing to at most 1). Missing assets are sold. */
+  targets: (ctx: RebalanceContext) => Map<string, number>;
+  /** Skip trades smaller than this share of equity, to avoid churn. Default 2%. */
+  bandPct?: number;
+}
+
+/**
+ * A target-weight portfolio on the same clock, fills and costs as the swing
+ * replay: on each rebalance it sells down overweight assets, then buys
+ * underweight ones at the next hourly open, and marks every hour at the
+ * liquidation value. Used for the simple benchmarks: momentum rotation and
+ * trend-filtered hold.
+ */
+export function simulateWeights(
+  assets: BacktestAsset[],
+  options: WeightsOptions,
+): { equity: EquityPoint[]; fills: number } {
+  const series = assets.map((a) => ({
+    meta: a,
+    hourly: new Series(a.hourly, HOUR),
+    daily: new Series(a.daily, DAY),
+    quantity: 0n,
+  }));
+  const index = new Series(options.index ?? [], DAY);
+  const band = (options.bandPct ?? 2) / 100;
+  let cash = START;
+  let fills = 0;
+  let lastKey = '';
+  const curve: EquityPoint[] = [];
+  const value = (s: (typeof series)[number], price: number) =>
+    s.quantity > 0n
+      ? BigInt(
+          settle(
+            { cash: '0', position: s.quantity.toString() },
+            'hold',
+            modeledTerms('sell', s.quantity, price, s.meta.roundTripBps),
+          ).liquidationEquityUsdcRaw!,
+        )
+      : 0n;
+  for (const at of decisionTimes(assets, options.from, options.to)) {
+    for (const s of series) {
+      s.hourly.advance(at);
+      s.daily.advance(at);
+    }
+    index.advance(at);
+    const regular = usMarketSession(new Date(at)).regular;
+    const day = Math.floor(at / DAY);
+    const key =
+      options.schedule === 'daily'
+        ? String(day)
+        : String(Math.floor((day + 3) / 7));
+    if (regular && key !== lastKey) {
+      lastKey = key;
+      const closes = new Map(
+        series.map((s) => [
+          s.meta.asset,
+          s.daily.recent(150).map((c) => c.close),
+        ]),
+      );
+      const trends = [...closes.values()]
+        .map((c) => aboveAverage(c, 20))
+        .filter((v): v is boolean => v !== null);
+      const targets = options.targets({
+        at,
+        closes,
+        indexCloses: index.recent(150).map((c) => c.close),
+        breadthPct: trends.length
+          ? (100 * trends.filter(Boolean).length) / trends.length
+          : null,
+      });
+      const marks = series.map((s) => s.hourly.latest()?.close);
+      let equity = cash;
+      series.forEach((s, i) => {
+        if (marks[i] !== undefined) equity += value(s, marks[i]);
+      });
+      const tradable = series.filter(
+        (s) => s.hourly.next() && s.hourly.latest(),
+      );
+      // Sells first, so their proceeds fund the buys.
+      for (const s of tradable) {
+        const held = value(s, s.hourly.latest()!.close);
+        const target = BigInt(
+          Math.floor(Number(equity) * (targets.get(s.meta.asset) ?? 0)),
+        );
+        if (
+          held - target <= BigInt(Math.floor(Number(equity) * band)) &&
+          target > 0n
+        )
+          continue;
+        if (s.quantity === 0n || held <= target) continue;
+        const sell =
+          target === 0n
+            ? s.quantity
+            : (s.quantity * (held - target)) / (held > 0n ? held : 1n);
+        if (sell <= 0n) continue;
+        const fill = settle(
+          { cash: cash.toString(), position: s.quantity.toString() },
+          'sell',
+          modeledTerms('sell', sell, s.hourly.next().open, s.meta.roundTripBps),
+          sell,
+        );
+        cash = BigInt(fill.book.cash);
+        s.quantity -= sell;
+        fills++;
+      }
+      for (const s of tradable) {
+        const held = value(s, s.hourly.latest()!.close);
+        const target = BigInt(
+          Math.floor(Number(equity) * (targets.get(s.meta.asset) ?? 0)),
+        );
+        let budget = target - held;
+        if (budget <= BigInt(Math.floor(Number(equity) * band))) continue;
+        if (budget > cash - FEE) budget = cash - FEE;
+        if (budget < 1_000_000n) continue;
+        const fill = settle(
+          { cash: cash.toString(), position: '0' },
+          'buy',
+          modeledTerms(
+            'buy',
+            budget,
+            s.hourly.next().open,
+            s.meta.roundTripBps,
+          ),
+          budget,
+        );
+        cash = BigInt(fill.book.cash);
+        s.quantity += BigInt(fill.book.position);
+        fills++;
+      }
+    }
+    let equity = cash;
+    let positions = 0;
+    for (const s of series) {
+      const price = s.hourly.latest()?.close;
+      if (price === undefined || s.quantity === 0n) continue;
+      equity += value(s, price);
+      positions++;
+    }
+    curve.push({ at, equityUsdc: usdc(equity), positions });
+  }
+  return { equity: curve, fills };
+}
+
+/** Hold the `top` strongest assets by `lookbackDays` daily change, equally weighted. */
+export function momentumTargets(top = 5, lookbackDays = 60) {
+  return (ctx: RebalanceContext) => {
+    const ranked = [...ctx.closes]
+      .filter(([, c]) => c.length > lookbackDays)
+      .map(([asset, c]) => ({
+        asset,
+        change: c[c.length - 1] / c[c.length - 1 - lookbackDays] - 1,
+      }))
+      .sort((a, b) => b.change - a.change || a.asset.localeCompare(b.asset))
+      .slice(0, top);
+    return new Map(ranked.map((r) => [r.asset, 1 / top]));
+  };
+}
+
+/** Every asset equally while the index is above its `days`-day average, otherwise cash. */
+export function trendHoldTargets(days = 50) {
+  return (ctx: RebalanceContext) => {
+    if (aboveAverage(ctx.indexCloses, days) !== true)
+      return new Map<string, number>();
+    const assets = [...ctx.closes].filter(([, c]) => c.length > 0);
+    return new Map(assets.map(([asset]) => [asset, 1 / assets.length]));
+  };
+}
+
+/** Any targets, but only while the market switch is on; cash otherwise. */
+export function switchedTargets(
+  regime: RegimeSwitch,
+  inner: (ctx: RebalanceContext) => Map<string, number>,
+) {
+  return (ctx: RebalanceContext) =>
+    regimeOn(ctx.indexCloses, ctx.breadthPct, regime)
+      ? inner(ctx)
+      : new Map<string, number>();
 }
 
 export interface BacktestMetrics {

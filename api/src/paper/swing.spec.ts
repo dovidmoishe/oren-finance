@@ -1,6 +1,9 @@
 import type { PaperBar } from '../../types/paper';
 import { DAY, HOUR } from './strategy';
 import {
+  aboveAverage,
+  regimeOn,
+  MARKET_SWITCH,
   DAILY_BREAKOUT_POLICY,
   ENTRY_RULES,
   HOURLY_POLICY,
@@ -241,5 +244,23 @@ describe('market backdrop and setup measures', () => {
     );
     expect(evidence.market).toBe(market);
     expect(JSON.stringify(evidence)).not.toContain('3000');
+  });
+});
+
+describe('market switch', () => {
+  it('compares the latest close with the mean of the closes before it', () => {
+    expect(aboveAverage([1, 2, 3, 2], 3)).toBe(true);
+    expect(aboveAverage([3, 2, 3, 2], 3)).toBe(false);
+    expect(aboveAverage([1, 2], 3)).toBeNull();
+  });
+
+  it('is on only when the index trend and breadth agree', () => {
+    const up = Array.from({ length: 51 }, (_, i) => 100 + i);
+    expect(MARKET_SWITCH).toEqual({ indexAverageDays: 50, minBreadthPct: 50 });
+    expect(regimeOn(up, 50, MARKET_SWITCH)).toBe(true);
+    expect(regimeOn(up, 49.9, MARKET_SWITCH)).toBe(false);
+    expect(regimeOn([...up].reverse(), 80, MARKET_SWITCH)).toBe(false);
+    expect(regimeOn(up.slice(-20), 80, MARKET_SWITCH)).toBe(false);
+    expect(regimeOn(up, null, MARKET_SWITCH)).toBe(false);
   });
 });

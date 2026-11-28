@@ -28,7 +28,12 @@ import {
   metrics,
   simulate,
   type BacktestAsset,
+  momentumTargets,
   setupOutcome,
+  simulateWeights,
+  switchedTargets,
+  trendHoldTargets,
+  type WeightsOptions,
   type BacktestRun,
   type SetupOutcome,
   type EquityPoint,
@@ -41,6 +46,7 @@ import {
 import {
   DAILY_BREAKOUT_POLICY,
   HOURLY_POLICY,
+  MARKET_SWITCH,
   MARKET_INDEX_ASSET,
   SWING_POLICY,
   type SwingPolicy,
@@ -95,6 +101,24 @@ const VARIANTS: Record<string, SwingPolicy> = {
     timeframe: 'daily',
   },
   'daily-breakout': DAILY_BREAKOUT_POLICY,
+  'breakout + switch': {
+    ...DAILY_BREAKOUT_POLICY,
+    version: 'daily-breakout-switch',
+    regime: MARKET_SWITCH,
+  },
+};
+
+/** Simple portfolio benchmarks on the same clock and costs, parameters fixed before testing. */
+const PORTFOLIOS: Record<
+  string,
+  Pick<WeightsOptions, 'schedule' | 'targets'>
+> = {
+  'momentum top 5': { schedule: 'weekly', targets: momentumTargets(5, 60) },
+  'momentum + switch': {
+    schedule: 'weekly',
+    targets: switchedTargets(MARKET_SWITCH, momentumTargets(5, 60)),
+  },
+  'trend-filtered hold': { schedule: 'daily', targets: trendHoldTargets(50) },
 };
 const LIVE_VARIANT = Object.entries(VARIANTS).find(
   ([, p]) => p === SWING_POLICY,
@@ -241,7 +265,8 @@ async function loadCandles(row: UniverseRow) {
   const key = `candles-${row.asset}-${new Date(from).toISOString().slice(0, 10)}-${new Date(to).toISOString().slice(0, 13)}.json`;
   const raw = await cached(key, 7 * DAY, async () => ({
     hourly: await read('1H', from - 10 * DAY),
-    daily: await read('1D', from - 65 * DAY),
+    // 150 days back so 60-session momentum and the 50-day market average exist on day one.
+    daily: await read('1D', from - 150 * DAY),
   }));
   const hourly = stockSessionBars(revive(raw.hourly), 'hourly');
   const daily = stockSessionBars(revive(raw.daily), 'daily');
@@ -538,7 +563,7 @@ async function main() {
         extractCandles(
           await tokens(`/assets/${MARKET_INDEX_ASSET}/price-chart`, {
             interval: '1D',
-            from: Math.floor((from - 65 * DAY) / 1000),
+            from: Math.floor((from - 150 * DAY) / 1000),
             to: Math.floor(to / 1000),
           }),
         ),
@@ -552,6 +577,40 @@ async function main() {
 
   if (flag('score-reviews')) {
     scoreReviews(assets);
+    return;
+  }
+
+  if (flag('sensitivity')) {
+    // Neighbouring momentum settings, to see whether top 5 / 60 days is a lucky pick. Never used to choose.
+    const windows = [
+      ['in-sample', from, split],
+      ['out-of-sample', split, to],
+      ['full', from, to],
+    ] as const;
+    const hold = windows.map(
+      ([, a, b]) => metrics(buyAndHold(assets, a, b)).returnPct,
+    );
+    console.log(
+      `\nhold: ${hold.map((r) => r.toFixed(1) + '%').join(' / ')}  (in-sample / out-of-sample / full)`,
+    );
+    for (const top of [3, 5, 8, 12])
+      for (const lookback of [20, 40, 60, 90]) {
+        const cells = windows.map(([, a, b]) => {
+          const m = metrics(
+            simulateWeights(assets, {
+              from: a,
+              to: b,
+              index,
+              schedule: 'weekly',
+              targets: momentumTargets(top, lookback),
+            }).equity,
+          );
+          return `${m.returnPct.toFixed(1).padStart(6)}% dd ${m.maxDrawdownPct.toFixed(1).padStart(4)}%`;
+        });
+        console.log(
+          `top ${String(top).padStart(2)} · ${String(lookback).padStart(2)} days  ${cells.join('   ')}`,
+        );
+      }
     return;
   }
 
@@ -581,6 +640,18 @@ async function main() {
         table[name] = {
           ...table[name],
           [label]: metrics(run.equity, run.trades),
+        };
+      }
+      for (const [name, portfolio] of Object.entries(PORTFOLIOS)) {
+        const run = simulateWeights(assets, {
+          from: start,
+          to: end,
+          index,
+          ...portfolio,
+        });
+        table[name] = {
+          ...table[name],
+          [label]: { ...metrics(run.equity), trades: run.fills },
         };
       }
     }

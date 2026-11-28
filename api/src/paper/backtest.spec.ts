@@ -5,14 +5,18 @@ import {
   decisionTimes,
   metrics,
   modeledTerms,
+  momentumTargets,
   setupOutcome,
   simulate,
+  simulateWeights,
+  switchedTargets,
+  trendHoldTargets,
   type BacktestAsset,
 } from './backtest';
 import { isStockSessionHour } from './market-data';
 import { usMarketSession } from '../market/us-market-session';
 import { HOUR } from './strategy';
-import { DAILY_BREAKOUT_POLICY, HOURLY_POLICY } from './swing';
+import { DAILY_BREAKOUT_POLICY, HOURLY_POLICY, MARKET_SWITCH } from './swing';
 
 const START = Date.parse('2026-08-03T00:00:00Z');
 const END = Date.parse('2026-10-31T00:00:00Z');
@@ -222,5 +226,110 @@ describe('backtest replay', () => {
     expect(
       decisionTimes(universe(), from, to).every((t) => t >= from && t <= to),
     ).toBe(true);
+  });
+});
+
+describe('market switch and portfolio benchmarks', () => {
+  const falling = (i: number) => 150 - i * 0.05;
+  const rising = (i: number) => 100 + i * 0.05;
+
+  it('blocks breakout entries while the index is below its 50-day average', () => {
+    const switched = { ...DAILY_BREAKOUT_POLICY, regime: MARKET_SWITCH };
+    const fallingIndex = asset('qqq', falling).daily;
+    const blocked = simulate(universe(), {
+      from,
+      to,
+      arm: 'rules',
+      policy: switched,
+      index: fallingIndex,
+    });
+    expect(blocked.trades).toEqual([]);
+    expect(blocked.switchedOff).toBeGreaterThan(0);
+    // With no index at all the switch is off, never on by default.
+    expect(
+      simulate(universe(), { from, to, arm: 'rules', policy: switched }).trades,
+    ).toEqual([]);
+    const open = simulate(universe(), {
+      from,
+      to,
+      arm: 'rules',
+      policy: switched,
+      index: asset('qqq', rising).daily,
+    });
+    expect(open.switchedOff).toBeLessThan(blocked.switchedOff);
+  });
+
+  it('rotates into the strongest assets and never looks ahead', () => {
+    const assets = [
+      asset('up', rising, 0),
+      asset('down', falling, 0),
+      asset('wave', wave, 0),
+    ];
+    const run = simulateWeights(assets, {
+      from,
+      to,
+      schedule: 'weekly',
+      targets: momentumTargets(1, 20),
+    });
+    expect(run.fills).toBeGreaterThan(0);
+    expect(run.equity.at(-1)!.equityUsdc).toBeGreaterThan(10000);
+    const cut = Date.parse('2026-10-08T00:00:00Z');
+    const shocked = assets.map((a) => ({
+      ...a,
+      hourly: a.hourly.map((c) =>
+        +c.timestamp >= cut
+          ? {
+              ...c,
+              open: c.open * 3,
+              close: c.close * 3,
+              high: c.high * 3,
+              low: c.low * 3,
+            }
+          : c,
+      ),
+      daily: a.daily.map((c) =>
+        +c.timestamp >= cut
+          ? {
+              ...c,
+              open: c.open * 3,
+              close: c.close * 3,
+              high: c.high * 3,
+              low: c.low * 3,
+            }
+          : c,
+      ),
+    }));
+    const changed = simulateWeights(shocked, {
+      from,
+      to,
+      schedule: 'weekly',
+      targets: momentumTargets(1, 20),
+    });
+    const before = (r: typeof run) => r.equity.filter((p) => p.at < cut);
+    expect(before(changed)).toEqual(before(run));
+  });
+
+  it('holds everything only while the index trends up, and switches to cash otherwise', () => {
+    const ctx = (indexCloses: number[], breadthPct: number | null) => ({
+      at: 0,
+      closes: new Map([
+        ['a', [1]],
+        ['b', [1]],
+      ]),
+      indexCloses,
+      breadthPct,
+    });
+    const up = Array.from({ length: 51 }, (_, i) => 100 + i);
+    const down = [...up].reverse();
+    expect([...trendHoldTargets(50)(ctx(up, 60))]).toEqual([
+      ['a', 0.5],
+      ['b', 0.5],
+    ]);
+    expect(trendHoldTargets(50)(ctx(down, 60)).size).toBe(0);
+    expect(trendHoldTargets(50)(ctx(up.slice(-10), 60)).size).toBe(0);
+    const inner = () => new Map([['a', 1]]);
+    expect(switchedTargets(MARKET_SWITCH, inner)(ctx(up, 60)).size).toBe(1);
+    expect(switchedTargets(MARKET_SWITCH, inner)(ctx(up, 40)).size).toBe(0);
+    expect(switchedTargets(MARKET_SWITCH, inner)(ctx(up, null)).size).toBe(0);
   });
 });
