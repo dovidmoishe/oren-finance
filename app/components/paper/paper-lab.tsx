@@ -273,6 +273,9 @@ function JournalRound({
         </div>
       ) : null}
       {round.screenError ? <p className="mt-2 text-xs text-warning">The market screen failed, so the previous watchlist was kept.</p> : null}
+      {round.marketSwitch === "off" ? (
+        <p className="mt-2 text-xs text-muted">Market switch off: QQQ is below its 50-day average or fewer than half the stocks are trending up, so no new entries.</p>
+      ) : null}
       {observations.length ? (
         <ul className="mt-2 divide-y divide-border/70">
           {observations.map((obs, index) => (

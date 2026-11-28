@@ -49,6 +49,8 @@ export interface PaperLabRound {
   universeSize?: number;
   candidates?: string[];
   screenError?: string;
+  /** v3: market switch state when the round looked for entries. Off means no new entries. */
+  marketSwitch?: "on" | "off";
   observations?: PaperLabObservation[];
   /** Cash plus marked holdings after the review; null when a holding had no exit quote. */
   equityRaw: string | null;

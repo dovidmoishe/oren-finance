@@ -121,6 +121,7 @@ export function isQuietRound(round: PaperLabRound) {
   const observations = round.observations ?? [];
   return (
     !round.screenError &&
+    round.marketSwitch !== "off" &&
     observations.every((obs) => !obs.filled && !obs.research?.rationale && (obs.marketClosed || obs.repeatedBar))
   );
 }

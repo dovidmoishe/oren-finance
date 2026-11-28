@@ -177,6 +177,8 @@ test('v2 accounts are named, and the rules baseline is counted apart from the AI
   assert.ok(html.includes('1 AI agent and 1 rules baseline trading test USDC'));
   assert.ok(html.includes('Rules baseline journal'));
   assert.ok(html.includes('Trader 2'));
+  const off = { ...v2, accounts: [{ ...v2.accounts[0], rounds: [{ ...v2.accounts[0].rounds[0], marketSwitch: 'off' }] }] };
+  assert.ok(render({ report: off, selectedId: 'v2-rules' }).includes('Market switch off'));
 });
 
 test('each review outcome gets a plain label', () => {
