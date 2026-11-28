@@ -28,7 +28,9 @@ import {
   metrics,
   simulate,
   type BacktestAsset,
+  setupOutcome,
   type BacktestRun,
+  type SetupOutcome,
   type EquityPoint,
   type PendingReview,
 } from '../src/paper/backtest';
@@ -276,12 +278,19 @@ async function measureSpread(row: UniverseRow): Promise<number | null> {
   }
 }
 
-function reviewStore(model: string) {
-  const file = join(
+type SavedReviews = Record<
+  string,
+  PaperResearch & { asset: string; at: number }
+>;
+const reviewFile = (model: string) =>
+  join(
     CACHE,
     `reviews-${model.replace(/[^\w.-]/g, '_')}-${SETUP_REVIEW_VERSION}.json`,
   );
-  type Saved = Record<string, PaperResearch & { asset: string; at: number }>;
+
+function reviewStore(model: string) {
+  const file = reviewFile(model);
+  type Saved = SavedReviews;
   const saved: Saved = existsSync(file)
     ? (JSON.parse(readFileSync(file, 'utf8')) as Saved)
     : {};
@@ -300,6 +309,181 @@ const daily = (curve: EquityPoint[]) => {
   for (const p of curve) last.set(new Date(p.at).toISOString().slice(0, 10), p);
   return [...last.values()];
 };
+
+/** Seeded generator so the bootstrap intervals are reproducible. */
+function mulberry32(seed: number) {
+  return () => {
+    seed |= 0;
+    seed = (seed + 0x6d2b79f5) | 0;
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+interface ScoredSetup {
+  asset: string;
+  day: string;
+  approved: boolean;
+  rationale: string;
+  outcome: SetupOutcome;
+}
+
+const mean = (xs: number[]) =>
+  xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : NaN;
+
+function group(rows: ScoredSetup[]) {
+  const r = rows.map((x) => x.outcome.returnPct).sort((a, b) => a - b);
+  return {
+    n: r.length,
+    meanPct: mean(r),
+    medianPct: r.length ? r[Math.floor(r.length / 2)] : NaN,
+    winPct: r.length ? (100 * r.filter((x) => x > 0).length) / r.length : NaN,
+    /** Sum of outcomes on a 1,000 USDC entry each. */
+    pnlUsdc: r.reduce((a, b) => a + b * 10, 0),
+  };
+}
+
+/**
+ * Mean outcome of approved setups minus skipped setups, with a 95% interval
+ * from resampling whole trading days (setups on one day move together).
+ */
+function approvalEdge(rows: ScoredSetup[], draws = 4000) {
+  const diff = (xs: ScoredSetup[]) =>
+    mean(xs.filter((x) => x.approved).map((x) => x.outcome.returnPct)) -
+    mean(xs.filter((x) => !x.approved).map((x) => x.outcome.returnPct));
+  const days = new Map<string, ScoredSetup[]>();
+  for (const row of rows)
+    days.set(row.day, [...(days.get(row.day) ?? []), row]);
+  const clusters = [...days.values()];
+  const random = mulberry32(142);
+  const samples: number[] = [];
+  for (let i = 0; i < draws; i++) {
+    const sample: ScoredSetup[] = [];
+    for (let j = 0; j < clusters.length; j++)
+      sample.push(...clusters[Math.floor(random() * clusters.length)]);
+    const d = diff(sample);
+    if (Number.isFinite(d)) samples.push(d);
+  }
+  samples.sort((a, b) => a - b);
+  return {
+    diffPct: diff(rows),
+    low95: samples[Math.floor(0.025 * samples.length)],
+    high95: samples[Math.floor(0.975 * samples.length)],
+    /** Share of resamples where approved setups did better than skipped ones. */
+    probPositive: samples.filter((x) => x > 0).length / samples.length,
+    days: clusters.length,
+  };
+}
+
+/**
+ * Score every setup an AI reviewed (one decision per asset and trading day,
+ * the first review of that daily candle, as the live cohort reuses it) by
+ * what a lone 1,000 USDC trade from it earned under the same exits.
+ */
+function scoreReviews(assets: BacktestAsset[]) {
+  const policy = VARIANTS[option('variant', LIVE_VARIANT)];
+  const models = option('models', 'gpt-5.5,gpt-5-mini').split(',');
+  const byAsset = new Map(assets.map((a) => [a.asset, a]));
+  const day = (t: number) => new Date(t).toISOString().slice(0, 10);
+  const scored: Record<string, ScoredSetup[]> = {};
+  for (const model of models) {
+    const file = reviewFile(model);
+    if (!existsSync(file)) {
+      log(`no ${SETUP_REVIEW_VERSION} reviews cached for ${model}`);
+      continue;
+    }
+    const saved = JSON.parse(readFileSync(file, 'utf8')) as SavedReviews;
+    const seen = new Set<string>();
+    const rows: ScoredSetup[] = [];
+    for (const review of Object.values(saved).sort((a, b) => a.at - b.at)) {
+      const key = review.asset + '|' + day(review.at);
+      const asset = byAsset.get(review.asset);
+      if (seen.has(key) || !asset || review.at < from || review.at > to)
+        continue;
+      const outcome = setupOutcome(asset, review.at, policy, to);
+      if (!outcome) continue;
+      seen.add(key);
+      rows.push({
+        asset: review.asset,
+        day: day(review.at),
+        approved: (review.selected ?? 'cash') !== 'cash',
+        rationale: review.rationale,
+        outcome,
+      });
+    }
+    scored[model] = rows;
+  }
+  const pct = (v: number) =>
+    Number.isFinite(v) ? (v >= 0 ? '+' : '') + v.toFixed(2) + '%' : '—';
+  const summary: Record<string, unknown> = {};
+  for (const [model, rows] of Object.entries(scored)) {
+    const all = group(rows);
+    const approved = group(rows.filter((r) => r.approved));
+    const skipped = group(rows.filter((r) => !r.approved));
+    const edge = approvalEdge(rows);
+    summary[model] = { all, approved, skipped, edge };
+    console.log(`\n${model} · ${all.n} setups over ${edge.days} trading days`);
+    for (const [label, g] of [
+      ['every setup', all],
+      ['approved', approved],
+      ['skipped', skipped],
+    ] as const)
+      console.log(
+        `  ${label.padEnd(12)} n ${String(g.n).padStart(4)}  mean ${pct(g.meanPct).padStart(8)}  median ${pct(g.medianPct).padStart(8)}  win ${g.winPct.toFixed(0).padStart(3)}%  P&L ${g.pnlUsdc.toFixed(0).padStart(7)} USDC`,
+      );
+    console.log(
+      `  approved − skipped ${pct(edge.diffPct)} per setup, 95% interval ${pct(edge.low95)} to ${pct(edge.high95)}, better in ${(100 * edge.probPositive).toFixed(0)}% of resamples`,
+    );
+  }
+  const [a, b] = Object.keys(scored);
+  let agreement: Record<string, ReturnType<typeof group>> | null = null;
+  if (a && b) {
+    const other = new Map(scored[b].map((r) => [r.asset + '|' + r.day, r]));
+    const cells: Record<string, ScoredSetup[]> = {};
+    for (const row of scored[a]) {
+      const match = other.get(row.asset + '|' + row.day);
+      if (!match) continue;
+      const cell =
+        row.approved && match.approved
+          ? 'both take'
+          : !row.approved && !match.approved
+            ? 'both skip'
+            : row.approved
+              ? `${a} only`
+              : `${b} only`;
+      (cells[cell] ??= []).push(row);
+    }
+    agreement = Object.fromEntries(
+      Object.entries(cells).map(([k, v]) => [k, group(v)]),
+    );
+    console.log(`\nsetups both models reviewed`);
+    for (const [cell, g] of Object.entries(agreement))
+      console.log(
+        `  ${cell.padEnd(18)} n ${String(g.n).padStart(4)}  mean ${pct(g.meanPct).padStart(8)}  win ${g.winPct.toFixed(0)}%`,
+      );
+  }
+  const out = join(CACHE, 'review-scores.json');
+  writeFileSync(
+    out,
+    JSON.stringify(
+      {
+        policy: policy.version,
+        reviewVersion: SETUP_REVIEW_VERSION,
+        window: {
+          from: new Date(from).toISOString(),
+          to: new Date(to).toISOString(),
+        },
+        summary,
+        agreement,
+        setups: scored,
+      },
+      null,
+      2,
+    ),
+  );
+  console.log(`\nscores: ${out}`);
+}
 
 async function main() {
   const universe = await loadUniverse();
@@ -365,6 +549,11 @@ async function main() {
       .sort((a, b) => +a.timestamp - +b.timestamp),
   );
   log(`market index ${MARKET_INDEX_ASSET}: ${index.length} daily candles`);
+
+  if (flag('score-reviews')) {
+    scoreReviews(assets);
+    return;
+  }
 
   if (flag('variants')) {
     const windows = [

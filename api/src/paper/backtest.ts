@@ -202,6 +202,47 @@ function windows(
   }
 }
 
+type Exit = { at: number; price: number; reason: ExitReason };
+type Guarded = Pick<Holding, 'rule' | 'stop' | 'target' | 'decidedDaily'>;
+
+/**
+ * One hourly review of a holding at `at`: a fresh decision on new candles in
+ * the regular session (mandatory exit, else re-anchored stop and target),
+ * otherwise the stop and target checked against the latest hourly close.
+ * Exits fill at the next candle's open. Shared by the portfolio replay and
+ * single-setup scoring so both exit the same way.
+ */
+function holdingStep(
+  h: Guarded,
+  s: { hourly: Series; daily: Series },
+  at: number,
+  regular: boolean,
+  policy: SwingPolicy,
+): Exit | null {
+  const latest = s.hourly.latest();
+  const next = s.hourly.next();
+  if (!latest || !next) return null;
+  const fresh = +latest.timestamp + HOUR === at;
+  const bars = regular && fresh ? windows(s.hourly, s.daily, at) : null;
+  const dailyBar = bars?.daily.at(-1)!.time;
+  if (bars && (policy.timeframe === 'hourly' || dailyBar !== h.decidedDaily)) {
+    const signal = signalBars(policy, bars);
+    const analysis = analyze(bars.daily, signal, { entryRule: h.rule });
+    if (analysis.riskExit)
+      return { at: +next.timestamp, price: next.open, reason: 'riskExit' };
+    const levels = exitLevels(bars.daily, signal, h.rule);
+    h.stop = levels.stop;
+    h.target = levels.target;
+    h.decidedDaily = dailyBar;
+  } else if (fresh) {
+    if (latest.close < h.stop)
+      return { at: +next.timestamp, price: next.open, reason: 'stop' };
+    if (h.target !== undefined && latest.close >= h.target)
+      return { at: +next.timestamp, price: next.open, reason: 'target' };
+  }
+  return null;
+}
+
 /** Cache key for one AI review: the model and the exact evidence it saw. */
 export function reviewKey(model: string, evidence: SetupEvidence) {
   return createHash('sha256')
@@ -305,32 +346,8 @@ export function simulate(
 
     // Holdings first: deterministic exits, then the hourly stop and target guard.
     for (const h of [...holdings.values()]) {
-      const s = series.get(h.asset)!;
-      const latest = s.hourly.latest();
-      const next = s.hourly.next();
-      if (!latest || !next) continue;
-      const fresh = +latest.timestamp + HOUR === at;
-      const bars = regular && fresh ? windows(s.hourly, s.daily, at) : null;
-      const dailyBar = bars?.daily.at(-1)!.time;
-      if (
-        bars &&
-        (policy.timeframe === 'hourly' || dailyBar !== h.decidedDaily)
-      ) {
-        const signal = signalBars(policy, bars);
-        const analysis = analyze(bars.daily, signal, { entryRule: h.rule });
-        if (analysis.riskExit) {
-          close(h, +next.timestamp, next.open, 'riskExit');
-          continue;
-        }
-        const levels = exitLevels(bars.daily, signal, h.rule);
-        h.stop = levels.stop;
-        h.target = levels.target;
-        h.decidedDaily = dailyBar;
-      } else if (fresh) {
-        if (latest.close < h.stop) close(h, +next.timestamp, next.open, 'stop');
-        else if (h.target !== undefined && latest.close >= h.target)
-          close(h, +next.timestamp, next.open, 'target');
-      }
+      const exit = holdingStep(h, series.get(h.asset)!, at, regular, policy);
+      if (exit) close(h, exit.at, exit.price, exit.reason);
     }
 
     let equity = cash;
@@ -471,6 +488,96 @@ export function simulate(
       positions: 0,
     };
   return run;
+}
+
+export interface SetupOutcome {
+  asset: string;
+  /** Decision time of the review. */
+  at: number;
+  rule: EntryRule;
+  entryAt: number;
+  entryPrice: number;
+  exitAt: number;
+  exitPrice: number;
+  reason: ExitReason;
+  /** Net of the measured spread, the allowance and both fees, on a 1,000 USDC entry. */
+  returnPct: number;
+  holdHours: number;
+}
+
+/**
+ * What one setup would have earned on its own: a 1,000 USDC entry at the
+ * open after the decision, managed by the same exits as the portfolio
+ * replay, closed at the last candle before `to` if no exit came. Null when
+ * the asset was not signalling an entry at `at`. Used to score every setup
+ * an AI reviewed, independent of which other trades a portfolio held.
+ */
+export function setupOutcome(
+  asset: BacktestAsset,
+  at: number,
+  policy: SwingPolicy = SWING_POLICY,
+  to = Infinity,
+): SetupOutcome | null {
+  const s = {
+    hourly: new Series(asset.hourly, HOUR),
+    daily: new Series(asset.daily, DAY),
+  };
+  s.hourly.advance(at);
+  s.daily.advance(at);
+  const bars = windows(s.hourly, s.daily, at);
+  const next = s.hourly.next();
+  if (!bars || !next) return null;
+  const signal = signalBars(policy, bars);
+  const rule = analyze(bars.daily, signal, undefined, policy.rules)
+    .entryRules[0];
+  if (!rule) return null;
+  const levels = exitLevels(bars.daily, signal, rule);
+  const budget = 1_000_000_000n;
+  const bought = settle(
+    { cash: START.toString(), position: '0' },
+    'buy',
+    modeledTerms('buy', budget, next.open, asset.roundTripBps),
+    budget,
+  );
+  const quantity = BigInt(bought.book.position);
+  const cost = budget + FEE;
+  const h: Guarded = {
+    rule,
+    stop: levels.stop,
+    target: levels.target,
+    decidedDaily: bars.daily.at(-1)!.time,
+  };
+  let exit: Exit | null = null;
+  for (const bar of asset.hourly) {
+    const t = +bar.timestamp + HOUR;
+    if (t <= at) continue;
+    if (t > to) break;
+    s.hourly.advance(t);
+    s.daily.advance(t);
+    exit = holdingStep(h, s, t, usMarketSession(new Date(t)).regular, policy);
+    if (exit) break;
+  }
+  if (!exit) {
+    const last = s.hourly.latest()!;
+    exit = { at: +last.timestamp + HOUR, price: last.close, reason: 'end' };
+  }
+  const sold = settle(
+    { cash: '0', position: quantity.toString() },
+    'sell',
+    modeledTerms('sell', quantity, exit.price, asset.roundTripBps),
+  );
+  return {
+    asset: asset.asset,
+    at,
+    rule,
+    entryAt: +next.timestamp,
+    entryPrice: next.open,
+    exitAt: exit.at,
+    exitPrice: exit.price,
+    reason: exit.reason,
+    returnPct: 100 * (Number(sold.book.cash) / Number(cost) - 1),
+    holdHours: (exit.at - +next.timestamp) / HOUR,
+  };
 }
 
 /** Equal-weight buy and hold of every asset at the first regular-session decision, marked with the same costs. */

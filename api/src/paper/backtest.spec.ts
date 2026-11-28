@@ -5,6 +5,7 @@ import {
   decisionTimes,
   metrics,
   modeledTerms,
+  setupOutcome,
   simulate,
   type BacktestAsset,
 } from './backtest';
@@ -184,6 +185,30 @@ describe('backtest replay', () => {
       rules.trades,
     );
     expect(agrees.pending).toEqual([]);
+  });
+
+  it('scores a single setup exactly as the portfolio replay trades it', () => {
+    const one = [asset('trend', trend)];
+    const run = simulate(one, { from, to, arm: 'rules' });
+    const first = run.trades[0];
+    const outcome = setupOutcome(
+      one[0],
+      Date.parse(first.entryAt),
+      undefined,
+      to,
+    )!;
+    expect(outcome).toMatchObject({
+      entryAt: Date.parse(first.entryAt),
+      entryPrice: first.entryPrice,
+      exitAt: Date.parse(first.exitAt),
+      exitPrice: first.exitPrice,
+      reason: first.reason,
+      rule: first.rule,
+    });
+    expect(outcome.returnPct).toBeCloseTo(first.returnPct, 6);
+    // No setup when the asset is not signalling an entry.
+    const quiet = asset('flat', () => 100);
+    expect(setupOutcome(quiet, Date.parse('2026-10-01T15:00:00Z'))).toBeNull();
   });
 
   it('summarizes returns, drawdown, win rate and exits', () => {
